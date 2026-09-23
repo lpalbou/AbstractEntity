@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# Agent harness and local tooling
+#
+# This repository is worked on with coding agents, and their configuration
+# embeds absolute local paths, hook commands, seat identities and API-key
+# slots. None of it belongs in a public repository.
+# ---------------------------------------------------------------------------
+.claude/
+.codex/
+.cursor/
+.agora/
+.abstractcode/
+.mcp.json
+CLAUDE.md
+AGENTS.md
+SELFCHECK.md
+PR.md
+abstractcode-export-*.md
+
+# Local scratch space and virtual environments
+untracked/
+.venv/
+
+# Build output and dependencies
+node_modules/
+dist/
+.vite/
+*.tgz
+
+# OS / tooling noise
+*.log
+.DS_Store
+__pycache__/
+*.pyc

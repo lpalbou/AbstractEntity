@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- AbstractEntity mark (2026-07-13 branding): a living mind — the open
+       boundary of a mind, the identity spark at its heart, and memory nodes
+       growing from it. Replaces the observer-era planet mark (that one
+       belongs to abstractobserver). -->
+  <rect width="256" height="256" rx="56" fill="#0b1220" />
+
+  <!-- subtle stars, kept from the family style -->
+  <circle cx="56" cy="72" r="2" fill="#ffffff" opacity="0.22" />
+  <circle cx="208" cy="64" r="2" fill="#ffffff" opacity="0.18" />
+  <circle cx="196" cy="188" r="2" fill="#ffffff" opacity="0.16" />
+  <circle cx="70" cy="196" r="2" fill="#ffffff" opacity="0.18" />
+
+  <!-- the mind's boundary: open, not sealed (a life keeps growing) -->
+  <circle
+    cx="128"
+    cy="128"
+    r="86"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="12"
+    stroke-linecap="round"
+    stroke-dasharray="400 140"
+    stroke-dashoffset="-60"
+    opacity="0.6"
+  />
+
+  <!-- memory edges from the spark -->
+  <g stroke="#60a5fa" stroke-width="8" opacity="0.6">
+    <line x1="128" y1="128" x2="90" y2="94" />
+    <line x1="128" y1="128" x2="172" y2="104" />
+    <line x1="128" y1="128" x2="112" y2="172" />
+  </g>
+
+  <!-- memory nodes -->
+  <circle cx="90" cy="94" r="16" fill="#60a5fa" />
+  <circle cx="172" cy="104" r="16" fill="#a78bfa" />
+  <circle cx="112" cy="172" r="16" fill="#f59e0b" />
+
+  <!-- the identity spark at the heart -->
+  <path
+    d="M128 96 L139 117 L160 128 L139 139 L128 160 L117 139 L96 128 L117 117 Z"
+    fill="#e94560"
+  />
+</svg>

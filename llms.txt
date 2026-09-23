@@ -1,0 +1,31 @@
+# AbstractEntity
+
+> The summoned-entity app for AbstractFramework: create entities, watch a mind's memory graph live (replay/scrub/tail), read what it kept (diary, mood, on-disk health), and talk with it (visits, meets). A thin React client with no server state — every view is a pure function of the gateway's HTTP endpoints and the memory engine's frozen replay-stream format.
+
+Key facts for a reader:
+- Thin client: static SPA served by `bin/cli.js` with the shared app-origin gateway session proxy (`@abstractframework/app-server`, appId `abstractentity`). No server state of its own.
+- State-at-T is a pure fold of the replay stream; replay, live tail, and time-scrub are one code path.
+- Honesty is load-bearing and test-pinned: diary redaction is never reconstructed, tool claims render from attributes/host-events not prose, embedding spaces are never crossed silently, a malformed line never bricks the view, unknown facts are labeled not invented.
+- The "(a) entity orchestration" lanes (homes, gate, visit workflows, phases, sleep/dream, skills) live in gateway/runtime/memory and are consumed over HTTP; they migrate here only by their owners' rulings (entity-topology consensus plan).
+
+## Documentation
+
+- [README](README.md): quick start, environment, auth, the surfaces table.
+- [Overview](docs/Overview.md): goals, the challenge, core components, honesty invariants.
+- [Data flow](docs/DataFlow.md): transport/auth, the replay-stream fold, per-surface flow, the cognition-wave pipeline.
+- [Architecture](docs/architecture.md): the two halves, `src/` module map, load-bearing invariants, serving.
+- [Changelog](CHANGELOG.md): shipped waves.
+
+## Surfaces
+
+- Memory graph: the mind as a live force-directed graph; lenses, warmth, scrub/replay/tail (`src/graph_canvas.tsx`, `stream_fold.ts`).
+- Detail (inspector): one record — verbatim, feelings, associations, closure (`src/inspector.tsx`, `verbatim_modal.tsx`).
+- Book: the diary as a day-grouped chronological journal; sealed entries stay sealed (`src/book_reader.tsx`, `book_reader_select.ts`).
+- Lessons: what the entity has learned (`kind=lesson`) as a reading list (`src/lessons_world_panels.tsx`).
+- World: the entity's orientation cards (`kind=world_model`) — one brief card per encountered entity, superseded cards kept visible (`src/lessons_world_panels.tsx`).
+- Health: one explained stat grid + retrieval concentration, forgetting, kind mix, on-disk footprint (`src/health_panel.tsx`, `health_metrics.ts`; gateway `/footprint`).
+- Wave: uic's cognition-wave with per-turn request/answer and a timeline-driven replay transport — the expressive character of the entity's words, never inner state (`src/cognition_wave_panel.tsx`, `utterance_harvest.ts`, `cognition_adapter.ts`, `src/vendor/cognition/`).
+- Ledger: the continuous life ledger (`src/ledger_panel.tsx`, `ledger_lines.ts`).
+- Meet console: convene two entities into one conversation; steer, watch both legs, read after (`src/meet_console.tsx`, `meet_reader.tsx`; gateway `/meets`).
+- Visits: chat with cycle visibility, a per-turn inline cognition wave, and the ⚙ Settings modal (🧠 mind substrate, files, mounts, per-phase tools, prompt) (`src/chat_drawer.tsx`, `cognition_wave_inline.tsx`, `workspace_panel.tsx`).
+- Fleet + auth: roster, watch-all wall, shared session sign-in (`src/entities_index.tsx`, `fleet_view.tsx`, `connect_gateway_modal.tsx`).

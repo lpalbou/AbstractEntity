@@ -1,0 +1,5456 @@
+/* Entity memory view — dark, calm, the graph is the protagonist.
+ *
+ * THEME COMPLIANCE (operator 2026-07-15 (b)): the app's local tokens now
+ * ALIAS the shared abstractuic theme tokens (applyTheme / AfAppearanceDialog
+ * cascade to the whole app), with the observer-night values as fallbacks so
+ * a bare load still renders. The entity-semantic colours (identity/memory/
+ * diary/standing) come from the kit's --entity-* tokens, which every
+ * registered theme defines — so switching theme recolours the graph, the
+ * panels, and the phase radio together, no per-app fork. */
+
+:root {
+  --bg: var(--bg-primary, #0b0f14);
+  --bg-panel: var(--bg-secondary, #10161e);
+  --bg-raise: var(--bg-tertiary, #161e28);
+  --line: var(--border-default, #1f2937);
+  --text: var(--text-primary, #d7dee8);
+  --text-dim: var(--text-secondary, #8593a5);
+  --ea-accent: var(--entity-accent, #e8a54a);
+  --identity: var(--entity-identity, #e7b45a);
+  --memory: var(--entity-memory, #6ea8d8);
+  --diary: var(--entity-diary, #7bc98c);
+  --standing: var(--entity-standing, #c084dd);
+  --scar: var(--entity-scar, #e05555);
+  --bond: var(--entity-bond, #f0c060);
+  --adm-self: var(--entity-identity, #f0c060);
+  --adm-stm: var(--entity-standing, #a58fe0);
+  --adm-stimulus: var(--entity-memory, #59c2d8);
+  --adm-both: var(--entity-diary, #6fd8b0);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  /* Honor the shared type system (operator 2026-07-15 (b)): the kit's sans
+   * stack + scale-aware base size, so the Appearance "Font size" control
+   * actually resizes the app text, not just kit chrome. */
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: var(--font-size-md, 13px);
+}
+
+.entity_app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------- header */
+
+.entity_header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.eh_brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The brand mark replaced the anonymous glowing dot (operator branding
+ * directive 2026-07-13: every app carries a function-expressive logo). */
+.eh_mark {
+  display: block;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ea-accent) 45%, transparent));
+}
+
+.eh_brand h1 {
+  font-size: calc(14px * var(--font-scale, 1));
+  font-weight: 600;
+  margin: 0;
+}
+
+/* B3: the working/credits pair — working pulses (cognition live), the
+ * credits meter is calm mono (a number to glance at, not an alarm). */
+.eh_working {
+  color: var(--diary);
+  font-size: calc(11px * var(--font-scale, 1));
+  font-weight: 600;
+  animation: eh_working_pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes eh_working_pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.eh_credits {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.eh_source {
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- header actions cluster (operator 2026-07-15 (h)(i)) ---------------
+ * Right side of the header: the prominent Entities button + the SHARED
+ * AfTopBarActions cluster (assistant · appearance · connect/disconnect).
+ * The stats + Observer link that used to crowd here are gone. */
+.eh_actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+/* Prominent home/entities button — the operator flagged the old ⌂ as
+ * invisible; this is a clear labelled control. */
+.eh_home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--ea-accent) 45%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ea-accent) 12%, transparent);
+  color: var(--ea-accent);
+  font-size: calc(12px * var(--font-scale, 1));
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.eh_home:hover {
+  background: color-mix(in srgb, var(--ea-accent) 20%, transparent);
+  border-color: var(--ea-accent);
+}
+
+/* Content gate: a gateway life is invisible until the browser is verified. */
+.entity_locked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 24px;
+}
+
+.entity_locked_card {
+  max-width: 460px;
+  text-align: center;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 28px 26px;
+}
+
+.entity_locked_card h2 {
+  font-size: calc(17px * var(--font-scale, 1));
+  margin: 0 0 10px;
+}
+
+.entity_locked_card p {
+  font-size: calc(13px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+/* Authenticated identity in the header (mechanism never displayed). */
+.eh_identity {
+  color: var(--diary);
+  font-size: calc(11px * var(--font-scale, 1));
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  white-space: nowrap;
+}
+
+/* The drawer's derived visiting identity (read-only — never typed). */
+.cd_identity {
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin: 0 0 6px;
+}
+
+.cd_identity strong {
+  color: var(--diary);
+  font-weight: 600;
+}
+
+/* GW-F handle (castor@address): reachability chip; click copies the
+ * handle to the clipboard (operator ask 2026-07-15, dm#8). */
+.eh_handle {
+  color: var(--text-dim);
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(11px * var(--font-scale, 1));
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.eh_handle:hover {
+  color: var(--text-primary);
+  border-color: var(--text-dim);
+}
+
+.eh_handle_copied {
+  color: var(--entity-accent, #e8a54a);
+  border-color: var(--entity-accent, #e8a54a);
+}
+
+.eh_reconnect {
+  color: var(--scar);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+/* ---- inline cognition wave (chat tab, operator 2026-07-15) ------------
+ * Persistent + discreet: a small bloom above the thread that refreshes each
+ * turn. The full Wave tab keeps the corpus read; this is the per-turn one. */
+/* ---- THE COGNITIVE MONITOR (chat tab): a proper foldable panel —
+ * title + mood dot + (i), interpretation sentence, bloom with DOM axis
+ * codes, axis list right (operator 2026-07-15 pm). */
+.cm_panel {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--standing) 5%, transparent);
+  padding: 6px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cm_panel_folded {
+  padding-bottom: 6px;
+}
+.cm_head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cm_fold {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+  padding: 0 2px;
+}
+.cm_fold:hover {
+  color: var(--text);
+}
+.cm_title {
+  font-size: calc(12px * var(--font-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.cm_mood_dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px color-mix(in srgb, currentColor 40%, transparent);
+}
+.cm_mood_neutral {
+  background: var(--text-dim);
+  opacity: 0.5;
+}
+.cm_info {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: calc(13px * var(--font-scale, 1));
+  padding: 0;
+  line-height: 1;
+}
+.cm_info:hover {
+  color: var(--ea-accent);
+}
+.cm_subtitle {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cm_asof {
+  margin-left: auto;
+  font-size: calc(10px * var(--font-scale, 1));
+  color: color-mix(in srgb, var(--bond) 75%, var(--text));
+  white-space: nowrap;
+}
+.cm_reading {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+  white-space: nowrap;
+}
+.cm_err {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: color-mix(in srgb, var(--scar) 60%, var(--text));
+}
+/* COMPACT two-slot row (operator 2026-07-15 23:41: "terrible usage of
+ * vertical space"; 23:50: "2 side-by-side") — interpretation sentence,
+ * right-hand legend and the effort fact-card are all GONE; the row holds
+ * (a) the mood bloom and (b) the focus & effort widget side by side. */
+.cm_body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+}
+.cm_canvas_box {
+  position: relative;
+}
+/* The bloom's honest quiet/faint caption (2026-08-01: a gate-quiet bloom
+ * was pixel-identical to a broken one — the abstention is now SAID; hover
+ * carries the live evidence numbers). */
+.cm_quiet {
+  margin-top: 2px;
+  text-align: center;
+  font-size: calc(9px * var(--font-scale, 1));
+  font-style: italic;
+  color: var(--text-dim);
+  cursor: help;
+}
+
+/* Slot (b) is uic's AfConductGauge (kit-styled); the interim app widget
+ * and its em_* styles are retired (swap contract, commons#2474). */
+
+/* The gauge's INTERACTIVE code row (operator dm#22 (a)-(c)): ours, spread
+ * across the full width, 20% smaller than the bloom codes, hover+click.
+ * The canvas draws no labels (labels:false, uic bloom parity). Since
+ * 2026-08-01 each code stacks its LIVE compact value beneath it, so the
+ * row sits in FLOW under the canvas (an overlay two lines tall would
+ * cover the figure's roots and buds). */
+.cm_gauge_box {
+  position: relative;
+}
+.cm_gauge_codes {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+  margin-top: 2px;
+}
+.cm_gauge_code {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  /* 20% smaller than the bloom's 10px overlay codes (dm#22 (c)). */
+  font-size: calc(8px * var(--font-scale, 1));
+  letter-spacing: 0.4px;
+  opacity: 0.9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.cm_gauge_code:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+/* The live compact value under each code (the kit's `short`): dim, so the
+ * colored code stays the anchor and the number reads as its annotation. */
+.cm_gauge_val {
+  font-size: calc(8px * var(--font-scale, 1));
+  color: var(--text-dim);
+  letter-spacing: 0;
+  min-height: calc(9px * var(--font-scale, 1));
+}
+
+/* Inline verbatim in the Detail tab (dm#28: the words, no button). */
+.ei_verbatim_inline {
+  margin: 6px 0 8px;
+}
+.ei_verbatim_note {
+  margin: 0 0 4px;
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-style: italic;
+  line-height: 1.45;
+}
+.ei_verbatim_text {
+  margin: 0;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.55;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.cm_overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.cm_overlay_code {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  background: none;
+  border: none;
+  /* pointer on BOTH widgets' codes (operator dm#26: "the mouse must be
+   * consistent on the names") — both open the axis modal on click. */
+  cursor: pointer;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(10px * var(--font-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  padding: 1px 2px;
+}
+.cm_overlay_code:hover {
+  opacity: 1;
+  text-shadow: 0 0 8px currentColor;
+}
+.cm_axes {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+.cm_axis_row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: help;
+  padding: 1px 4px;
+  text-align: left;
+}
+.cm_axis_row:hover .cm_axis_name {
+  color: var(--text);
+}
+.cm_axis_code {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(10px * var(--font-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  width: 30px;
+}
+.cm_axis_name {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.cm_axis_desc {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+/* ---- the (i) modal: what the monitor is + per-axis detail. */
+.cm_modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  width: min(560px, 92vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+.cm_modal_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.cm_modal_title {
+  font-weight: 600;
+  font-size: calc(13px * var(--font-scale, 1));
+  color: var(--text);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.cm_modal_close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: calc(13px * var(--font-scale, 1));
+}
+.cm_modal_close:hover {
+  color: var(--text);
+}
+.cm_modal_body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.55;
+  color: var(--text);
+}
+.cm_modal_body p {
+  margin: 0 0 10px;
+}
+.cm_modal_axes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.cm_modal_axes_head {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+.cm_modal_axis {
+  display: grid;
+  grid-template-columns: 34px 82px 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+.cm_modal_note {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* One message group in the thread (context fold + card + badge). */
+.cd_msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ---- @handle mention affordance: bring another entity into a meet. */
+.cd_mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+.cd_mention_btn {
+  background: color-mix(in srgb, var(--ea-accent) 14%, var(--bg-raise));
+  border: 1px solid color-mix(in srgb, var(--ea-accent) 45%, transparent);
+  color: var(--ea-accent);
+  border-radius: 14px;
+  padding: 3px 12px;
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.cd_mention_btn:hover {
+  background: color-mix(in srgb, var(--ea-accent) 22%, var(--bg-raise));
+}
+.cd_mentions_note {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ---- the observable close: spinner + the reflection's acts, live. */
+.cd_closing {
+  border: 1px solid color-mix(in srgb, var(--standing) 40%, transparent);
+  background: color-mix(in srgb, var(--standing) 7%, transparent);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd_closing_head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  color: var(--text);
+}
+.cd_closing_spin {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--standing) 35%, transparent);
+  border-top-color: var(--standing);
+  animation: cd_spin 0.9s linear infinite;
+}
+@keyframes cd_spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd_closing_spin { animation: none; }
+}
+.cd_closing_lines {
+  margin: 0;
+  padding-left: 18px;
+  font-size: calc(11px * var(--font-scale, 1));
+  line-height: 1.55;
+  color: var(--text);
+  max-height: 160px;
+  overflow-y: auto;
+}
+.cd_closing_detail {
+  color: var(--text-dim);
+}
+.cd_closing_hint {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* The settling window (gateway composite c1469): a transition is landing —
+ * calm amber, never an alarm. */
+.eh_settling {
+  color: color-mix(in srgb, var(--bond) 75%, var(--text));
+  font-size: calc(11px * var(--font-scale, 1));
+  animation: eh_working_pulse 1.6s ease-in-out infinite;
+}
+
+.eh_liveage {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.eh_state {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+
+
+
+
+
+
+.eh_liveage_quiet {
+  color: var(--bond);
+}
+
+.el_window_note {
+  padding: 6px 12px;
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-style: italic;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Honest-emptiness notes are clickable (they toggle the audit filter). */
+.el_quiet_note {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  font-family: inherit;
+}
+/* Live-follow pill (B3): floats at the list's tail when the reader has
+ * scrolled up while lines keep landing. */
+.el_follow_pill {
+  position: sticky;
+  bottom: 4px;
+  z-index: 2;
+}
+
+.el_quiet_note:hover {
+  color: var(--text);
+}
+
+.eh_search {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: calc(12px * var(--font-scale, 1));
+  width: 170px;
+}
+
+.eh_search:focus {
+  border-color: var(--ea-accent);
+  outline: none;
+}
+
+.eh_search_count {
+  color: var(--ea-accent);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+.entity_controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-panel);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+/* Entry-disabled positions (visit/work have no button-entry; sleep during
+ * a visit): the kit's 0.55 dim read as "broken" beside gold cards — keep
+ * them clearly quieter than live buttons but legible (aesthetics review). */
+.ec_phase_radio .af-phase-radio__btn:disabled:not(.af-phase-radio__btn--on) {
+  opacity: 0.7;
+}
+
+/* .ec_idle_hint RETIRED (adversary-A find 10): the settling word has one
+ * owner — the header chip ("sleep (settling)" + tooltip). The radio-side
+ * duplicate token was the said-it-twice class. */
+
+/* The now line: the current cause in the machine's own words, beside the
+ * radio (observability ruling 2026-07-15 — never tooltip-only). */
+.ec_nowline {
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-style: italic;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The kill switch stands APART from the phase radio (IA review P2: at an
+ * equal flex gap it read as a fifth radio segment). */
+.ec_stop_btn {
+  margin-left: 10px;
+}
+
+/* Settings gear (operator 2026-07-15 (d)): the old "workspace" button,
+ * now clearly a settings entry with an icon; pushed slightly apart from
+ * the phase radio + stop so the phases read as the primary control. */
+.ec_settings_btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+/* The shared drawer opens over the app's densest text rail — the kit's
+ * 88%-translucent --bg-card let ledger rows ghost through (both review
+ * lanes flagged it). Locally opaque; kit-side fix is uic's call. */
+.af-drawer {
+  background: var(--bg-panel);
+}
+
+/* ---- phase radio: the ACTIVE phase is UNMISTAKABLY GOLD (operator
+ * 2026-07-15 (c): "use gold for the envelope and text ... plus blooming").
+ * The kit's --on rule tints per-phase (visit blue / work green / sleep
+ * violet / personal gold); the operator wants the ACTIVE phase — whichever
+ * it is — to read as gold + bright + blooming. So the wrapper OVERRIDES the
+ * pushed state to a filled gold envelope with gold text and a slow bloom,
+ * and — critically — keeps it at full opacity even when the slot is
+ * `disabled` (visit/work have no click-entry but are still the current
+ * phase; the kit dims disabled to 0.55, which washed out the very state
+ * that must shout). The per-phase hue survives on the small dot only. */
+.ec_phase_radio .af-phase-radio__btn--on {
+  color: var(--entity-accent) !important;
+  border-color: var(--entity-accent) !important;
+  background: color-mix(in srgb, var(--entity-accent) 26%, var(--bg-card)) !important;
+  font-weight: 700;
+  opacity: 1 !important; /* current phase never dims, even if entry-disabled */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--entity-accent) 60%, transparent),
+    0 0 14px color-mix(in srgb, var(--entity-accent) 45%, transparent);
+  animation: ec_phase_bloom 2.4s ease-in-out infinite;
+}
+.ec_phase_radio .af-phase-radio__btn--on:disabled {
+  cursor: default;
+}
+@keyframes ec_phase_bloom {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--entity-accent) 55%, transparent),
+      0 0 8px color-mix(in srgb, var(--entity-accent) 32%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--entity-accent) 80%, transparent),
+      0 0 20px color-mix(in srgb, var(--entity-accent) 60%, transparent);
+  }
+}
+/* An alive-but-ungranted personal loop is the ALARM — it must read RED, not
+ * gold. Override back to the scar colour, faster pulse (danger, not calm). */
+.ec_phase_radio .af-phase-radio__btn--alarm {
+  color: var(--entity-scar) !important;
+  border-color: var(--entity-scar) !important;
+  background: color-mix(in srgb, var(--entity-scar) 20%, var(--bg-card)) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--entity-scar) 60%, transparent),
+    0 0 14px color-mix(in srgb, var(--entity-scar) 50%, transparent);
+  animation: ec_phase_alarm 1s ease-in-out infinite;
+}
+@keyframes ec_phase_alarm {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--entity-scar) 55%, transparent), 0 0 8px color-mix(in srgb, var(--entity-scar) 35%, transparent); }
+  50% { box-shadow: 0 0 0 1px var(--entity-scar), 0 0 18px color-mix(in srgb, var(--entity-scar) 65%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec_phase_radio .af-phase-radio__btn--on,
+  .ec_phase_radio .af-phase-radio__btn--alarm {
+    animation: none;
+  }
+}
+
+.ec_btn {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+  /* The controls row is one state-machine surface: buttons match the
+   * kit's mono phase pills instead of mixing sans into the same row. */
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.ec_btn:not(:disabled):hover {
+  border-color: var(--ea-accent);
+}
+
+.ec_btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ec_token {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+  width: 130px;
+}
+
+/* Day-cause line (drives build, runtime seq 269): quiet green-family for
+ * arisen days; the degrade kind rides ec_warn instead. */
+.ec_daycause { color: var(--ok, #7bc98c); opacity: 0.85; }
+
+.ec_note {
+  color: var(--bond);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+.ei_feelings {
+  margin-top: 8px;
+}
+
+.ei_feeling_list {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.ei_feeling_row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+
+.ei_feeling_sign {
+  flex: 0 0 44px;
+  font-weight: 700;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.ei_feeling_pos {
+  color: var(--bond);
+}
+
+.ei_feeling_neg {
+  color: var(--scar);
+}
+
+.ei_feeling_body {
+  min-width: 0;
+}
+
+.ei_feeling_when {
+  display: block;
+  color: var(--text-dim);
+  font-size: calc(10px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.ev_note {
+  background: color-mix(in srgb, var(--bond) 8%, transparent);
+  border-left: 2px solid var(--bond);
+  padding: 7px 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  color: var(--text-dim);
+  font-size: calc(11.5px * var(--font-scale, 1));
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------- chat drawer */
+
+.chat_drawer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+}
+
+.cd_start {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 4px;
+}
+
+.cd_participant {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.cd_open_btn {
+  background: var(--bg-raise);
+  border: 1px solid var(--ea-accent);
+  color: var(--ea-accent);
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: calc(12.5px * var(--font-scale, 1));
+}
+
+.cd_open_btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cd_note {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+  font-style: italic;
+  margin: 4px 0;
+}
+
+.cd_thread {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+.cd_close_btn {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+.cd_close_btn:hover {
+  border-color: var(--scar);
+  color: var(--scar);
+}
+
+/* Thinking cue: shimmering lines (the maintainer's ask) — skeleton bars
+   with a traveling highlight while the turn runs. */
+.cd_thinking {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.cd_shimmer {
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--bg-raise) 25%, color-mix(in srgb, var(--ea-accent) 35%, transparent) 50%, var(--bg-raise) 75%);
+  background-size: 200% 100%;
+  animation: cd_shimmer_slide 1.4s ease-in-out infinite;
+  width: 82%;
+}
+
+/* (cd_shimmer_2/_3 retired 2026-08-01 — the skeleton grew meaning; see
+ * .cd_pulse below. The base .cd_shimmer stays: it is the pulse rows'
+ * honest waiting state.) */
+
+@keyframes cd_shimmer_slide {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd_shimmer {
+    animation: none;
+    background: var(--bg-raise);
+  }
+}
+
+/* THE PULSE BARS (operator 2026-08-01): the thinking skeleton grew meaning —
+ * three labeled live reads (turns / recall / ~tokens) in the conduct
+ * gauge's palette. A row without its signal yet keeps the shimmer
+ * (absent-not-zero); numbers ride right, monospace like the code rows. */
+.cd_pulse {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd_pulse_row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 12px;
+}
+.cd_pulse_label {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(9px * var(--font-scale, 1));
+  letter-spacing: 0.4px;
+  width: 52px;
+  flex: none;
+  text-align: right;
+  opacity: 0.9;
+}
+.cd_pulse_bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-raise);
+  overflow: hidden;
+  min-width: 0;
+}
+/* The waiting state reuses the shimmer INSIDE the bar track. Same-
+ * specificity cascade order put .cd_pulse_bar's flat background AFTER
+ * .cd_shimmer's gradient (pulse adversary F3: the animation ran on a flat
+ * color — invisible, so "waiting" looked exactly like an honest 0%).
+ * Restate the gradient on the compound selector; width comes from flex. */
+.cd_pulse_bar.cd_shimmer {
+  background: linear-gradient(90deg, var(--bg-raise) 25%, color-mix(in srgb, var(--ea-accent) 35%, transparent) 50%, var(--bg-raise) 75%);
+  background-size: 200% 100%;
+}
+.cd_pulse_fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  opacity: 0.75;
+  transition: width 0.6s ease;
+}
+.cd_pulse_pips {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.cd_pulse_pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #5eead4 75%, transparent);
+  flex: none;
+}
+.cd_pulse_pip_live {
+  animation: cd_pulse_breathe 1.4s ease-in-out infinite;
+}
+@keyframes cd_pulse_breathe {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.35); opacity: 1; }
+}
+.cd_pulse_more {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(9px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.cd_pulse_val {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(9.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  flex: none;
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd_pulse_pip_live {
+    animation: none;
+    opacity: 1;
+  }
+  .cd_pulse_fill {
+    transition: none;
+  }
+}
+
+.cd_activity {
+  color: var(--adm-stimulus);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.cd_substrate_toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  text-align: left;
+  padding: 0 2px;
+}
+
+.cd_substrate_toggle:hover {
+  color: var(--text);
+}
+
+.cd_substrate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* --------------------------------------------------------- identity card */
+
+.ic_panel {
+  width: min(680px, 92vw);
+}
+
+/* Inside the right rail the card takes the RAIL's width — its modal width
+ * (680px) overflowed a narrower panel and the whole tab scrolled
+ * horizontally (operator 2026-07-15: "the right panel must NOT be
+ * scrollable horizontally"). */
+.st_panel .ic_panel {
+  width: 100%;
+  min-width: 0;
+}
+
+.st_panel .ic_body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px;
+}
+
+.ic_two_col > * {
+  min-width: 0;
+}
+
+.ic_body {
+  font-size: calc(12.5px * var(--font-scale, 1));
+}
+
+.ic_header_row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.ic_name {
+  font-size: calc(20px * var(--font-scale, 1));
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.ic_id {
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.ic_facts {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--text-dim);
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+
+.ic_section {
+  margin: 12px 0;
+}
+
+.ic_section h4 {
+  margin: 0 0 6px;
+  font-size: calc(11px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--identity);
+}
+
+.ic_value {
+  margin: 6px 0;
+}
+
+.ic_value_name {
+  display: block;
+  font-weight: 600;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ic_core {
+  color: var(--identity);
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ic_statement {
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.45;
+}
+
+.ic_two_col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 18px;
+}
+
+.ic_feeling_block {
+  padding: 3px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+}
+
+.ic_feeling {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+}
+
+.ic_feeling_icon {
+  flex: 0 0 auto;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ic_feeling_reason {
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-style: italic;
+  padding-left: 26px;
+  line-height: 1.35;
+}
+
+.ic_moment_icon {
+  margin-right: 3px;
+}
+
+.ic_feeling_target {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ic_feeling_net {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-weight: 700;
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+
+.ic_mark {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.ic_mark_bond {
+  border: 1px dashed var(--bond);
+  color: var(--bond);
+}
+
+.ic_mark_scar {
+  border: 1px dashed var(--scar);
+  color: var(--scar);
+}
+
+.ic_window_note,
+.ic_footer_note {
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-style: italic;
+}
+
+.ic_line {
+  padding: 3px 0;
+  line-height: 1.4;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+}
+
+.ic_resolved {
+  color: var(--diary);
+}
+
+.ic_moment .ei_feeling_when {
+  display: inline;
+  margin-left: 8px;
+}
+
+.ic_ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--text-dim);
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+
+.eh_stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.eh_connect {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.eh_connect:hover {
+  border-color: var(--ea-accent);
+}
+
+/* ------------------------------------------------------------ connect */
+
+.entity_connect {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.entity_connect input {
+  flex: 1;
+  min-width: 280px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.entity_connect button {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.entity_connect button:hover {
+  border-color: var(--ea-accent);
+}
+
+.ec_entity {
+  color: var(--ea-accent);
+}
+
+.ec_hint {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+.entity_error {
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--scar) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--scar) 40%, transparent);
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+/* --------------------------------------------------------------- main */
+
+.entity_main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.entity_canvas_wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+.entity_graph_canvas {
+  /* Theme-following (operator 2026-07-15 (b)): a subtle vignette derived
+   * from the theme bg, not a hardcoded dark island — so a light theme gets
+   * a light canvas. */
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--bg) 88%, #000) 0%, var(--bg) 75%);
+}
+
+.gc_motion_controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.gc_btn {
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.2;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The word beside the glyph (operator: bare emoji were mystery meat). */
+.gc_btn_word {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.gc_btn_on .gc_btn_word {
+  color: inherit;
+}
+
+.gc_btn:hover {
+  border-color: var(--ea-accent);
+}
+
+.gc_btn_on {
+  border-color: var(--adm-stimulus);
+}
+
+.entity_legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  max-width: calc(100% - 200px);
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.lg::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.lg_identity::before {
+  background: var(--identity);
+}
+
+.lg_memory::before {
+  background: var(--memory);
+}
+
+.lg_diary::before {
+  background: var(--diary);
+}
+
+.lg_standing::before {
+  background: var(--standing);
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.lg_scar::before {
+  background: transparent;
+  border: 1.5px dashed var(--scar);
+}
+
+.lg_bond::before {
+  background: transparent;
+  border: 1.5px dashed var(--bond);
+}
+
+.lg_sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+}
+
+/* Dynamic kind chips (lesson / world / dream / …): inline dot carries the
+ * canvas kind color (extended kinds are theme-constant mid-tones). */
+.lg_kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.lg_kdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.lg_edge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lg_edge svg {
+  flex: 0 0 auto;
+}
+
+/* Wall-clock staleness cue beside the warmth legend: activation decays by
+   activity, so a stopped life keeps its last recall green — this chip says
+   how old that green actually is (measured incident: 43h-frozen journal
+   still rendered a warm head). */
+.lg_stale {
+  color: #9db4d0;
+  font-weight: 600;
+}
+
+/* ------------------------------------- side rail (vertical tabs) ----- */
+/* The blackpixel reference: a narrow rail of VERTICAL-text tabs on the
+   panel's canvas-facing edge; one panel at a time; clicking the active
+   tab collapses to the bare rail. */
+
+.side_tabs {
+  display: flex;
+  flex-direction: row;
+  border-left: 1px solid var(--line);
+  background: var(--bg-panel);
+  min-height: 0;
+  width: 380px;
+}
+
+.side_tabs_collapsed {
+  width: 40px;
+}
+
+.st_rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: 40px;
+  flex-shrink: 0;
+  gap: 10px;
+  padding-top: 16px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  min-height: 0;
+  z-index: 5;
+  overflow: visible;
+}
+
+.side_tabs_collapsed .st_rail {
+  border-right: none;
+}
+
+.st_tab {
+  position: relative;
+  left: 1px;
+  width: 44px;
+  height: 84px;
+  min-height: 44px;
+  flex-shrink: 1;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-right: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  padding: 0 0 0 6px;
+  clip-path: polygon(100% 0%, 15% 10%, 15% 90%, 100% 100%);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.st_tab:hover {
+  color: var(--text);
+  width: 46px;
+}
+
+.st_tab_active {
+  /* Ink on the accent fill: the darkest surface tone reads on gold in both
+   * theme groups; the gradient's second stop derives from the accent
+   * (the old fixed #d08c34 became a mauve→amber smear on latte, NEW-2). */
+  color: var(--bg);
+  background: linear-gradient(90deg, var(--ea-accent) 0%, color-mix(in srgb, var(--ea-accent) 78%, var(--bg)) 100%);
+  width: 48px;
+  clip-path: polygon(100% 0%, 0% 10%, 0% 90%, 100% 100%);
+  border: none;
+  box-shadow: -4px 0 12px color-mix(in srgb, var(--ea-accent) 30%, transparent);
+  padding-left: 0;
+}
+
+.st_tab_hint {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--adm-stimulus);
+  box-shadow: 0 0 6px var(--adm-stimulus);
+}
+
+.st_panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.st_ledger_wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.st_ledger_toggle {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ----------------------------------------------------- book reader
+ * The elected-memory plane read as a chronological journal. */
+.book_reader {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.book_head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg, #0e1420);
+  z-index: 1;
+}
+.book_title {
+  font-weight: 600;
+  color: var(--text, #e2e8f0);
+}
+.book_count {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim, #8b98ad);
+}
+.book_empty {
+  padding: 16px 12px;
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.5;
+}
+.book_day_group {
+  padding: 4px 0 8px;
+}
+.book_day {
+  padding: 8px 12px 4px;
+  font-size: calc(11px * var(--font-scale, 1));
+  letter-spacing: 0.04em;
+  color: var(--ea-accent);
+  opacity: 0.85;
+}
+.book_entry {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-left: 2px solid color-mix(in srgb, var(--standing) 40%, transparent);
+  color: var(--text, #e2e8f0);
+  cursor: pointer;
+  font: inherit;
+}
+.book_entry:not(:disabled):hover {
+  background: color-mix(in srgb, var(--standing) 8%, transparent);
+  border-left-color: var(--standing);
+}
+.book_entry:disabled {
+  cursor: default;
+  color: var(--text-dim, #8b98ad);
+}
+.book_time {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim, #8b98ad);
+  flex-shrink: 0;
+  min-width: 42px;
+}
+.book_entry_title {
+  flex: 1;
+  font-size: calc(13px * var(--font-scale, 1));
+}
+.book_entry_sealed .book_entry_title {
+  font-style: italic;
+  color: var(--text-dim, #8b98ad);
+}
+.book_seal {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--standing);
+  border: 1px solid color-mix(in srgb, var(--standing) 50%, transparent);
+  border-radius: 6px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------- inspector */
+
+.entity_inspector {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 14px;
+  /* Readability pass (operator 2026-07-15: "detail tab is pretty much
+   * unreadable"): one line-height for the whole rail; the type scale is
+   * three steps (10.5 meta / 11 labels / 12 content), normalized below. */
+  line-height: 1.5;
+}
+
+.entity_inspector .ei_section {
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  padding-top: 8px;
+}
+
+.ei_head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: calc(11px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.ei_clear {
+  background: none;
+  border: none;
+  color: var(--ea-accent);
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.ei_card {
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ei_kind_row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.ei_kind {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: var(--bg-raise);
+  color: var(--text-dim);
+}
+
+.ei_kind_value,
+.ei_kind_purpose,
+.ei_kind_trait,
+.ei_kind_claim {
+  color: var(--identity);
+}
+
+.ei_kind_memory {
+  color: var(--memory);
+}
+
+.ei_kind_diary {
+  color: var(--diary);
+}
+
+.ei_kind_standing {
+  color: var(--standing);
+}
+
+.ei_kind_beat {
+  color: var(--adm-stimulus);
+}
+
+/* Engine acts (engram/reembed markers): never identity gold. */
+.ei_kind_bookkeeping {
+  color: var(--text-dim);
+}
+
+.ei_badge {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: var(--bg-raise);
+  color: var(--text-dim);
+}
+
+.ei_adm_self {
+  color: var(--adm-self);
+}
+
+.ei_adm_stm {
+  color: var(--adm-stm);
+}
+
+.ei_adm_stimulus {
+  color: var(--adm-stimulus);
+}
+
+.ei_adm_both {
+  color: var(--adm-both);
+}
+
+.ei_title {
+  font-size: calc(13px * var(--font-scale, 1));
+  font-weight: 600;
+  margin: 2px 0 8px;
+  line-height: 1.35;
+}
+
+.ei_private {
+  color: var(--diary);
+  font-style: italic;
+  font-size: calc(12px * var(--font-scale, 1));
+  border-left: 2px solid var(--diary);
+  padding-left: 8px;
+  margin: 6px 0;
+}
+
+.ei_closed {
+  background: rgba(138, 148, 166, 0.1);
+  border-left: 2px solid var(--text-dim);
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin: 6px 0;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ei_replacements {
+  margin-top: 4px;
+}
+
+.ei_facts {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) 1fr;
+  gap: 4px 12px;
+  margin: 8px 0;
+  align-items: baseline;
+}
+
+.ei_facts dt {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+.ei_facts dd {
+  margin: 0;
+  font-size: calc(12px * var(--font-scale, 1));
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* THE NIGHT MOVED (wave-5 dream signals, memory c3724): typed lines,
+ * fragment in the touched records' own words; the felt tint COLORS the
+ * line (structure decided, feelings color) — machine acts stay untinted. */
+.ei_signals { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ei_signal { display: flex; gap: 6px; align-items: baseline; font-size: 12px; line-height: 1.45; padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, var(--text-dim, #8a94a6) 6%, transparent); }
+.ei_sig_kind { flex: none; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim, #8a94a6); }
+.ei_sig_frag { flex: 1; min-width: 0; }
+.ei_sig_felt { flex: none; font-size: 10.5px; font-style: italic; opacity: 0.9; }
+.ei_sig_warm { background: color-mix(in srgb, #7bc98c 10%, transparent); }
+.ei_sig_warm .ei_sig_felt { color: #7bc98c; }
+.ei_sig_sore { background: color-mix(in srgb, #d87a7a 10%, transparent); }
+.ei_sig_sore .ei_sig_felt { color: #d87a7a; }
+.ei_sig_mixed { background: linear-gradient(90deg, color-mix(in srgb, #7bc98c 9%, transparent), color-mix(in srgb, #d87a7a 9%, transparent)); }
+.ei_sig_mixed .ei_sig_felt { color: var(--text-dim, #8a94a6); }
+
+.ei_section {
+  margin-top: 12px;
+}
+
+.ei_section h4 {
+  margin: 0 0 5px;
+  font-size: calc(11px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.ei_adm_head {
+  font-weight: 600;
+}
+
+.ei_link {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ei_link:hover {
+  background: var(--bg-raise);
+  color: var(--ea-accent);
+}
+
+.ei_count {
+  color: var(--text-dim);
+}
+
+.ei_channels {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.ei_channel {
+  flex: 1;
+  background: var(--bg-raise);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.ei_channel_value {
+  display: block;
+  font-size: calc(16px * var(--font-scale, 1));
+  font-weight: 700;
+}
+
+.ei_channel_pos .ei_channel_value {
+  color: var(--bond);
+}
+
+.ei_channel_neg .ei_channel_value {
+  color: var(--scar);
+}
+
+.ei_channel_label {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.ei_note {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+  font-style: italic;
+}
+
+.ei_peak {
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin: 5px 0;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ei_peak_scar {
+  background: color-mix(in srgb, var(--scar) 10%, transparent);
+  border-left: 2px solid var(--scar);
+}
+
+.ei_peak_bond {
+  background: color-mix(in srgb, var(--bond) 10%, transparent);
+  border-left: 2px solid var(--bond);
+}
+
+.ei_peak_healed {
+  background: color-mix(in srgb, var(--diary) 10%, transparent);
+  border-left: 2px solid var(--diary);
+}
+
+.ei_dropped {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.ei_reason {
+  font-style: italic;
+}
+
+.ei_empty {
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+  padding: 12px 0;
+}
+
+/* -------------------------------------------------------------- ledger */
+
+.entity_ledger {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.el_quiet_toggle {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.el_list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.el_row {
+  display: flex;
+  gap: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.el_row:hover {
+  background: var(--bg-raise);
+}
+
+.el_row_future {
+  opacity: 0.32;
+}
+
+.el_row_current {
+  background: var(--bg-raise);
+  border-left-color: var(--ea-accent);
+}
+
+.el_row_meta {
+  flex: 0 0 52px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.el_seq {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.el_turn {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+
+.el_row_body {
+  min-width: 0;
+}
+
+.el_title {
+  font-size: calc(12px * var(--font-scale, 1));
+  font-weight: 600;
+}
+
+.el_detail {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  overflow-wrap: break-word;
+}
+
+.el_tone_formation .el_title {
+  color: var(--memory);
+}
+
+.el_tone_usage .el_title {
+  color: var(--ea-accent);
+}
+
+.el_tone_recall .el_title {
+  color: var(--adm-stimulus);
+}
+
+.el_tone_context .el_title {
+  color: var(--adm-both);
+}
+
+.el_tone_feeling .el_title {
+  color: var(--standing);
+}
+
+.el_tone_revision .el_title {
+  color: #d8a0a0;
+}
+
+.el_tone_session .el_title {
+  color: var(--identity);
+}
+
+.el_tone_quiet .el_title {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.el_empty {
+  padding: 16px;
+  color: var(--text-dim);
+}
+
+/* ------------------------------------------------------- verbatim modal */
+
+.ei_verbatim_btn {
+  display: inline-block;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--ea-accent);
+  border-radius: 6px;
+  padding: 5px 12px;
+  margin: 4px 0 8px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ei_verbatim_btn:hover {
+  border-color: var(--ea-accent);
+}
+
+.ev_backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.ev_panel {
+  width: min(760px, 92vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+}
+
+.ev_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ev_title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(13px * var(--font-scale, 1));
+  font-weight: 600;
+  min-width: 0;
+}
+
+.ev_title span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ev_close {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.ev_close:hover {
+  border-color: var(--ea-accent);
+}
+
+.ev_body {
+  overflow-y: auto;
+  padding: 14px 18px;
+}
+
+.ev_status {
+  color: var(--text-dim);
+  font-size: calc(12.5px * var(--font-scale, 1));
+  padding: 10px 0;
+}
+
+.ev_status_error {
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+}
+
+.ev_markdown {
+  font-size: calc(13px * var(--font-scale, 1));
+  line-height: 1.55;
+}
+
+.ev_meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+/* Diary provenance trail (diary---verbatims): entry -> the conversation
+ * that led here / written amid -> episode verbatim click-through. */
+.ev_trail {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ev_trail_head {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 8px 0 4px;
+  cursor: help;
+}
+.ev_trail_row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: var(--text);
+  font-size: calc(12px * var(--font-scale, 1));
+  cursor: pointer;
+}
+.ev_trail_row:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.ev_trail_row_static {
+  cursor: default;
+  color: var(--text-dim);
+}
+.ev_trail_row_static:hover {
+  background: none;
+}
+.ev_trail_title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ev_trail_date {
+  color: var(--text-dim);
+  font-size: calc(10px * var(--font-scale, 1));
+  white-space: nowrap;
+}
+.ev_trail_warn {
+  margin-top: 6px;
+  color: var(--warn, #e7b45a);
+  font-size: calc(10px * var(--font-scale, 1));
+}
+.ev_trail_absent {
+  margin: 4px 0 0;
+  font-style: italic;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.ev_trail_back {
+  background: none;
+  border: none;
+  color: var(--accent-2, #79c7ff);
+  font-size: calc(11px * var(--font-scale, 1));
+  cursor: pointer;
+  padding: 0 0 8px;
+}
+.ev_trail_open_title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+/* ------------------------------------------------------------ timeline */
+
+.entity_timeline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+/* Transport cluster grouped right (operator 2026-07-15); a hairline
+ * separates it from the track so the slider reads as the protagonist. */
+.et_right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+.et_btn {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+  line-height: 1.3;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+
+.et_btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.et_btn:not(:disabled):hover {
+  border-color: var(--ea-accent);
+}
+
+.et_btn_accent {
+  border-color: var(--ea-accent);
+  color: var(--ea-accent);
+}
+
+.et_track_wrap {
+  flex: 1;
+  position: relative;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.et_ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.et_tick {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 7px;
+  border-radius: 1px;
+}
+
+.et_tick_summon {
+  background: var(--identity);
+}
+
+.et_tick_refused {
+  background: var(--scar);
+}
+
+.et_tick_session {
+  background: var(--adm-stimulus);
+  opacity: 0.75;
+}
+
+/* Maintenance act (reembed): retrieval geometry changed at this point —
+ * taller than session ticks so the boundary reads at a glance. */
+.et_tick_maintenance {
+  background: var(--text-dim);
+  height: 10px;
+}
+
+.et_track {
+  width: 100%;
+  accent-color: var(--ea-accent);
+  height: 4px;
+  cursor: pointer;
+}
+
+.et_track:disabled {
+  cursor: default;
+}
+
+.et_speed {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.et_live {
+  color: var(--text-dim);
+}
+
+.et_live_on {
+  color: color-mix(in srgb, var(--diary) 80%, var(--text));
+  border-color: color-mix(in srgb, var(--diary) 70%, transparent);
+}
+
+.et_pos {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  min-width: 130px;
+  text-align: right;
+}
+
+/* ------------------------------------------------ hover memory card (gc) */
+.gc_hovercard {
+  position: fixed;
+  z-index: 60;
+  /* 280px truncated every title (laurent dm#54 pt4). */
+  width: 420px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-panel) 97%, transparent);
+  border: 1px solid color-mix(in srgb, var(--memory) 35%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text);
+}
+.gc_hc_head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+/* The kind-color dot beside the kind word (c1405 ask 2b: the card carries
+ * the memory-type color code, matching the node it describes). */
+.gc_hc_kind_dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.gc_hc_title {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.gc_hc_rows {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 2px 8px;
+}
+.gc_hc_rows > span:nth-child(odd) {
+  color: var(--text-dim);
+}
+.gc_hc_note {
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+}
+.gc_hc_hint {
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* --------------------------------------------- discreet system badge (cd) */
+/* ---- system hints: discreet grey italic lines, never full cards
+ * (operator 2026-07-15: the "Rejoined the open visit" card was too big). */
+.cd_syshint {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 2px 6px;
+  line-height: 1.4;
+}
+.cd_syshint_warn {
+  color: color-mix(in srgb, var(--bond) 70%, var(--text));
+}
+.cd_syshint_error {
+  color: color-mix(in srgb, var(--scar) 60%, var(--text));
+}
+
+/* ---- folded turn context (presence + MEMORIES): one quiet line, the
+ * full decoration one click away (progressive disclosure). */
+.cd_ctxfold {
+  border: 1px dashed color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-raise) 55%, transparent);
+}
+.cd_ctxfold_head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.cd_ctxfold_head:hover {
+  color: var(--text);
+}
+.cd_ctxfold_arrow {
+  font-size: calc(10px * var(--font-scale, 1));
+}
+.cd_ctxfold_body {
+  margin: 0;
+  padding: 6px 10px 8px;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px dashed color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.cd_sysbadge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 8px 40px;
+  padding: 2px 10px;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--text-dim) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-dim) 22%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.cd_sysbadge:hover {
+  color: #b8c4d8;
+  border-color: color-mix(in srgb, var(--text-dim) 50%, transparent);
+}
+.cd_sysbadge_dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--adm-stimulus);
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------- turn detail modal (tdm) */
+.tdm_panel {
+  max-width: 720px;
+  width: min(720px, 94vw);
+}
+.tdm_body section {
+  margin-bottom: 18px;
+}
+.tdm_h {
+  margin: 0 0 8px;
+  font-size: calc(12px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.tdm_count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--memory) 15%, transparent);
+  color: color-mix(in srgb, var(--memory) 60%, var(--text));
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.tdm_quiet {
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+  margin: 0;
+}
+.tdm_mem {
+  border: 1px solid color-mix(in srgb, var(--memory) 18%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--memory) 4%, transparent);
+}
+.tdm_mem_head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text);
+  font-weight: 600;
+}
+.tdm_mem_title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tdm_tag {
+  font-family: var(--font-mono, Menlo, Monaco, monospace);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.tdm_mem_digest {
+  margin-top: 5px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.tdm_mem_meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.tdm_list {
+  margin: 0;
+  padding-left: 4px;
+  list-style: none;
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.tdm_list li {
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tdm_list code {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text);
+}
+.tdm_arg {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+/* Failed/refused call chip (gateway ledger fold serves success:false with
+ * the error text as the result — a real reach that failed loudly). */
+.tdm_tool_failed {
+  color: var(--danger, #e06c75);
+  font-size: calc(10px * var(--font-scale, 1));
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.tdm_action {
+  font-size: calc(10px * var(--font-scale, 1));
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
+  color: var(--text-dim);
+}
+.tdm_action_wrote {
+  border-color: color-mix(in srgb, var(--diary) 50%, transparent);
+  color: var(--diary);
+}
+.tdm_action_read {
+  border-color: color-mix(in srgb, var(--memory) 50%, transparent);
+  color: var(--memory);
+}
+.tdm_notices li {
+  color: var(--identity);
+  display: list-item;
+  list-style: disc inside;
+}
+
+/* ---------------------------------------------------- workspace panel (wsp) */
+.wsp_panel {
+  max-width: 760px;
+  width: min(760px, 94vw);
+}
+.wsp_tabs {
+  display: flex;
+  gap: 6px;
+  margin-right: 12px;
+}
+.wsp_tab {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 25%, transparent);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 3px 12px;
+  font-size: calc(12px * var(--font-scale, 1));
+  cursor: pointer;
+}
+.wsp_tab_on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--memory) 60%, transparent);
+  background: color-mix(in srgb, var(--memory) 12%, transparent);
+}
+
+/* Mind (substrate) tab in Settings (operator 2026-07-15 (e)): provider +
+ * model moved off the top strip into the settings modal. */
+.wsp_mind {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px;
+}
+.wsp_mind_intro {
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 0;
+}
+.wsp_mind_intro strong {
+  color: var(--identity);
+}
+.wsp_mind_picker {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-raise);
+}
+.wsp_mind_history {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.wsp_mind_history_head {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.wsp_mind_history_row {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+.wsp_body {
+  font-size: calc(12.5px * var(--font-scale, 1));
+}
+.wsp_crumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: var(--text-dim);
+}
+.wsp_up {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+.wsp_up:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.wsp_list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wsp_entry {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-dim) 12%, transparent);
+  color: var(--text);
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: calc(12.5px * var(--font-scale, 1));
+}
+.wsp_entry:hover {
+  background: color-mix(in srgb, var(--memory) 7%, transparent);
+}
+.wsp_name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wsp_size {
+  color: var(--text-dim);
+  font-size: calc(10.5px * var(--font-scale, 1));
+}
+.wsp_mode {
+  font-size: calc(10px * var(--font-scale, 1));
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 35%, transparent);
+  color: var(--text-dim);
+}
+.wsp_mode_rw {
+  border-color: color-mix(in srgb, var(--diary) 55%, transparent);
+  color: var(--diary);
+}
+.wsp_mode_ro {
+  border-color: rgba(216, 180, 90, 0.5);
+  color: var(--identity);
+}
+.wsp_pre {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-dim) 20%, transparent);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  line-height: 1.5;
+  overflow: auto;
+  max-height: 52vh;
+  white-space: pre-wrap;
+}
+.wsp_file_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.wsp_error {
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_quiet {
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_mount_row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-dim) 12%, transparent);
+}
+.wsp_target {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.wsp_remove {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--scar) 40%, transparent);
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+  border-radius: 6px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.wsp_add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+.wsp_add input,
+.wsp_add select {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_add input:first-child {
+  flex: 1;
+}
+.wsp_add_name {
+  width: 140px;
+}
+.wsp_add button {
+  background: color-mix(in srgb, var(--memory) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--memory) 50%, transparent);
+  color: color-mix(in srgb, var(--memory) 60%, var(--text));
+  border-radius: 6px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_matrix {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 6px;
+}
+.wsp_matrix th,
+.wsp_matrix td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-dim) 12%, transparent);
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.wsp_matrix th {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  letter-spacing: 0.06em;
+}
+.wsp_matrix td:not(:first-child),
+.wsp_matrix th:not(:first-child) {
+  text-align: center;
+}
+.wsp_tier1 {
+  color: var(--adm-stimulus);
+  margin-left: 5px;
+}
+/* Granted-but-unwired cell marker (grant audit 2026-07-18): the lane
+ * cannot offer this granted tool yet — amber, with the reason on hover. */
+.wsp_unwired {
+  color: var(--warn, #e7b45a);
+  margin-left: 4px;
+  cursor: help;
+  font-size: calc(9px * var(--font-scale, 1));
+}
+.wsp_save_row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.wsp_save_row button {
+  background: color-mix(in srgb, var(--diary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--diary) 50%, transparent);
+  color: var(--diary);
+  border-radius: 6px;
+  padding: 5px 16px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_saved {
+  color: var(--diary);
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+
+/* ------------------------------------------------------------- prompt tab */
+.wsp_prompt_section {
+  margin-bottom: 8px;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 18%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.wsp_prompt_head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: color-mix(in srgb, var(--bg-raise) 70%, transparent);
+  border: none;
+  color: var(--text);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_prompt_head:hover {
+  background: color-mix(in srgb, var(--bg-raise) 85%, transparent);
+}
+.wsp_prompt_arrow {
+  color: var(--text-dim);
+  font-size: calc(10px * var(--font-scale, 1));
+}
+.wsp_badge {
+  margin-left: auto;
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+.wsp_badge_overlay {
+  color: var(--identity);
+  border-color: color-mix(in srgb, var(--identity) 50%, transparent);
+}
+.wsp_badge_locked {
+  color: var(--text-dim);
+  border-color: color-mix(in srgb, var(--text-dim) 35%, transparent);
+}
+.wsp_prompt_editor {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wsp_prompt_text {
+  width: 100%;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-dim) 25%, transparent);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: calc(11.5px * var(--font-scale, 1));
+  line-height: 1.5;
+  padding: 10px;
+  resize: vertical;
+}
+.wsp_prompt_text:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--diary) 50%, transparent);
+}
+.wsp_prompt_default_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.wsp_prompt_pre {
+  max-height: 34vh;
+  white-space: pre-wrap;
+  margin: 0 0 6px;
+}
+.wsp_prompt_section > .wsp_prompt_pre {
+  margin: 10px 12px 12px;
+}
+
+/* ------------------------------------------------ gateway auth + own time */
+.ec_authchip {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--diary);
+  border: 1px solid color-mix(in srgb, var(--diary) 40%, transparent);
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.cgm_panel {
+  max-width: 560px;
+  width: min(560px, 94vw);
+  padding: 0;
+}
+.cgm_panel .af-gateway-signin {
+  border: none;
+  background: transparent;
+}
+
+/* ------------------------------------------- entities index (the manager) */
+
+.entities_index {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px clamp(20px, 6vw, 80px);
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.eix_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.eix_head h2 {
+  margin: 0;
+  font-size: calc(17px * var(--font-scale, 1));
+  font-weight: 600;
+}
+.eix_head_actions {
+  display: flex;
+  gap: 8px;
+}
+.eix_refresh,
+.eix_create_btn {
+  background: var(--panel, #131a26);
+  color: var(--text, #d7e0ee);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.eix_create_btn:hover,
+.eix_refresh:hover {
+  border-color: var(--ea-accent);
+}
+.eix_list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.eix_row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel, #131a26);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--text, #d7e0ee);
+  text-align: left;
+  font-family: inherit;
+  font-size: calc(13px * var(--font-scale, 1));
+}
+.eix_row:hover {
+  border-color: var(--ea-accent);
+}
+.eix_name {
+  font-weight: 600;
+  font-size: calc(14px * var(--font-scale, 1));
+  min-width: 110px;
+  text-transform: capitalize;
+}
+
+.eix_handle {
+  color: var(--text-dim);
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(10px * var(--font-scale, 1));
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- fleet wall (item 13, O-C): one live tile per life ---- */
+
+.eix_fleet_bar {
+  max-width: 1180px;
+  margin: 10px auto 0;
+  padding: 0 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fleet_view {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 14px 18px 40px;
+}
+
+.fleet_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.fleet_head h2 {
+  font-size: calc(17px * var(--font-scale, 1));
+  margin: 0;
+}
+
+.fleet_grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px;
+}
+
+.ft_tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.ft_tile:hover {
+  border-color: var(--ea-accent);
+}
+
+.ft_tile_locked,
+.ft_tile_error {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.ft_head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ft_name {
+  font-weight: 600;
+  font-size: calc(15px * var(--font-scale, 1));
+  text-transform: capitalize;
+}
+
+.ft_handle {
+  color: var(--text-dim);
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: calc(10px * var(--font-scale, 1));
+}
+
+.ft_badge {
+  margin-left: auto;
+  font-size: calc(10px * var(--font-scale, 1));
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+}
+
+.ft_badge_live {
+  color: var(--diary);
+}
+
+.ft_badge_quiet {
+  color: var(--text-dim);
+}
+
+.ft_badge_locked {
+  color: #d89a5a;
+}
+
+.ft_badge_error {
+  color: var(--scar);
+}
+
+.ft_counts {
+  display: flex;
+  gap: 12px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.ft_lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
+  min-height: 48px;
+}
+
+.ft_line {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ft_line strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.ft_line_empty {
+  font-style: italic;
+}
+
+.ft_detail {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ---- meet reader (item 14 human-access): perspective columns ---- */
+
+.mr_panel {
+  max-width: 1100px;
+  width: min(1100px, 94vw);
+}
+
+.mr_contract {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.5;
+}
+
+.mr_body {
+  overflow: auto;
+}
+
+.mr_columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.mr_leg {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mr_leg_head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+.mr_leg_name {
+  font-weight: 600;
+  font-size: calc(15px * var(--font-scale, 1));
+}
+
+.mr_leg_sub {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+
+.mr_leg_head .ei_link {
+  margin-left: auto;
+}
+
+.mr_moment {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.mr_moment_summary {
+  border-style: dashed;
+}
+
+.mr_moment_head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mr_moment_at {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.mr_moment_title {
+  font-size: calc(12px * var(--font-scale, 1));
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.mr_moment_none {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.ei_meet_btn {
+  display: block;
+  margin-top: 3px;
+}
+
+/* ----------------------------------------------------- meet console
+ * The live half of item 14 — convene two entities, steer, watch both. */
+.mc_panel {
+  max-width: 900px;
+  width: min(900px, 94vw);
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+}
+.mc_setup {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mc_intro {
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 0;
+}
+.mc_pickers {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.mc_picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.mc_picker select {
+  background: var(--bg-raise, #131a2a);
+  color: var(--text, #e2e8f0);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font: inherit;
+}
+.mc_amp {
+  color: var(--text-dim);
+  padding-bottom: 8px;
+}
+.mc_open_btn {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--standing) 14%, transparent);
+  color: color-mix(in srgb, var(--standing) 55%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--standing) 50%, transparent);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+.mc_open_btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--standing) 24%, transparent);
+}
+.mc_open_btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.mc_hint,
+.mc_error {
+  font-size: calc(11px * var(--font-scale, 1));
+  margin: 0;
+}
+.mc_hint {
+  color: var(--text-dim);
+}
+.mc_pairwise_note {
+  border-left: 2px solid color-mix(in srgb, var(--ea-accent) 40%, transparent);
+  padding-left: 8px;
+  margin-top: -6px;
+}
+.mc_pairwise_note strong {
+  color: color-mix(in srgb, var(--ea-accent) 70%, var(--text));
+}
+.mc_error {
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+}
+.mc_error_inline {
+  padding: 4px 16px;
+}
+.mc_legbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.mc_leg {
+  display: flex;
+  flex-direction: column;
+  border-left: 3px solid var(--line);
+  padding-left: 8px;
+}
+.mc_leg_open {
+  border-left-color: var(--diary);
+}
+.mc_leg_shut {
+  border-left-color: #6b7688;
+  opacity: 0.7;
+}
+.mc_leg_name {
+  font-weight: 600;
+  color: var(--text);
+}
+.mc_leg_state {
+  color: var(--text-dim);
+}
+.mc_pending {
+  margin-left: auto;
+  color: var(--ea-accent);
+  font-style: italic;
+}
+.mc_body {
+  flex: 1;
+  min-height: 200px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mc_row {
+  max-width: 82%;
+}
+.mc_row_reply.mc_side_a {
+  align-self: flex-start;
+}
+.mc_row_reply.mc_side_b {
+  align-self: flex-end;
+  text-align: right;
+}
+.mc_row_steer {
+  align-self: center;
+  max-width: 92%;
+}
+.mc_row_note {
+  align-self: center;
+  max-width: 92%;
+}
+.mc_note {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+  text-align: center;
+  padding: 4px 0;
+}
+.mc_row_head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.mc_row_reply.mc_side_b .mc_row_head {
+  flex-direction: row-reverse;
+}
+.mc_who {
+  font-weight: 600;
+  color: var(--standing);
+}
+.mc_row_steer .mc_text {
+  font-size: calc(12px * var(--font-scale, 1));
+  color: color-mix(in srgb, var(--ea-accent) 70%, var(--text));
+  background: color-mix(in srgb, var(--ea-accent) 8%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--ea-accent) 40%, transparent);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.mc_row_reply .mc_text {
+  font-size: calc(13px * var(--font-scale, 1));
+  line-height: 1.5;
+  background: var(--bg-raise, #131a2a);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 10px;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+}
+.mc_composer {
+  border-top: 1px solid var(--line);
+  padding: 10px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mc_lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.mc_lead_btn {
+  background: none;
+  border: 1px solid var(--line, #24304a);
+  border-radius: 7px;
+  padding: 3px 10px;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.mc_lead_on {
+  border-color: var(--standing);
+  color: color-mix(in srgb, var(--standing) 55%, var(--text));
+  background: color-mix(in srgb, var(--standing) 12%, transparent);
+}
+.mc_steer {
+  background: var(--bg-raise, #131a2a);
+  color: var(--text, #e2e8f0);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  resize: vertical;
+}
+.mc_actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mc_relay_btn {
+  background: color-mix(in srgb, var(--standing) 16%, transparent);
+  color: color-mix(in srgb, var(--standing) 55%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--standing) 50%, transparent);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+.mc_relay_btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.mc_close_group {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  align-items: center;
+}
+.mc_close_reason {
+  background: var(--bg-raise, #131a2a);
+  color: var(--text, #e2e8f0);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font: inherit;
+  font-size: calc(11px * var(--font-scale, 1));
+  width: 220px;
+  max-width: 40vw;
+}
+.mc_end_btn {
+  background: none;
+  border: 1px solid rgba(240, 160, 160, 0.5);
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+  border-radius: 7px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.mc_end_btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.mc_closed_actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ----------------------------------------------------- health panel
+ * The shape of a life's memory, derived from the fold. */
+.hp_panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 16px;
+}
+.hp_head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg, #0e1420);
+  z-index: 1;
+}
+/* Headline counts moved here from the top navbar (operator (j)(k)). */
+.hp_title {
+  font-weight: 600;
+  color: var(--text);
+}
+.hp_sub {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+/* ONE stat grid (operator 2026-07-15): auto-fill so cells REFLOW as the
+ * right panel is resized — never a fixed 3+1 orphan row; cursor:help says
+ * "hover me" (every cell's tooltip explains how to read its number). */
+.hp_grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  gap: 8px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.hp_stat {
+  background: var(--bg-raise, #131a2a);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 10px;
+  padding: 9px 11px;
+  cursor: help;
+  min-width: 0;
+}
+.hp_num {
+  font-size: calc(17px * var(--font-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.hp_label {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.hp_note {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  opacity: 0.85;
+  margin-top: 4px;
+}
+.hp_section {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+.hp_section_head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: calc(11px * var(--font-scale, 1));
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.hp_attractor {
+  color: var(--ea-accent);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+/* ---- time-by-phase stacked bar (operator 2026-07-15). */
+.hp_phasebar {
+  display: flex;
+  height: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.hp_phasebar_seg {
+  height: 100%;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+.hp_phaselegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+.hp_phaselegend_item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  cursor: help;
+}
+.hp_phaselegend_item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.hp_bar {
+  height: 8px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.hp_bar_fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ea-accent), #f0c070);
+  border-radius: 5px;
+}
+.hp_top {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hp_top li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hp_top .ei_link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.hp_top_title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.hp_top_count {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  flex-shrink: 0;
+}
+.hp_empty {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 6px 0 0;
+}
+.hp_pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hp_pill {
+  font-size: calc(11px * var(--font-scale, 1));
+  padding: 3px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--line, #24304a);
+  color: var(--text-dim);
+}
+.hp_pill_maint {
+  border-color: rgba(127, 209, 138, 0.5);
+  color: var(--diary);
+}
+.hp_kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.hp_kind_row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hp_kind_row .ei_kind {
+  min-width: 78px;
+  flex-shrink: 0;
+}
+.hp_kind_bar {
+  flex: 1;
+  height: 6px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hp_kind_fill {
+  height: 100%;
+  background: #6ea8fe;
+  border-radius: 4px;
+}
+.hp_kind_count {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  min-width: 28px;
+  text-align: right;
+}
+.hp_gap {
+  margin: 14px 14px 0;
+  padding: 10px 12px;
+  font-size: calc(11px * var(--font-scale, 1));
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--memory) 6%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--memory) 35%, transparent);
+  border-radius: 8px;
+}
+
+/* ----------------------------------------------------- cognition wave
+ * uic's mood instrument, mounted (vendored pending the kit package). */
+.cw_panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.cw_head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cw_title {
+  font-weight: 600;
+  color: var(--text);
+}
+.cw_prov {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  text-align: right;
+}
+.cw_framing {
+  font-size: calc(11px * var(--font-scale, 1));
+  font-style: italic;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 6px 0 10px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--standing) 40%, transparent);
+}
+.cw_pullbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 10px;
+  flex-wrap: wrap;
+}
+.cw_pull_btn {
+  background: color-mix(in srgb, var(--standing) 16%, transparent);
+  color: color-mix(in srgb, var(--standing) 55%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--standing) 50%, transparent);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cw_pull_btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--standing) 26%, transparent);
+}
+.cw_pull_btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.cw_pull_hint {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+/* The Wave tab hosts the kit AfCognitionBloom, centered. */
+.cw_bloom {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+.cw_current {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.cw_current_label {
+  font-weight: 600;
+  color: var(--standing);
+}
+.cw_wander {
+  color: var(--text-dim);
+}
+/* The per-utterance quiet/faint chip (2026-08-01): the abstention gate's
+ * verdict on THIS sample, hover for the live evidence numbers. */
+.cw_quiet {
+  color: var(--text-dim);
+  font-style: italic;
+  cursor: help;
+}
+.cw_pos {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+/* ---- wave replay controls: mode hint left, transport RIGHT (operator
+ * 2026-07-15 — grouped like the other tabs' actions). */
+.cw_controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.cw_mode_hint {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-style: italic;
+}
+.cw_controls_right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cw_ctl {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+}
+.cw_ctl:not(:disabled):hover {
+  border-color: var(--ea-accent);
+}
+.cw_ctl:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.cw_ctl_on {
+  color: var(--ea-accent);
+  border-color: var(--ea-accent);
+  background: color-mix(in srgb, var(--ea-accent) 14%, var(--bg-raise));
+}
+
+/* ---- the turn under the wave: request (their words, context) + answer
+ * (his words — what was scored). */
+.cw_turn {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cw_turn_head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.cw_src {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: calc(10px * var(--font-scale, 1));
+}
+.cw_src_visit { color: var(--memory); }
+.cw_src_episode { color: var(--memory); }
+.cw_src_diary { color: var(--diary); }
+.cw_src_summary { color: var(--standing); }
+.cw_turn_when,
+.cw_turn_seq {
+  font-variant-numeric: tabular-nums;
+}
+.cw_turn_block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cw_turn_role {
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.cw_turn_block p {
+  margin: 0;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.cw_turn_request p {
+  color: var(--text-dim);
+}
+.cw_note {
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 10px 0;
+}
+.cw_note_error {
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
+}
+.cw_warn {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  margin-top: 6px;
+}
+/* --------------------------------------------- lessons + world panels */
+.lw_panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  min-width: 0;
+}
+.lw_head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lw_panel_title {
+  font-weight: 600;
+  color: var(--text);
+}
+.lw_sub {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.lw_framing {
+  margin: 0;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.5;
+  font-style: italic;
+}
+.lw_empty {
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+/* Breadth-forward note (world tab): only participant-targets exist until
+ * topic election runs — say the world widens from here, never "broken". */
+.lw_note {
+  margin: 8px 0 4px;
+  padding: 8px 11px;
+  border-left: 2px solid var(--entity-accent, #e8a54a);
+  background: color-mix(in srgb, var(--entity-accent, #e8a54a) 8%, transparent);
+  border-radius: 4px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text);
+  line-height: 1.5;
+}
+.lw_list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lw_card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--text);
+  min-width: 0;
+}
+.lw_card:hover {
+  border-color: var(--ea-accent);
+}
+.lw_card_closed {
+  opacity: 0.6;
+}
+.lw_card_closed .lw_title {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.lw_dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-top: 3px;
+}
+.lw_text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.lw_title {
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.lw_meta {
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.lw_divider {
+  margin-top: 8px;
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hp_disk {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hp_disk_row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.hp_disk_label {
+  color: var(--text-dim);
+}
+.hp_disk_val {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.hp_disk_total {
+  border-top: 1px solid var(--line);
+  margin-top: 3px;
+  padding-top: 4px;
+  font-weight: 600;
+}
+.hp_disk_note {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.hp_disk_note strong {
+  color: var(--diary);
+}
+.hp_disk_warn {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  margin-top: 6px;
+}
+
+/* Collapsed pair-trail rows ("woven together"): one row per recall's
+ * co-use burst; members indent under it when expanded. */
+.el_weave {
+  cursor: pointer;
+}
+
+.el_weave_member {
+  padding-left: 26px;
+  opacity: 0.85;
+}
+.eix_badge {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  padding: 2px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line, #24304a);
+  color: var(--text-dim, #8b98ad);
+  white-space: nowrap;
+}
+.eix_loop_stopping { color: color-mix(in srgb, var(--bond) 75%, var(--text)); border-color: #6b5c2c; }
+.eix_loop_warning { color: color-mix(in srgb, var(--scar) 65%, var(--text)); border-color: #6b2c2c; }
+.eix_id {
+  flex: 1;
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(10.5px * var(--font-scale, 1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eix_open {
+  color: var(--ea-accent);
+  font-size: calc(12px * var(--font-scale, 1));
+  white-space: nowrap;
+}
+.eix_note,
+.eix_error,
+.eix_footer {
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.eix_error { color: color-mix(in srgb, var(--scar) 65%, var(--text)); }
+.eix_footer {
+  margin-top: 16px;
+  font-style: italic;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+/* ---------------------------------------------------- create entity form */
+
+.create_entity {
+  background: var(--panel, #131a26);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.ce_row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.ce_name {
+  flex: 1;
+  background: var(--bg, #0b0f16);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  color: var(--text, #d7e0ee);
+  padding: 7px 10px;
+  font-size: calc(13px * var(--font-scale, 1));
+  font-family: inherit;
+}
+.ce_lint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  color: var(--text-dim, #8b98ad);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ce_submit {
+  background: var(--ea-accent);
+  color: #1a1207;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: calc(12.5px * var(--font-scale, 1));
+}
+.ce_submit:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ce_spark_toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim, #8b98ad);
+  cursor: pointer;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  padding: 8px 0 0;
+  font-family: inherit;
+}
+.ce_spark {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  background: var(--bg, #0b0f16);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  color: var(--text, #d7e0ee);
+  padding: 8px 10px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  resize: vertical;
+}
+.ce_note {
+  margin: 10px 0 0;
+  font-size: calc(12px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  white-space: pre-wrap;
+}
+.ce_hint {
+  margin: 8px 0 0;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: var(--text-dim, #8b98ad);
+  font-style: italic;
+}
+.ec_warn {
+  color: color-mix(in srgb, var(--scar) 65%, var(--text));
+}
+
+/* The four-position phase radio is now uic's shared AfPhaseRadio (adopted
+ * 2026-07-14, c2113) — the `.af-phase-radio*` styles live in the kit's
+ * theme.css. `.ec_phase_radio` is only the layout wrapper the app passes
+ * as className; the kit component's own inline-flex handles the group. The
+ * old local `.ec_radio*` / `.ec_toggle_on*` rules were removed with the
+ * hand-rolled buttons. */
+.ec_phase_radio {
+  display: inline-flex;
+}
+
+/* THE STOPPED BANNER (liveness axis): outranks every chip — full-width,
+ * red family, impossible to miss. */
+.entity_stopped_banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--scar) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--scar) 55%, transparent);
+  border-radius: 8px;
+  margin: 6px 10px;
+}
+.esb_glyph {
+  font-size: calc(16px * var(--font-scale, 1));
+}
+.esb_text {
+  color: color-mix(in srgb, var(--scar) 60%, var(--text));
+  font-size: calc(12px * var(--font-scale, 1));
+  flex: 1;
+}
+.esb_restore {
+  background: color-mix(in srgb, var(--diary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--diary) 60%, transparent);
+  color: color-mix(in srgb, var(--diary) 80%, var(--text));
+  border-radius: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.esb_restore:hover {
+  background: color-mix(in srgb, var(--diary) 20%, transparent);
+}
+/* The stop control: red text, never confused with the radio. */
+.ec_stop_btn {
+  color: color-mix(in srgb, var(--scar) 60%, var(--text));
+  border-color: color-mix(in srgb, var(--scar) 40%, transparent);
+}
+.ec_stop_btn:hover {
+  border-color: var(--scar) !important;
+  background: color-mix(in srgb, var(--scar) 10%, transparent);
+}
+
+/* The loop-alive-without-grant ALARM (the 10:20 incident state) now rides
+ * the kit's `.af-phase-radio__btn--alarm` via the personal slot's `alarm`
+ * prop — the local `.ec_toggle_alarm` rule was removed with the swap. */
+
+/* -------------------------------------- ledger day/tick boundary rows
+ * The rhythm of his own time (maintainer 2026-07-08 16:31), derived from
+ * run/turn changes — centered, quiet, unmistakably structural. */
+.el_boundary {
+  display: block;
+  text-align: center;
+  padding: 10px 12px 6px;
+  border-bottom: none;
+}
+.el_boundary_title {
+  color: var(--ea-accent);
+  font-size: calc(11px * var(--font-scale, 1));
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+.el_boundary_detail {
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(10px * var(--font-scale, 1));
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------ roster card grid (L1) */
+.eix_grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+.eix_card {
+  background: var(--panel, #131a26);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.eix_card:hover {
+  border-color: var(--ea-accent);
+}
+.eix_card_head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 14px 8px;
+  background: none;
+  border: none;
+  color: var(--text, #d7e0ee);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: calc(13px * var(--font-scale, 1));
+}
+.eix_card_body {
+  padding: 0 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+.eix_meta {
+  display: flex;
+  gap: 12px;
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.eix_upto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.eix_upto_label {
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.eix_interest {
+  background: var(--bg, #0b0f16);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 9px;
+  padding: 2px 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text, #d7e0ee);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eix_card_actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--line, #24304a);
+}
+.eix_card_actions .eix_id {
+  text-align: right;
+}
+.ic_rep_channels {
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(10px * var(--font-scale, 1));
+}
+
+/* ------------------------------------------------------ error boundaries */
+.eb_card {
+  margin: 12px;
+  padding: 14px 16px;
+  background: rgba(224, 139, 139, 0.08);
+  border: 1px solid rgba(224, 139, 139, 0.4);
+  border-radius: 8px;
+}
+.eb_title {
+  color: color-mix(in srgb, var(--scar) 65%, var(--text));
+  font-weight: 600;
+  font-size: calc(12.5px * var(--font-scale, 1));
+}
+.eb_message {
+  color: var(--text-dim, #8b98ad);
+  font-size: calc(11.5px * var(--font-scale, 1));
+  margin: 6px 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.eb_retry {
+  background: var(--panel, #131a26);
+  color: var(--text, #d7e0ee);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+
+/* ---------------------------------------------- resizable side panel handle */
+.side_tabs {
+  position: relative;
+}
+.st_resize {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 8;
+}
+.st_resize:hover {
+  background: var(--ea-accent);
+  opacity: 0.4;
+}
+
+/* ------------------------------------------------ chat file drop + attach */
+.chat_drawer {
+  position: relative;
+}
+.cd_drop_active {
+  outline: 2px dashed var(--ea-accent);
+  outline-offset: -6px;
+}
+.cd_drop_hint {
+  padding: 6px 12px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  text-align: center;
+}
+.cd_files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px 0;
+}
+.cd_file_chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg, #0b0f16);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 10px;
+  padding: 3px 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text, #d7e0ee);
+}
+.cd_file_x {
+  background: none;
+  border: none;
+  color: var(--text-dim, #8b98ad);
+  cursor: pointer;
+  font-size: calc(13px * var(--font-scale, 1));
+  line-height: 1;
+  padding: 0;
+}
+.cd_file_x:hover {
+  color: color-mix(in srgb, var(--scar) 65%, var(--text));
+}
+.cd_attach_btn {
+  background: var(--panel, #131a26);
+  color: var(--text, #d7e0ee);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-size: calc(13px * var(--font-scale, 1));
+}
+.cd_attach_btn:hover:not(:disabled) {
+  border-color: var(--ea-accent);
+}
+.cd_attach_btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --------------------------------------------- turn probe: tabs + copy */
+.tdm_tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px 0;
+  border-bottom: 1px solid var(--line, #24304a);
+}
+.tdm_tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim, #8b98ad);
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+  padding: 6px 10px;
+  font-family: inherit;
+}
+.tdm_tab_on {
+  color: var(--text, #d7e0ee);
+  border-bottom-color: var(--ea-accent);
+}
+.tdm_tab_spacer {
+  flex: 1;
+}
+.tdm_copy {
+  background: var(--panel, #131a26);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  color: var(--text, #d7e0ee);
+  cursor: pointer;
+  font-size: calc(11px * var(--font-scale, 1));
+  padding: 3px 10px;
+  margin-bottom: 6px;
+}
+.tdm_copy:hover {
+  border-color: var(--ea-accent);
+}
+.tdm_tool {
+  margin-bottom: 12px;
+}
+.tdm_tool_head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.tdm_tool_result,
+.tdm_system {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: var(--bg, #0b0f16);
+  border: 1px solid var(--line, #24304a);
+  border-radius: 6px;
+  font-size: calc(11px * var(--font-scale, 1));
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.tdm_tool_noresult {
+  color: #e0b16b;
+}
+.el_loading_note {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  border: 1px solid color-mix(in srgb, var(--ea-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--ea-accent) 7%, transparent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 6px 8px;
+  animation: eh_boot_pulse 1.2s ease-in-out infinite;
+}
+
+.eix_signin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--memory) 35%, transparent);
+  background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 12px 0;
+  color: var(--text);
+  font-size: calc(13px * var(--font-scale, 1));
+}
+
+.eh_bootprogress {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  white-space: nowrap;
+  animation: eh_boot_pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes eh_boot_pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Mind-substrate picker (2026-07-09 ruling: operator-chosen dropdowns,
+   AbstractFlow-style; no fallback). */
+.sp_root {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sp_select,
+.sp_input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--memory) 35%, transparent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: calc(11px * var(--font-scale, 1));
+  max-width: 220px;
+}
+
+.sp_select_model {
+  max-width: 260px;
+}
+
+.sp_compact .sp_select,
+.sp_compact .sp_input {
+  padding: 2px 6px;
+  font-size: calc(10.5px * var(--font-scale, 1));
+  max-width: 170px;
+}
+
+.sp_loading,
+.sp_note {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  color: #8296ab;
+}
+
+.ec_substrate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+}
+
+.tdm_fabricated {
+  border: 1px solid color-mix(in srgb, var(--ea-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--ea-accent) 8%, transparent);
+  color: #f4a259;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.5;
+}
+
+.tdm_claim_snippet {
+  margin-top: 6px;
+  color: var(--text);
+  font-style: italic;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+.tdm_notices_block {
+  margin-top: 14px;
+}
+
+/* ------------------------------------------- one derived life-state chip */
+/* Visiting rides the memory token mixed toward text so it stays legible on
+ * BOTH theme groups (the raw #7cc4ff washed out on light themes). */
+.eh_life_visiting, .eix_life_visiting { color: color-mix(in srgb, var(--memory) 70%, var(--text)); border-color: color-mix(in srgb, var(--memory) 50%, transparent); }
+.eh_life_working, .eix_life_working { color: var(--ea-accent); border-color: color-mix(in srgb, var(--ea-accent) 50%, transparent); }
+.eh_life_own_time, .eix_life_own_time { color: var(--ea-accent); border-color: color-mix(in srgb, var(--ea-accent) 50%, transparent); }
+.eh_life_sleeping, .eix_life_sleeping,
+.eh_life_dreaming, .eix_life_dreaming { color: var(--standing); border-color: color-mix(in srgb, var(--standing) 50%, transparent); }
+/* Resting = own time ON, between days: GOLD family (it belongs to the
+ * own-time axis), dimmed — the violet it wore before read as "some kind
+ * of asleep" at a glance (adversary find: violet-vs-violet). */
+.eh_life_resting, .eix_life_resting { color: color-mix(in srgb, var(--ea-accent) 80%, transparent); border-color: color-mix(in srgb, var(--ea-accent) 40%, transparent); }
+.eh_life_paused, .eix_life_paused { color: color-mix(in srgb, var(--bond) 75%, var(--text)); border-color: rgba(216,192,122,0.5); }
+/* eh_life_awake retired (spec v6, laurent c203: awake is never a chip —
+ * the settling render wears the sleeping accent toward its destination). */
+/* Unknown = no read answered — visibly a non-claim, never a phase. */
+.eh_life_unknown, .eix_life_unknown { color: var(--text-dim); border-color: rgba(139, 152, 173, 0.4); border-style: dashed; }
+
+/* Sleep column: standing config, not yet consumed by the sleep pass. */
+.wsp_phase_note {
+  font-size: calc(10px * var(--font-scale, 1));
+  opacity: 0.7;
+  cursor: help;
+}
+
+/* ------------------------------------------------------------
+   GRAPH LENSES (2026-07-12 graph-access wave): one-click semantic
+   filters over the memory graph; active lens dims everything else.
+   ------------------------------------------------------------ */
+/* The overlay column pinned to the top-left of the graph: the search bar
+ * (when open) sits ABOVE the lens row, both sharing the same left edge and
+ * width (operator (h): search is a first-class bar above the pills). */
+.entity_graph_overlay {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 200px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.entity_graph_overlay > * {
+  pointer-events: auto;
+}
+.entity_lens_bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.lens_search_toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  color: var(--text-dim);
+  font-size: calc(12px * var(--font-scale, 1));
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.lens_search_toggle:hover { color: var(--text); border-color: var(--ea-accent); }
+.lens_search_toggle.active {
+  color: var(--ea-accent);
+  border-color: var(--ea-accent);
+  background: color-mix(in srgb, var(--ea-accent) 14%, transparent);
+}
+.lens_search_label {
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.lens_search_badge {
+  font-size: calc(10px * var(--font-scale, 1));
+  font-weight: 600;
+  background: var(--ea-accent);
+  color: var(--bg);
+  border-radius: 999px;
+  padding: 0 5px;
+}
+.entity_lenses {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.lens_chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+  cursor: pointer;
+}
+.lens_chip:hover { color: var(--text); border-color: var(--ea-accent); }
+.lens_chip.active {
+  color: var(--ea-accent);
+  border-color: var(--ea-accent);
+  background: color-mix(in srgb, var(--ea-accent) 14%, transparent);
+}
+.lens_count {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-dim);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border: 1px solid var(--line);
+}
+
+/* The flying search bar — full width of the overlay column, above the
+ * lenses (operator (h): a first-citizen bar, same width). */
+.entity_search_overlay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ea-accent) 40%, var(--line));
+  background: color-mix(in srgb, var(--bg) 92%, #000);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+}
+.entity_search_input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: calc(13px * var(--font-scale, 1));
+}
+.entity_search_input::placeholder { color: var(--text-dim); }
+.entity_search_count {
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--ea-accent);
+  flex-shrink: 0;
+}
+.entity_search_close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: calc(13px * var(--font-scale, 1));
+  flex-shrink: 0;
+}
+.entity_search_close:hover { color: var(--text); }
+
+/* Topic map (the community view, 2026-07-17). */
+.tm_wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  z-index: 2;
+}
+.tm_head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* The lens bar floats over the canvas area's top band — the map's own
+   * header starts below it (same 104px overlay band the canvas labels
+   * respect). */
+  padding: 44px 14px 4px;
+  font-size: calc(11px * var(--font-scale, 1));
+  color: var(--text-muted);
+}
+.tm_title { font-weight: 600; color: var(--text-primary); }
+.tm_algo { cursor: help; opacity: 0.75; }
+.tm_retry {
+  background: transparent;
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: calc(10px * var(--font-scale, 1));
+  padding: 2px 8px;
+}
+.tm_retry:hover { color: var(--text-primary); }
+.tm_svg { flex: 1; width: 100%; min-height: 0; color: var(--text-primary); }
+.tm_bubble { cursor: pointer; }
+.tm_bubble .tm_label { font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--bg-primary); stroke-width: 3px; stroke-linejoin: round; }
+.tm_bubble .tm_count { font-size: 10px; paint-order: stroke; stroke: var(--bg-primary); stroke-width: 3px; stroke-linejoin: round; }
+.tm_note { padding: 24px; color: var(--text-muted); font-size: calc(12px * var(--font-scale, 1)); }
+.tm_error { color: var(--warn, #e7b45a); display: flex; gap: 10px; align-items: center; }
+.tm_foot {
+  margin: 0;
+  padding: 6px 14px 10px;
+  font-size: calc(10px * var(--font-scale, 1));
+  color: var(--text-dim);
+}
+.tm_filter_chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Detail card: speaker-labeled verbatim turns + metadata chips (dm#54). */
+.ei_turns { display: flex; flex-direction: column; gap: 8px; }
+.ei_turn {
+  border-left: 2px solid var(--border-subtle, rgba(148, 163, 184, 0.3));
+  padding-left: 10px;
+}
+.ei_turn_self { border-left-color: var(--entity-accent, #e8a54a); }
+.ei_turn_speaker {
+  display: inline-block;
+  font-size: calc(10px * var(--font-scale, 1));
+  font-weight: 600;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-elevated, #1e293b) 80%, transparent);
+  border-radius: 4px;
+  padding: 1px 7px;
+  margin-bottom: 3px;
+}
+.ei_turn_self .ei_turn_speaker { color: var(--entity-accent, #e8a54a); }
+.ei_turn_text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.55;
+  font-family: inherit;
+}
+/* His unspoken reasoning (inner-speech-simple): a distinct muted/italic
+ * block, NEVER readable as something he said aloud — say-vs-think honesty
+ * (framework c3318, keyed on the byte-exact "(thinking, unspoken)" marker). */
+.ei_unspoken {
+  margin: 10px 0 2px;
+  padding: 8px 11px;
+  border-left: 2px dashed color-mix(in srgb, var(--text-dim) 55%, transparent);
+  background: color-mix(in srgb, var(--text-dim) 6%, transparent);
+  border-radius: 4px;
+}
+.ei_unspoken_head {
+  display: block;
+  font-size: calc(9px * var(--font-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.ei_unspoken_text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.55;
+  font-style: italic;
+  color: var(--text-dim);
+  font-family: inherit;
+}
+.ei_with_chip {
+  display: inline-block;
+  background: color-mix(in srgb, var(--entity-identity, #e8c25a) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--entity-identity, #e8c25a) 40%, transparent);
+  border-radius: 5px;
+  padding: 0 7px;
+  margin-right: 5px;
+  font-weight: 600;
+}
+
+/* Drive bars (focused room: open/resolved questions + interests). */
+.hp_drive_row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.hp_drive_label { min-width: 92px; color: var(--text-muted); }
+.hp_drivebar {
+  flex: 1;
+  max-width: 260px;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-dim) 18%, transparent);
+  overflow: hidden;
+}
+.hp_drivebar_fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--diary, #7bd88a);
+  transition: width 0.4s ease;
+}
+.hp_drive_num { color: var(--text-primary); font-weight: 600; }
+.hp_drive_empty { color: var(--text-dim); font-weight: 400; font-style: italic; }
+
+/* World cards: summary-first + provenance walk (focused room). */
+.lw_wcard {
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.2));
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--bg-elevated, #16202e) 55%, transparent);
+}
+.lw_wcard_head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.lw_prov { margin-top: 6px; padding-left: 18px; }
+.lw_prov_toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: calc(10px * var(--font-scale, 1));
+  padding: 0;
+}
+.lw_prov_toggle:hover { color: var(--text-primary); }
+.lw_prov_list { list-style: none; margin: 4px 0 0; padding: 0; }
+.lw_prov_list li { display: flex; gap: 6px; align-items: baseline; margin: 2px 0; font-size: calc(10px * var(--font-scale, 1)); }
+.lw_prov_rel { color: var(--text-dim); white-space: nowrap; }
+.lw_prov_link {
+  background: transparent;
+  border: none;
+  color: var(--memory, #79c7ff);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-size: inherit;
+}
+.lw_prov_link:hover { text-decoration: underline; }
+.hp_drivebar_saturated { background: var(--warn, #e7b45a); }
+.hp_drive_warn { color: var(--warn, #e7b45a); font-weight: 500; }
+/* Drive groups (c277: grouped pressure, largest-first — presentation of
+ * what circles together, never a merge of his records). */
+.hp_group_row { display: flex; gap: 7px; align-items: baseline; font-size: 12px; line-height: 1.5; padding: 2px 0; }
+.hp_group_size { flex: none; min-width: 26px; text-align: right; font-weight: 700; color: var(--warn, #e7b45a); font-variant-numeric: tabular-nums; }
+.hp_group_family { flex: none; color: var(--text-dim, #8a94a6); }
+.hp_group_theme { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
+.hp_group_more { font-size: 11px; color: var(--text-dim, #8a94a6); padding: 2px 0 0 33px; }
+
+/* Standing-pull note (dm#82 drives-are-drivers; adversary F7 killed the
+ * amber prohibition banner — a healthy driven entity is above 20
+ * permanently, so a standing alarm is fatigue): quiet, informational. */
+.hp_drive_note {
+  margin: 2px 0 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-dim, #8a94a6) 8%, transparent);
+  color: var(--text-dim, #8a94a6);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Voice tab (Settings): catalog picker over the home triple. */
+.wsp_voice_current {
+  margin: 8px 0 12px;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.wsp_voice_row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.wsp_voice_row label {
+  min-width: 64px;
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.wsp_voice_row select,
+.wsp_voice_row input {
+  background: var(--bg-primary, #0d1117);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: calc(12px * var(--font-scale, 1));
+  min-width: 220px;
+}
+.wsp_voice_list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.wsp_voice_item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  color: var(--text);
+  font-size: calc(11px * var(--font-scale, 1));
+  cursor: pointer;
+}
+.wsp_voice_item:hover {
+  border-color: color-mix(in srgb, var(--entity-accent, #e8a54a) 55%, transparent);
+}
+.wsp_voice_item_on {
+  border-color: var(--entity-accent, #e8a54a);
+  background: color-mix(in srgb, var(--entity-accent, #e8a54a) 12%, transparent);
+}
+.wsp_voice_kind {
+  font-size: calc(9px * var(--font-scale, 1));
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wsp_voice_kind_clone {
+  color: var(--entity-accent, #e8a54a);
+}
+.wsp_voice_clear {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+
+/* Skills tab (Settings): matrix + verdicts + audience taxonomy. */
+.wsp_skills_audience {
+  margin: 8px 0 10px;
+  font-size: calc(11px * var(--font-scale, 1));
+  line-height: 1.5;
+}
+.wsp_skills_audience p { margin: 4px 0; }
+.wsp_aud_delivered { color: var(--ok, #6cc06c); font-weight: 600; }
+.wsp_aud_host { color: var(--text-dim); font-weight: 600; }
+/* 0008 requires: a selected skill dropped for a missing dependency (gateway
+ * c3964) — a warning tone, not an error: the selection stands, the teaching
+ * waits for the dependency. */
+.wsp_aud_unmet { color: var(--warn, #e7b45a); font-weight: 600; }
+.wsp_skills_verdicts { margin: 10px 0; font-size: calc(10px * var(--font-scale, 1)); }
+.wsp_skills_verdicts ul { margin: 4px 0 0; padding-left: 18px; }
+.wsp_skills_verdicts code { word-break: break-all; color: var(--warn, #e7b45a); }
+
+/* ── Memory blueprint (operator directive dm#118: the cognition machine as
+ * a page — same for all entities, static per build, reads no stream). ── */
+.bp_panel { display: flex; flex-direction: column; gap: 6px; }
+.bp_head { display: flex; align-items: baseline; gap: 10px; }
+.bp_title { font-weight: 700; font-size: 13px; }
+.bp_vintage { font-size: 11px; color: var(--text-dim, #8a94a6); cursor: help; }
+.bp_legend { display: flex; gap: 8px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-dim, #8a94a6); }
+.bp_lg { border-left: 3px solid; padding-left: 5px; }
+.bp_lg_missing { border-left: 3px dashed #5d6a7a; padding-left: 5px; }
+.bp_lg_anti { border-left: 3px dashed #d87a7a; padding-left: 5px; }
+.bp_scroll { overflow: auto; max-height: 78vh; border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 18%, transparent); border-radius: 8px; }
+.bp_svg { width: 100%; min-width: 860px; height: auto; display: block; }
+.bp_nlabel { font-size: 12.5px; font-weight: 650; fill: var(--text, #dfe6ef); }
+.bp_nsub { font-size: 9.5px; line-height: 1.25; color: var(--text-dim, #8a94a6); text-align: center; overflow: hidden; }
+.bp_edge { stroke: #8a94a6; stroke-width: 1.2; opacity: 0.85; }
+.bp_edge_missing { stroke: #5d6a7a; stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.8; }
+.bp_edge_anti { stroke: #d87a7a; stroke-width: 1.3; stroke-dasharray: 6 4; opacity: 0.9; }
+.bp_elabel { font-size: 9px; fill: var(--text-dim, #a7b1c2); paint-order: stroke; stroke: var(--bg-panel, #10161e); stroke-width: 3px; stroke-linejoin: round; }
+.bp_elabel_anti { fill: #d87a7a; }
+.bp_elabel_missing { fill: #7a8698; font-style: italic; }
+.bp_footnote { font-size: 10.5px; color: var(--text-dim, #8a94a6); line-height: 1.5; margin: 2px 0 0; }
+
+/* Blueprint as its own page (laurent dm#130): full-height wrapper off the
+ * roster. Width capped at the fleet page's bound and centered (placement
+ * adversary P1-2: uncapped full-viewport scaling turned the map into a
+ * poster taller than the screen); the head mirrors fleet's shape (title +
+ * ⌂ back at the right). */
+.bp_page { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 40px; max-width: 1180px; margin: 0 auto; width: 100%; box-sizing: border-box; overflow-y: auto; height: 100%; }
+.bp_page_head { display: flex; align-items: baseline; justify-content: space-between; }
+.bp_page_head h2 { margin: 0; font-size: 16px; }
+/* THE OPERATOR'S DIALS (dm#104): the tunables edit surface under the map. */
+.bp_tunables { padding-top: 6px; }
+.bp_section .bp_tunables .bp_tun_head h3 { display: none; }
+.bp_tun_head { display: flex; align-items: baseline; gap: 10px; }
+.bp_tun_head h3 { margin: 0; font-size: 13.5px; }
+.bp_tun_rev { font-size: 11px; color: var(--text-dim, #8a94a6); }
+.bp_tun_note { font-size: 11.5px; color: var(--text-dim, #8a94a6); line-height: 1.5; margin: 4px 0 8px; }
+.bp_tun_grid { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 8px; }
+.bp_tun_row { display: flex; align-items: baseline; gap: 6px; font-size: 12px; }
+.bp_tun_row input { width: 72px; background: color-mix(in srgb, var(--text-dim, #8a94a6) 8%, transparent); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 5px; color: var(--text, #dfe6f2); padding: 3px 6px; font-size: 12px; }
+.bp_tun_label { color: var(--text-dim, #8a94a6); }
+.bp_tun_unit { color: var(--text-dim, #8a94a6); font-size: 11px; }
+.bp_tun_bad input { border-color: var(--warn, #e7b45a); }
+.bp_tun_bound { color: var(--warn, #e7b45a); font-size: 11px; }
+/* v12 consumption contract: a declared-but-unconsumed dial renders read-only
+ * with the honest tag — editing it would be a silent no-op. */
+.bp_tun_unwired { opacity: 0.55; }
+.bp_tun_unwired_tag { color: var(--text-dim, #8a94a6); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.bp_tun_actions { display: flex; gap: 8px; align-items: center; }
+.bp_tun_reason { flex: 1; min-width: 200px; background: color-mix(in srgb, var(--text-dim, #8a94a6) 8%, transparent); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 5px; color: var(--text, #dfe6f2); padding: 4px 8px; font-size: 12px; }
+.bp_tun_ok { font-size: 11.5px; color: var(--ok, #6cc06c); margin: 6px 0 0; }
+.bp_tun_err { font-size: 11.5px; color: var(--warn, #e7b45a); margin: 6px 0 0; }
+
+/* THE RISK BADGE (tool-tiers round): served bands only, never guessed. */
+.wsp_risk { display: inline-block; min-width: 14px; text-align: center; margin-left: 4px; padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 700; background: color-mix(in srgb, var(--text-dim, #8a94a6) 12%, transparent); color: var(--text-dim, #8a94a6); }
+.wsp_risk_3, .wsp_risk_4 { background: color-mix(in srgb, var(--warn, #e7b45a) 18%, transparent); color: var(--warn, #e7b45a); }
+.wsp_risk_unvetted { border: 1px dashed color-mix(in srgb, var(--text-dim, #8a94a6) 45%, transparent); background: transparent; }
+
+/* WHAT-CAN-BE-EDITED banner on the blueprint page (P0 repro c4779). */
+.bp_editable_note { margin: 2px 0 6px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 30%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--accent, #6ea8fe) 7%, transparent); color: var(--text, #dbe2ee); font-size: 12px; line-height: 1.45; }
+.bp_editable_note a { color: var(--accent, #6ea8fe); }
+
+/* THE PHASE-GRAPH EDITOR (structural-edit build c4837). */
+.pe_editor { display: flex; flex-direction: column; gap: 8px; }
+.pe_group { margin: 8px 0; }
+.pe_group_head { margin: 6px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim, #8a94a6); }
+.pe_row { padding: 5px 8px; border-radius: 6px; }
+.pe_row:nth-child(even) { background: color-mix(in srgb, var(--text-dim, #8a94a6) 6%, transparent); }
+.pe_row_touched { outline: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 35%, transparent); }
+.pe_row_main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pe_edge { font-size: 12.5px; }
+.pe_cause { color: var(--text-dim, #8a94a6); }
+.pe_chip { font-size: 10px; padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pe_chip_demo { font-size: 10px; padding: 0 5px; border-radius: 8px; }
+.pe_tier_enforced { background: color-mix(in srgb, #6ecf8e 18%, transparent); color: #6ecf8e; }
+.pe_tier_fact { background: color-mix(in srgb, var(--text-dim, #8a94a6) 16%, transparent); color: var(--text-dim, #8a94a6); }
+.pe_tier_election { background: color-mix(in srgb, #c084dd 18%, transparent); color: #c084dd; }
+.pe_state_removed { background: color-mix(in srgb, #e07a6a 18%, transparent); color: #e07a6a; }
+.pe_state_redirected { background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); color: var(--accent, #6ea8fe); }
+.pe_state_added { background: color-mix(in srgb, var(--warn, #e7b45a) 18%, transparent); color: var(--warn, #e7b45a); }
+.pe_guards { font-size: 10.5px; color: var(--text-dim, #8a94a6); }
+.pe_instruction { margin: 3px 0 0 6px; font-size: 12px; color: var(--text, #dbe2ee); }
+.pe_row_actions { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.pe_btn { font-size: 11px; padding: 2px 8px; }
+.pe_redirect_form, .pe_add_form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+.pe_add { margin: 10px 0 4px; }
+.pe_add_form input { min-width: 220px; }
+.pe_bound { min-width: 60px !important; width: 70px; }
+.pe_add_refusal { flex-basis: 100%; margin: 2px 0 0; }
+.pe_locked_note { font-size: 11px; color: var(--text-dim, #8a94a6); }
+
+
+/* THE REBUILT BLUEPRINT PAGE (operator verdict c4995): normal document
+ * flow — no ancestor-height dependency (the height:100% chain collapsed
+ * to a 0px panel with overlapping text; screenshots untracked/bp_before_*). */
+.pm_wrap { border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 20%, transparent); border-radius: 10px; padding: 8px 10px; background: color-mix(in srgb, #0e1420 65%, transparent); }
+.pm_svg { width: 100%; height: auto; display: block; touch-action: none; border-radius: 6px; }
+.pm_controls { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.pm_hint { font-size: 11px; color: var(--text-dim, #8a94a6); margin-left: 8px; }
+.pm_legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; margin-top: 4px; }
+.pe_row_selected { outline: 2px solid color-mix(in srgb, var(--accent, #6ea8fe) 60%, transparent); background: color-mix(in srgb, var(--accent, #6ea8fe) 8%, transparent) !important; }
+.bp_section { border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 18%, transparent); border-radius: 10px; padding: 10px 12px; }
+.bp_section > summary { cursor: pointer; font-weight: 600; font-size: 13.5px; color: var(--text, #dbe2ee); list-style: none; display: flex; align-items: baseline; gap: 8px; }
+.bp_section > summary::before { content: "▸"; color: var(--text-dim, #8a94a6); transition: transform 0.15s; }
+.bp_section[open] > summary::before { transform: rotate(90deg); }
+.bp_section_sub { font-size: 11px; color: var(--text-dim, #8a94a6); font-weight: 400; }
+.pe_tier_act { background: color-mix(in srgb, #7a8fd8 18%, transparent); color: #7a8fd8; }
+.pe_save_sticky { position: sticky; bottom: 8px; background: color-mix(in srgb, #0e1420 92%, transparent); border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 40%, transparent); border-radius: 10px; padding: 8px 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.45); z-index: 5; }
+.pe_staged_count { font-size: 12px; color: var(--warn, #e7b45a); font-weight: 600; margin-right: 8px; }
+.bp_tun_save { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pm_svg { max-height: 62vh; }
+/* P2-16: inside the collapsible section the cognition panel's own title
+ * repeats the summary — hide the inner header line. */
+.bp_section .bp_panel .bp_head { display: none; }
+.ei_digest_method { margin: 2px 0 0; font-size: 10.5px; color: var(--text-dim, #8a94a6); }
+
+/* THE BRAIN SELECTOR (flow-brain lane c5190). */
+.cd_brain_row { display: flex; gap: 14px; font-size: 12px; color: var(--text-dim, #8a94a6); margin: 4px 0 2px; }
+.cd_brain_row label { cursor: pointer; display: flex; align-items: center; gap: 5px; }
+.cd_brain_sel { color: var(--text, #dbe2ee); font-weight: 600; }
+
+/* THE SEAT LINE (gateway slice 1, c5390): who holds the one conversation. */
+.cd_seatline { color: var(--warn, #e7b45a); font-size: 12px; }
+
+/* THE QUEUE (decision:summon-queue-v1): offer buttons + the wait card. */
+.cd_queue_offer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--warn, #e7b45a) 35%, transparent); border-radius: 8px; margin: 6px 0; }
+.cd_queue_card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 25%, transparent); border-radius: 8px; margin: 6px 0; }
+.cd_queue_line { color: var(--text, #dbe2ee); font-size: 12.5px; }
+
+/* THE REASONING DIAL (operator task c5710: provider, model, reasoning). */
+.wsp_reasoning { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.wsp_reasoning_row { display: flex; align-items: center; gap: 10px; }
+.wsp_reasoning_label { font-size: 12px; color: var(--text-dim, #8a94a6); text-transform: uppercase; letter-spacing: 0.04em; }
+.wsp_reasoning_select { background: color-mix(in srgb, #0e1420 70%, transparent); color: var(--text, #dbe2ee); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; }
+.wsp_reasoning_unlock { background: none; border: 1px dashed color-mix(in srgb, var(--text-dim, #8a94a6) 40%, transparent); color: var(--text-dim, #8a94a6); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.wsp_reasoning_unlock:hover { color: var(--text, #dbe2ee); }

@@ -1,0 +1,58 @@
+{
+  "name": "@abstractframework/entity",
+  "version": "0.1.0",
+  "description": "Summoned-entity manager for AbstractFramework - create entities, watch a mind's memory graph live, and talk with it",
+  "type": "module",
+  "author": "Laurent-Philippe Albou",
+  "license": "MIT",
+  "keywords": [
+    "abstractframework",
+    "entities",
+    "memory-graph",
+    "observability",
+    "gateway",
+    "ui"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lpalbou/AbstractEntity.git"
+  },
+  "homepage": "https://github.com/lpalbou/AbstractEntity#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "abstractentity": "./bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "llms.txt",
+    "llms-full.txt"
+  ],
+  "scripts": {
+    "dev": "vite --host --port 3007",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "start": "node ./bin/cli.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@abstractframework/app-server": "file:../abstractuic/app-server",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.7.0",
+    "puppeteer-core": "^25.3.0",
+    "typescript": "^5.3.3",
+    "vite": "^6.4.1",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
