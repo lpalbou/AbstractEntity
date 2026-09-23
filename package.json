@@ -39,7 +39,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@abstractframework/app-server": "file:../abstractuic/app-server",
+    "@abstractframework/app-server": "^0.1.9",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
