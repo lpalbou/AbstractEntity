@@ -1,5 +1,55 @@
 # Changelog
 
+All notable changes to `@abstractframework/entity` are recorded here.
+
+## [0.1.0] - 2026-09-23
+
+First public release of AbstractEntity, the summoned-entity app for
+AbstractFramework, published on npm as `@abstractframework/entity`.
+
+### What it is
+
+A thin React web app, served by the `abstractentity` command, for living with
+the entities an AbstractGateway hosts. It keeps no server state of its own:
+every view is derived from the gateway's HTTP endpoints and the memory
+engine's replay stream.
+
+### Added
+
+- **`abstractentity` command** (`npx @abstractframework/entity`): serves the
+  built app on `http://127.0.0.1:3007` (loopback by default; `PORT` / `HOST`
+  to change) together with the shared app-origin gateway session proxy, so
+  tokens stay in HttpOnly cookies instead of the browser. Point it at a
+  gateway with `ABSTRACTENTITY_GATEWAY_URL` (or `ABSTRACTGATEWAY_URL`); set
+  `ABSTRACTENTITY_OBSERVER_URL` for the header link to AbstractObserver.
+- **Entity index**: create and list entities, pick one, watch the whole fleet,
+  and convene two entities in the **Meet console**.
+- **Memory graph**: the entity's memory as a live force-directed graph, with
+  replay, time scrub and live tail as one code path, memory search, graph
+  lenses (identity, recent, warm, feelings, diary, dreams, questions) and a
+  local replay cache for fast reopening.
+- **Reading surfaces**: Detail (one record with its verbatim, feelings and
+  associations), Book (the diary as a chronological journal; sealed entries
+  stay sealed), Lessons, World (orientation cards), Health (memory-shape
+  metrics and on-disk footprint), Wave (cognition wave over the entity's
+  words) and Ledger (the continuous life ledger).
+- **Visits**: a chat drawer with reasoning-cycle visibility, a per-turn
+  cognition wave, and a settings dialog for the mind substrate, workspace
+  files and mounts, per-phase tool grants and the system prompt.
+- **Lifecycle and blueprint**: the four lifecycle phases as one control, the
+  phase-transition editor, operator dials and the cognition map.
+- **Offline demo**: a bundled demo stream so the graph can be explored without
+  a gateway.
+
+### Requirements
+
+- Node.js 18 or newer.
+- A running AbstractGateway for live entities.
+
+## Development history (before the first public release)
+
+The dated entries below record the app's development before it was published.
+
 ## 2026-07-26 — drawer decomposition executed (fable5 consolidation plan B, operator cleanup order c5379)
 
 - **chat_drawer.tsx 1822 → 1238 lines**: the flow-brain lane moved wholesale into `use_flow_conversation.ts` (conversation lifecycle, turn drive via the shared `renderFlowOutcome` fold, goodbye close, the whole queue lane — offer/accept/park/poll/step-away — and the poll generation token); the thread rendering moved into `chat_message_list.tsx` (ChatMessageList, ContextFoldCard, badgeLabel, toolGaugeTrustworthy, splitVisitDecoration — re-exported for import compatibility); `refusalText` moved to `stream_source.ts` beside the error shapes it parses. All moves verbatim-mechanical; 427 tests green, build clean.

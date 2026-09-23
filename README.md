@@ -29,10 +29,30 @@ has one purpose — the observer observes runs/runtime/gateway; this app is
 where entities live. The observer still *watches* entities (board tiles,
 card endpoints) but no longer serves this UI.
 
-## Quick start
+## Install and run
+
+AbstractEntity is published on npm as `@abstractframework/entity`. It needs
+Node.js 18 or newer and an AbstractGateway to talk to.
 
 ```bash
-# from a checkout (the AbstractUIC workspace must sit at ../abstractuic)
+# run without installing
+npx @abstractframework/entity
+
+# or install the `abstractentity` command globally
+npm install -g @abstractframework/entity
+abstractentity
+
+# point it at your gateway (default http://127.0.0.1:8080)
+ABSTRACTENTITY_GATEWAY_URL=http://127.0.0.1:8080 npx @abstractframework/entity
+```
+
+The app serves on `http://127.0.0.1:3007`; open it and sign in to your
+gateway from the connect dialog.
+
+## Develop from a checkout
+
+```bash
+# the AbstractUIC repository must sit next to this one at ../abstractuic
 npm install
 npm run build
 npm start            # serves on http://127.0.0.1:3007

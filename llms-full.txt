@@ -38,10 +38,30 @@ has one purpose — the observer observes runs/runtime/gateway; this app is
 where entities live. The observer still *watches* entities (board tiles,
 card endpoints) but no longer serves this UI.
 
-## Quick start
+## Install and run
+
+AbstractEntity is published on npm as `@abstractframework/entity`. It needs
+Node.js 18 or newer and an AbstractGateway to talk to.
 
 ```bash
-# from a checkout (the AbstractUIC workspace must sit at ../abstractuic)
+# run without installing
+npx @abstractframework/entity
+
+# or install the `abstractentity` command globally
+npm install -g @abstractframework/entity
+abstractentity
+
+# point it at your gateway (default http://127.0.0.1:8080)
+ABSTRACTENTITY_GATEWAY_URL=http://127.0.0.1:8080 npx @abstractframework/entity
+```
+
+The app serves on `http://127.0.0.1:3007`; open it and sign in to your
+gateway from the connect dialog.
+
+## Develop from a checkout
+
+```bash
+# the AbstractUIC repository must sit next to this one at ../abstractuic
 npm install
 npm run build
 npm start            # serves on http://127.0.0.1:3007
@@ -229,6 +249,13 @@ scrub position T (re-fold 0..T, cached incrementally)     ┘
 - **State-at-T** is the fold of every envelope with `seq <= T`; forward is
   incremental, backward re-folds from 0 (cheap at entity scale). Replay,
   live tail, and scrub are one path.
+- **Life cache** (`replay_cache.ts`): the bounded replay is cached in
+  IndexedDB per (gateway origin, entity); reopening a life paints from the
+  cached prefix and fetches only `seq > cached max` (cursored delta —
+  sound because the journal is append-only and marker seqs mint at journal
+  high-water). A journal-head probe (`until_seq=1`) validates lineage
+  first; a reborn name drops the cache. Measured: castor 22.3s cold →
+  0.4s warm.
 
 Every surface below reads `FoldState` (or the same doors), so they are all
 consistent at any scrub position.

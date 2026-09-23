@@ -3,6 +3,7 @@
 > The summoned-entity app for AbstractFramework: create entities, watch a mind's memory graph live (replay/scrub/tail), read what it kept (diary, mood, on-disk health), and talk with it (visits, meets). A thin React client with no server state — every view is a pure function of the gateway's HTTP endpoints and the memory engine's frozen replay-stream format.
 
 Key facts for a reader:
+- Install/run: `npx @abstractframework/entity` (or `npm install -g @abstractframework/entity` then `abstractentity`); serves on `http://127.0.0.1:3007`; Node.js >= 18; point it at a gateway with `ABSTRACTENTITY_GATEWAY_URL` (default `http://127.0.0.1:8080`).
 - Thin client: static SPA served by `bin/cli.js` with the shared app-origin gateway session proxy (`@abstractframework/app-server`, appId `abstractentity`). No server state of its own.
 - State-at-T is a pure fold of the replay stream; replay, live tail, and time-scrub are one code path.
 - Honesty is load-bearing and test-pinned: diary redaction is never reconstructed, tool claims render from attributes/host-events not prose, embedding spaces are never crossed silently, a malformed line never bricks the view, unknown facts are labeled not invented.
@@ -10,7 +11,7 @@ Key facts for a reader:
 
 ## Documentation
 
-- [README](README.md): quick start, environment, auth, the surfaces table.
+- [README](README.md): install and run, develop from a checkout, environment, auth, the surfaces table.
 - [Overview](docs/Overview.md): goals, the challenge, core components, honesty invariants.
 - [Data flow](docs/DataFlow.md): transport/auth, the replay-stream fold, per-surface flow, the cognition-wave pipeline.
 - [Architecture](docs/architecture.md): the two halves, `src/` module map, load-bearing invariants, serving.
