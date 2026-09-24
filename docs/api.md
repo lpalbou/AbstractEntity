@@ -25,7 +25,6 @@ it with environment variables.
 | `PORT` | `3007` | Port the server listens on |
 | `HOST` | `127.0.0.1` | Bind address. Loopback by default; set `HOST=0.0.0.0` to expose the app on your network |
 | `ABSTRACTENTITY_GATEWAY_URL` (or `ABSTRACTGATEWAY_URL`) | `http://127.0.0.1:8080` | The gateway this deployment fronts; the sign-in dialog defaults to it |
-| `ABSTRACTENTITY_OBSERVER_URL` | unset | Injected into the page as `observer_url`; the current app does not display it |
 
 The sign-in proxy (`@abstractframework/app-server`) reads its own
 `ABSTRACTENTITY_*` / `ABSTRACTGATEWAY_*` settings, for example whether the

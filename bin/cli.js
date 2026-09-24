@@ -28,8 +28,6 @@ const PORT = process.env.PORT || 3007;
 // local anyway. HOST=0.0.0.0 stays the explicit opt-in for a wider bind.
 const HOST = process.env.HOST || '127.0.0.1';
 const DEFAULT_GATEWAY_URL = String(process.env.ABSTRACTENTITY_GATEWAY_URL || process.env.ABSTRACTGATEWAY_URL || 'http://127.0.0.1:8080').trim().replace(/\/+$/, '') || 'http://127.0.0.1:8080';
-// Where the OBSERVER app (runs/board/runtime) lives — the header backlink.
-const OBSERVER_URL = String(process.env.ABSTRACTENTITY_OBSERVER_URL || '').trim().replace(/\/+$/, '');
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -56,7 +54,6 @@ function inject_config_html(html) {
   // THIS deployment's gateway — the sign-in surfaces default to it instead
   // of any hardcoded historical port (maintainer incident 2026-07-09).
   if (DEFAULT_GATEWAY_URL) ui_config.gateway_url = DEFAULT_GATEWAY_URL;
-  if (OBSERVER_URL) ui_config.observer_url = OBSERVER_URL;
   if (!Object.keys(ui_config).length) return html;
   const marker = "window.__ABSTRACT_UI_CONFIG__";
   if (html.includes(marker)) return html;

@@ -7,9 +7,6 @@ declare global {
        * default for direct-posture connect surfaces; through the app-origin
        * proxy the browser never dials it directly. */
       gateway_url?: string;
-      /** Where the observer app lives (bin/cli.js injects it from
-       * ABSTRACTENTITY_OBSERVER_URL) — drives the header backlink. */
-      observer_url?: string;
     };
   }
 }

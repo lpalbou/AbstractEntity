@@ -4,6 +4,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Removed
+
+- `ABSTRACTENTITY_OBSERVER_URL` is no longer read. The `abstractentity` command
+  passed it to the page, but the app never showed a link to AbstractObserver,
+  so setting it had no effect.
+
 ### Documentation
 
 - The README explains what an entity is and walks through creating your first
