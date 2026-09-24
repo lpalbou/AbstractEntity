@@ -1,33 +1,10 @@
 # AbstractEntity
 
-The summoned-entity package for [AbstractFramework](https://github.com/lpalbou):
-everything about **living with entities** in one place.
-
-This repository is designed to hold two halves:
-
-- **(a) Entity code, orchestration and skills** — the lanes that make
-  summoned entities live (homes, gates, visit workflows, phase policies,
-  skills). These lanes are owned by their current packages (gateway,
-  runtime, memory) and migrate here as their owners rule; this repo gives
-  them a destination. Nothing has moved yet — see `docs/architecture.md`
-  for the intended layout.
-- **(b) The Entity app** — the web UI shipped here today: create/list
-  entities, watch a mind's memory graph live (replay, scrub, live tail),
-  and talk with it (visits, workspace/tool grants, system prompt, identity
-  card, verbatims, diary-honest rendering). Alongside the graph, a set of
-  reading surfaces: the **Book** (his diary as a chronological journal), the
-  **Health** panel (memory-shape metrics + on-disk footprint), the
-  **Cognition Wave** (uic's text-mood instrument), and a **Meet console**
-  for convening two entities into one conversation. See
-  [`docs/Overview.md`](docs/Overview.md) and
-  [`docs/DataFlow.md`](docs/DataFlow.md).
-
-Provenance: the app was born inside
-[AbstractObserver](https://github.com/lpalbou/AbstractObserver) as its
-second entry (`entity.html`) and moved here on 2026-07-12 so each package
-has one purpose — the observer observes runs/runtime/gateway; this app is
-where entities live. The observer still *watches* entities (board tiles,
-card endpoints) but no longer serves this UI.
+AbstractEntity is the entity app of [AbstractFramework](https://github.com/lpalbou):
+the place where you create entities, talk with them, watch what they remember as a
+live memory graph, and read their diaries. It is published on npm as
+`@abstractframework/entity` and runs as a small local web app in front of your
+[AbstractGateway](https://github.com/lpalbou/AbstractGateway).
 
 ## What is an entity?
 
@@ -42,22 +19,25 @@ live graph, and read its diary.
 
 1. Open the Entity app. From the gateway console, the Entity card's button
    reads **Create your first entity** while the gateway has none; it opens
-   the app signed in, straight on the creation form (that console button
-   needs abstractgateway 0.4.1 or newer; the app itself works with any
-   gateway).
+   the app signed in, straight on the creation form. That console button
+   needs AbstractGateway 0.4.1 or newer; the app itself works with any
+   gateway.
 2. Type a name (for example *Pollux*) and press **Create entity**. The name is
    all it needs: the entity starts from the standard starting document.
-3. The app opens the new entity's page. Say hello in the Chat tab.
+3. The app opens the new entity's page. Say hello in the **Chat** tab.
 
-With no entity yet, the app shows a short explanation and the same **Create
-your first entity** button. The address `http://<app>/#new` opens the
-creation form directly (the console uses it). The **Advanced** fold of the
-form takes your own starting document (YAML), for people who write one.
+With no entity yet, the app shows **No entities yet**, one sentence on what an
+entity is, and the same **Create your first entity** button. The address
+`http://127.0.0.1:3007/#new` opens the creation form directly (the gateway
+console uses it). The **Advanced: starting document** fold of the form takes
+your own starting document (YAML) if you write one.
+
+A name belongs to one entity for its whole life: creating an entity whose name
+already exists opens the existing one instead.
 
 ## Install and run
 
-AbstractEntity is published on npm as `@abstractframework/entity`. It needs
-Node.js 18 or newer and an AbstractGateway to talk to.
+AbstractEntity needs Node.js 18 or newer and an AbstractGateway to talk to.
 
 ```bash
 # run without installing
@@ -71,8 +51,48 @@ abstractentity
 ABSTRACTENTITY_GATEWAY_URL=http://127.0.0.1:8080 npx @abstractframework/entity
 ```
 
-The app serves on `http://127.0.0.1:3007`; open it and sign in to your
-gateway from the connect dialog.
+The app serves on `http://127.0.0.1:3007`. Open it and sign in to your gateway
+from the connect dialog. See [Getting started](docs/getting-started.md) for the
+full first run and [the configuration reference](docs/api.md#configuration) for
+every environment variable.
+
+## What you can do in the app
+
+- **Entities list** (`/`): create entities, open one, watch them all at once
+  (**watch all**), convene two of them into one conversation (**convene a
+  meet**), and open the **blueprint** page that shows how every entity's
+  memory and daily cycle work.
+- **Entity page** (`/?entity=NAME`): the memory graph, the chat, and a set of
+  reading tabs over the same life.
+
+| Surface | What it shows |
+| --- | --- |
+| Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
+| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its model, files, tools and system prompt in **Settings** |
+| Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
+| Detail | One memory: its verbatim text, feelings and associations |
+| Book | The diary as a day-grouped journal; sealed entries stay sealed |
+| Lessons | What the entity has learned and kept |
+| World | The entity's short orientation cards about people, systems and ideas it has met |
+| Health | Memory counts, recall coverage, sessions, model usage and on-disk footprint |
+| Wave | The cognition wave: the expressive character of the entity's own words over time (not its inner state) |
+| Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
+| Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
+
+The app is a thin client: it keeps no server state of its own. Every view is
+read from the gateway, and the memory views are computed from the memory
+engine's replay stream, so replay, live tail and scrubbing back in time show the
+same picture. See [Architecture](docs/architecture.md) for how this works.
+
+Without a reachable gateway the app opens a bundled demo life, so you can
+explore the memory graph offline.
+
+## Sign-in and security
+
+The `abstractentity` server includes the shared AbstractFramework sign-in proxy:
+you sign in once with a gateway token, the server keeps the gateway session in
+HttpOnly cookies, and the browser never stores the token. The server binds to
+loopback (`127.0.0.1`) by default. See [SECURITY.md](SECURITY.md).
 
 ## Develop from a checkout
 
@@ -80,65 +100,23 @@ gateway from the connect dialog.
 # the AbstractUIC repository must sit next to this one at ../abstractuic
 npm install
 npm run build
-npm start            # serves on http://127.0.0.1:3007
+npm start            # serves dist/ on http://127.0.0.1:3007
 
-# development
-npm run dev          # Vite on :3007 with the same session proxy
+npm run dev          # Vite dev server on :3007 with the same sign-in proxy
 npm test             # vitest
 ```
 
-Environment:
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PORT` / `HOST` | `3007` / `127.0.0.1` | Static server bind (loopback default; set `HOST=0.0.0.0` to expose on the network) |
-| `ABSTRACTENTITY_GATEWAY_URL` (or `ABSTRACTGATEWAY_URL`) | `http://127.0.0.1:8080` | The gateway this deployment fronts |
-| `ABSTRACTENTITY_OBSERVER_URL` | `http://127.0.0.1:3001` (client default) | Where the header "Observer ↗" backlink points |
+## Documentation
 
-## Authentication
+- [Documentation index](docs/README.md)
+- [Getting started](docs/getting-started.md): install, sign in, create your first entity
+- [Architecture](docs/architecture.md): components, gateway routes, invariants
+- [API and configuration](docs/api.md): command, environment, URLs, gateway routes used
+- [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md)
+- [Changelog](CHANGELOG.md)
 
-Same contract as every AbstractFramework app: the **app-origin session
-proxy** (`POST /api/connection/gateway` → HttpOnly cookies → proxied
-`/api/gateway/*`), with the shared `@abstractframework/ui-kit`
-`GatewayConnectModal` as the one sign-in dialog. Tokens never rest
-client-side; the direct bearer posture (cross-origin `?gateway=` deep
-links) keeps credentials in memory for the tab's lifetime only.
+## License
 
-## The app in one paragraph
-
-Open `/` for the multi-entity index (create, list, pick a mind; "🤝 convene
-a meet" opens the Meet console). Open `/?entity=NAME&live=1` to land on one
-entity: the memory graph renders the engine's replay stream as a pure fold
-(state at any scrub position is the fold of every envelope up to it —
-offline replay, live tail and time scrub are one code path), with a
-first-class memory search (flying bar over the graph) plus graph lenses
-(identity/recent/warm/feelings/diary/dreams/questions),
-temporal-vs-lifetime warmth honesty, diary redaction honored in the pixel
-path, and a chat drawer for visits with ReAct cycle visibility, a per-turn
-inline cognition wave, and per-phase workspace/tool grants (in ⚙ Settings,
-with the 🧠 mind substrate). The four lifecycle phases render as one pushed
-radio — the active phase is gold and blooming. The right-hand tabs read the
-same fold from different angles: **Detail** (inspector), **Book**,
-**Health** (headline counts + billed cognition live here), **Wave**, and
-**Ledger**. The top bar carries the shared framework cluster: assistant,
-appearance (themes + font scale — the app is fully abstractuic
-theme-compliant, light themes included), and connect/disconnect.
-
-## The surfaces
-
-| Surface | What it is | Source of truth |
-| --- | --- | --- |
-| Memory graph | The mind as a live force-directed graph; scrub/replay/tail; typed edges carry a direction glyph at the target end | replay-stream fold (`stream_fold.ts`) |
-| Detail (inspector) | One record: verbatim, feelings, associations, closure | fold + verbatim/diary doors |
-| Book | The diary as a day-grouped chronological journal; sealed entries stay sealed | fold diary nodes → operator diary door |
-| Lessons | What he has learned (`kind=lesson`) — practices and cautions that survived reflection | replay-stream fold |
-| World | His orientation cards (`kind=world_model`) — one brief card per entity he has encountered (person, AI, system, event, concept); superseded cards stay visible | replay-stream fold |
-| Health | One explained stat grid (memories, associations, recall coverage, sessions, billed cognition) + concentration, forgetting, kind mix, on-disk footprint | fold metrics (`health_metrics.ts`) + gateway `/footprint` + cognition wire |
-| Wave | uic's cognition-wave with per-turn request/answer and replay transport — driven by the bottom timeline by default, so cognition correlates with the graph and the discussion | harvest → gateway embed → vendored scorer/basis |
-| Ledger | The continuous life ledger (form/recall/commit/appraise/diary/maintenance) | replay-stream fold |
-| Meet console | Convene two entities into one conversation; steer, watch both legs, read after | gateway `/meets` API |
-
-Honesty is a through-line: diary redaction is never reconstructed, the
-cognition wave always carries "reads the expressive character of text, not
-inner state," the footprint states its gap when the gateway route is
-absent, and a sealed diary entry's words never enter any feed.
+MIT, see [LICENSE](LICENSE).

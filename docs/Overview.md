@@ -1,5 +1,9 @@
 # Overview
 
+This page explains the app's goals and main parts in prose. For diagrams and
+the module map, see [Architecture](architecture.md); for setup, see
+[Getting started](getting-started.md).
+
 AbstractEntity is the **summoned-entity app** for AbstractFramework: where
 you create entities, watch a mind's memory live, read what it has kept, and
 talk with it. It is a thin client — a static React SPA with no server state
@@ -48,17 +52,17 @@ silently, and a single malformed line that must never brick the view.
   visibility, steering, per-phase grants; the fabricated-liveness guard.
 - **Meets** (`meet_reader.tsx`, `meet_console.tsx`) — read a past shared
   moment; convene/relay/close a live two-entity conversation.
-- **Fleet + auth** (`entities_index.tsx`, `fleet_view.tsx`,
-  `connect_gateway_modal.tsx`) — roster, watch-all wall, and the shared
+- **Entities list + auth** (`entities_index.tsx`, `create_entity_form.tsx`,
+  `fleet_view.tsx`, `connect_gateway_modal.tsx`) — the list with its
+  first-run empty state and creation form, the watch-all wall, and the shared
   app-origin session sign-in.
 
 ## What lives elsewhere
 
-The lanes that make entities *live* — homes, the entity gate, visit
-workflows, phase policies, sleep/dream, skills — are owned by the gateway,
-runtime, and memory seats and are governed by the entity-topology consensus
-plan. They migrate into this repo only by their owners' rulings; today this
-app consumes them over HTTP. See `docs/architecture.md`.
+The services that make entities *live* (entity homes, visit workflows,
+lifecycle phases, sleep and dreams, skills) run in AbstractGateway,
+AbstractRuntime and AbstractMemory; this app uses them over HTTP. See
+[Architecture](architecture.md#scope-of-this-repository).
 
 ## Honesty invariants
 

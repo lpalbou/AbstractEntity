@@ -1,14 +1,15 @@
 # The entity phase graph
 
-**The canonical machine-readable source is
-[`spec/entity_phases.json`](../spec/entity_phases.json)** — this page is its
-human-readable twin (same version, same rulings). If they ever disagree, the
-JSON wins and this page is the bug.
+This page explains the entity lifecycle in prose: the liveness axis, the four
+phases and the rules between them. The machine-readable source is
+[`spec/entity_phases.json`](../spec/entity_phases.json) (version 21), which the
+gateway serves at `GET /api/gateway/entities/spec/phases` and the blueprint page
+renders and edits. The JSON is authoritative: when this page and the JSON
+differ, follow the JSON. Per-edge detail (edge ids, guards, edit policy, cause
+evaluators and the graph-overlay contract) lives only in the JSON.
 
-Ownership (laurent 2026-07-13 13:54): `abstractentity` owns the phase graph
-and the entity representation; `abstractruntime` executes it;
-`abstractgateway` serves it. Changes land here first, with an operator
-ruling reference.
+`abstractentity` owns the phase graph and the entity representation;
+AbstractRuntime executes it and AbstractGateway serves it.
 
 ## The liveness axis (v2 — ALIVE | STOP)
 
@@ -45,19 +46,25 @@ Three separate truths, never mixed into one enum:
 
 ## The graph
 
+Every transition in version 21, grouped by source and target phase (labels are
+the transition causes):
+
 ```mermaid
 stateDiagram-v2
     [*] --> sleep : birth
-    sleep --> visit : visit_open (auto-wake,\ngraceful process end)
-    personal --> visit : visit_open (ENDS personal,\nnever suspends)
+    sleep --> visit : visit_open
+    personal --> visit : visit_open
     work --> visit : visit_open
-    visit --> work : visit_close (restore-previous)
-    visit --> personal : visit_close (restore through\nthe STANDING grant)
-    visit --> sleep : visit_close (previous was sleep,\nor grant gone)
-    sleep --> personal : operator start\n(grant must be armed)
-    sleep --> work : task given
+    visit --> work : visit_close
+    visit --> personal : visit_close
+    visit --> sleep : visit_close / crash_recovered
+    sleep --> personal : operator / personal_cycle / cadence_need_check
+    sleep --> work : operator / cadence_need_check
+    work --> personal : operator
     work --> sleep : task_complete / no_task
-    personal --> sleep : operator stop /\ngrant_expired / grant_revoked
+    personal --> sleep : operator / grant_expired / grant_revoked / self_elected / personal_cycle
+    visit --> visit : crash_recovered
+    personal --> work : operator
 ```
 
 ## Invariants (each one is test-pinnable; the JSON carries the full text)

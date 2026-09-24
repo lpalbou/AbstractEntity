@@ -1,6 +1,6 @@
 # Data flow
 
-How data moves from the gateway/engine into each surface. The app holds no
+This page is a companion to [Architecture](architecture.md). How data moves from the gateway/engine into each surface. The app holds no
 server state; every view is a function of gateway responses.
 
 ## Transport + auth
@@ -15,7 +15,7 @@ browser ── same-origin ──▶ bin/cli.js (app-origin session proxy)
 `stream_source.ts` owns the wire: `readHeaders` (bearer when present),
 `proxyCsrfHeader` (mutating calls), `credentials: "include"` (cookie
 posture). Local-vs-remote gateway config is gated on the socket peer in the
-shared proxy (never the client `Host` header — SSRF fix, 2026-07-14).
+shared proxy, never on the client `Host` header.
 
 ## The replay-stream fold (the spine)
 
@@ -39,8 +39,8 @@ scrub position T (re-fold 0..T, cached incrementally)     ┘
   cached prefix and fetches only `seq > cached max` (cursored delta —
   sound because the journal is append-only and marker seqs mint at journal
   high-water). A journal-head probe (`until_seq=1`) validates lineage
-  first; a reborn name drops the cache. Measured: castor 22.3s cold →
-  0.4s warm.
+  first; a reborn name drops the cache. On a long life (tens of thousands
+  of envelopes) this takes reopening from about 22 s cold to under 1 s warm.
 
 Every surface below reads `FoldState` (or the same doors), so they are all
 consistent at any scrub position.

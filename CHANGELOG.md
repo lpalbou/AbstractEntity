@@ -2,6 +2,21 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Documentation
+
+- The README explains what an entity is and walks through creating your first
+  one; new guides cover getting started, the API and configuration reference
+  (command, environment, app URLs such as `#new` and `?page=blueprint`, and the
+  gateway routes the app uses), FAQ and troubleshooting, indexed from
+  `docs/README.md`.
+- `docs/architecture.md` adds diagrams of the app, its server and the gateway
+  entity routes, and a complete `src/` module map; the phase-graph page shows
+  every transition of `spec/entity_phases.json` version 21.
+- Added `CONTRIBUTING.md`, `SECURITY.md`, `ACKNOWLEDGEMENTS.md` and
+  `CODE_OF_CONDUCT.md`; `llms.txt` and `llms-full.txt` cover the full set.
+
 ## [0.2.0] - 2026-09-24
 
 Compatibility: the app works with any AbstractGateway; the gateway console's
@@ -10,10 +25,8 @@ abstractgateway 0.4.1 or newer.
 
 ### Added
 
-- **A first-run screen when the gateway has no entity** (mission JJ,
-  2026-09-24). The operator opened the app from the console and "arrived here
-  and nothing". The list's empty line is now a centred card: what an entity is
-  in one plain sentence, a **Create your first entity** button that opens the
+- **A first-run screen when the gateway has no entity**. The list's empty
+  line is now a centred card: what an entity is in one plain sentence, a **Create your first entity** button that opens the
   creation form scrolled into view with the name field focused, and a "What
   is an entity?" link to the README. With no entity, "watch all" and
   "convene a meet" are hidden (nothing to watch or convene); they return with

@@ -1,33 +1,37 @@
 # AbstractEntity
 
-> The summoned-entity app for AbstractFramework: create entities, watch a mind's memory graph live (replay/scrub/tail), read what it kept (diary, mood, on-disk health), and talk with it (visits, meets). A thin React client with no server state — every view is a pure function of the gateway's HTTP endpoints and the memory engine's frozen replay-stream format.
+> The Entity app for AbstractFramework, published on npm as `@abstractframework/entity`: create entities (AI companions with a lasting memory that live on your AbstractGateway), talk with them, watch their memory as a live graph, and read their diaries. A thin React client served by the `abstractentity` command with no server state of its own; every view is read from the gateway and the memory engine's replay stream.
 
-Key facts for a reader:
-- Install/run: `npx @abstractframework/entity` (or `npm install -g @abstractframework/entity` then `abstractentity`); serves on `http://127.0.0.1:3007`; Node.js >= 18; point it at a gateway with `ABSTRACTENTITY_GATEWAY_URL` (default `http://127.0.0.1:8080`).
-- First run: with no entity the app shows "No entities yet" and a **Create your first entity** button; `/#new` (or `/#/new`) opens the creation form directly (the gateway console links there; that console button needs abstractgateway 0.4.1 or newer).
-- Thin client: static SPA served by `bin/cli.js` with the shared app-origin gateway session proxy (`@abstractframework/app-server`, appId `abstractentity`). No server state of its own.
-- State-at-T is a pure fold of the replay stream; replay, live tail, and time-scrub are one code path.
-- Honesty is load-bearing and test-pinned: diary redaction is never reconstructed, tool claims render from attributes/host-events not prose, embedding spaces are never crossed silently, a malformed line never bricks the view, unknown facts are labeled not invented.
-- The "(a) entity orchestration" lanes (homes, gate, visit workflows, phases, sleep/dream, skills) live in gateway/runtime/memory and are consumed over HTTP; they migrate here only by their owners' rulings (entity-topology consensus plan).
+Key facts:
+- Run: `npx @abstractframework/entity` (or `npm install -g @abstractframework/entity`, then `abstractentity`). Serves `http://127.0.0.1:3007`; Node.js 18 or newer; gateway from `ABSTRACTENTITY_GATEWAY_URL` (default `http://127.0.0.1:8080`); `PORT` and `HOST` (default `127.0.0.1`) set the bind.
+- First entity: with no entity the app shows "No entities yet" and a **Create your first entity** button; `/#new` (or `/#/new`) opens the creation form directly. Type a **Name** and press **Create entity**; **Advanced: starting document** takes your own YAML. The gateway console's **Create your first entity** button needs AbstractGateway 0.4.1 or newer; the app works with any gateway.
+- URLs: `/?entity=NAME` (live), `&live=0` (replay from the start), `/?page=blueprint`, `/?src=URL` (exported stream); with no reachable gateway the app opens a bundled demo life.
+- Sign-in: the shared app-origin proxy (`POST /api/connection/gateway`, HttpOnly cookies, `/api/gateway/*` proxied); tokens never stored in the browser.
+- State at any scrub position is a pure fold of the replay stream; replay, live tail and scrub are one code path. Diary redaction is never reconstructed; tool use renders from data, never prose; the cognition wave reads the expressive character of the entity's words, not inner state.
 
-## Documentation
+## Core docs
 
-- [README](README.md): install and run, develop from a checkout, environment, auth, the surfaces table.
-- [Overview](docs/Overview.md): goals, the challenge, core components, honesty invariants.
-- [Data flow](docs/DataFlow.md): transport/auth, the replay-stream fold, per-surface flow, the cognition-wave pipeline.
-- [Architecture](docs/architecture.md): the two halves, `src/` module map, load-bearing invariants, serving.
-- [Changelog](CHANGELOG.md): shipped waves.
+- [README.md](README.md): what an entity is, your first entity, install and run, the app's surfaces.
+- [docs/README.md](docs/README.md): documentation index.
+- [docs/getting-started.md](docs/getting-started.md): install, sign in, create your first entity, talk with it.
+- [docs/architecture.md](docs/architecture.md): components and gateway routes (Mermaid diagrams), the replay-stream fold, `src/` module map, invariants, serving.
+- [docs/api.md](docs/api.md): command, environment variables, app URLs, server routes, gateway routes the app uses.
+- [docs/faq.md](docs/faq.md): entities, names, starting documents, diary privacy, gateway versions.
+- [docs/troubleshooting.md](docs/troubleshooting.md): demo instead of entities, sign-in, missing console button, creation refusals, gaps, ports, build.
 
-## Surfaces
+## Topic deep dives
 
-- Memory graph: the mind as a live force-directed graph; lenses, warmth, scrub/replay/tail (`src/graph_canvas.tsx`, `stream_fold.ts`).
-- Detail (inspector): one record — verbatim, feelings, associations, closure (`src/inspector.tsx`, `verbatim_modal.tsx`).
-- Book: the diary as a day-grouped chronological journal; sealed entries stay sealed (`src/book_reader.tsx`, `book_reader_select.ts`).
-- Lessons: what the entity has learned (`kind=lesson`) as a reading list (`src/lessons_world_panels.tsx`).
-- World: the entity's orientation cards (`kind=world_model`) — one brief card per encountered entity, superseded cards kept visible (`src/lessons_world_panels.tsx`).
-- Health: one explained stat grid + retrieval concentration, forgetting, kind mix, on-disk footprint (`src/health_panel.tsx`, `health_metrics.ts`; gateway `/footprint`).
-- Wave: uic's cognition-wave with per-turn request/answer and a timeline-driven replay transport — the expressive character of the entity's words, never inner state (`src/cognition_wave_panel.tsx`, `utterance_harvest.ts`, `cognition_adapter.ts`, `src/vendor/cognition/`).
-- Ledger: the continuous life ledger (`src/ledger_panel.tsx`, `ledger_lines.ts`).
-- Meet console: convene two entities into one conversation; steer, watch both legs, read after (`src/meet_console.tsx`, `meet_reader.tsx`; gateway `/meets`).
-- Visits: chat with cycle visibility, a per-turn inline cognition wave, and the ⚙ Settings modal (🧠 mind substrate, files, mounts, per-phase tools, prompt) (`src/chat_drawer.tsx`, `cognition_wave_inline.tsx`, `workspace_panel.tsx`).
-- Fleet + auth: roster, watch-all wall, shared session sign-in (`src/entities_index.tsx`, `fleet_view.tsx`, `connect_gateway_modal.tsx`).
+- [docs/Overview.md](docs/Overview.md): goals, the challenge, core components, honesty invariants.
+- [docs/DataFlow.md](docs/DataFlow.md): transport and sign-in, the fold, per-surface data sources, the cognition-wave pipeline.
+- [docs/entity-phases.md](docs/entity-phases.md): the lifecycle phases (visit, work, personal, sleep) and liveness axis; companion to `spec/entity_phases.json`.
+
+## Contributing
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): setup with the sibling AbstractUIC checkout, tests and build.
+- [SECURITY.md](SECURITY.md): session model, deployment defaults, vulnerability reporting.
+
+## Optional
+
+- [CHANGELOG.md](CHANGELOG.md): release history.
+- [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md): lineage and credits.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): conduct expectations.
