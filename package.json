@@ -1,6 +1,6 @@
 {
   "name": "@abstractframework/entity",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Summoned-entity manager for AbstractFramework - create entities, watch a mind's memory graph live, and talk with it",
   "type": "module",
   "author": "Laurent-Philippe Albou",

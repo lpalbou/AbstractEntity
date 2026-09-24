@@ -2,7 +2,7 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
-## [Unreleased]
+## [0.2.1] - 2026-09-25
 
 ### Removed
 
