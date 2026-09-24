@@ -42,7 +42,9 @@ live graph, and read its diary.
 
 1. Open the Entity app. From the gateway console, the Entity card's button
    reads **Create your first entity** while the gateway has none; it opens
-   the app signed in, straight on the creation form.
+   the app signed in, straight on the creation form (that console button
+   needs abstractgateway 0.4.0 or later; the app itself works with any
+   gateway).
 2. Type a name (for example *Pollux*) and press **Create entity**. The name is
    all it needs: the entity starts from the standard starting document.
 3. The app opens the new entity's page. Say hello in the Chat tab.
