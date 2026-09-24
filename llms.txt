@@ -4,7 +4,7 @@
 
 Key facts for a reader:
 - Install/run: `npx @abstractframework/entity` (or `npm install -g @abstractframework/entity` then `abstractentity`); serves on `http://127.0.0.1:3007`; Node.js >= 18; point it at a gateway with `ABSTRACTENTITY_GATEWAY_URL` (default `http://127.0.0.1:8080`).
-- First run: with no entity the app shows "No entities yet" and a **Create your first entity** button; `/#new` (or `/#/new`) opens the creation form directly (the gateway console links there; that console button needs abstractgateway >= 0.4.0).
+- First run: with no entity the app shows "No entities yet" and a **Create your first entity** button; `/#new` (or `/#/new`) opens the creation form directly (the gateway console links there; that console button needs abstractgateway 0.4.1 or newer).
 - Thin client: static SPA served by `bin/cli.js` with the shared app-origin gateway session proxy (`@abstractframework/app-server`, appId `abstractentity`). No server state of its own.
 - State-at-T is a pure fold of the replay stream; replay, live tail, and time-scrub are one code path.
 - Honesty is load-bearing and test-pinned: diary redaction is never reconstructed, tool claims render from attributes/host-events not prose, embedding spaces are never crossed silently, a malformed line never bricks the view, unknown facts are labeled not invented.

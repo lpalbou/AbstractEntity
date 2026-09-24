@@ -6,7 +6,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 Compatibility: the app works with any AbstractGateway; the gateway console's
 **Create your first entity** button (which opens the app on `#new`) needs
-abstractgateway >= 0.4.0.
+abstractgateway 0.4.1 or newer.
 
 ### Added
 
