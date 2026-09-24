@@ -87,6 +87,7 @@ import {
   type GatewayAuthState,
 } from "./connect_gateway_modal";
 import { authRefusedMsg, proxyConnectionLogout, proxyConnectionStatus, sameGatewayTarget } from "./gateway_session";
+import { wantsCreateFlow } from "./roster_empty";
 
 const DEMO_URL = "/demo/castor.ndjson";
 /** Playback baseline: envelopes per second at 1x. */
@@ -403,6 +404,25 @@ export function EntityView(): React.ReactElement {
    * a secondary door inside the entity page contradicts "it doesn't make
    * sense inside the entity page itself"). */
   const [indexPage, setIndexPage] = useState<"roster" | "fleet" | "blueprint">("roster");
+  /** The `#new` deep link (mission JJ): the creation form opens on arrival
+   * and whenever the fragment becomes #new again. A counter, so a second
+   * request after the form was closed reopens it. */
+  const [createRequest, setCreateRequest] = useState(() => (typeof window !== "undefined" && wantsCreateFlow(window.location.hash) ? 1 : 0));
+  useEffect(() => {
+    const onHash = () => {
+      if (wantsCreateFlow(window.location.hash)) setCreateRequest((n) => n + 1);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  /** The form closed: drop the fragment so a reload lands on the list. */
+  const clearCreateHash = useCallback(() => {
+    // Consumed: a later remount of the roster (back from an entity page)
+    // must not reopen the form.
+    setCreateRequest(0);
+    if (!wantsCreateFlow(window.location.hash)) return;
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+  }, []);
   /** Navigate the index-page axis AND keep the URL honest (laurent dm#147
    * via framework c4018: the blueprint gets a shareable deep link —
    * ?page=blueprint — so a refresh lands back on the map). Only the
@@ -2046,6 +2066,8 @@ export function EntityView(): React.ReactElement {
           onWatchAll={() => navigateIndexPage("fleet")}
           onBlueprint={() => navigateIndexPage("blueprint")}
           onConvene={() => setShowMeetConsole(true)}
+          createRequest={createRequest}
+          onCreateFlowClosed={clearCreateHash}
         />
       ) : null}
 

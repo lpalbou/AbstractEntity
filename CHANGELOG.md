@@ -2,6 +2,35 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Added
+
+- **A first-run screen when the gateway has no entity** (mission JJ,
+  2026-09-24). The operator opened the app from the console and "arrived here
+  and nothing". The list's empty line is now a centred card: what an entity is
+  in one plain sentence, a **Create your first entity** button that opens the
+  creation form scrolled into view with the name field focused, and a "What
+  is an entity?" link to the README. With no entity, "watch all" and
+  "convene a meet" are hidden (nothing to watch or convene); they return with
+  the first entity.
+- **`#new` deep link**: opening the app on `/#new` opens the creation form
+  directly (the gateway console's "Create your first entity" button lands
+  there through the signed-in handover). Closing the form drops the fragment.
+
+### Changed
+
+- **Creation form wording, for someone who has never made an entity**: a
+  "Name" label, "Create entity" (was "create") with "Creating…" while it
+  works (was "engramming…"), a Cancel button, one plain line on what the name
+  means; the custom spark and the framework check moved into an "Advanced:
+  starting document" fold. Results read "Pollux is ready." / "Pollux already
+  exists — opening it." (were "born — spark engrammed, home created" /
+  "opening the existing home").
+- The "Reads are pure…" footnote moved into a closed "How this works"
+  disclosure under the list, reworded in plain terms; it no longer shows on
+  the empty screen.
+
 ## [0.1.0] - 2026-09-23
 
 First public release of AbstractEntity, the summoned-entity app for

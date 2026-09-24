@@ -29,6 +29,29 @@ has one purpose — the observer observes runs/runtime/gateway; this app is
 where entities live. The observer still *watches* entities (board tiles,
 card endpoints) but no longer serves this UI.
 
+## What is an entity?
+
+An entity is an AI companion with a lasting memory of its own. You give it a
+name; from then on it remembers what you talk about, keeps a diary, sleeps to
+sort its memories and grows over time. It lives on your AbstractGateway (its
+memory is stored there, in its own folder), and it keeps one identity for its
+whole life. In this app you can talk with it, watch what it remembers as a
+live graph, and read its diary.
+
+## Your first entity
+
+1. Open the Entity app. From the gateway console, the Entity card's button
+   reads **Create your first entity** while the gateway has none; it opens
+   the app signed in, straight on the creation form.
+2. Type a name (for example *Pollux*) and press **Create entity**. The name is
+   all it needs: the entity starts from the standard starting document.
+3. The app opens the new entity's page. Say hello in the Chat tab.
+
+With no entity yet, the app shows a short explanation and the same **Create
+your first entity** button. The address `http://<app>/#new` opens the
+creation form directly (the console uses it). The **Advanced** fold of the
+form takes your own starting document (YAML), for people who write one.
+
 ## Install and run
 
 AbstractEntity is published on npm as `@abstractframework/entity`. It needs

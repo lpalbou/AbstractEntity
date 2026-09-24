@@ -24,6 +24,7 @@ import { AfPhaseRadio } from "@abstractframework/ui-kit";
 
 import { CreateEntityForm } from "./create_entity_form";
 import { activeRuledPhase, deriveLifeState } from "./entity_state";
+import { rosterHeadActions, rosterMode, type RosterMode } from "./roster_empty";
 import {
   fetchEntityState,
   gatewayReadHeaders,
@@ -56,6 +57,48 @@ export interface EntitiesIndexProps {
   /** The memory blueprint — the cognition machine as its own page
    * (laurent dm#130: reachable from the roster, same map for all). */
   onBlueprint?(): void;
+  /** Open the creation form on arrival and again each time the number
+   * changes (the `#new` deep link, entity_view.tsx). 0 / absent = closed. */
+  createRequest?: number;
+  /** The creation form closed (cancelled or an entity was created): the
+   * host clears the `#new` fragment so a reload does not reopen it. */
+  onCreateFlowClosed?(): void;
+}
+
+/** Where a first-time reader learns what an entity is (the README section
+ * written for this empty state). */
+export const ENTITY_DOCS_URL = "https://github.com/lpalbou/AbstractEntity#what-is-an-entity";
+
+/** The zero-entity screen (mission JJ): one calm card, one primary action.
+ * No jargon here — this is the first thing a new user reads. */
+export function EmptyRoster({ onCreate }: { onCreate(): void }): React.ReactElement {
+  return (
+    <section className="eix_empty" aria-labelledby="eix_empty_title" data-testid="eix-empty">
+      <div className="eix_empty_glyph" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+          <circle cx="24" cy="24" r="20" opacity="0.35" />
+          <circle cx="24" cy="24" r="12" opacity="0.6" />
+          <circle cx="24" cy="24" r="3.5" fill="currentColor" stroke="none" />
+          <path d="M24 4v6M24 38v6M4 24h6M38 24h6" opacity="0.35" />
+        </svg>
+      </div>
+      <h3 id="eix_empty_title" className="eix_empty_title">
+        No entities yet
+      </h3>
+      <p className="eix_empty_text">
+        An entity is an AI companion with a lasting memory of its own. Give it a name, and it remembers what you talk about, keeps a
+        diary and grows over time. You can talk with it and watch what it remembers.
+      </p>
+      <div className="eix_empty_actions">
+        <button type="button" className="eix_primary_btn" onClick={onCreate} data-testid="eix-create-first">
+          Create your first entity
+        </button>
+        <a className="eix_empty_link" href={ENTITY_DOCS_URL} target="_blank" rel="noreferrer">
+          What is an entity?
+        </a>
+      </div>
+    </section>
+  );
 }
 
 /** The slice of the card compositor the roster reads (kept minimal —
@@ -100,11 +143,41 @@ function interestsOf(card: RosterCard | null): string[] {
     .slice(0, 3);
 }
 
-export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, onConvene, onBlueprint }: EntitiesIndexProps): React.ReactElement {
+/** What stands in for the list while there is no list: the loading line,
+ * or the empty state (which steps aside while the creation form is open). */
+export function RosterStatus({ mode, showCreate, onCreate }: { mode: RosterMode; showCreate: boolean; onCreate(): void }): React.ReactElement | null {
+  if (mode === "loading") return <p className="eix_note">Loading your entities…</p>;
+  if (mode === "empty" && !showCreate) return <EmptyRoster onCreate={onCreate} />;
+  return null;
+}
+
+export function EntitiesIndex({
+  baseUrl,
+  token,
+  onOpen,
+  onConnect,
+  onWatchAll,
+  onConvene,
+  onBlueprint,
+  createRequest = 0,
+  onCreateFlowClosed,
+}: EntitiesIndexProps): React.ReactElement {
   const [rows, setRows] = useState<EntityRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authNeeded, setAuthNeeded] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
+  // The `#new` deep link opens the form on arrival (initial state, so the
+  // very first paint already shows it) and on every later request.
+  const [showCreate, setShowCreate] = useState(() => createRequest > 0);
+  const lastCreateRequest = useRef(createRequest);
+  useEffect(() => {
+    if (createRequest > 0 && createRequest !== lastCreateRequest.current) setShowCreate(true);
+    lastCreateRequest.current = createRequest;
+  }, [createRequest]);
+  const openCreate = useCallback(() => setShowCreate(true), []);
+  const closeCreate = useCallback(() => {
+    setShowCreate(false);
+    onCreateFlowClosed?.();
+  }, [onCreateFlowClosed]);
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const cardCacheRef = useRef<Map<string, RosterCard>>(new Map());
@@ -274,12 +347,15 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
     [baseUrl, token, busySlug, rows, refresh],
   );
 
+  const mode = rosterMode({ rowCount: rows === null ? null : rows.length, authNeeded, error });
+  const head = rosterHeadActions(mode);
+
   return (
     <div className="entities_index">
       <div className="eix_head">
         <h2>Summoned entities</h2>
         <div className="eix_head_actions">
-          {onWatchAll ? (
+          {head.watchAll && onWatchAll ? (
             <button
               className="eix_create_btn"
               onClick={onWatchAll}
@@ -288,7 +364,7 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
               👁 watch all
             </button>
           ) : null}
-          {onBlueprint ? (
+          {head.blueprint && onBlueprint ? (
             <button
               className="eix_create_btn"
               onClick={onBlueprint}
@@ -297,7 +373,7 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
               🧭 blueprint
             </button>
           ) : null}
-          {onConvene ? (
+          {head.convene && onConvene ? (
             <button
               className="eix_create_btn"
               onClick={onConvene}
@@ -306,12 +382,16 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
               🤝 convene a meet
             </button>
           ) : null}
-          <button className="eix_refresh" onClick={() => refresh()} title="Refresh the roster">
-            ↻
-          </button>
-          <button className="eix_create_btn" onClick={() => setShowCreate((v) => !v)}>
-            {showCreate ? "✕ close" : "+ new entity"}
-          </button>
+          {head.refresh ? (
+            <button className="eix_refresh" onClick={() => refresh()} title="Refresh the list" aria-label="Refresh the list">
+              ↻
+            </button>
+          ) : null}
+          {head.newEntity ? (
+            <button className="eix_create_btn" onClick={() => (showCreate ? closeCreate() : openCreate())}>
+              {showCreate ? "✕ close" : "+ new entity"}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -319,8 +399,10 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
         <CreateEntityForm
           baseUrl={baseUrl}
           token={token}
+          autoFocus
+          onCancel={closeCreate}
           onCreated={(slug) => {
-            setShowCreate(false);
+            closeCreate();
             refresh();
             onOpen(slug);
           }}
@@ -337,10 +419,7 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
       ) : null}
       {error ? <p className="eix_error">{error}</p> : null}
       {note ? <p className="eix_error">{note}</p> : null}
-      {rows === null && !error && !authNeeded ? <p className="eix_note">reading the homes…</p> : null}
-      {rows !== null && rows.length === 0 && !authNeeded ? (
-        <p className="eix_note">No entity homes on this gateway yet — create the first one above.</p>
-      ) : null}
+      <RosterStatus mode={mode} showCreate={showCreate} onCreate={openCreate} />
 
       <div className="eix_grid">
         {(rows ?? []).map(({ summary, state, loop, serverLife, card }) => {
@@ -507,10 +586,15 @@ export function EntitiesIndex({ baseUrl, token, onOpen, onConnect, onWatchAll, o
           );
         })}
       </div>
-      <p className="eix_footer">
-        Reads are pure (list, state, own-time, card) — watching never writes. Controls go through the gateway door and land as
-        visible moments in each life.
-      </p>
+      {mode === "list" ? (
+        <details className="eix_howto">
+          <summary>How this works</summary>
+          <p className="eix_footer">
+            Watching never changes an entity: the list, states and cards on this page are read-only. The controls (personal time,
+            sleep) go through the gateway and show up as visible events in each entity&apos;s life.
+          </p>
+        </details>
+      ) : null}
     </div>
   );
 }
