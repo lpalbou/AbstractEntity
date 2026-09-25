@@ -52,6 +52,9 @@ a separate app for runs and gateway activity.
 The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer.
+To see which versions you are running, open **About** (the info button at the
+top right): it shows the app's version and the versions the connected gateway
+reports.
 
 ## Can I use the app without a gateway?
 

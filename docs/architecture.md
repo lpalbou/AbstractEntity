@@ -105,7 +105,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 
 | Area | Modules |
 | --- | --- |
-| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css`, `entity_assistant.ts` (top-bar assistant over the gateway docs corpus) |
+| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css`, `entity_assistant.ts` (top-bar assistant over the gateway docs corpus), `app_about.ts` (About dialog: app version and gateway versions) |
 | Entities list | `entities_index.tsx`, `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (topic communities), `node_label.ts` |

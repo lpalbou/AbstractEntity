@@ -2,6 +2,21 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Added
+
+- An **About** button in the top bar opens the AbstractFramework About dialog:
+  the app's name and version, the framework website, author and licence, links
+  to the website, source, documentation, issue tracker and feedback, and the
+  versions the connected gateway reports (read from `GET /api/gateway/about`
+  when the dialog opens; if the gateway cannot answer, the dialog says why).
+
+### Changed
+
+- `package.json` `homepage` now points to https://abstractframework.ai and a
+  `bugs` URL is set, both from the shared AbstractFramework descriptor.
+
 ## [0.2.1] - 2026-09-25
 
 ### Removed

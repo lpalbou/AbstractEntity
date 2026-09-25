@@ -327,7 +327,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 
 | Area | Modules |
 | --- | --- |
-| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css`, `entity_assistant.ts` (top-bar assistant over the gateway docs corpus) |
+| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css`, `entity_assistant.ts` (top-bar assistant over the gateway docs corpus), `app_about.ts` (About dialog: app version and gateway versions) |
 | Entities list | `entities_index.tsx`, `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (topic communities), `node_label.ts` |
@@ -455,7 +455,7 @@ of invented data.
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices` |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
-| Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant) |
+| Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
 The replay stream format and the gateway routes are owned by AbstractMemory and
 AbstractGateway; see their documentation for request and response shapes.
@@ -532,6 +532,9 @@ a separate app for runs and gateway activity.
 The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer.
+To see which versions you are running, open **About** (the info button at the
+top right): it shows the app's version and the versions the connected gateway
+reports.
 
 ## Can I use the app without a gateway?
 

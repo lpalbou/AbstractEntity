@@ -72,7 +72,7 @@ of invented data.
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices` |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
-| Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant) |
+| Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
 The replay stream format and the gateway routes are owned by AbstractMemory and
 AbstractGateway; see their documentation for request and response shapes.
