@@ -87,6 +87,7 @@ import {
   type GatewayAuthState,
 } from "./connect_gateway_modal";
 import { authRefusedMsg, proxyConnectionLogout, proxyConnectionStatus, sameGatewayTarget } from "./gateway_session";
+import { useEntityAbout } from "./app_about";
 import { wantsCreateFlow } from "./roster_empty";
 
 const DEMO_URL = "/demo/castor.ndjson";
@@ -160,6 +161,10 @@ export function EntityView(): React.ReactElement {
    * base and 401). */
   const gatewayUrlRef = useRef("");
   gatewayUrlRef.current = gatewayUrl;
+  /** About dialog (top bar): identity + the gateway's versions, read on
+   * open through the same base every other gateway read uses; demo and
+   * file sources have no gateway to ask. */
+  const about = useEntityAbout(sourceKind === "gateway" ? gatewayUrl : null);
   /** Life-stream ordering guard (code adversary F1 P0): bumped on every
    * openEntity/goToIndex/boot; batches and tails from a superseded stream
    * are DROPPED — a slow load can never paint one mind under another's
@@ -1723,6 +1728,7 @@ export function EntityView(): React.ReactElement {
           <AfTopBarActions
             assistant={{ open: assistantOpen, onToggle: () => setAssistantOpen((v) => !v), label: "Ask the docs assistant" }}
             appearance={{ onOpen: () => setAppearanceOpen(true) }}
+            about={about}
             connection={{
               // Phase keys on VERIFIED auth, not the stored claim (a rejected
               // credential must not read "Disconnect" beside the sign-in lock);

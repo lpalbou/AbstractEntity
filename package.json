@@ -17,7 +17,10 @@
     "type": "git",
     "url": "https://github.com/lpalbou/AbstractEntity.git"
   },
-  "homepage": "https://github.com/lpalbou/AbstractEntity#readme",
+  "homepage": "https://abstractframework.ai",
+  "bugs": {
+    "url": "https://github.com/lpalbou/AbstractEntity/issues"
+  },
   "publishConfig": {
     "access": "public"
   },

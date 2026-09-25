@@ -22,6 +22,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { AfPhaseRadio } from "@abstractframework/ui-kit";
 
+import { ENTITY_IDENTITY } from "./app_about";
 import { CreateEntityForm } from "./create_entity_form";
 import { activeRuledPhase, deriveLifeState } from "./entity_state";
 import { rosterHeadActions, rosterMode, type RosterMode } from "./roster_empty";
@@ -66,8 +67,9 @@ export interface EntitiesIndexProps {
 }
 
 /** Where a first-time reader learns what an entity is (the README section
- * written for this empty state). */
-export const ENTITY_DOCS_URL = "https://github.com/lpalbou/AbstractEntity#what-is-an-entity";
+ * written for this empty state). Built on the repository URL of the shared
+ * AbstractFramework descriptor, the same source the About dialog links use. */
+export const ENTITY_DOCS_URL = `${ENTITY_IDENTITY.repo}#what-is-an-entity`;
 
 /** The zero-entity screen (mission JJ): one calm card, one primary action.
  * No jargon here — this is the first thing a new user reads. */

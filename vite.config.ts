@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { createGatewaySessionProxy } from "@abstractframework/app-server";
 
 // Dev-server twin of bin/cli.js: mount the SAME app-origin gateway session
@@ -67,7 +67,15 @@ function preferKitSources(): Plugin {
   };
 }
 
+// The app's version, shown in the About dialog (src/app_about.ts). Read from
+// package.json so a version bump is the only edit a release needs.
+const APP_VERSION = String(JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")).version || "");
+if (!APP_VERSION) throw new Error("abstractentity: package.json has no version");
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   plugins: [preferKitSources(), gatewaySessionDevProxy(), react()],
   resolve: {
     alias: [
