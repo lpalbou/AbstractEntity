@@ -17,6 +17,13 @@ The `abstractentity` server uses the shared app-origin sign-in proxy
   stores the token.
 - Mutating requests through the proxy require the CSRF header matching the CSRF
   cookie.
+- With `@abstractframework/app-server` 0.1.10 or newer, every request the proxy
+  sends to the gateway carries `X-Forwarded-For` set to the address of the
+  browser's connection (a browser-supplied `X-Forwarded-For`, `Forwarded` or
+  `X-Real-IP` header is dropped, never passed on) and the marker
+  `X-AbstractFramework-App-Proxy: abstractentity`. The gateway uses them to tell
+  whether the browser runs on the gateway's own machine. A connection whose
+  address cannot be determined is refused with HTTP 400.
 - A `?gateway=` link to a gateway on another origin uses a direct posture: the
   verified token is kept in memory for that tab only and is never written to
   browser storage or put in URLs.

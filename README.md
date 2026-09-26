@@ -87,6 +87,9 @@ same picture. See [Architecture](docs/architecture.md) for how this works.
 Without a reachable gateway the app opens a bundled demo life, so you can
 explore the memory graph offline.
 
+The **About** button in the top bar shows the app's version and the versions
+your gateway reports; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
+
 ## Sign-in and security
 
 The `abstractentity` server includes the shared AbstractFramework sign-in proxy:

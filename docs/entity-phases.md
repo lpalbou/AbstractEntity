@@ -122,8 +122,7 @@ stateDiagram-v2
     precision (the visit-close restore undoes only the visit's own
     displacement; an operator write mid-visit is the authority).
 
-Two v5 rulings this page previously omitted (the JSON carried them; this
-twin lagged — the gap was the bug):
+Two v5 rulings complete the rules on sleep and tasks:
 
 - **Sleep is bounded (v5, laurent 2026-07-15 22:38)**: sleep is for a
   limited time (~1h bound); an explicit `wake_at` on the state write wins;
@@ -132,7 +131,7 @@ twin lagged — the gap was the bug):
   is a **work-phase request** — the work-entry door and its cause word are
   pending (see open questions).
 
-## Open questions (honest holes, awaiting rulings)
+## Open questions
 
 - **Awake-idle** — RESOLVED (v4, laurent 2026-07-15): the machine has **no
   awake-idle node**. Awake is a STATE, never a phase. An alive+awake entity
@@ -145,12 +144,9 @@ twin lagged — the gap was the bug):
   surviving "awake, no phase" render is an unresolved transition or a
   phase-instrumentation coverage gap (the runtime doesn't yet auto-sleep on
   idle) — never a legitimate phase. **v6 closes the display side**: that
-  unresolved read now renders as settling-toward-sleep, never the word
-  "awake" (invariant 8). (superseded note below kept for history)
+  unresolved read renders as settling-toward-sleep, never the word
+  "awake" (invariant 8).
 
-- **Awake-idle (v3, historical)**: the ruled machine has no idle node; today an entity can be
-  awake with no phase current (post-stop). Surfaces render no position
-  pushed with the honest word.
 - **Work entry**: the entry door and its cause word are pending; the JSON
   reserves the slot.
 

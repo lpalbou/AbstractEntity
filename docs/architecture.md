@@ -27,6 +27,7 @@ flowchart LR
     Meets["/api/gateway/entities/meets/*"]
     Embed["/api/gateway/embeddings"]
     Docs["/api/gateway/docs/corpus"]
+    About["/api/gateway/about<br/>versions for the About dialog"]
   end
   Memory[("Entity memory<br/>on the gateway host")]
 
@@ -38,11 +39,17 @@ flowchart LR
   Proxy --> Meets
   Proxy --> Embed
   Proxy --> Docs
+  Proxy --> About
   Entities --> Memory
 ```
 
 The browser talks only to the `abstractentity` server; the proxy swaps the
-session cookies for gateway credentials. A `?gateway=` link to a gateway on
+session cookies for gateway credentials. With `@abstractframework/app-server`
+0.1.10 or newer, every request the proxy sends to the gateway also carries the
+browser's own address (`X-Forwarded-For`, set from the connection and never
+taken from the browser) and the marker
+`X-AbstractFramework-App-Proxy: abstractentity`; see
+[SECURITY.md](../SECURITY.md#session-model). A `?gateway=` link to a gateway on
 another origin uses a direct posture instead: the app keeps the verified token
 in memory for the tab and calls the gateway directly.
 

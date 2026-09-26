@@ -96,6 +96,9 @@ same picture. See [Architecture](docs/architecture.md) for how this works.
 Without a reachable gateway the app opens a bundled demo life, so you can
 explore the memory graph offline.
 
+The **About** button in the top bar shows the app's version and the versions
+your gateway reports; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
+
 ## Sign-in and security
 
 The `abstractentity` server includes the shared AbstractFramework sign-in proxy:
@@ -249,6 +252,7 @@ flowchart LR
     Meets["/api/gateway/entities/meets/*"]
     Embed["/api/gateway/embeddings"]
     Docs["/api/gateway/docs/corpus"]
+    About["/api/gateway/about<br/>versions for the About dialog"]
   end
   Memory[("Entity memory<br/>on the gateway host")]
 
@@ -260,11 +264,17 @@ flowchart LR
   Proxy --> Meets
   Proxy --> Embed
   Proxy --> Docs
+  Proxy --> About
   Entities --> Memory
 ```
 
 The browser talks only to the `abstractentity` server; the proxy swaps the
-session cookies for gateway credentials. A `?gateway=` link to a gateway on
+session cookies for gateway credentials. With `@abstractframework/app-server`
+0.1.10 or newer, every request the proxy sends to the gateway also carries the
+browser's own address (`X-Forwarded-For`, set from the connection and never
+taken from the browser) and the marker
+`X-AbstractFramework-App-Proxy: abstractentity`; see
+[SECURITY.md](../SECURITY.md#session-model). A `?gateway=` link to a gateway on
 another origin uses a direct posture instead: the app keeps the verified token
 in memory for the tab and calls the gateway directly.
 
@@ -532,9 +542,24 @@ a separate app for runs and gateway activity.
 The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer.
-To see which versions you are running, open **About** (the info button at the
-top right): it shows the app's version and the versions the connected gateway
-reports.
+
+## How do I see which versions I am running?
+
+Open **About** (the info button at the top right). It shows the app's name and
+version, the AbstractFramework website, author and licence, and links to the
+source, documentation, issue tracker and feedback. Each time the dialog opens,
+the app asks the connected gateway for its versions (`GET /api/gateway/about`):
+
+- **Gateway: checking…** while the answer is on its way;
+- **Gateway: AbstractGateway X.Y.Z**, **Gateway framework** and one
+  **Gateway package** row per package the gateway reports;
+- **Gateway: unavailable (reason)** when the gateway cannot answer, for example
+  `unavailable (HTTP 404)`;
+- **Gateway: not connected** when the app shows the demo life or a `?src=`
+  stream.
+
+The app's version is the `@abstractframework/entity` package version, fixed at
+build time.
 
 ## Can I use the app without a gateway?
 
@@ -615,6 +640,17 @@ invented scores.
 
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
+
+## About shows "Gateway: unavailable (…)"
+
+**Cause:** the app could not read `GET /api/gateway/about`. The reason in
+brackets tells you why: `HTTP 404` means the gateway does not serve the About
+route, and `not a gateway response` means no gateway answered behind the app's
+address.
+
+**Fix:** check that the gateway is running (see the first entry above), or
+upgrade it to a version that serves `GET /about`. The rest of the app is unaffected; see
+[the FAQ](faq.md#how-do-i-see-which-versions-i-am-running).
 
 ## The port is already in use
 
@@ -850,6 +886,13 @@ The `abstractentity` server uses the shared app-origin sign-in proxy
   stores the token.
 - Mutating requests through the proxy require the CSRF header matching the CSRF
   cookie.
+- With `@abstractframework/app-server` 0.1.10 or newer, every request the proxy
+  sends to the gateway carries `X-Forwarded-For` set to the address of the
+  browser's connection (a browser-supplied `X-Forwarded-For`, `Forwarded` or
+  `X-Real-IP` header is dropped, never passed on) and the marker
+  `X-AbstractFramework-App-Proxy: abstractentity`. The gateway uses them to tell
+  whether the browser runs on the gateway's own machine. A connection whose
+  address cannot be determined is refused with HTTP 400.
 - A `?gateway=` link to a gateway on another origin uses a direct posture: the
   verified token is kept in memory for that tab only and is never written to
   browser storage or put in URLs.

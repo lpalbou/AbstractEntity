@@ -65,6 +65,17 @@ invented scores.
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
 
+## About shows "Gateway: unavailable (…)"
+
+**Cause:** the app could not read `GET /api/gateway/about`. The reason in
+brackets tells you why: `HTTP 404` means the gateway does not serve the About
+route, and `not a gateway response` means no gateway answered behind the app's
+address.
+
+**Fix:** check that the gateway is running (see the first entry above), or
+upgrade it to a version that serves `GET /about`. The rest of the app is unaffected; see
+[the FAQ](faq.md#how-do-i-see-which-versions-i-am-running).
+
 ## The port is already in use
 
 **Fix:** start on another port with `PORT=3017 abstractentity`.

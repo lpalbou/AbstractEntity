@@ -12,10 +12,10 @@ create your first one. The pages below go deeper.
 - [API and configuration](api.md): the `abstractentity` command, environment
   variables, app URLs (`#new`, `?entity=`, `?page=blueprint`), server routes and
   the gateway routes the app calls.
-- [FAQ](faq.md): common questions about entities, names, privacy of the diary
-  and gateway versions.
+- [FAQ](faq.md): common questions about entities, names, privacy of the diary,
+  gateway versions and the About dialog.
 - [Troubleshooting](troubleshooting.md): symptoms and fixes for gateway, sign-in,
-  creation, port and build problems.
+  creation, About, port and build problems.
 
 ## Topic pages
 
