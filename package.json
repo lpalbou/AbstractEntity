@@ -1,6 +1,6 @@
 {
   "name": "@abstractframework/entity",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Summoned-entity manager for AbstractFramework - create entities, watch a mind's memory graph live, and talk with it",
   "type": "module",
   "author": "Laurent-Philippe Albou",
@@ -42,7 +42,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@abstractframework/app-server": "^0.1.9",
+    "@abstractframework/app-server": "^0.1.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

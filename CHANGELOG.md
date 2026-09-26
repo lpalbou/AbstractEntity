@@ -2,7 +2,7 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
-## [Unreleased]
+## [0.2.2] - 2026-09-26
 
 ### Added
 
@@ -13,6 +13,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   when the dialog opens; if the gateway cannot answer, the dialog says why).
 
 ### Changed
+
+- Requires `@abstractframework/app-server` 0.1.10 or newer (was 0.1.9), so the
+  forwarding-header protection below is always present.
 
 - `package.json` `homepage` now points to https://abstractframework.ai and a
   `bugs` URL is set, both from the shared AbstractFramework descriptor.
