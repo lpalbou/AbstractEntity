@@ -48,17 +48,17 @@ export async function loadGatewayAboutRows(base: string, fetchImpl: typeof fetch
   try {
     res = await fetchImpl(url, { credentials: "include", headers: gatewayReadHeaders({ Accept: "application/json" }) });
   } catch (e) {
-    return gatewayVersionRows({ error: e instanceof Error ? e.message : String(e) });
+    return gatewayVersionRows(null, e instanceof Error ? e.message : String(e));
   }
-  if (!res.ok) return gatewayVersionRows({ error: `HTTP ${res.status}` });
+  if (!res.ok) return gatewayVersionRows(null, `HTTP ${res.status}`);
   // A same-origin page with no gateway behind it answers the SPA's HTML.
   const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) return gatewayVersionRows({ error: "not a gateway response" });
+  if (!ct.includes("application/json")) return gatewayVersionRows(null, "not a gateway response");
   let body: GatewayAboutPayload;
   try {
     body = (await res.json()) as GatewayAboutPayload;
   } catch (e) {
-    return gatewayVersionRows({ error: e instanceof Error ? e.message : String(e) });
+    return gatewayVersionRows(null, e instanceof Error ? e.message : String(e));
   }
   return gatewayVersionRows(body);
 }

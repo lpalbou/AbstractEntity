@@ -190,7 +190,7 @@ describe("gateway versions (read on open)", () => {
     const fakeFetch = (async () => jsonResponse({ detail: "nope" }, 404)) as unknown as typeof fetch;
     vi.mocked(gatewayVersionRows).mockClear();
     expect(await loadGatewayAboutRows("", fakeFetch)).toEqual([["Gateway", "unavailable (HTTP 404)"]]);
-    expect(vi.mocked(gatewayVersionRows)).toHaveBeenCalledWith({ error: "HTTP 404" });
+    expect(vi.mocked(gatewayVersionRows)).toHaveBeenCalledWith(null, "HTTP 404");
   });
 
   it("shows one row with the error when the gateway is unreachable", async () => {
