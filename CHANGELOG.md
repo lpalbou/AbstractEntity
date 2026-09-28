@@ -2,7 +2,11 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
-## [Unreleased]
+## [0.3.0] - 2026-09-28
+
+Serving the Entity app through the gateway at `/apps/entity/` needs
+AbstractGateway 0.7.0 or newer. Standalone use on the app's own port works as
+before. The server keeps listening on `127.0.0.1` by default.
 
 ### Added
 
@@ -29,8 +33,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
   URL in `dist/`.
 - `/entity.html` redirects to `./` (the app's home under whichever address
   serves it), keeping the query.
-- Requires `@abstractframework/app-server` with the mount kit and
-  `@abstractframework/ui-kit` with `joinBaseUrl` / `GATEWAY_CONNECTION_PATH`.
+- Requires `@abstractframework/app-server` 0.1.11 or newer (the mount kit)
+  and is built against `@abstractframework/ui-kit` 0.1.14 (`joinBaseUrl` /
+  `GATEWAY_CONNECTION_PATH`).
+
+### Security
+
+- With `@abstractframework/app-server` 0.1.11 or newer, a request counts as
+  coming from this computer only when both its connection address and the
+  host name the browser addressed are loopback, so a page served from another
+  site under a name that resolves to `127.0.0.1` is treated as remote.
 
 ## [0.2.2] - 2026-09-26
 

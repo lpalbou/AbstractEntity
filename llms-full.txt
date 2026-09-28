@@ -457,7 +457,8 @@ configuring: the same build serves at `/` on the app's own port and at
 `<base href="/apps/entity/">`, every asset and request is relative to the page,
 the session cookies carry `Path=/apps/entity/`, and every response carries
 `X-AbstractFramework-App: entity; mount=1`. The app URLs below work under
-either address.
+either address. Serving under `/apps/entity/` needs AbstractGateway 0.7.0 or
+newer.
 
 The sign-in proxy (`@abstractframework/app-server`) reads its own
 `ABSTRACTENTITY_*` / `ABSTRACTGATEWAY_*` settings, for example whether the
