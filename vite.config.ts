@@ -106,6 +106,10 @@ export default defineConfig({
       },
     },
   },
+  // Relative asset URLs ("./assets/…"): the same build serves at `/` on
+  // the app's own port and at `/apps/entity/` through the gateway
+  // (bin/cli.js injects the matching <base href>).
+  base: "./",
   build: {
     outDir: "dist",
     sourcemap: true,

@@ -23,7 +23,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatComposer } from "@abstractframework/panel-chat";
-import { streamTtsJsonl, useGatewayVoice } from "@abstractframework/ui-kit";
+import { streamTtsJsonl, useGatewayVoice, joinBaseUrl } from "@abstractframework/ui-kit";
 
 import { CognitionWaveInline } from "./cognition_wave_inline";
 import { turnPulse, type TurnPulse } from "./turn_pulse";
@@ -233,7 +233,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     // session_memory_visit_ run-scope workaround retires with it.
     return (text: string) =>
       streamTtsJsonl({
-        path: `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/voice/tts/stream`,
+        path: joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/voice/tts/stream`),
         body: { text, format: "wav" },
         csrfToken: proxyCsrfToken() ?? undefined,
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,

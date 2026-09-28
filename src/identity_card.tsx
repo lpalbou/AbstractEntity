@@ -18,6 +18,7 @@ import React, { useEffect, useState } from "react";
 import type { FoldState } from "./stream_fold";
 import { fetchDiaryEntry, gatewayReadHeaders } from "./stream_source";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 /** Namespace prefixes double as icons — the maintainer's read: the prefix
  * says WHAT KIND of thing the entity is relating to. */
@@ -225,7 +226,7 @@ export function IdentityCardContent({ baseUrl, entity, fold }: { baseUrl: string
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/card`, { headers: gatewayReadHeaders({ Accept: "application/json" }) })
+    fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/card`), { headers: gatewayReadHeaders({ Accept: "application/json" }) })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((card: EntityCard) => !cancelled && setState({ phase: "ready", card }))
       .catch((e) => !cancelled && setState({ phase: "error", message: String((e as Error).message || e) }));

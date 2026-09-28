@@ -176,14 +176,14 @@ describe("gateway versions (read on open)", () => {
     ]);
   });
 
-  it("uses the page origin in the proxy posture", async () => {
+  it("uses the app base (a RELATIVE path) in the proxy posture", async () => {
     let seen = "";
     const fakeFetch = (async (url: string) => {
       seen = url;
       return jsonResponse({ abstractframework: "0.3.3", abstractgateway: "0.4.3", packages: {} });
     }) as unknown as typeof fetch;
     await loadGatewayAboutRows("", fakeFetch);
-    expect(seen).toBe("/api/gateway/about");
+    expect(seen).toBe("api/gateway/about");
   });
 
   it("shows one row with the HTTP status when the gateway refuses", async () => {

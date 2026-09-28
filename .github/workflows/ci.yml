@@ -38,11 +38,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check app-server resolves
+        run: node -e "import('@abstractframework/app-server').then(m => { for (const n of ['createGatewaySessionProxy', 'createMountedHandler', 'injectShell', 'parseAppFlagsOrExit', 'createGatewayUrlResolver']) if (typeof m[n] !== 'function') throw new Error(n + ' missing (app-server too old for the /apps/<id>/ mount)'); console.log('app-server OK'); })"
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
+
+      - name: CLI smoke test
+        run: node bin/cli.js --help
 
       - name: Validate npm package contents
         run: npm pack --dry-run

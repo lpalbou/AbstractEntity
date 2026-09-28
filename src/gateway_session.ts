@@ -26,6 +26,8 @@
  * only on a definitive no.
  */
 
+import { GATEWAY_CONNECTION_PATH } from "@abstractframework/ui-kit";
+
 export interface ProxyConnectionStatus {
   /** The proxy route exists on this origin (served by this app's CLI). */
   available: boolean;
@@ -71,7 +73,7 @@ export function authRefusedMsg(status: number | undefined, detail?: string): str
 export async function proxyConnectionStatus(): Promise<ProxyConnectionStatus> {
   const none: ProxyConnectionStatus = { available: false, ok: false, hasSession: false, gatewayUrl: "", userId: null, detail: null };
   try {
-    const res = await fetch("/api/connection/gateway", { credentials: "include", headers: { Accept: "application/json" } });
+    const res = await fetch(GATEWAY_CONNECTION_PATH, { credentials: "include", headers: { Accept: "application/json" } });
     const ct = res.headers.get("content-type") || "";
     if (!ct.includes("application/json")) return none; // SPA fallback page = no proxy
     const payload = (await res.json()) as { ok?: boolean; gateway_url?: string; has_session?: boolean; detail?: string; gateway?: unknown };
@@ -101,7 +103,7 @@ export async function proxyConnectionLogin(
   persist: boolean,
 ): Promise<{ ok: boolean; userId: string | null; detail: string | null }> {
   try {
-    const res = await fetch("/api/connection/gateway", {
+    const res = await fetch(GATEWAY_CONNECTION_PATH, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -124,7 +126,7 @@ export async function proxyConnectionLogin(
  * the observer's session lives on its deployment, untouched. */
 export async function proxyConnectionLogout(): Promise<void> {
   try {
-    await fetch("/api/connection/gateway", { method: "DELETE", credentials: "include" });
+    await fetch(GATEWAY_CONNECTION_PATH, { method: "DELETE", credentials: "include" });
   } catch {
     // signing out of a dead proxy is still signing out
   }

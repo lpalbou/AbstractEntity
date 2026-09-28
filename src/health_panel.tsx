@@ -16,6 +16,7 @@ import { computeHealthMetrics } from "./health_metrics";
 import { computePhaseTime, humanDuration, PHASE_LABELS, type LifePhase } from "./phase_time";
 import { gatewayReadHeaders, type EntityFootprint } from "./stream_source";
 import type { FoldState } from "./stream_fold";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 /** The DRIVE bars (laurent, focused room seq 2: "an entity should always
  * remember at least some open questions and interests as a drive to
@@ -109,7 +110,7 @@ function DriveBars({
     // second /card request when drives ride the poll we already pay for.
     if (!authVerified || drives) return;
     let cancelled = false;
-    fetch(`${source.baseUrl}/api/gateway/entities/${encodeURIComponent(source.entity)}/card`, {
+    fetch(joinBaseUrl(source.baseUrl, `api/gateway/entities/${encodeURIComponent(source.entity)}/card`), {
       headers: gatewayReadHeaders({ Accept: "application/json" }),
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))

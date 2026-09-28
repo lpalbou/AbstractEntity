@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { appIdentity, gatewayVersionRows, type AppIdentity, type GatewayAboutPayload } from "@abstractframework/ui-kit";
+import { appIdentity, gatewayVersionRows, type AppIdentity, type GatewayAboutPayload, joinBaseUrl } from "@abstractframework/ui-kit";
 
 import { gatewayReadHeaders } from "./stream_source";
 
@@ -43,7 +43,7 @@ export const ENTITY_IDENTITY: AppIdentity = appIdentity(ENTITY_APP_ID, APP_VERSI
 
 /** Read the gateway's About; never throws — failures become one row. */
 export async function loadGatewayAboutRows(base: string, fetchImpl: typeof fetch = fetch): Promise<Row[]> {
-  const url = `${base.trim().replace(/\/+$/, "")}/api/gateway/about`;
+  const url = joinBaseUrl(base.trim(), "api/gateway/about");
   let res: Response;
   try {
     res = await fetchImpl(url, { credentials: "include", headers: gatewayReadHeaders({ Accept: "application/json" }) });
