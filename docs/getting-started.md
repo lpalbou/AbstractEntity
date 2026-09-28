@@ -24,12 +24,12 @@ npm install -g @abstractframework/entity
 abstractentity
 ```
 
-The app serves on `http://127.0.0.1:3007` and talks to the gateway at
-`http://127.0.0.1:8080`. If your gateway is elsewhere, set
-`ABSTRACTENTITY_GATEWAY_URL`:
+The app serves on `http://127.0.0.1:3007` and talks to the gateway installed on
+this computer (else `http://127.0.0.1:8080`). If your gateway is elsewhere,
+pass `--gateway-url`:
 
 ```bash
-ABSTRACTENTITY_GATEWAY_URL=http://192.168.1.20:8080 npx @abstractframework/entity
+npx @abstractframework/entity --gateway-url http://192.168.1.20:8080
 ```
 
 Every setting is listed in [API and configuration](api.md#configuration).

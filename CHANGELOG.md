@@ -2,6 +2,36 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Added
+
+- **Served through the gateway at `/apps/entity/`.** A gateway that manages
+  the Entity app opens it on the gateway's own address, so a remote or
+  headless machine needs one port and one tunnel for the console and every
+  app. Every response announces `X-AbstractFramework-App: entity; mount=1`;
+  the page is served with its `<base href>` and `base_path`; the session
+  cookies carry `Path=/apps/entity/`. Standalone at `/` on the app's own port
+  works as before.
+- **Launch flags**: `--gateway-url` (aliases `--gateway`, `--url`), `--port`,
+  `--host`, `--help`. `ABSTRACTENTITY_GATEWAY_URL`, `ABSTRACTGATEWAY_URL`,
+  `PORT` and `HOST` remain legacy aliases below the flags. An unknown flag
+  stops the start (exit code 2).
+- With no flag or environment variable naming a gateway, the app uses the
+  gateway installed on this computer (`~/.abstractframework/gateway.json`)
+  and follows it to a new port while running.
+
+### Changed
+
+- Every request the page makes is relative to the page (`api/gateway/…`,
+  `api/connection/gateway`, `app/host`, the demo life), and the build uses
+  relative asset URLs. `npm run build` fails on a root-absolute same-origin
+  URL in `dist/`.
+- `/entity.html` redirects to `./` (the app's home under whichever address
+  serves it), keeping the query.
+- Requires `@abstractframework/app-server` with the mount kit and
+  `@abstractframework/ui-kit` with `joinBaseUrl` / `GATEWAY_CONNECTION_PATH`.
+
 ## [0.2.2] - 2026-09-26
 
 ### Added

@@ -56,14 +56,17 @@ npx @abstractframework/entity
 npm install -g @abstractframework/entity
 abstractentity
 
-# point it at your gateway (default http://127.0.0.1:8080)
-ABSTRACTENTITY_GATEWAY_URL=http://127.0.0.1:8080 npx @abstractframework/entity
+# point it at your gateway (default: the gateway installed on this computer,
+# else http://127.0.0.1:8080)
+npx @abstractframework/entity --gateway-url http://127.0.0.1:8080
 ```
 
 The app serves on `http://127.0.0.1:3007`. Open it and sign in to your gateway
-from the connect dialog. See [Getting started](docs/getting-started.md) for the
-full first run and [the configuration reference](docs/api.md#configuration) for
-every environment variable.
+from the connect dialog. When your gateway manages the Entity app (the gateway
+console's **Apps** screen), open it from there instead: the gateway serves it
+at `/apps/entity/` on its own address. See [Getting started](docs/getting-started.md)
+for the full first run and [the configuration reference](docs/api.md#configuration)
+for every launch flag.
 
 ## What you can do in the app
 
@@ -164,12 +167,12 @@ npm install -g @abstractframework/entity
 abstractentity
 ```
 
-The app serves on `http://127.0.0.1:3007` and talks to the gateway at
-`http://127.0.0.1:8080`. If your gateway is elsewhere, set
-`ABSTRACTENTITY_GATEWAY_URL`:
+The app serves on `http://127.0.0.1:3007` and talks to the gateway installed on
+this computer (else `http://127.0.0.1:8080`). If your gateway is elsewhere,
+pass `--gateway-url`:
 
 ```bash
-ABSTRACTENTITY_GATEWAY_URL=http://192.168.1.20:8080 npx @abstractframework/entity
+npx @abstractframework/entity --gateway-url http://192.168.1.20:8080
 ```
 
 Every setting is listed in [API and configuration](api.md#configuration).
@@ -375,9 +378,9 @@ The test suite pins these:
 ## Serving
 
 ```text
-abstractentity (bin/cli.js, :3007)
+abstractentity (bin/cli.js → bin/server.js, :3007; /apps/entity/ through the gateway)
   ├─ /                      the Entity app (SPA fallback for unknown paths)
-  ├─ /entity.html           302 → /   (older bookmarks)
+  ├─ /entity.html           302 → ./  (older bookmarks)
   ├─ /app/host              {"lan_ip": ...} for entity handles
   ├─ /api/connection/*      sign-in (HttpOnly session cookies)
   └─ /api/*                 proxied to the gateway with session headers
@@ -385,6 +388,24 @@ abstractentity (bin/cli.js, :3007)
 
 `npm run dev` mounts the same sign-in proxy in the Vite dev server, so sign-in
 behaves the same in development and production.
+
+The server follows the `@abstractframework/app-server` mount contract, so the
+same build serves at `/` on its own port and behind the gateway's
+`/apps/entity/`:
+
+```mermaid
+flowchart LR
+    B[Browser] -- "/apps/entity/…" --> G[AbstractGateway<br/>app proxy]
+    G -- "path without /apps/entity<br/>X-Forwarded-Prefix / -For / -Host / -Proto" --> S["bin/server.js<br/>(127.0.0.1)"]
+    S -- "X-AbstractFramework-App: entity; mount=1<br/>&lt;base href=/apps/entity/&gt;<br/>cookies Path=/apps/entity/" --> G
+    S -- "api/gateway/* (session proxy)" --> GW[(gateway API)]
+```
+
+The page gets `<base href>` and `base_path` from the server; the build uses
+relative asset URLs (Vite `base: "./"`); every same-origin request is relative
+(`api/gateway/…` through the ui-kit `joinBaseUrl`, `api/connection/gateway`,
+`app/host`, `demo/…`); and `npm run build` fails on any root-absolute
+same-origin URL in `dist/` (`scripts/check_relative_urls.mjs`).
 
 
 <!-- ============================================================ -->
@@ -408,16 +429,35 @@ abstractentity                     # after npm install -g @abstractframework/ent
 ```
 
 The command serves the built app and the sign-in proxy, prints the local address
-and the gateway it fronts, and stops on Ctrl+C. It takes no arguments; configure
-it with environment variables.
+and the gateway it fronts (and where that address came from), and stops on
+Ctrl+C. `abstractentity --help` lists the launch flags; an unknown flag stops
+the start with exit code 2.
 
 ## Configuration
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PORT` | `3007` | Port the server listens on |
-| `HOST` | `127.0.0.1` | Bind address. Loopback by default; set `HOST=0.0.0.0` to expose the app on your network |
-| `ABSTRACTENTITY_GATEWAY_URL` (or `ABSTRACTGATEWAY_URL`) | `http://127.0.0.1:8080` | The gateway this deployment fronts; the sign-in dialog defaults to it |
+| Launch flag | Default | Purpose | Legacy environment |
+| --- | --- | --- | --- |
+| `--gateway-url <url>` (aliases `--gateway`, `--url`) | the gateway installed on this computer (`~/.abstractframework/gateway.json`), else `http://127.0.0.1:8080` | The gateway this deployment fronts; the sign-in dialog defaults to it | `ABSTRACTENTITY_GATEWAY_URL`, `ABSTRACTGATEWAY_URL` |
+| `--port <n>` | `3007` | Port the server listens on | `PORT` |
+| `--host <addr>` | `127.0.0.1` | Bind address. Loopback by default; `--host 0.0.0.0` exposes the app on your network | `HOST` |
+
+A launch flag wins over its legacy environment variable. With neither, the app
+uses the gateway installed on this computer: `abstractgateway serve` and the
+AbstractFramework installer record its address in
+`~/.abstractframework/gateway.json`. A running app re-reads that file when the
+gateway refuses a connection, so it follows a gateway that moved to another
+port; a gateway URL you chose never moves.
+
+### Serving through the gateway (`/apps/entity/`)
+
+A gateway that manages the Entity app serves it at `/apps/entity/` on the
+gateway's own address and starts it on `127.0.0.1`. Nothing needs
+configuring: the same build serves at `/` on the app's own port and at
+`/apps/entity/` through the gateway. The page is served with
+`<base href="/apps/entity/">`, every asset and request is relative to the page,
+the session cookies carry `Path=/apps/entity/`, and every response carries
+`X-AbstractFramework-App: entity; mount=1`. The app URLs below work under
+either address.
 
 The sign-in proxy (`@abstractframework/app-server`) reads its own
 `ABSTRACTENTITY_*` / `ABSTRACTGATEWAY_*` settings, for example whether the
@@ -446,7 +486,7 @@ bundled demo life.
 | `POST /api/connection/gateway` | Sign in: exchanges a gateway token for a session held in HttpOnly cookies (`abstractentity_gateway_*`) |
 | `/api/gateway/*` | Proxied to the gateway with the session's credentials; mutating calls need the CSRF header |
 | `GET /app/host` | `{"lan_ip": "..."}`: the machine's first non-internal IPv4 address (or `null`), used for entity handles such as `pollux@192.168.1.20` |
-| `GET /entity.html` | Redirects to `/` |
+| `GET /entity.html` | Redirects to the app's home (`./`, keeping the query) |
 | any other path | A file from `dist/`, else the app (SPA fallback) |
 
 ## Gateway routes the app uses
@@ -588,7 +628,7 @@ steps are in [Getting started](getting-started.md); settings are in
 running and reachable from the machine that runs `abstractentity`.
 
 **Fix:** start the gateway, or point the app at it with
-`ABSTRACTENTITY_GATEWAY_URL=http://HOST:PORT`, then reload the page.
+`abstractentity --gateway-url http://HOST:PORT`, then reload the page.
 
 ## The sign-in dialog rejects my token or keeps coming back
 
@@ -654,14 +694,15 @@ upgrade it to a version that serves `GET /about`. The rest of the app is unaffec
 
 ## The port is already in use
 
-**Fix:** start on another port with `PORT=3017 abstractentity`.
+**Fix:** start on another port with `abstractentity --port 3017`.
 
 ## Other devices on my network cannot open the app
 
 **Cause:** the server binds to `127.0.0.1` by default.
 
-**Fix:** start it with `HOST=0.0.0.0` and only on a network you trust; see
-[SECURITY.md](../SECURITY.md).
+**Fix:** open it through your gateway (`/apps/entity/`, one port for the
+console and every app), or start it with `--host 0.0.0.0` and only on a network
+you trust; see [SECURITY.md](../SECURITY.md).
 
 ## `npm run build` fails in a checkout with unresolved `@abstractframework/ui-kit`
 
@@ -900,9 +941,12 @@ The `abstractentity` server uses the shared app-origin sign-in proxy
 
 ## Deployment defaults
 
-- The server binds to loopback (`127.0.0.1`). Binding wider with `HOST` is an
-  explicit choice; do it only on a network you trust, or behind your own
-  authenticating reverse proxy.
+- The server binds to loopback (`127.0.0.1`). To reach it from another
+  machine, open it through your gateway (`/apps/entity/`, behind the gateway's
+  sign-in). Binding wider with `--host` is an explicit choice; do it only on a
+  network you trust, or behind your own authenticating reverse proxy.
+- Behind the gateway, forwarded headers (`X-Forwarded-*`) are believed only
+  from a loopback peer; a malformed one is refused with `400`.
 - `GET /app/host` reports the machine's LAN IPv4 address (for entity handles)
   and nothing else.
 - The Vite dev server (`npm run dev`) listens on all interfaces and is not a

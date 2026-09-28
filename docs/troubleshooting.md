@@ -12,7 +12,7 @@ steps are in [Getting started](getting-started.md); settings are in
 running and reachable from the machine that runs `abstractentity`.
 
 **Fix:** start the gateway, or point the app at it with
-`ABSTRACTENTITY_GATEWAY_URL=http://HOST:PORT`, then reload the page.
+`abstractentity --gateway-url http://HOST:PORT`, then reload the page.
 
 ## The sign-in dialog rejects my token or keeps coming back
 
@@ -78,14 +78,15 @@ upgrade it to a version that serves `GET /about`. The rest of the app is unaffec
 
 ## The port is already in use
 
-**Fix:** start on another port with `PORT=3017 abstractentity`.
+**Fix:** start on another port with `abstractentity --port 3017`.
 
 ## Other devices on my network cannot open the app
 
 **Cause:** the server binds to `127.0.0.1` by default.
 
-**Fix:** start it with `HOST=0.0.0.0` and only on a network you trust; see
-[SECURITY.md](../SECURITY.md).
+**Fix:** open it through your gateway (`/apps/entity/`, one port for the
+console and every app), or start it with `--host 0.0.0.0` and only on a network
+you trust; see [SECURITY.md](../SECURITY.md).
 
 ## `npm run build` fails in a checkout with unresolved `@abstractframework/ui-kit`
 

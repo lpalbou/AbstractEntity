@@ -15,16 +15,35 @@ abstractentity                     # after npm install -g @abstractframework/ent
 ```
 
 The command serves the built app and the sign-in proxy, prints the local address
-and the gateway it fronts, and stops on Ctrl+C. It takes no arguments; configure
-it with environment variables.
+and the gateway it fronts (and where that address came from), and stops on
+Ctrl+C. `abstractentity --help` lists the launch flags; an unknown flag stops
+the start with exit code 2.
 
 ## Configuration
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PORT` | `3007` | Port the server listens on |
-| `HOST` | `127.0.0.1` | Bind address. Loopback by default; set `HOST=0.0.0.0` to expose the app on your network |
-| `ABSTRACTENTITY_GATEWAY_URL` (or `ABSTRACTGATEWAY_URL`) | `http://127.0.0.1:8080` | The gateway this deployment fronts; the sign-in dialog defaults to it |
+| Launch flag | Default | Purpose | Legacy environment |
+| --- | --- | --- | --- |
+| `--gateway-url <url>` (aliases `--gateway`, `--url`) | the gateway installed on this computer (`~/.abstractframework/gateway.json`), else `http://127.0.0.1:8080` | The gateway this deployment fronts; the sign-in dialog defaults to it | `ABSTRACTENTITY_GATEWAY_URL`, `ABSTRACTGATEWAY_URL` |
+| `--port <n>` | `3007` | Port the server listens on | `PORT` |
+| `--host <addr>` | `127.0.0.1` | Bind address. Loopback by default; `--host 0.0.0.0` exposes the app on your network | `HOST` |
+
+A launch flag wins over its legacy environment variable. With neither, the app
+uses the gateway installed on this computer: `abstractgateway serve` and the
+AbstractFramework installer record its address in
+`~/.abstractframework/gateway.json`. A running app re-reads that file when the
+gateway refuses a connection, so it follows a gateway that moved to another
+port; a gateway URL you chose never moves.
+
+### Serving through the gateway (`/apps/entity/`)
+
+A gateway that manages the Entity app serves it at `/apps/entity/` on the
+gateway's own address and starts it on `127.0.0.1`. Nothing needs
+configuring: the same build serves at `/` on the app's own port and at
+`/apps/entity/` through the gateway. The page is served with
+`<base href="/apps/entity/">`, every asset and request is relative to the page,
+the session cookies carry `Path=/apps/entity/`, and every response carries
+`X-AbstractFramework-App: entity; mount=1`. The app URLs below work under
+either address.
 
 The sign-in proxy (`@abstractframework/app-server`) reads its own
 `ABSTRACTENTITY_*` / `ABSTRACTGATEWAY_*` settings, for example whether the
@@ -53,7 +72,7 @@ bundled demo life.
 | `POST /api/connection/gateway` | Sign in: exchanges a gateway token for a session held in HttpOnly cookies (`abstractentity_gateway_*`) |
 | `/api/gateway/*` | Proxied to the gateway with the session's credentials; mutating calls need the CSRF header |
 | `GET /app/host` | `{"lan_ip": "..."}`: the machine's first non-internal IPv4 address (or `null`), used for entity handles such as `pollux@192.168.1.20` |
-| `GET /entity.html` | Redirects to `/` |
+| `GET /entity.html` | Redirects to the app's home (`./`, keeping the query) |
 | any other path | A file from `dist/`, else the app (SPA fallback) |
 
 ## Gateway routes the app uses
