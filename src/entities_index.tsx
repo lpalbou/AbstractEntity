@@ -20,7 +20,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { AfPhaseRadio } from "@abstractframework/ui-kit";
+import { AfPhaseRadio, joinBaseUrl } from "@abstractframework/ui-kit";
 
 import { ENTITY_IDENTITY } from "./app_about";
 import { CreateEntityForm } from "./create_entity_form";
@@ -189,7 +189,7 @@ export function EntitiesIndex({
       const cached = cardCacheRef.current.get(slug);
       if (cached) return cached;
       try {
-        const res = await fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(slug)}/card`, {
+        const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(slug)}/card`), {
           headers: gatewayReadHeaders({ Accept: "application/json" }),
         });
         if (!res.ok) return null;

@@ -15,6 +15,7 @@
  */
 
 import type { ReplayEnvelope } from "./stream_types";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
  * cannot be trusted (code adversary F1/F3): the fold runs in the render
@@ -156,7 +157,7 @@ export function proxyCsrfToken(): string | null {
 
 /** List entity homes served by the gateway. */
 export async function listEntities(baseUrl: string): Promise<EntitySummary[]> {
-  const res = await fetch(`${baseUrl}/api/gateway/entities`, { credentials: "include", headers: readHeaders({ Accept: "application/json" }) });
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities`), { credentials: "include", headers: readHeaders({ Accept: "application/json" }) });
   if (!res.ok) {
     // Status rides the error so the index can tell "sign in required"
     // (401/403 -> connect prompt) from "gateway down" (maintainer incident
@@ -179,7 +180,7 @@ export async function listEntities(baseUrl: string): Promise<EntitySummary[]> {
  * a 403 observation refusal distinctly from a down gateway (O-E: an
  * ungranted mind must never read as an empty or broken one). */
 export async function fetchReplay(baseUrl: string, entity: string, sinceSeq = 0): Promise<ReplayEnvelope[]> {
-  const url = `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/replay?since_seq=${sinceSeq}`;
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/replay?since_seq=${sinceSeq}`);
   const res = await fetch(url, { credentials: "include", headers: readHeaders({ Accept: "application/x-ndjson" }) });
   if (!res.ok) {
     const err = new Error(`replay read failed: HTTP ${res.status}`) as Error & { status?: number; detail?: string };
@@ -216,7 +217,7 @@ export async function streamReplay(
   onBatch: (all: ReplayEnvelope[], doneBytes: number) => void,
   batchSize = 800,
 ): Promise<ReplayEnvelope[]> {
-  const url = `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/replay?since_seq=${sinceSeq}`;
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/replay?since_seq=${sinceSeq}`);
   const res = await fetch(url, { credentials: "include", headers: readHeaders({ Accept: "application/x-ndjson" }) });
   if (!res.ok) throw new Error(`replay read failed: HTTP ${res.status}`);
   if (!res.body) {
@@ -296,7 +297,7 @@ export interface RecordVerbatim {
  * record's payload_ref into the home's artifact store. 404 = endpoint not
  * shipped yet OR record has no verbatim; 403 = refused (diary). */
 export async function fetchRecordVerbatim(baseUrl: string, entity: string, graphId: string): Promise<RecordVerbatim> {
-  const url = `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/records/${encodeURIComponent(graphId)}/verbatim`;
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/records/${encodeURIComponent(graphId)}/verbatim`);
   const res = await fetch(url, { credentials: "include", headers: readHeaders({ Accept: "application/json" }) });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
@@ -345,7 +346,7 @@ export interface DiaryEntryRead {
  * host marker in the stream BEFORE the words return, so the read itself
  * is visible in the entity's biography. Reason is REQUIRED (422 without). */
 export async function fetchDiaryEntry(baseUrl: string, entity: string, entryId: string, reason: string): Promise<DiaryEntryRead> {
-  const url = `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/diary/${encodeURIComponent(entryId)}?reason=${encodeURIComponent(reason)}`;
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/diary/${encodeURIComponent(entryId)}?reason=${encodeURIComponent(reason)}`);
   const res = await fetch(url, { credentials: "include", headers: readHeaders({ Accept: "application/json" }) });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
@@ -385,7 +386,7 @@ export async function postEntityState(
   // and cheap, and the ruled observability expects it).
   const body: Record<string, unknown> = { state, reason };
   if (state === "asleep") body.dream = true;
-  const res = await fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/state`, {
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/state`), {
     credentials: "include",
     method: "POST",
     headers: authHeaders(token),
@@ -437,7 +438,7 @@ export interface EntityFootprint {
  * (the panel's fold metrics stand alone); never throws into the render. */
 export async function fetchEntityFootprint(baseUrl: string, entity: string): Promise<EntityFootprint | null> {
   try {
-    const res = await fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/footprint`, {
+    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/footprint`), {
       credentials: "include",
       headers: readHeaders({ Accept: "application/json" }),
     });
@@ -466,7 +467,7 @@ export interface EntityEmbedding {
  * an embedder (crossing embedding spaces silently is the failure to avoid). */
 export async function fetchEntityEmbedding(baseUrl: string, entity: string): Promise<EntityEmbedding | null> {
   try {
-    const res = await fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/embedding`, {
+    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/embedding`), {
       credentials: "include",
       headers: readHeaders({ Accept: "application/json" }),
     });
@@ -496,7 +497,7 @@ export interface EmbedResult {
 export async function embedTexts(baseUrl: string, texts: string[], model?: string): Promise<EmbedResult> {
   const body: Record<string, unknown> = { input: texts };
   if (model?.trim()) body["model"] = model.trim();
-  const res = await fetch(`${baseUrl}/api/gateway/embeddings`, {
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/embeddings`), {
     credentials: "include",
     method: "POST",
     headers: authHeaders(null),
@@ -519,7 +520,7 @@ export async function embedTexts(baseUrl: string, texts: string[], model?: strin
 /** The entity's current lifecycle state (gateway thread-0008 surface).
  * Pure read; the view shows a badge and never offers state writes. */
 export async function fetchEntityState(baseUrl: string, entity: string): Promise<EntityStateInfo> {
-  const res = await fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/state`, {
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/state`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   });
@@ -556,7 +557,7 @@ export async function classifyOperatorAuth(baseUrl: string, token: string | null
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json", ...proxyCsrfHeader() };
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`${baseUrl}/api/gateway/entities/auth/probe`, { credentials: "include", method: "POST", headers, body: "{}" });
+    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/auth/probe`), { credentials: "include", method: "POST", headers, body: "{}" });
     if (res.ok) {
       const probe = (await res.json()) as OperatorAuthProbe;
       if (probe?.operator) return { kind: "operator", probe };
@@ -721,7 +722,7 @@ async function getJson<T>(url: string): Promise<T> {
   } catch (e) {
     // Label the timeout — an AbortError's "signal is aborted without
     // reason" is browser noise, not an operator sentence.
-    if ((e as Error).name === "AbortError") throw new Error(`the gateway did not answer within 30s (${url.split("/api/")[1] ?? url})`);
+    if ((e as Error).name === "AbortError") throw new Error(`the gateway did not answer within 30s (${url.split("api/gateway/")[1] ?? url})`);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -803,7 +804,7 @@ export interface EdgeOp {
 }
 
 export function getPhaseSpec(baseUrl: string): Promise<PhaseSpecServed> {
-  return getJson(`${baseUrl}/api/gateway/entities/spec/phases`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/spec/phases`));
 }
 
 /** THE FLOW-BRAIN LANE (operator tasking c5190; door acceptance GREEN
@@ -838,14 +839,14 @@ export function summonEntity(
   position?: number;
   current_idle_deadline?: string | null;
 }> {
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/summon`, body, token);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/summon`), body, token);
 }
 
 export function getRunSummary(
   baseUrl: string,
   runId: string,
 ): Promise<{ status?: string; output?: unknown; error?: string | null }> {
-  return getJson(`${baseUrl}/api/gateway/runs/${encodeURIComponent(runId)}`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/runs/${encodeURIComponent(runId)}`));
 }
 
 export function putPhaseSpecGraph(
@@ -858,7 +859,7 @@ export function putPhaseSpecGraph(
   const body: Record<string, unknown> = { graph: { edge_ops: edgeOps } };
   if (reason.trim()) body.reason = reason.trim();
   if (ifMatch != null) body.if_match = ifMatch;
-  return putJson(`${baseUrl}/api/gateway/entities/spec/phases`, body, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/spec/phases`), body, token);
 }
 
 export function putPhaseSpecTunables(
@@ -874,11 +875,11 @@ export function putPhaseSpecTunables(
   // read; a 409 means another edit landed between read and write —
   // re-read and re-apply, never blind-overwrite.
   if (ifMatch != null) body.if_match = ifMatch;
-  return putJson(`${baseUrl}/api/gateway/entities/spec/phases`, body, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/spec/phases`), body, token);
 }
 
 export function listWorkspace(baseUrl: string, entity: string, path = "."): Promise<WorkspaceListing> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/workspace?path=${encodeURIComponent(path)}`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/workspace?path=${encodeURIComponent(path)}`));
 }
 
 export function readWorkspaceFile(
@@ -886,11 +887,11 @@ export function readWorkspaceFile(
   entity: string,
   path: string,
 ): Promise<{ path: string; size: number; truncated: boolean; text: string }> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/workspace/file?path=${encodeURIComponent(path)}`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/workspace/file?path=${encodeURIComponent(path)}`));
 }
 
 export function getWorkspaceMounts(baseUrl: string, entity: string): Promise<{ mounts: WorkspaceMount[] }> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/workspace/mounts`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/workspace/mounts`));
 }
 
 export function putWorkspaceMounts(
@@ -899,7 +900,7 @@ export function putWorkspaceMounts(
   mounts: WorkspaceMount[],
   token: string | null,
 ): Promise<{ mounts: WorkspaceMount[] }> {
-  return putJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/workspace/mounts`, { mounts }, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/workspace/mounts`), { mounts }, token);
 }
 
 // Per-entity SKILLS selection (laurent c2857; gateway endpoints c2838 —
@@ -942,7 +943,7 @@ export interface EntitySkillsResolved {
 }
 
 export function getEntitySkills(baseUrl: string, entity: string): Promise<EntitySkillsResolved> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/skills`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/skills`));
 }
 
 export function putEntitySkills(
@@ -951,11 +952,11 @@ export function putEntitySkills(
   skills: Array<{ name: string; phases?: string[] }>,
   token: string | null,
 ): Promise<EntitySkillsResolved> {
-  return putJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/skills`, { skills }, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/skills`), { skills }, token);
 }
 
 export function getToolPolicy(baseUrl: string, entity: string): Promise<ToolPolicyInfo> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/tool-policy`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/tool-policy`));
 }
 
 export function putToolPolicy(
@@ -964,7 +965,7 @@ export function putToolPolicy(
   policy: Record<string, string[]>,
   token: string | null,
 ): Promise<ToolPolicyInfo> {
-  return putJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/tool-policy`, { policy }, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/tool-policy`), { policy }, token);
 }
 
 /** The system prompt as its layers (maintainer, 2026-07-11): the rendered
@@ -984,7 +985,7 @@ export interface PromptLayerInfo {
 }
 
 export function getEntityPrompt(baseUrl: string, entity: string): Promise<PromptLayerInfo> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/prompt`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/prompt`));
 }
 
 export function putEntityPrompt(
@@ -993,7 +994,7 @@ export function putEntityPrompt(
   overlay: Record<string, string>,
   token: string | null,
 ): Promise<PromptLayerInfo> {
-  return putJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/prompt`, { overlay }, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/prompt`), { overlay }, token);
 }
 
 export interface ChatCloseResult {
@@ -1030,7 +1031,7 @@ async function postJson<T>(url: string, body: unknown, token: string | null, tim
 export function getChatStatus(baseUrl: string, entity: string): Promise<ChatStatus> {
   // readHeaders, not bare Accept (audit V8): on a strict-auth gateway a
   // credential-less status read 401s and the drawer degrades silently.
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/chat`, { credentials: "include", headers: readHeaders({ Accept: "application/json" }) }).then((res) => {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat`), { credentials: "include", headers: readHeaders({ Accept: "application/json" }) }).then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json() as Promise<ChatStatus>;
   });
@@ -1057,7 +1058,7 @@ export function openChat(
   if (options.base_url?.trim()) body["base_url"] = options.base_url.trim();
   // The open may wait up to ~55s for the entity's own-time loop to yield
   // at a tick boundary — the timeout must outlast that, honestly.
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/chat/open`, body, token, 90000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/open`), body, token, 90000);
 }
 
 export function sendChatTurn(
@@ -1076,11 +1077,11 @@ export function sendChatTurn(
   // 10 min: the turn budget is 20 tool calls (maintainer ruling 2026-07-11)
   // and a research-heavy turn legitimately chains many lookups — the client
   // must not abort a healthy turn the server is still working.
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/turn`, body, token, 600000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/turn`), body, token, 600000);
 }
 
 export function closeChat(baseUrl: string, entity: string, chatId: string, token: string | null): Promise<ChatCloseResult> {
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/close`, { reflect: true }, token, 300000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/close`), { reflect: true }, token, 300000);
 }
 
 // ----------------------------------------------------------------- meets
@@ -1164,7 +1165,7 @@ export function openMeet(
 ): Promise<MeetOpenResult> {
   const body: Record<string, unknown> = { entity_a: entityA, entity_b: entityB };
   if (sessionId?.trim()) body["session_id"] = sessionId.trim();
-  return postJson(`${baseUrl}/api/gateway/entities/meets/open`, body, token, 120000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/meets/open`), body, token, 120000);
 }
 
 /** One exchange: `opener` ('a'|'b') speaks the convener's `text`; the
@@ -1177,20 +1178,20 @@ export function relayMeet(
   text: string,
   token: string | null,
 ): Promise<MeetRelayResult> {
-  return postJson(`${baseUrl}/api/gateway/entities/meets/${encodeURIComponent(meetId)}/relay`, { opener, text }, token, 1200000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/meets/${encodeURIComponent(meetId)}/relay`), { opener, text }, token, 1200000);
 }
 
 /** Close both legs (each reflects in its own home). The gateway keeps the
  * meet if a leg fails to close, so `closed:false` + `warning` is honest,
  * not an error. */
 export function closeMeet(baseUrl: string, meetId: string, reason: string, token: string | null): Promise<MeetCloseResult> {
-  return postJson(`${baseUrl}/api/gateway/entities/meets/${encodeURIComponent(meetId)}/close`, { reason }, token, 300000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/meets/${encodeURIComponent(meetId)}/close`), { reason }, token, 300000);
 }
 
 /** Both legs' live status by their OWN run ids (never "whatever visit is
  * live on the home now"). Pure read. */
 export function fetchMeetStatus(baseUrl: string, meetId: string): Promise<MeetStatusResult> {
-  return fetch(`${baseUrl}/api/gateway/entities/meets/${encodeURIComponent(meetId)}`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/meets/${encodeURIComponent(meetId)}`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1217,7 +1218,7 @@ export interface ChatTranscript {
 /** The shared room's common view (pure read) — the rehydration source when
  * the drawer remounts or the page reloads mid-visit. */
 export function getChatTranscript(baseUrl: string, entity: string, chatId: string): Promise<ChatTranscript> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/transcript`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/transcript`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1310,7 +1311,7 @@ export function openVisit(baseUrl: string, entity: string, token: string | null,
   if (sessionId?.trim()) body["session_id"] = sessionId.trim();
   // The open may auto-yield the own-time loop at a tick boundary (up to
   // ~55s server-side) — same budget as the hosted lane's open.
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/visit/open`, body, token, 90000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/open`), body, token, 90000);
 }
 
 export function sendVisitTurn(
@@ -1324,7 +1325,7 @@ export function sendVisitTurn(
   const body: Record<string, unknown> = { text };
   if (speaker?.trim()) body["speaker"] = speaker.trim();
   // Same 10-min budget as the hosted lane (20-tool-call turns are legal).
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`, body, token, 600000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`), body, token, 600000);
 }
 
 export function closeVisit(
@@ -1336,14 +1337,14 @@ export function closeVisit(
   reason = "",
 ): Promise<VisitTurnResult> {
   const body = { closed_by: closedBy, reason };
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/close`, body, token, 300000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/close`), body, token, 300000);
 }
 
 /** Drive-to-park after a mid-turn kill (crash recovery; idempotent). The
  * door's turn() self-recovers running runs too — this is the explicit
  * repair verb for status views. */
 export function tickVisit(baseUrl: string, entity: string, runId: string, token: string | null): Promise<VisitTurnResult> {
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/tick`, {}, token, 600000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/tick`), {}, token, 600000);
 }
 
 /** The conversation SEAT (gateway seat slice 1, c5390): who holds the one
@@ -1379,11 +1380,11 @@ export interface QueueEntryState {
 }
 
 export function pollQueueEntry(baseUrl: string, entity: string, queueId: string): Promise<QueueEntryState> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/queue/${encodeURIComponent(queueId)}`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/queue/${encodeURIComponent(queueId)}`));
 }
 
 export function leaveQueue(baseUrl: string, entity: string, queueId: string, token: string | null): Promise<unknown> {
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/queue/${encodeURIComponent(queueId)}/leave`, {}, token);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/queue/${encodeURIComponent(queueId)}/leave`), {}, token);
 }
 
 /** Door refusals arrive as raw response text — either
@@ -1411,11 +1412,11 @@ export function refusalText(e: Error & { status?: number }): string {
 }
 
 export function getEntitySeat(baseUrl: string, entity: string): Promise<EntitySeat> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/seat`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/seat`));
 }
 
 export function getVisitStatus(baseUrl: string, entity: string): Promise<VisitStatus> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/visit`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1511,7 +1512,7 @@ export interface EntityCognition {
  * from the per-home run ledger's completed llm_call usage. 404 on older
  * gateways — callers keep their labeled input-side estimate then. */
 export function getEntityCognition(baseUrl: string, entity: string): Promise<EntityCognition> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/cognition`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/cognition`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1547,7 +1548,7 @@ export interface VisitTranscript {
  * live AND terminal runs — a closed visit stays readable, so reload-rejoin
  * has its rebuild source even after close. */
 export function getVisitTranscript(baseUrl: string, entity: string, runId: string): Promise<VisitTranscript> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/transcript`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/transcript`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1584,7 +1585,7 @@ export function openLiveTail(
   // (accepted by the gateway middleware for READS only; audit logs redact
   // query values).
   const tokenPart = _gatewayToken ? `&access_token=${encodeURIComponent(_gatewayToken)}` : "";
-  const url = `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/replay/stream?since_seq=${sinceSeq}${tokenPart}`;
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/replay/stream?since_seq=${sinceSeq}${tokenPart}`);
   const source = new EventSource(url);
   const handler = (ev: MessageEvent) => {
     try {
@@ -1636,7 +1637,7 @@ export interface LoopStatus {
 }
 
 export function getLoopStatus(baseUrl: string, entity: string): Promise<LoopStatus> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/loop`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop`));
 }
 
 /** The gateway-computed composite life phase (commons seq 96: ONE mutually-
@@ -1664,7 +1665,7 @@ export interface ServerLifeState {
 /** Null when the endpoint is absent (older gateway) — the caller falls back
  * to client-side derivation, labeled #FALLBACK in the derived state. */
 export function getServerLifeState(baseUrl: string, entity: string): Promise<ServerLifeState | null> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/life_state`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/life_state`), {
     credentials: "include",
     headers: readHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1711,7 +1712,7 @@ export function startLoop(
   const body: Record<string, unknown> = {};
   if (options.provider?.trim()) body["provider"] = options.provider.trim();
   if (options.model?.trim()) body["model"] = options.model.trim();
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/loop/start`, body, token, 30000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop/start`), body, token, 30000);
 }
 
 // ------------------------------------------------------------- substrate
@@ -1730,7 +1731,7 @@ export interface EntitySubstrate {
 }
 
 export function getEntitySubstrate(baseUrl: string, entity: string): Promise<EntitySubstrate | null> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/substrate`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/substrate`), {
     credentials: "include",
     headers: gatewayReadHeaders({ Accept: "application/json" }),
   }).then((res) => {
@@ -1746,7 +1747,7 @@ export function putEntitySubstrate(
   token: string | null,
   choice: { provider: string; model: string; thinking?: string | null },
 ): Promise<EntitySubstrate> {
-  const url = `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/substrate`;
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/substrate`);
   return fetch(url, { credentials: "include", method: "PUT", headers: authHeaders(token), body: JSON.stringify(choice) }).then(async (res) => {
     if (!res.ok) {
       // Error bodies may be HTML/plain (proxies, crashes) — a res.json()
@@ -1767,7 +1768,7 @@ export function putEntitySubstrate(
 }
 
 export function stopLoop(baseUrl: string, entity: string, token: string | null): Promise<{ stop_requested: boolean; status?: LoopStatus }> {
-  return postJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/loop/stop`, {}, token, 30000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop/stop`), {}, token, 30000);
 }
 
 // ---------------------------------------------------- files to the entity
@@ -1799,7 +1800,7 @@ export async function writeEntityWorkspaceFile(
   token: string | null,
 ): Promise<WorkspaceFileResult> {
   return postJson(
-    `${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/workspace/file`,
+    joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/workspace/file`),
     { path: destPath, content_base64: base64FromBytes(bytes) },
     token,
     60000,
@@ -1829,7 +1830,7 @@ export interface EntityVoiceChoice {
 }
 
 export function getEntityVoice(baseUrl: string, entity: string): Promise<EntityVoiceChoice> {
-  return getJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/voice`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/voice`));
 }
 
 export function putEntityVoice(
@@ -1838,7 +1839,7 @@ export function putEntityVoice(
   choice: { provider: string; model: string; voice: string; speed?: number; quality_preset?: string } | { clear: true },
   token: string | null,
 ): Promise<EntityVoiceChoice> {
-  return putJson(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/voice`, choice, token);
+  return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/voice`), choice, token);
 }
 
 /** One catalog voice from the gateway discovery facade. */
@@ -1862,7 +1863,7 @@ export interface VoiceCatalog {
 }
 
 export function getVoiceCatalog(baseUrl: string): Promise<VoiceCatalog> {
-  return getJson(`${baseUrl}/api/gateway/voice/voices?compact=true`);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/voice/voices?compact=true`));
 }
 
 /** The gateway's CONFIGURED capability defaults — the operator's chosen
@@ -1881,7 +1882,7 @@ export interface CapabilityDefaultRow {
 }
 
 export async function getGatewayVoiceDefault(baseUrl: string): Promise<CapabilityDefaultRow | null> {
-  const d = await getJson<{ routes?: CapabilityDefaultRow[] }>(`${baseUrl}/api/gateway/config/capability-defaults`);
+  const d = await getJson<{ routes?: CapabilityDefaultRow[] }>(joinBaseUrl(baseUrl, `api/gateway/config/capability-defaults`));
   const row = (d.routes ?? []).find((r) => r.key === "output.voice");
   // configured:false means the engine decides — never substitute (the
   // Defaults-modal lesson: a defaults row states what is CHOSEN, absence
@@ -1913,5 +1914,5 @@ export function createEntity(
 ): Promise<CreateEntityResult> {
   const body: Record<string, unknown> = { name, framework: options.framework ?? true };
   if (options.spark_text?.trim()) body["spark_text"] = options.spark_text;
-  return postJson(`${baseUrl}/api/gateway/entities`, body, token, 60000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities`), body, token, 60000);
 }

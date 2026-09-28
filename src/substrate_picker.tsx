@@ -16,6 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { gatewayReadHeaders } from "./stream_source";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 export interface SubstrateChoice {
   provider: string;
@@ -83,7 +84,7 @@ export function SubstratePicker({ baseUrl, value, onChange, compact }: Substrate
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${baseUrl}/api/gateway/discovery/providers`, { headers: gatewayReadHeaders({ Accept: "application/json" }) })
+    fetch(joinBaseUrl(baseUrl, `api/gateway/discovery/providers`), { headers: gatewayReadHeaders({ Accept: "application/json" }) })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((body: { items?: unknown }) => {
         if (cancelled) return;
@@ -108,7 +109,7 @@ export function SubstratePicker({ baseUrl, value, onChange, compact }: Substrate
       setModels(null);
       if (!provider) return;
       setLoadingModels(true);
-      fetch(`${baseUrl}/api/gateway/discovery/providers/${encodeURIComponent(provider)}/models`, {
+      fetch(joinBaseUrl(baseUrl, `api/gateway/discovery/providers/${encodeURIComponent(provider)}/models`), {
         headers: gatewayReadHeaders({ Accept: "application/json" }),
       })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))

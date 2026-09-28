@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import type { FoldState } from "./stream_fold";
 import { gatewayReadHeaders } from "./stream_source";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 export interface TopicCommunity {
   id: number;
@@ -94,7 +95,7 @@ export function packCircles(communities: TopicCommunity[]): PackedCircle[] {
 }
 
 export function fetchCommunities(baseUrl: string, entity: string): Promise<TopicsPayload> {
-  return fetch(`${baseUrl}/api/gateway/entities/${encodeURIComponent(entity)}/communities`, {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/communities`), {
     headers: gatewayReadHeaders({ Accept: "application/json" }),
   }).then((res) => (res.ok ? (res.json() as Promise<TopicsPayload>) : Promise.reject(new Error(`HTTP ${res.status}`))));
 }

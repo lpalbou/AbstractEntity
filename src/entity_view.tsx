@@ -7,7 +7,7 @@
  *
  * - the bundled demo life (a real exported keystone-style life),
  * - a dropped .ndjson file (an exported life),
- * - a gateway (`/api/gateway/entities/{name}/replay` + SSE live tail).
+ * - a gateway (`api/gateway/entities/{name}/replay` + SSE live tail).
  *
  * Everything here is a pure read. There is no write path in this module.
  */
@@ -90,7 +90,8 @@ import { authRefusedMsg, proxyConnectionLogout, proxyConnectionStatus, sameGatew
 import { useEntityAbout } from "./app_about";
 import { wantsCreateFlow } from "./roster_empty";
 
-const DEMO_URL = "/demo/castor.ndjson";
+// Relative: under the app base (`/` standalone, `/apps/entity/` behind the gateway).
+const DEMO_URL = "demo/castor.ndjson";
 /** Playback baseline: envelopes per second at 1x. */
 const BASE_EPS = 2.5;
 
@@ -192,7 +193,7 @@ export function EntityView(): React.ReactElement {
    * "@ this gateway"). null on direct-bearer postures / offline boxes. */
   const [lanIp, setLanIp] = useState<string | null>(null);
   useEffect(() => {
-    fetch("/app/host")
+    fetch("app/host")
       .then((r) => (r.ok ? (r.json() as Promise<{ lan_ip?: string | null }>) : null))
       .then((d) => setLanIp(d?.lan_ip ?? null))
       .catch(() => setLanIp(null));

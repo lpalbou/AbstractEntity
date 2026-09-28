@@ -150,9 +150,9 @@ The test suite pins these:
 ## Serving
 
 ```text
-abstractentity (bin/cli.js, :3007)
+abstractentity (bin/cli.js → bin/server.js, :3007; /apps/entity/ through the gateway)
   ├─ /                      the Entity app (SPA fallback for unknown paths)
-  ├─ /entity.html           302 → /   (older bookmarks)
+  ├─ /entity.html           302 → ./  (older bookmarks)
   ├─ /app/host              {"lan_ip": ...} for entity handles
   ├─ /api/connection/*      sign-in (HttpOnly session cookies)
   └─ /api/*                 proxied to the gateway with session headers
@@ -160,3 +160,21 @@ abstractentity (bin/cli.js, :3007)
 
 `npm run dev` mounts the same sign-in proxy in the Vite dev server, so sign-in
 behaves the same in development and production.
+
+The server follows the `@abstractframework/app-server` mount contract, so the
+same build serves at `/` on its own port and behind the gateway's
+`/apps/entity/`:
+
+```mermaid
+flowchart LR
+    B[Browser] -- "/apps/entity/…" --> G[AbstractGateway<br/>app proxy]
+    G -- "path without /apps/entity<br/>X-Forwarded-Prefix / -For / -Host / -Proto" --> S["bin/server.js<br/>(127.0.0.1)"]
+    S -- "X-AbstractFramework-App: entity; mount=1<br/>&lt;base href=/apps/entity/&gt;<br/>cookies Path=/apps/entity/" --> G
+    S -- "api/gateway/* (session proxy)" --> GW[(gateway API)]
+```
+
+The page gets `<base href>` and `base_path` from the server; the build uses
+relative asset URLs (Vite `base: "./"`); every same-origin request is relative
+(`api/gateway/…` through the ui-kit `joinBaseUrl`, `api/connection/gateway`,
+`app/host`, `demo/…`); and `npm run build` fails on any root-absolute
+same-origin URL in `dist/` (`scripts/check_relative_urls.mjs`).

@@ -31,9 +31,12 @@ The `abstractentity` server uses the shared app-origin sign-in proxy
 
 ## Deployment defaults
 
-- The server binds to loopback (`127.0.0.1`). Binding wider with `HOST` is an
-  explicit choice; do it only on a network you trust, or behind your own
-  authenticating reverse proxy.
+- The server binds to loopback (`127.0.0.1`). To reach it from another
+  machine, open it through your gateway (`/apps/entity/`, behind the gateway's
+  sign-in). Binding wider with `--host` is an explicit choice; do it only on a
+  network you trust, or behind your own authenticating reverse proxy.
+- Behind the gateway, forwarded headers (`X-Forwarded-*`) are believed only
+  from a loopback peer; a malformed one is refused with `400`.
 - `GET /app/host` reports the machine's LAN IPv4 address (for entity handles)
   and nothing else.
 - The Vite dev server (`npm run dev`) listens on all interfaces and is not a

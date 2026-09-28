@@ -20,6 +20,7 @@
  */
 
 import bundledSpecRaw from "../spec/entity_phases.json?raw";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 export interface SpecSyncResult {
   /** "modulated" (LEGACY one-morning wire only, gateway c-t-i #350): the
@@ -117,7 +118,7 @@ export async function checkSpecSync(
   const bundledSha = await sha256Hex(bundledSpecRaw);
   const bundled = { version: specVersion(bundledSpecRaw), sha256: bundledSha };
   try {
-    const res = await fetch(`${baseUrl}/api/gateway/entities/spec/phases`, { headers });
+    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/spec/phases`), { headers });
     if (!res.ok) {
       return { status: "unavailable", bundled, detail: `gateway does not serve the graph yet (HTTP ${res.status}) — bundled v${bundled.version} is the local truth` };
     }

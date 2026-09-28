@@ -5,8 +5,8 @@
  *
  * It is a DOCS-GROUNDED helper: it answers questions about AbstractEntity
  * and the framework from the gateway's own documentation corpus
- * (`/api/gateway/docs/corpus`). Generation rides the read-only
- * `/api/gateway/runs/{id}/chat` endpoint.
+ * (`api/gateway/docs/corpus`). Generation rides the read-only
+ * `api/gateway/runs/{id}/chat` endpoint.
  *
  * Honesty rules (all three were adversary P0s, fixed here):
  * - Same-origin proxy base is `""` (a VALID base), so the "no gateway"
@@ -22,6 +22,7 @@
  */
 
 import { gatewayReadHeaders, proxyCsrfToken } from "./stream_source";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 const SESSION_ID = "session_memory_entity_docsqa";
 
@@ -30,7 +31,7 @@ const corpusByBase = new Map<string, string>();
 async function loadCorpus(baseUrl: string): Promise<string | null> {
   if (corpusByBase.has(baseUrl)) return corpusByBase.get(baseUrl) ?? null;
   try {
-    const res = await fetch(`${baseUrl}/api/gateway/docs/corpus`, {
+    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/docs/corpus`), {
       credentials: "include",
       headers: gatewayReadHeaders({ Accept: "application/json" }),
     });
@@ -80,7 +81,7 @@ export function makeEntityAssistant(baseUrl: string | null, token: string | null
     const csrf = proxyCsrfToken();
     let res: Response;
     try {
-      res = await fetch(`${base}/api/gateway/runs/${encodeURIComponent(SESSION_ID)}/chat`, {
+      res = await fetch(joinBaseUrl(base, `api/gateway/runs/${encodeURIComponent(SESSION_ID)}/chat`), {
         method: "POST",
         credentials: "include",
         signal: ctx.signal,

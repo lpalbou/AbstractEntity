@@ -47,14 +47,17 @@ npx @abstractframework/entity
 npm install -g @abstractframework/entity
 abstractentity
 
-# point it at your gateway (default http://127.0.0.1:8080)
-ABSTRACTENTITY_GATEWAY_URL=http://127.0.0.1:8080 npx @abstractframework/entity
+# point it at your gateway (default: the gateway installed on this computer,
+# else http://127.0.0.1:8080)
+npx @abstractframework/entity --gateway-url http://127.0.0.1:8080
 ```
 
 The app serves on `http://127.0.0.1:3007`. Open it and sign in to your gateway
-from the connect dialog. See [Getting started](docs/getting-started.md) for the
-full first run and [the configuration reference](docs/api.md#configuration) for
-every environment variable.
+from the connect dialog. When your gateway manages the Entity app (the gateway
+console's **Apps** screen), open it from there instead: the gateway serves it
+at `/apps/entity/` on its own address. See [Getting started](docs/getting-started.md)
+for the full first run and [the configuration reference](docs/api.md#configuration)
+for every launch flag.
 
 ## What you can do in the app
 

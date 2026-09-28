@@ -47,6 +47,7 @@
 
 import type { ReplayEnvelope } from "./stream_types";
 import { gatewayReadHeaders, streamReplay } from "./stream_source";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 const DB_NAME = "abstractentity_replay_v1";
 const STORE = "lives";
@@ -201,7 +202,7 @@ async function evictOldest(db: IDBDatabase): Promise<void> {
 /** Fetch the journal head (seq in (0,1]) — one tiny request that answers
  * "is the cached prefix this same life?". */
 async function fetchHead(base: string, entity: string): Promise<ReplayEnvelope[]> {
-  const url = `${base}/api/gateway/entities/${encodeURIComponent(entity)}/replay?since_seq=0&until_seq=1`;
+  const url = joinBaseUrl(base, `api/gateway/entities/${encodeURIComponent(entity)}/replay?since_seq=0&until_seq=1`);
   const res = await fetch(url, { credentials: "include", headers: gatewayReadHeaders({ Accept: "application/x-ndjson" }) });
   if (!res.ok) throw new Error(`head read failed: HTTP ${res.status}`);
   const text = await res.text();
