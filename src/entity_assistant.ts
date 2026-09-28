@@ -61,11 +61,11 @@ export function makeEntityAssistant(baseUrl: string | null, token: string | null
     const base = baseUrl.trim().replace(/\/+$/, ""); // "" stays "" (same-origin proxy)
     const corpus = await loadCorpus(base);
     // Fold the docs into the USER turn (the run-chat generator keeps only
-    // user/assistant roles). Cap the corpus with an explicit label (repo
-    // rule: truncation is UI-only and must be marked #TRUNCATION).
-    const cappedCorpus = corpus && corpus.length > 40000 ? `${corpus.slice(0, 40000)}\n[#TRUNCATION: docs corpus capped at 40k chars]` : corpus;
-    const grounding = cappedCorpus
-      ? `Answer using ONLY the AbstractEntity/framework documentation below; if it does not cover the question, say so plainly.\n\n<docs>\n${cappedCorpus}\n</docs>\n\nQuestion: ${question}`
+    // user/assistant roles). The WHOLE corpus: models get their full context
+    // (ADR-0026, operator ruling 2026-09-28); a corpus the model cannot hold
+    // fails loudly at the provider instead of being cut here.
+    const grounding = corpus
+      ? `Answer using ONLY the AbstractEntity/framework documentation below; if it does not cover the question, say so plainly.\n\n<docs>\n${corpus}\n</docs>\n\nQuestion: ${question}`
       : question;
     // Skip our own prior error cards so a past failure never becomes
     // misleading model context (every literal this transport can return).

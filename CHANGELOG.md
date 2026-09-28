@@ -36,6 +36,11 @@ before. The server keeps listening on `127.0.0.1` by default.
 - Requires `@abstractframework/app-server` 0.1.11 or newer (the mount kit)
   and is built against `@abstractframework/ui-kit` 0.1.14 (`joinBaseUrl` /
   `GATEWAY_CONNECTION_PATH`).
+- **The docs assistant sends the whole documentation corpus (ADR-0026).** The
+  top-bar assistant used to cut the gateway's docs corpus to 40,000
+  characters, so questions about later sections were answered from a partial
+  corpus. The whole corpus now goes to the model; a corpus larger than the
+  model's context fails with the provider's error instead of being cut.
 
 ### Security
 
