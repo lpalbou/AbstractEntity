@@ -26,15 +26,6 @@ jobs:
         with:
           path: abstractentity
 
-      # The Vite build bundles @abstractframework/ui-kit and panel-chat from
-      # AbstractUIC sources (see vite.config.ts), so the sibling checkout is
-      # required even once every runtime dependency comes from npm.
-      - name: Check out AbstractUIC
-        uses: actions/checkout@v4
-        with:
-          repository: lpalbou/AbstractUIC
-          path: abstractuic
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
