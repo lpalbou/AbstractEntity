@@ -200,13 +200,16 @@ const tab = (name, title) => ({
 export default {
   async setup(page, info) {
     await installRoutes(page, info.baseUrl);
-    await page.addInitScript(() => {
+    // ENTITY_SPACE_THEME=light captures the kit's Light theme (the app keeps its own theme setting and
+    // does not follow prefers-color-scheme).
+    await page.addInitScript((theme) => {
       try {
         localStorage.setItem("abstractentity_chat_session:castor", "run-space-demo");
+        if (theme) localStorage.setItem("af_appearance_abstractentity_v1", JSON.stringify({ theme }));
       } catch {
         /* storage blocked */
       }
-    });
+    }, process.env.ENTITY_SPACE_THEME || "");
   },
   // The memory graph canvas is the documented exception (DESIGN §12: "one page scroll except the graph").
   spaceIgnore: [".entity_canvas_wrap"],

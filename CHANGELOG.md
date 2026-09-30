@@ -2,6 +2,34 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+On a phone the panels use the whole width of the screen, and long lists in
+the side panel fold away so the detail gets the room. A desktop window keeps
+its layout.
+
+### Changed
+
+- **Full-width panels on phones.** Below 768 px the chat transcript, the
+  ledger, the health panel and the entity list are flat: no card borders or
+  card padding, a thin line between items, and text that starts at the screen
+  gutter. A message now spans about 94 % of a 393 px phone (it was 79 %), and
+  a ledger entry's text starts 12 px from the edge (it was 74 px).
+- **Folding lists in the side panel.** Below 1024 px, where the side panel is
+  a drawer, each list in the Detail tab (the memories a recall admitted or
+  dropped, the memories used together, what a night moved, how it feels) has
+  a heading you can tap to fold it. Lists start open; the app remembers each
+  fold on this browser.
+- **The Cognitive Monitor starts folded on phones**, so the conversation gets
+  the drawer (about 11 lines of a 393×852 phone instead of 6). Unfold it once
+  and the app remembers your choice.
+- **Larger text on phones.** Panel text reads at 14–16 px on a touch phone
+  (1.3× the desktop size; tablets keep 1.2×), and the transcript at 15 px.
+- **Tool grants are 44 px touch targets.** Each checkbox in Settings → tools
+  sits in a 44 px cell on touch screens.
+- While a phone drawer is open, the graph's own controls under it are hidden
+  from screen readers and taps.
+
 ## [0.4.0] - 2026-09-30
 
 The app adapts to the screen it runs on: a phone in portrait or landscape, a
