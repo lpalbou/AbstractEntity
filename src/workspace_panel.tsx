@@ -24,7 +24,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { authRefusedMsg } from "./gateway_session";
 import { SubstratePicker, saveSubstrateChoice, type SubstrateChoice } from "./substrate_picker";
-import { PhaseCapabilityMatrix } from "@abstractframework/ui-kit";
+import { AfSwitch, PhaseCapabilityMatrix } from "@abstractframework/ui-kit";
 
 import {
   getEntityPrompt,
@@ -1083,67 +1083,89 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
   const [policy, setPolicy] = useState<ToolPolicyInfo | null>(null);
   const [draft, setDraft] = useState<Record<string, Set<string>> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  /** The cell being written ("phase/tool"); one write at a time. */
+  const [busyCell, setBusyCell] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  const adopt = (p: ToolPolicyInfo) => {
+    setPolicy(p);
+    const d: Record<string, Set<string>> = {};
+    for (const [phase, info] of Object.entries(p.phases)) d[phase] = new Set(info.tools);
+    setDraft(d);
+  };
 
   useEffect(() => {
     getToolPolicy(baseUrl, entity)
-      .then((p) => {
-        setPolicy(p);
-        const d: Record<string, Set<string>> = {};
-        for (const [phase, info] of Object.entries(p.phases)) d[phase] = new Set(info.tools);
-        setDraft(d);
-      })
+      .then(adopt)
       .catch((e: Error) => setError(e.message));
   }, [baseUrl, entity]);
 
-  const toggle = (phase: string, tool: string) => {
-    if (!draft) return;
-    const next = { ...draft, [phase]: new Set(draft[phase]) };
-    if (next[phase].has(tool)) next[phase].delete(tool);
-    else next[phase].add(tool);
-    setDraft(next);
-    setSaved(false);
-  };
-
-  const save = () => {
-    if (!draft || !policy) return;
-    setBusy(true);
+  /** Each switch applies at once (state-toggles rule: no Save button for a
+   * switch). TOUCHED PHASE ONLY (adversary find, 2026-07-11): sending every
+   * phase materialized the day's RESOLVED defaults into the file as "the
+   * operator's word" — every real home ended up with a frozen `sleep: []`
+   * from pre-ruling saves, killing the ruled sleep default. The server merges
+   * per phase; the other phases stay as they were (absent = follows the
+   * evolving framework defaults). A refused write reverts the switch and
+   * shows the reason. */
+  const toggle = (phase: string, tool: string, next: boolean) => {
+    if (!draft || !policy || busyCell) return;
+    const before = draft;
+    const change = toolSwitchChange(policy.all_tools, draft, phase, tool, next);
+    setDraft(change.draft);
+    setBusyCell(`${phase}/${tool}`);
     setError(null);
-    // TOUCHED PHASES ONLY (adversary find, 2026-07-11): sending every
-    // phase materialized the day's RESOLVED defaults into the file as
-    // "the operator's word" — every real home ended up with a frozen
-    // `sleep: []` from pre-ruling saves, killing the ruled sleep default.
-    // The server merges per phase; unchanged phases stay as they were
-    // (absent = follows the evolving framework defaults).
-    const body: Record<string, string[]> = {};
-    for (const [phase, tools] of Object.entries(draft)) {
-      const shown = new Set(policy.phases[phase]?.tools ?? []);
-      const changed = tools.size !== shown.size || [...tools].some((t) => !shown.has(t));
-      if (changed) body[phase] = policy.all_tools.filter((t) => tools.has(t));
-    }
-    if (Object.keys(body).length === 0) {
-      setBusy(false);
-      setSaved(true);
-      return;
-    }
-    putToolPolicy(baseUrl, entity, body, token)
+    setSaved(null);
+    const label = PHASE_LABEL[phase] ?? phase;
+    putToolPolicy(baseUrl, entity, change.body, token)
       .then((p) => {
-        setPolicy(p);
-        const d: Record<string, Set<string>> = {};
-        for (const [phase, info] of Object.entries(p.phases)) d[phase] = new Set(info.tools);
-        setDraft(d);
-        setSaved(true);
+        adopt(p);
+        setSaved(`${tool} is ${next ? "on" : "off"} for ${label} — the next summon obeys it`);
       })
       .catch((e: Error & { status?: number }) => {
+        setDraft(before);
         setError(e.status === 401 || e.status === 403 ? authRefusedMsg(e.status, e.message) : e.message);
       })
-      .finally(() => setBusy(false));
+      .finally(() => setBusyCell(null));
   };
 
   if (error && !policy) return <p className="wsp_error">{error}</p>;
   if (!policy || !draft) return <p className="wsp_quiet">reading…</p>;
 
+  return <ToolGrantsView policy={policy} draft={draft} error={error} saved={saved} busyCell={busyCell} onToggle={toggle} />;
+}
+
+/** One tool switch flipped: the next draft and the PUT body — the touched
+ * phase only, in the policy's tool order (pure; pinned by tests). */
+export function toolSwitchChange(
+  allTools: string[],
+  draft: Record<string, Set<string>>,
+  phase: string,
+  tool: string,
+  next: boolean,
+): { draft: Record<string, Set<string>>; body: Record<string, string[]> } {
+  const tools = new Set(draft[phase]);
+  if (next) tools.add(tool);
+  else tools.delete(tool);
+  return { draft: { ...draft, [phase]: tools }, body: { [phase]: allTools.filter((t) => tools.has(t)) } };
+}
+
+/** The tool-grant matrix: one kit switch per tool and phase, applied at once. */
+export function ToolGrantsView({
+  policy,
+  draft,
+  error,
+  saved,
+  busyCell,
+  onToggle,
+}: {
+  policy: ToolPolicyInfo;
+  draft: Record<string, Set<string>>;
+  error: string | null;
+  saved: string | null;
+  busyCell: string | null;
+  onToggle(phase: string, tool: string, next: boolean): void;
+}): React.ReactElement {
   const tier1 = new Set(policy.tiers["tier1"] ?? []);
 
   return (
@@ -1151,12 +1173,12 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
       <p className="wsp_quiet">
         Which tools he holds in each phase of life. The ● mark is his read-only COGNITION lane (his own memory and book — no reach into the world);
         everything else reaches outward to some degree: workspace reads/writes, web lanes (network egress), and execute_command (a sandboxed shell —
-        walled, but real hands). Saving writes <code>tool_policy.yaml</code> in his home — the next summon of each phase obeys it; a session already
+        walled, but real hands). Each switch writes <code>tool_policy.yaml</code> in his home at once — the next summon of each phase obeys it; a session already
         open (a live visit, an own-time day mid-run) keeps the grant it was summoned with. The sleep column (⏳) is standing config with an explore-only
         DEFAULT (recall, search, read) — widen it if his dreams should act; it takes effect when the sleep pass gains tool use.
       </p>
       <p className="wsp_quiet">
-        A check is the <strong>grant</strong> — the operator's word. What a live session can actually <em>call</em> also depends on that lane's
+        A switch that is on is the <strong>grant</strong> — the operator's word. What a live session can actually <em>call</em> also depends on that lane's
         wiring; a granted tool the lane cannot offer yet shows <span className="wsp_unwired" title="granted but not yet callable on this lane">▲</span> with
         the reason.
       </p>
@@ -1216,7 +1238,17 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
                 const unwired = exec ? exec.ok === false : false;
                 return (
                   <td key={phase}>
-                    <input type="checkbox" checked={draft[phase]?.has(tool) ?? false} onChange={() => toggle(phase, tool)} />
+                    <AfSwitch
+                      variant="sm"
+                      className="wsp_cell_switch"
+                      label={tool}
+                      ariaLabel={`${tool} in ${PHASE_LABEL[phase] ?? phase}`}
+                      checked={draft[phase]?.has(tool) ?? false}
+                      busy={busyCell === `${phase}/${tool}`}
+                      unavailableReason={busyCell && busyCell !== `${phase}/${tool}` ? "Saving another change…" : null}
+                      reasonVisible={false}
+                      onChange={(next) => onToggle(phase, tool, next)}
+                    />
                     {unwired && (draft[phase]?.has(tool) ?? false) ? (
                       <span className="wsp_unwired" title={exec?.reason || "granted but not yet callable on this lane"}>
                         ▲
@@ -1229,11 +1261,8 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
           ))}
         </tbody>
       </table>
-      <div className="wsp_save_row">
-        <button onClick={save} disabled={busy}>
-          {busy ? "saving…" : "save policy"}
-        </button>
-        {saved ? <span className="wsp_saved">saved — next summon obeys it</span> : null}
+      <div className="wsp_save_row" role="status">
+        {saved ? <span className="wsp_saved">{saved}</span> : null}
         {policy.phases["visit"]?.source === "default" && !saved ? <span className="wsp_quiet">(currently on defaults — no policy file yet)</span> : null}
       </div>
     </div>

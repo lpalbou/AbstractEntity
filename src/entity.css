@@ -3013,6 +3013,20 @@ body {
 .wsp_matrix th:not(:first-child) {
   text-align: center;
 }
+/* Tool grants are kit switches (state-toggles rule): the column header names
+ * the phase and the row names the tool, so the switch's own label is kept
+ * for assistive technology only. */
+.wsp_matrix .wsp_cell_switch {
+  vertical-align: middle;
+}
+.wsp_matrix .wsp_cell_switch .af-switch__text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 .wsp_tier1 {
   color: var(--adm-stimulus);
   margin-left: 5px;
@@ -4391,15 +4405,6 @@ body {
   font-size: calc(13px * var(--font-scale, 1));
   font-family: inherit;
 }
-.ce_lint {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: calc(11.5px * var(--font-scale, 1));
-  color: var(--text-dim, #8b98ad);
-  white-space: nowrap;
-  cursor: pointer;
-}
 .ce_submit {
   background: var(--ea-accent);
   color: #1a1207;
@@ -4563,9 +4568,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-.ce_advanced .ce_lint {
-  white-space: normal;
 }
 @media (max-width: 767.98px) {
   .ce_row {
