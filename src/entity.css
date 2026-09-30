@@ -5775,6 +5775,15 @@ body {
     width: 40px;
     flex: none;
   }
+  /* Tabs never poke past the screen edge (the desktop tab overlaps the
+   * panel border by 1-5 px to the right; with the rail at the viewport edge
+   * that was 2 px of cut-off tab). They still widen leftwards. */
+  .side_tabs_drawer .st_tab {
+    left: 0;
+  }
+  .side_tabs_drawer .st_tab:not(.st_tab_active) {
+    width: 40px;
+  }
   .side_tabs_drawer .st_panel {
     position: absolute;
     top: 0;
@@ -5874,7 +5883,8 @@ body {
     display: none;
   }
   .side_tabs_drawer .st_tab,
-  .side_tabs_drawer .st_tab:hover {
+  .side_tabs_drawer .st_tab:hover,
+  .side_tabs_drawer .st_tab:not(.st_tab_active) {
     writing-mode: horizontal-tb;
     left: 0;
     width: auto;

@@ -36,8 +36,8 @@ wide screen. A 1280-1600 px desktop window looks as before.
   safe-area padding on the header, timeline, tab strip and sheets.
 - Breakpoints follow the shared framework set (480 / 768 / 1024 / 1440 px,
   plus 500 px tall).
-- Builds against `@abstractframework/ui-kit` 0.3.0 and
-  `@abstractframework/panel-chat` 0.2.0, now declared as dependencies and
+- Builds against `@abstractframework/ui-kit` 0.3.1 and
+  `@abstractframework/panel-chat` 0.2.1, now declared as dependencies and
   resolved from `node_modules`. The Vite alias to a sibling `abstractuic`
   checkout is gone.
 
