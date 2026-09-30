@@ -10,6 +10,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 
+import { AfSwitch } from "@abstractframework/ui-kit";
+
 import { createEntity } from "./stream_source";
 
 export interface CreateEntityFormProps {
@@ -109,15 +111,24 @@ export function CreateEntityForm({ baseUrl, token, onCreated, autoFocus, onCance
             rows={10}
             spellCheck={false}
           />
-          <label
-            className="ce_lint"
-            title="The framework check requires the shared_vulnerability core value in the starting document; turning it off is a deliberate operator override"
-          >
-            <input type="checkbox" checked={framework} onChange={(e) => setFramework(e.target.checked)} />
-            Check the document against the framework rules
-          </label>
+          <FrameworkCheckSwitch checked={framework} onChange={setFramework} />
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** The create form's one on/off option, a kit switch labelled by the feature
+ * (state-toggles rule): it toggles form state; "Create entity" stays the one
+ * primary action. */
+export function FrameworkCheckSwitch({ checked, onChange }: { checked: boolean; onChange(next: boolean): void }): React.ReactElement {
+  return (
+    <AfSwitch
+      label="Framework check"
+      description="Check the starting document against the framework rules (it must carry the shared_vulnerability core value). Off is a deliberate operator override."
+      action="framework-check"
+      checked={checked}
+      onChange={onChange}
+    />
   );
 }

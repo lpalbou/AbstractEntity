@@ -15,6 +15,7 @@ import { fetchDiaryEntry, fetchRecordVerbatim } from "./stream_source";
 import { shapeLabel } from "./node_label";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
+import { SectionDisclosure } from "./section_disclosure";
 
 export interface InspectorProps {
   fold: FoldState;
@@ -403,8 +404,7 @@ function NodeCard({
         )
       ) : null}
       {node.signals && node.signals.length > 0 ? (
-        <div className="ei_section ei_night" title="The night's telemetry (wave-5 dream signals): what the sleep pass MOVED — structure decided what enters; the felt tint only COLORS it (a read of his accumulated feelings, never a deposit). Machine acts carry no tint by design.">
-          <h4>The night moved</h4>
+        <SectionDisclosure id="night" className="ei_night" title="The night moved" sectionTitle="The night's telemetry (wave-5 dream signals): what the sleep pass MOVED — structure decided what enters; the felt tint only COLORS it (a read of his accumulated feelings, never a deposit). Machine acts carry no tint by design.">
           <ul className="ei_signals">
             {node.signals.map((s, i) => {
               const tone = String(s.felt?.tone || "");
@@ -430,7 +430,7 @@ function NodeCard({
               );
             })}
           </ul>
-        </div>
+        </SectionDisclosure>
       ) : null}
       {node.closed ? (
         <div className="ei_closed">
@@ -452,8 +452,7 @@ function NodeCard({
         </div>
       ) : null}
       {feeling ? (
-        <div className="ei_section">
-          <h4>How it feels about this</h4>
+        <SectionDisclosure id="feeling" title="How it feels about this">
           <div className="ei_channels">
             <div className="ei_channel ei_channel_pos">
               <span className="ei_channel_value">+{feeling.positive}</span>
@@ -475,18 +474,17 @@ function NodeCard({
             </div>
           ))}
           <FeelingEvents events={feeling.events} />
-        </div>
+        </SectionDisclosure>
       ) : null}
       {partners.length > 0 ? (
-        <div className="ei_section">
-          <h4>Used together with</h4>
+        <SectionDisclosure id="partners" title="Used together with">
           {partners.map((p) => (
             <button key={p.id} className="ei_link ei_partner" onClick={() => onSelect(p.id)}>
               <span>{p.title}</span>
               <span className="ei_count">×{p.count}</span>
             </button>
           ))}
-        </div>
+        </SectionDisclosure>
       ) : null}
     </div>
   );
@@ -567,8 +565,7 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
         const ids = groups[label];
         if (!ids || ids.length === 0) return null;
         return (
-          <div key={label} className="ei_section">
-            <h4 className={`ei_adm_head ei_adm_${label}`}>{ADMISSION_LABELS[label] ?? label}</h4>
+          <SectionDisclosure key={label} id={`admission:${label}`} headClassName={`ei_adm_head ei_adm_${label}`} title={ADMISSION_LABELS[label] ?? label}>
             {ids.map((rid) => {
               const node = fold.nodes.get(rid);
               return (
@@ -577,12 +574,11 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
                 </button>
               );
             })}
-          </div>
+          </SectionDisclosure>
         );
       })}
       {beat.dropped.length > 0 ? (
-        <div className="ei_section">
-          <h4>Considered but dropped</h4>
+        <SectionDisclosure id="dropped" title="Considered but dropped">
           {beat.dropped.slice(0, 10).map((d, i) => {
             const node = fold.nodes.get(d.record_id);
             return (
@@ -592,7 +588,7 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
               </div>
             );
           })}
-        </div>
+        </SectionDisclosure>
       ) : null}
     </div>
   );

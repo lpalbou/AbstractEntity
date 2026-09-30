@@ -2,6 +2,48 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+On/off settings are switches labelled by what they control; the switch shows
+the state. Anyone who edits an entity's tools or creates an entity is
+affected; nothing changes in how you install, start or sign in.
+
+On a phone the panels use the whole width of the screen, and long lists in
+the side panel fold away so the detail gets the room. A desktop window keeps
+its layout.
+
+### Changed
+
+- **Tools tab.** Each tool in each phase is a switch that applies at once:
+  there is no **save policy** button any more. Only the phase you changed is
+  written to `tool_policy.yaml`, so the other phases keep following the
+  framework defaults. While a change saves, the other switches wait; a
+  refused change switches back and shows the reason. The confirmation names
+  the new state ("web_search is off for visit — the next summon obeys it").
+- **Create an entity.** **Framework check** under Advanced is a switch; it
+  sets how the entity is created, and **Create entity** stays the one action.
+- **Full-width panels on phones.** Below 768 px the chat transcript, the
+  ledger, the health panel and the entity list are flat: no card borders or
+  card padding, a thin line between items, and text that starts at the screen
+  gutter. A message now spans about 94 % of a 393 px phone (it was 79 %), and
+  a ledger entry's text starts 12 px from the edge (it was 74 px).
+- **Folding lists in the side panel.** Below 1024 px, where the side panel is
+  a drawer, each list in the Detail tab (the memories a recall admitted or
+  dropped, the memories used together, what a night moved, how it feels) has
+  a heading you can tap to fold it. Lists start open; the app remembers each
+  fold on this browser.
+- **The Cognitive Monitor starts folded on phones**, so the conversation gets
+  the drawer (about 11 lines of a 393×852 phone instead of 6). Unfold it once
+  and the app remembers your choice.
+- **Readable text sizes everywhere.** On phones and tablets no text is
+  smaller than 14 px, and panel text reads at 14–17 px (the transcript at
+  15 px). On a desktop, text is at least 13 px, and the ledger and the tool
+  grants at least 12 px, so small labels and notes grow slightly while larger
+  text keeps its size. The graph's node labels and the blueprint map keep their
+  own sizes; the map's zoom buttons read it closer.
+- While a phone drawer is open, the graph's own controls under it are hidden
+  from screen readers and taps.
+
 ## [0.4.0] - 2026-09-30
 
 The app adapts to the screen it runs on: a phone in portrait or landscape, a

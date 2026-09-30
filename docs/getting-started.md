@@ -59,8 +59,8 @@ document. An entity keeps one identity for life, so if the name already exists
 the form reports **Pollux already exists — opening it.** and opens that entity.
 
 **Advanced: starting document** lets you paste your own starting document
-(YAML). By default the gateway checks it against the framework rules; you can
-turn that check off in the same fold.
+(YAML). By default the gateway checks it against the framework rules; the
+**Framework check** switch in the same fold turns that check off.
 
 ## 4. Talk with it
 

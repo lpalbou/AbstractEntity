@@ -16,6 +16,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { AF_MEDIA } from "@abstractframework/ui-kit";
 import {
   AfCognitionBloom,
   AfConductGauge,
@@ -40,6 +41,15 @@ async function loadBasis(): Promise<FrozenBasis> {
 }
 
 const FOLD_KEY = "abstractentity_cogmon_fold_v1";
+
+/** The monitor's first state: the viewer's remembered choice, else folded on
+ * a phone (DESIGN §12 — the ~300 px bloom left a 393x852 phone ~6 transcript
+ * lines) and open elsewhere. */
+export function initialMonitorFolded(stored: string | null, phone: boolean): boolean {
+  if (stored === "1") return true;
+  if (stored === "0") return false;
+  return phone;
+}
 /** Preferred square size; the pair SHRINKS to fit the rail side by side
  * (two fixed 190px squares overflowed the ~360px drawer and clipped the
  * bloom's letter codes). */
@@ -94,11 +104,19 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
   const [note, setNote] = useState<string | null>(null);
   const [current, setCurrent] = useState<ScoredText | null>(null);
   const [folded, setFolded] = useState<boolean>(() => {
+    let stored: string | null = null;
     try {
-      return localStorage.getItem(FOLD_KEY) === "1";
+      stored = localStorage.getItem(FOLD_KEY);
     } catch {
-      return false;
+      // presentation state only
     }
+    let phone = false;
+    try {
+      phone = window.matchMedia(AF_MEDIA.sm).matches;
+    } catch {
+      // no matchMedia: the desktop default
+    }
+    return initialMonitorFolded(stored, phone);
   });
   const [modalAxis, setModalAxis] = useState<AxisInfo | "about" | null>(null);
   /** Live axis readings from the gauge (values/reasons for the code-row
@@ -156,13 +174,17 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
     return () => ro.disconnect();
   }, [folded, status]);
 
-  useEffect(() => {
+  // Written on the viewer's own toggle only: the phone default must not
+  // become a stored choice that folds the monitor on the desktop too.
+  const toggleFolded = () => {
+    const next = !folded;
+    setFolded(next);
     try {
-      localStorage.setItem(FOLD_KEY, folded ? "1" : "0");
+      localStorage.setItem(FOLD_KEY, next ? "1" : "0");
     } catch {
       // presentation only
     }
-  }, [folded]);
+  };
 
   const ensureSetup = () => {
     if (setupRef.current) return setupRef.current;
@@ -282,7 +304,7 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
   return (
     <div className={`cm_panel ${folded ? "cm_panel_folded" : ""}`}>
       <div className="cm_head">
-        <button className="cm_fold" onClick={() => setFolded((v) => !v)} title={folded ? "Unfold the monitor" : "Fold the monitor (the chat keeps the room)"} aria-expanded={!folded}>
+        <button className="cm_fold" onClick={toggleFolded} title={folded ? "Unfold the monitor" : "Fold the monitor (the chat keeps the room)"} aria-expanded={!folded}>
           {folded ? "▸" : "▾"}
         </button>
         <span className="cm_title">
