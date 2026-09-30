@@ -2,6 +2,18 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Fixed
+
+- **The launch-flag test no longer depends on a build.** The test of the
+  gateway precedence (flag, then environment, then the local gateway pointer)
+  runs the real CLI and now reads the gateway URL from the running server's
+  connection endpoint instead of the page in `dist/`. It failed on a fresh
+  checkout and while a build was rewriting `dist/`. Each case is its own test,
+  the "server is listening" banner is the synchronisation point, and a CLI
+  that exits early fails with its output.
+
 ## [0.4.0] - 2026-09-30
 
 The app adapts to the screen it runs on: a phone in portrait or landscape, a
