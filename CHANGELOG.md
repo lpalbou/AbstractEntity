@@ -15,6 +15,12 @@ wide screen. A 1280-1600 px desktop window looks as before.
   on a phone held sideways, the tabs become a strip along the bottom of the
   view. On a narrow screen the app opens with the panel closed, so the graph
   shows first. At 375 px the graph was 0 px wide before.
+- With the on-screen keyboard up, or on a phone held sideways, an open panel
+  fills the screen above the keyboard, with the tab strip kept under it, so
+  the conversation keeps its room. Switching back to a wide window restores
+  the panel you had open on the desktop.
+- The graph's compact controls apply only when the graph is narrower than
+  860 px: a 1280 px or wider window with the panel docked looks as before.
 - The view fits the visible screen (`100dvh` and the visible viewport, through
   the kit's `installViewportVars()`), so the timeline no longer sits under the
   iOS address bar.
