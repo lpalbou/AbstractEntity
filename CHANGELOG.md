@@ -2,6 +2,17 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Fixed
+
+- **Plain http from another machine** (LAN, Tailscale). Browsers withhold
+  `crypto.subtle` and the clipboard API outside https and localhost. The spec
+  drift check now falls back to a plain SHA-256 (same digest) instead of
+  failing, and every **Copy** (visit transcript, turn detail) falls back to a
+  text-selection copy and says whether it worked ("Copy failed — select and
+  copy" when the browser refuses).
+
 ## [0.4.0] - 2026-09-30
 
 The app adapts to the screen it runs on: a phone in portrait or landscape, a

@@ -89,6 +89,7 @@ import {
 import { authRefusedMsg, proxyConnectionLogout, proxyConnectionStatus, sameGatewayTarget } from "./gateway_session";
 import { useEntityAbout } from "./app_about";
 import { wantsCreateFlow } from "./roster_empty";
+import { clipboardWrite } from "./lib/secure-context";
 
 // Relative: under the app base (`/` standalone, `/apps/entity/` behind the gateway).
 const DEMO_URL = "demo/castor.ndjson";
@@ -102,27 +103,7 @@ type SourceKind = "demo" | "file" | "gateway";
  * app is served exactly there, so the execCommand path is load-bearing,
  * not a nicety). Returns whether it copied. */
 async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // fall through to the execCommand path
-  }
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand("copy");
-    ta.remove();
-    return ok;
-  } catch {
-    return false;
-  }
+  return clipboardWrite(text);
 }
 
 /** Legend swatch for a typed edge: short line + the SAME glyph the canvas
