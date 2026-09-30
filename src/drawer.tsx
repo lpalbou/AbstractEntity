@@ -15,10 +15,11 @@
  * starts collapsed so the graph — the protagonist — is what a phone shows.
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useReducer, useRef, useState } from "react";
 import { AF_MEDIA, useAfMedia } from "@abstractframework/ui-kit";
 
 import { ErrorBoundary } from "./error_boundary";
+import { activeSideTab, initialSideTabs, persistedSideTab, sideTabsReducer } from "./side_tabs_state";
 
 const STORAGE_KEY = "abstractentity_side_tab_v1";
 
@@ -34,7 +35,9 @@ export interface SideTab {
 const WIDTH_KEY = "abstractentity_side_width_v1";
 const MIN_WIDTH = 300;
 const MAX_WIDTH = 900;
-const DEFAULT_WIDTH = 380;
+/** The docked panel's default width (px); the graph container threshold in
+ * entity.css is chosen against it (see responsive_css.test.ts). */
+export const DEFAULT_WIDTH = 380;
 
 export interface SideTabsProps {
   tabs: SideTab[];
@@ -45,19 +48,26 @@ export interface SideTabsProps {
 
 export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTabsProps): React.ReactElement {
   const narrow = useAfMedia(AF_MEDIA.md);
-  const [active, setActive] = useState<string | null>(() => {
-    // Narrow first load: the drawer starts closed (the stored tab is still
-    // what the desktop layout restores; the narrow layout never writes it).
-    if (typeof window !== "undefined" && window.matchMedia?.(AF_MEDIA.md).matches) return null;
+  // Two slots (side_tabs_state.ts): the docked layout's persisted choice and
+  // the drawer's own state (starts closed, never persisted).
+  const [tabState, dispatch] = useReducer(sideTabsReducer, undefined, () => {
+    let stored: string | null = null;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "") return null; // collapsed by choice
-      if (stored && tabs.some((t) => t.id === stored)) return stored;
+      stored = localStorage.getItem(STORAGE_KEY);
     } catch {
       // presentation state only
     }
-    return defaultTab ?? tabs[0]?.id ?? null;
+    return initialSideTabs(
+      stored,
+      tabs.map((t) => t.id),
+      defaultTab,
+    );
   });
+  const active = activeSideTab(tabState, narrow);
+  const setActive = (next: string | null) => {
+    if (next === null) dispatch({ type: "close", narrow });
+    else dispatch({ type: "request", id: next, narrow });
+  };
 
   // A parent may request a tab (e.g. "chat" when entering a room), carried
   // as "<tab>#<nonce>" so re-entering the same entity re-applies it. The
@@ -67,18 +77,19 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
     if (controlledTab !== undefined && controlledTab !== lastRequestRef.current) {
       lastRequestRef.current = controlledTab;
       const tabId = controlledTab ? controlledTab.split("#", 1)[0] : null;
-      if (tabId && tabs.some((t) => t.id === tabId)) setActive(tabId);
+      if (tabId && tabs.some((t) => t.id === tabId)) dispatch({ type: "request", id: tabId, narrow });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledTab, tabs]);
 
+  const persisted = persistedSideTab(tabState);
   useEffect(() => {
-    if (narrow) return; // a drawer closed on a phone is not a desktop choice
     try {
-      localStorage.setItem(STORAGE_KEY, active ?? "");
+      localStorage.setItem(STORAGE_KEY, persisted);
     } catch {
       // best-effort
     }
-  }, [active, narrow]);
+  }, [persisted]);
 
   // Drawer mode (< 1024): Escape collapses, focus moves into the opened panel
   // and back to the tab that opened it on close.
@@ -175,7 +186,7 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
             title={tab.id === active ? `Collapse ${tab.title}` : tab.title}
             onClick={(e) => {
               openerRef.current = e.currentTarget;
-              setActive((cur) => (cur === tab.id ? null : tab.id));
+              dispatch({ type: "toggle", id: tab.id, narrow });
             }}
           >
             <span className="st_tab_label">{tab.title}</span>

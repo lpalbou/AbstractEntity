@@ -52,10 +52,12 @@ body {
 .entity_app {
   display: flex;
   flex-direction: column;
-  /* The VISIBLE viewport (DESIGN v1 §4): --vv-height from the kit's
-   * installViewportVars() (shrinks under the iOS keyboard), else dvh, else
-   * vh. 100vh put the timeline under the iOS URL bar. */
-  height: var(--vv-height, var(--vh-full, 100vh));
+  /* The VISIBLE viewport (DESIGN v1 §4): dvh (else vh) minus the on-screen
+   * keyboard (--keyboard-inset from the kit's installViewportVars(); 0 where
+   * the browser already shrinks dvh). Not --vv-height: that also shrinks
+   * under pinch-zoom and collapsed the whole shell (review B). 100vh put the
+   * timeline under the iOS URL bar. */
+  height: calc(var(--vh-full, 100vh) - var(--keyboard-inset, 0px));
   min-width: 0;
   overflow: hidden;
 }
@@ -5601,6 +5603,10 @@ body {
  * touch without a self-referencing --font-scale (see the touch block). */
 #root {
   --ent-user-scale: var(--font-scale, 1);
+  /* The shell's own height is a query axis: a keyboard (or a landscape
+   * phone) leaves a short shell whatever the viewport media says. */
+  container: entity-shell / size;
+  height: calc(var(--vh-full, 100vh) - var(--keyboard-inset, 0px));
 }
 
 body {
@@ -5643,6 +5649,11 @@ body {
 }
 .mc_picker select {
   max-width: 100%;
+}
+
+/* App dialogs end above the on-screen keyboard (0 px without one). */
+.ev_backdrop {
+  bottom: var(--keyboard-inset, 0px);
 }
 
 /* Hover card never wider than the screen. */
@@ -5695,13 +5706,17 @@ body {
 }
 
 /* The graph canvas is a container: its overlays adapt to the CANVAS width
- * (which depends on the side panel), not to the viewport. */
+ * (which depends on the side panel), not to the viewport. Threshold 860 px:
+ * the 0.3.0 lens row (search + topics + 9 chips, ~640 px) plus the 200 px it
+ * leaves for the motion buttons stops fitting below it. A 1280 px window with
+ * the 380 px panel docked (canvas 900 px) keeps the labelled desktop layout;
+ * 1024-1239 px windows with the panel docked get the compact one (declared). */
 .entity_canvas_wrap {
   container: entity-canvas / inline-size;
   min-height: 0;
 }
 
-@container entity-canvas (max-width: 1023.98px) {
+@container entity-canvas (max-width: 859.98px) {
   /* Lens row: one scrollable strip across the canvas top (it folded into a
    * vertical column over the graph and collided with the motion buttons). */
   .entity_graph_overlay {
@@ -5956,22 +5971,6 @@ body {
 /* Short landscape phone: the panel is a right-hand sheet, not full width;
  * header and controls are one thin row each. */
 @media (max-height: 500px) {
-  /* The open panel takes the full height of the view area (over the tab
-   * strip; the backdrop or ✕ closes it) and scrolls as a whole: ~175 px of
-   * panel under four chrome rows cut the chat's "visit" button off. */
-  .side_tabs_drawer .st_panel {
-    left: auto;
-    bottom: 0;
-    width: min(460px, 100%);
-    border-left: 1px solid var(--line);
-    overflow-y: auto;
-  }
-  .side_tabs_drawer .st_panel > * {
-    flex-shrink: 0;
-  }
-  .st_backdrop {
-    bottom: 0;
-  }
   .entity_header {
     padding-top: max(4px, var(--safe-top, 0px));
     padding-bottom: 4px;
@@ -5979,6 +5978,83 @@ body {
   .entity_controls {
     padding-top: 4px;
     padding-bottom: 4px;
+  }
+}
+
+/* SHORT SHELL (< 560 px of shell height: a phone in landscape, or any phone
+ * with the keyboard up, whose --keyboard-inset shortens the shell). The open
+ * drawer becomes a full-screen column over the view — the panel on top, the
+ * tab strip kept visible under it — bounded by the keyboard, so the chat body
+ * keeps real height and its composer sits right above the keyboard. Below
+ * 560 px the chrome rows (header, controls, timeline ~300 px on a phone)
+ * otherwise left the panel 0-60 px. */
+@container entity-shell (max-height: 559.98px) {
+  .side_tabs.side_tabs_drawer:not(.side_tabs_collapsed) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: var(--keyboard-inset, 0px);
+    width: auto;
+    height: auto;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    padding-top: var(--safe-top, 0px);
+  }
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_panel {
+    position: static;
+    order: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: auto;
+    border-left: none;
+    box-shadow: none;
+    overflow-y: auto;
+  }
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_rail {
+    order: 1;
+    flex: none;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    height: var(--st-rail-h, 41px);
+    border-top: 1px solid var(--line);
+    padding-bottom: 4px;
+  }
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_tab,
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_tab:hover {
+    writing-mode: horizontal-tb;
+    left: 0;
+    width: auto;
+    height: var(--tap-min, 32px);
+    min-height: var(--tap-min, 32px);
+    flex: none;
+    padding: 0 12px;
+    clip-path: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_tab_active {
+    border: none;
+    box-shadow: none;
+  }
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_backdrop {
+    display: none;
+  }
+  /* The conversation keeps a usable body; the composer stays pinned. */
+  .side_tabs_drawer .cd_thread {
+    min-height: 64px;
+  }
+}
+
+/* Very short shell (a landscape phone with the keyboard up, ~190 px): the
+ * panel drops its title row — the tab strip under it still closes it (tap
+ * the active tab) — so the conversation keeps ~140 px instead of ~90. */
+@container entity-shell (max-height: 299.98px) {
+  .side_tabs_drawer:not(.side_tabs_collapsed) .st_drawer_head {
+    display: none;
   }
 }
 
@@ -6149,7 +6225,9 @@ body {
     -webkit-appearance: none;
     appearance: none;
     padding-right: 32px;
-    background-image: var(--af-select-chevron);
+    /* The kit's token (ui-kit >= 0.3.2) with the same chevron inline as the
+     * fallback: appearance:none must never leave a select arrow-less. */
+    background-image: var(--af-select-chevron, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a93a3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"));
     background-repeat: no-repeat;
     background-position: right 12px center;
     background-size: 12px 8px;
