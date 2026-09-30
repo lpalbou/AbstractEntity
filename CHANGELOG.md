@@ -2,6 +2,23 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+On/off settings are switches labelled by what they control; the switch shows
+the state. Anyone who edits an entity's tools or creates an entity is
+affected; nothing changes in how you install, start or sign in.
+
+### Changed
+
+- **Tools tab.** Each tool in each phase is a switch that applies at once:
+  there is no **save policy** button any more. Only the phase you changed is
+  written to `tool_policy.yaml`, so the other phases keep following the
+  framework defaults. While a change saves, the other switches wait; a
+  refused change switches back and shows the reason. The confirmation names
+  the new state ("web_search is off for visit — the next summon obeys it").
+- **Create an entity.** **Framework check** under Advanced is a switch; it
+  sets how the entity is created, and **Create entity** stays the one action.
+
 ## [0.4.0] - 2026-09-30
 
 The app adapts to the screen it runs on: a phone in portrait or landscape, a
