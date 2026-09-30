@@ -20,9 +20,9 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const APP_CSS = resolve(__dirname, "entity.css");
-// Repo split 2026-07-12: src/ sits one level shallower than the old
-// abstractobserver/src/entity home, so the workspace sibling is ../../.
-const KIT_CSS = resolve(__dirname, "../../abstractuic/ui-kit/src/theme.css");
+// The kit this app is BUILT against (the installed package), not a sibling
+// checkout: a sibling path tested whatever abstractuic happened to hold.
+const KIT_CSS = resolve(__dirname, "../node_modules/@abstractframework/ui-kit/src/theme.css");
 
 /** this app's entity.css :root name -> ui-kit semantic token name. */
 const TOKEN_MAP: Record<string, string> = {
