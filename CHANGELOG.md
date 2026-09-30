@@ -2,6 +2,45 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [0.4.0] - Unreleased
+
+Responsive: the app adapts to a phone, a tablet, a resized window and a very
+wide screen. A 1280-1600 px desktop window looks as before.
+
+### Changed
+
+- **Below 1024 px the side panel is a drawer.** The tab rail stays; the open
+  panel slides over the graph. Escape, a tap outside it, or its close button
+  shuts it, and focus goes back to the tab that opened it. Below 768 px, and
+  on a phone held sideways, the tabs become a strip along the bottom of the
+  view. On a narrow screen the app opens with the panel closed, so the graph
+  shows first. At 375 px the graph was 0 px wide before.
+- The view fits the visible screen (`100dvh` and the visible viewport, through
+  the kit's `installViewportVars()`), so the timeline no longer sits under the
+  iOS address bar.
+- The header, the phase controls, the timeline and the roster header wrap
+  instead of cutting off the Entities button, the connection pill and
+  Settings. Below 480 px the phase controls are one row you swipe.
+- The graph's lens chips, layout buttons and legend adapt to the width of the
+  graph. When it is narrow they become one scrollable row each.
+- Settings, verbatim, turn detail and meet dialogs open as bottom sheets on a
+  phone. The Settings tabs scroll sideways.
+- The blueprint map has zoom buttons: fit, zoom out, zoom in and reset. On a
+  phone it scrolls inside its frame.
+- On touch screens, buttons, selects and fields are at least 44 px tall and
+  text fields use 16 px text (iOS no longer zooms on focus). The reading panes
+  (side panel, roster, dialogs, blueprint) show text 1.2x larger.
+- The roster and the blueprint use more of a very wide window (up to 1320 px /
+  1600 px).
+- `index.html`: `viewport-fit=cover, interactive-widget=resizes-content`;
+  safe-area padding on the header, timeline, tab strip and sheets.
+- Breakpoints follow the shared framework set (480 / 768 / 1024 / 1440 px,
+  plus 500 px tall).
+- Builds against `@abstractframework/ui-kit` 0.3.0 and
+  `@abstractframework/panel-chat` 0.2.0, now declared as dependencies and
+  resolved from `node_modules`. The Vite alias to a sibling `abstractuic`
+  checkout is gone.
+
 ## [0.3.0] - 2026-09-28
 
 Serving the Entity app through the gateway at `/apps/entity/` needs
