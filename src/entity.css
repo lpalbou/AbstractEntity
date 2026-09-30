@@ -5946,10 +5946,21 @@ body {
 /* Short landscape phone: the panel is a right-hand sheet, not full width;
  * header and controls are one thin row each. */
 @media (max-height: 500px) {
+  /* The open panel takes the full height of the view area (over the tab
+   * strip; the backdrop or ✕ closes it) and scrolls as a whole: ~175 px of
+   * panel under four chrome rows cut the chat's "visit" button off. */
   .side_tabs_drawer .st_panel {
     left: auto;
+    bottom: 0;
     width: min(460px, 100%);
     border-left: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .side_tabs_drawer .st_panel > * {
+    flex-shrink: 0;
+  }
+  .st_backdrop {
+    bottom: 0;
   }
   .entity_header {
     padding-top: max(4px, var(--safe-top, 0px));
