@@ -5,7 +5,7 @@ import ReactDOM from "react-dom/client";
 // sign-in card is the SAME component AbstractFlow renders, but this entry
 // never imported its stylesheet — the card rendered as bare unstyled HTML).
 import "@abstractframework/ui-kit/theme.css";
-import { applyTheme } from "@abstractframework/ui-kit";
+import { applyTheme, installViewportVars } from "@abstractframework/ui-kit";
 import "@abstractframework/panel-chat/panel_chat.css";
 
 import { EntityView } from "./entity_view";
@@ -17,6 +17,10 @@ import "./entity.css";
 // (sign-in card, pickers) match the app chrome instead of defaulting to
 // another app's colors.
 applyTheme("observer-night");
+// The visible viewport as CSS variables (--vv-height, --keyboard-inset): the
+// shell sizes to what is actually on screen, so on iOS the timeline and the
+// chat composer stay above the URL bar and the on-screen keyboard.
+installViewportVars();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

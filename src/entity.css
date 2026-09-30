@@ -52,7 +52,11 @@ body {
 .entity_app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* The VISIBLE viewport (DESIGN v1 §4): --vv-height from the kit's
+   * installViewportVars() (shrinks under the iOS keyboard), else dvh, else
+   * vh. 100vh put the timeline under the iOS URL bar. */
+  height: var(--vv-height, var(--vh-full, 100vh));
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -3251,7 +3255,7 @@ body {
 
 .fleet_grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -4561,7 +4565,7 @@ body {
 .ce_advanced .ce_lint {
   white-space: normal;
 }
-@media (max-width: 560px) {
+@media (max-width: 767.98px) {
   .ce_row {
     flex-wrap: wrap;
   }
@@ -4655,7 +4659,7 @@ body {
 /* ------------------------------------------------ roster card grid (L1) */
 .eix_grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   gap: 12px;
 }
 .eix_card {
@@ -5582,3 +5586,543 @@ body {
 .wsp_reasoning_select { background: color-mix(in srgb, #0e1420 70%, transparent); color: var(--text, #dbe2ee); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; }
 .wsp_reasoning_unlock { background: none; border: 1px dashed color-mix(in srgb, var(--text-dim, #8a94a6) 40%, transparent); color: var(--text-dim, #8a94a6); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .wsp_reasoning_unlock:hover { color: var(--text, #dbe2ee); }
+
+
+/* =====================================================================
+ * RESPONSIVE (DESIGN v1 — untracked/responsive/DESIGN.md). Desktop-first:
+ * nothing below changes a >= 1024 px fine-pointer layout except where
+ * noted. Breakpoints are the shared names only: xs < 480, sm < 768,
+ * md < 1024, xl >= 1440, short = max-height 500 (phone landscape).
+ * Tokens (--tap-min, --gutter, --safe-*, --vh-full) come from ui-kit 0.3.0;
+ * each use carries the desktop value as its fallback.
+ * ===================================================================== */
+
+/* The user's font scale, captured once so reading panes can scale it on
+ * touch without a self-referencing --font-scale (see the touch block). */
+#root {
+  --ent-user-scale: var(--font-scale, 1);
+}
+
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Safe areas: zero on a desktop, the notch/home indicator on phones. */
+.entity_header {
+  padding-top: max(8px, var(--safe-top, 0px));
+  padding-left: max(14px, var(--safe-left, 0px));
+  padding-right: max(14px, var(--safe-right, 0px));
+  gap: 10px;
+  min-width: 0;
+}
+.eh_brand {
+  min-width: 0;
+}
+.entity_timeline {
+  padding-bottom: max(7px, var(--safe-bottom, 0px));
+  padding-left: max(14px, var(--safe-left, 0px));
+  padding-right: max(14px, var(--safe-right, 0px));
+  min-width: 0;
+}
+.et_track_wrap {
+  min-width: 0;
+}
+
+/* Scrollers own their scroll (no scroll chaining into the shell). */
+.st_panel,
+.entities_index,
+.bp_page,
+.ev_body {
+  overscroll-behavior: contain;
+}
+
+/* Hover card never wider than the screen. */
+.gc_hovercard {
+  width: min(420px, calc(100vw - 16px));
+}
+
+/* Wide screens: the roster and the blueprint use the room on a 2560 px
+ * window (3 card columns) while 1280-1600 px windows keep today's 900 /
+ * 1180 px columns exactly (the clamp floors). */
+.entities_index {
+  max-width: clamp(900px, 60vw - 100px, 1320px);
+}
+.bp_page {
+  max-width: clamp(1180px, 70vw, 1600px);
+}
+
+/* The blueprint map: scroll + zoom (blueprint_panel.tsx). The scroller is
+ * bounded by the VISIBLE viewport; the page scroller wraps it. */
+.bp_scroll {
+  max-height: calc(var(--vh-full, 100vh) * 0.78);
+  overscroll-behavior: contain;
+}
+.bp_zoom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.bp_zoom_btn {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 2px 10px;
+  min-height: 24px;
+  cursor: pointer;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+.bp_zoom_btn:hover {
+  border-color: var(--ea-accent);
+}
+.bp_zoom_on {
+  border-color: var(--ea-accent);
+  color: var(--ea-accent);
+}
+.bp_zoom_val {
+  color: var(--text-dim);
+  font-size: calc(11px * var(--font-scale, 1));
+}
+
+/* The graph canvas is a container: its overlays adapt to the CANVAS width
+ * (which depends on the side panel), not to the viewport. */
+.entity_canvas_wrap {
+  container: entity-canvas / inline-size;
+  min-height: 0;
+}
+
+@container entity-canvas (max-width: 1023.98px) {
+  /* Lens row: one scrollable strip across the canvas top (it folded into a
+   * vertical column over the graph and collided with the motion buttons). */
+  .entity_graph_overlay {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+  }
+  .entity_lens_bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-width: 0;
+  }
+  .entity_lens_bar::-webkit-scrollbar {
+    display: none;
+  }
+  .entity_lenses {
+    flex-wrap: nowrap;
+  }
+  .lens_chip,
+  .lens_search_toggle,
+  .lens_count {
+    flex: none;
+    white-space: nowrap;
+  }
+  /* Motion controls: a vertical stack at the right edge above the legend,
+   * glyph-only (the word stays the accessible name). */
+  .gc_motion_controls {
+    top: auto;
+    bottom: 56px;
+    right: 8px;
+    flex-direction: column;
+  }
+  .gc_btn {
+    justify-content: center;
+  }
+  .gc_btn_word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  /* Legend: one scrollable row along the bottom edge. */
+  .entity_legend {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-width: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  .entity_legend::-webkit-scrollbar {
+    display: none;
+  }
+  .entity_legend > * {
+    flex: none;
+  }
+}
+
+/* ---- md (< 1024): the side panel becomes a drawer over the canvas ---- */
+@media (max-width: 1023.98px) {
+  .entity_main {
+    position: relative;
+  }
+  /* The rail stays docked (it is the opener); the open panel overlays the
+   * canvas, anchored to the rail. */
+  .side_tabs.side_tabs_drawer {
+    position: static;
+    width: 40px;
+    flex: none;
+  }
+  .side_tabs_drawer .st_panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 40px;
+    width: min(400px, calc(100% - 40px));
+    z-index: 31;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--line);
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
+    outline: none;
+  }
+  .st_backdrop {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 40px;
+    z-index: 30;
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+  }
+  .st_drawer_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: none;
+    padding: 4px 6px 4px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .st_drawer_title {
+    font-size: calc(11px * var(--font-scale, 1));
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .st_drawer_close {
+    min-width: var(--tap-min, 32px);
+    min-height: var(--tap-min, 32px);
+    background: var(--bg-raise);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: calc(13px * var(--font-scale, 1));
+  }
+  .st_drawer_close:hover {
+    border-color: var(--ea-accent);
+  }
+
+  /* Controls strip wraps instead of clipping Settings off the right edge. */
+  .entity_controls {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-left: max(14px, var(--safe-left, 0px));
+    padding-right: max(14px, var(--safe-right, 0px));
+  }
+  .ec_nowline {
+    order: 10;
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+  .entity_stopped_banner {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---- sm (< 768) and short landscape phones: one pane at a time ---- */
+@media (max-width: 767.98px), (max-height: 500px) {
+  /* The rail becomes a horizontal tab strip along the bottom of the view;
+   * the open panel covers the canvas above it (full width in portrait). */
+  .entity_main {
+    flex-direction: column;
+    --st-rail-h: calc(var(--tap-min, 32px) + 9px);
+  }
+  .side_tabs.side_tabs_drawer {
+    width: 100%;
+    height: var(--st-rail-h);
+    flex-direction: column;
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+  .side_tabs_drawer .st_rail {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    height: var(--st-rail-h);
+    gap: 4px;
+    padding: 4px max(8px, var(--safe-left, 0px)) 4px max(8px, var(--safe-left, 0px));
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    border-right: none;
+  }
+  .side_tabs_drawer .st_rail::-webkit-scrollbar {
+    display: none;
+  }
+  .side_tabs_drawer .st_tab,
+  .side_tabs_drawer .st_tab:hover {
+    writing-mode: horizontal-tb;
+    left: 0;
+    width: auto;
+    height: var(--tap-min, 32px);
+    min-height: var(--tap-min, 32px);
+    flex: none;
+    padding: 0 12px;
+    clip-path: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: calc(11px * var(--font-scale, 1));
+  }
+  .side_tabs_drawer .st_tab_active {
+    width: auto;
+    border: none;
+    box-shadow: none;
+  }
+  .side_tabs_drawer .st_tab_hint {
+    top: 3px;
+    right: 3px;
+  }
+  .side_tabs_drawer .st_panel {
+    left: 0;
+    right: 0;
+    bottom: var(--st-rail-h);
+    width: auto;
+    border-left: none;
+    padding-left: var(--safe-left, 0px);
+    padding-right: var(--safe-right, 0px);
+  }
+  .st_backdrop {
+    right: 0;
+    bottom: var(--st-rail-h);
+  }
+
+  /* App dialogs (settings, verbatim, turn detail…) become bottom sheets. */
+  .ev_backdrop {
+    align-items: flex-end;
+    padding-top: var(--safe-top, 0px);
+  }
+  .ev_panel,
+  .wsp_panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 12px 12px 0 0;
+    padding-bottom: var(--safe-bottom, 0px);
+  }
+  .ev_head {
+    flex-wrap: wrap;
+    padding: 10px var(--gutter, 12px);
+  }
+  .ev_body {
+    min-height: 0;
+    padding: 12px var(--gutter, 12px);
+  }
+  .wsp_tabs {
+    order: 3;
+    flex: 1 1 100%;
+    margin-right: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .wsp_tabs > * {
+    flex: none;
+  }
+}
+
+/* Short landscape phone: the panel is a right-hand sheet, not full width;
+ * header and controls are one thin row each. */
+@media (max-height: 500px) {
+  .side_tabs_drawer .st_panel {
+    left: auto;
+    width: min(460px, 100%);
+    border-left: 1px solid var(--line);
+  }
+  .entity_header {
+    padding-top: max(4px, var(--safe-top, 0px));
+    padding-bottom: 4px;
+  }
+  .entity_controls {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+}
+
+/* ---- sm (< 768): header, roster, timeline, forms ---- */
+@media (max-width: 767.98px) {
+  .entity_header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-left: max(10px, var(--safe-left, 0px));
+    padding-right: max(10px, var(--safe-right, 0px));
+  }
+  .eh_brand {
+    flex: 1 1 0;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+  .eh_actions {
+    gap: 6px;
+    margin-left: auto;
+  }
+  .eh_source {
+    max-width: 44vw;
+  }
+  .eh_reconnect,
+  .eh_bootprogress {
+    flex-basis: 100%;
+  }
+  .entity_controls {
+    gap: 6px;
+  }
+  .ec_stop_btn {
+    margin-left: 0;
+  }
+
+  /* Timeline: the track keeps a real width; the transport wraps below. */
+  .entity_timeline {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    gap: 8px;
+    padding-left: max(10px, var(--safe-left, 0px));
+    padding-right: max(10px, var(--safe-right, 0px));
+  }
+  .et_track_wrap {
+    flex: 1 1 0;
+  }
+  .et_right {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    border-left: none;
+    padding-left: 0;
+  }
+  .et_pos {
+    min-width: 0;
+    margin-left: auto;
+  }
+
+  .entities_index {
+    padding: 16px var(--gutter, 12px) calc(24px + var(--safe-bottom, 0px));
+  }
+  .eix_head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .eix_head_actions {
+    flex-wrap: wrap;
+  }
+  .fleet_view {
+    padding: 12px var(--gutter, 12px) 32px;
+  }
+  .bp_page {
+    padding: 10px var(--gutter, 12px) calc(32px + var(--safe-bottom, 0px));
+  }
+  .bp_head,
+  .bp_page_head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .entity_connect input,
+  .bp_tun_reason,
+  .pe_add_form input,
+  .wsp_voice_row select,
+  .wsp_voice_row input {
+    min-width: min(200px, 100%);
+  }
+}
+
+/* ---- xs (< 480): the header keeps its controls, drops its words ---- */
+@media (max-width: 479.98px) {
+  /* Row 1: the mark + every action; row 2: the handle and the state chip. */
+  .eh_brand {
+    display: contents;
+  }
+  .entity_header > .eh_brand > * {
+    order: 2;
+  }
+  .entity_header > .eh_brand > .eh_mark {
+    order: 0;
+  }
+  .eh_actions {
+    order: 1;
+  }
+  .eh_state {
+    white-space: nowrap;
+  }
+  .eh_brand h1,
+  .eh_home span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .eh_handle {
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .eh_home {
+    padding: 6px 10px;
+  }
+}
+
+/* ---- touch: 44 px targets, 16 px inputs, readable panes ---- */
+@media (pointer: coarse) {
+  #root button,
+  #root select,
+  #root summary,
+  #root [role="button"] {
+    min-height: var(--tap-min, 44px);
+  }
+  #root button {
+    min-width: var(--tap-min, 44px);
+  }
+  #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  #root select,
+  #root textarea {
+    font-size: max(16px, 1em);
+  }
+  #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+    min-height: var(--tap-min, 44px);
+  }
+  #root input[type="checkbox"],
+  #root input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+  #root input[type="range"] {
+    min-height: var(--tap-min, 44px);
+  }
+  /* Comfortable spacing between adjacent targets. */
+  .entity_lenses,
+  .entity_lens_bar,
+  .eix_head_actions,
+  .gc_motion_controls,
+  .et_right {
+    gap: 6px;
+  }
+  /* Reading panes scale the app's px text by 1.2 on touch (11 -> 13.2,
+   * 12 -> 14.4, 13 -> 15.6 px at the default scale); the chrome keeps its
+   * density. Multiplies the user's own Appearance scale. */
+  .st_panel,
+  .entities_index,
+  .ev_panel,
+  .bp_page,
+  .fleet_view {
+    --font-scale: calc(var(--ent-user-scale, 1) * 1.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st_tab {
+    transition: none;
+  }
+}

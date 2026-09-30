@@ -5,9 +5,18 @@
  *
  * Not stacked accordions: tabs. The rail faces the canvas; the active tab
  * protrudes and carries the accent.
+ *
+ * Responsive (DESIGN v1 §5.2): at >= 1024 px the panel is docked beside the
+ * canvas exactly as before. Below 1024 px the rail stays (the opener) and the
+ * open panel OVERLAYS the canvas as a drawer — Escape, the backdrop and the
+ * panel's close button collapse it, focus returns to the tab that opened it.
+ * Below 768 px (and on short landscape phones) the rail turns into a
+ * horizontal tab strip along the bottom of the view (CSS). A narrow first load
+ * starts collapsed so the graph — the protagonist — is what a phone shows.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { AF_MEDIA, useAfMedia } from "@abstractframework/ui-kit";
 
 import { ErrorBoundary } from "./error_boundary";
 
@@ -35,7 +44,11 @@ export interface SideTabsProps {
 }
 
 export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTabsProps): React.ReactElement {
+  const narrow = useAfMedia(AF_MEDIA.md);
   const [active, setActive] = useState<string | null>(() => {
+    // Narrow first load: the drawer starts closed (the stored tab is still
+    // what the desktop layout restores; the narrow layout never writes it).
+    if (typeof window !== "undefined" && window.matchMedia?.(AF_MEDIA.md).matches) return null;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored === "") return null; // collapsed by choice
@@ -59,12 +72,38 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
   }, [controlledTab, tabs]);
 
   useEffect(() => {
+    if (narrow) return; // a drawer closed on a phone is not a desktop choice
     try {
       localStorage.setItem(STORAGE_KEY, active ?? "");
     } catch {
       // best-effort
     }
-  }, [active]);
+  }, [active, narrow]);
+
+  // Drawer mode (< 1024): Escape collapses, focus moves into the opened panel
+  // and back to the tab that opened it on close.
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const drawerOpen = narrow && active !== null;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // One Escape closes ONE layer: a modal opened over the drawer (the
+      // app's .ev_backdrop dialogs, kit modals) owns this Escape.
+      if (document.querySelector(".ev_backdrop, [aria-modal='true']")) return;
+      e.preventDefault();
+      setActive(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (drawerOpen && !wasOpenRef.current) panelRef.current?.focus({ preventScroll: true });
+    if (!drawerOpen && wasOpenRef.current && narrow) openerRef.current?.focus({ preventScroll: true });
+    wasOpenRef.current = drawerOpen;
+  }, [drawerOpen, narrow, active]);
 
   // Resizable width (maintainer ask, 2026-07-09: "more room for the right
   // panel, including for better conversations"). Persisted; drag the border.
@@ -109,8 +148,12 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
   const activeTab = tabs.find((t) => t.id === active) ?? null;
 
   return (
-    <div className={`side_tabs ${activeTab ? "" : "side_tabs_collapsed"}`} style={activeTab ? { width } : undefined}>
-      {activeTab ? (
+    <div
+      className={`side_tabs ${activeTab ? "" : "side_tabs_collapsed"}${narrow ? " side_tabs_drawer" : ""}`}
+      style={activeTab && !narrow ? { width } : undefined}
+    >
+      {drawerOpen ? <div className="st_backdrop" aria-hidden="true" onClick={() => setActive(null)} /> : null}
+      {activeTab && !narrow ? (
         <div
           className="st_resize"
           title="Drag to resize — more room for the conversation"
@@ -122,13 +165,18 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
           }}
         />
       ) : null}
-      <div className="st_rail">
+      <div className="st_rail" role="tablist" aria-label="Entity panels">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={tab.id === active}
             className={`st_tab ${tab.id === active ? "st_tab_active" : ""}`}
             title={tab.id === active ? `Collapse ${tab.title}` : tab.title}
-            onClick={() => setActive((cur) => (cur === tab.id ? null : tab.id))}
+            onClick={(e) => {
+              openerRef.current = e.currentTarget;
+              setActive((cur) => (cur === tab.id ? null : tab.id));
+            }}
           >
             <span className="st_tab_label">{tab.title}</span>
             {tab.hint ? <span className="st_tab_hint" /> : null}
@@ -144,7 +192,23 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
         * critical — a chat 409 followed by React #31 killed the whole
         * window). */}
       {tabs.map((tab) => (
-        <div key={tab.id} className="st_panel" style={tab.id === active ? undefined : { display: "none" }}>
+        <div
+          key={tab.id}
+          ref={tab.id === active ? panelRef : undefined}
+          className="st_panel"
+          role={narrow ? "dialog" : undefined}
+          aria-label={narrow ? tab.title : undefined}
+          tabIndex={narrow ? -1 : undefined}
+          style={tab.id === active ? undefined : { display: "none" }}
+        >
+          {narrow && tab.id === active ? (
+            <div className="st_drawer_head">
+              <span className="st_drawer_title">{tab.title}</span>
+              <button type="button" className="st_drawer_close" onClick={() => setActive(null)} aria-label={`Close ${tab.title}`} title={`Close ${tab.title}`}>
+                ✕
+              </button>
+            </div>
+          ) : null}
           <ErrorBoundary label={`the ${tab.title.toLowerCase()} panel`}>{tab.content}</ErrorBoundary>
         </div>
       ))}

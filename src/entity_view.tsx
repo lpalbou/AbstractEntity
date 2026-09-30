@@ -1721,7 +1721,7 @@ export function EntityView(): React.ReactElement {
           * back to the entities roster. */}
         <div className="eh_actions">
           {indexBase !== null && entityName ? (
-            <button className="eh_home" onClick={() => goToIndex()} title="All entities — back to the manager roster">
+            <button className="eh_home" onClick={() => goToIndex()} title="All entities — back to the manager roster" aria-label="Entities">
               <Icon name="board" size={15} />
               <span>Entities</span>
             </button>

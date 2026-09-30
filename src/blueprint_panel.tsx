@@ -22,7 +22,7 @@
  *   loop-breaker it is: dashed red with a cross-head.
  */
 
-import React from "react";
+import React, { useState } from "react";
 
 import cognitionGraph from "../spec/cognition_graph.json";
 
@@ -204,8 +204,32 @@ function edgePath(from: BpNode, to: BpNode, via?: { x: number; y: number }): { d
   return { d, mid };
 }
 
+/** The map's world width (the svg viewBox). */
+const BP_WORLD_W = 1060;
+/** Zoom steps for the map (x world width). "auto" = the default layout:
+ * the column's width, never narrower than 860 px (scrolls on a phone). */
+const BP_ZOOMS = [0.35, 0.5, 0.65, 0.8, 1, 1.25, 1.5, 2];
+type BpZoom = "auto" | "fit" | number;
+
+function bpSvgStyle(zoom: BpZoom): React.CSSProperties | undefined {
+  if (zoom === "auto") return undefined;
+  if (zoom === "fit") return { minWidth: 0, width: "100%" };
+  return { minWidth: 0, width: `${Math.round(BP_WORLD_W * zoom)}px`, maxWidth: "none" };
+}
+
 export function BlueprintPanel(): React.ReactElement {
   const byId = new Map(BLUEPRINT_NODES.map((n) => [n.id, n]));
+  // Scroll + zoom (responsive pass): the map is 1060 world units wide; on a
+  // phone the default keeps its 860 px floor inside the scroller, "fit"
+  // shows it whole, -/+ step the scale. Pinch-zoom also works (the page
+  // never disables user scaling).
+  const [zoom, setZoom] = useState<BpZoom>("auto");
+  const stepZoom = (dir: 1 | -1) =>
+    setZoom((z) => {
+      const cur = typeof z === "number" ? z : z === "fit" ? 0.5 : 1;
+      const next = dir > 0 ? BP_ZOOMS.find((v) => v > cur + 1e-6) : [...BP_ZOOMS].reverse().find((v) => v < cur - 1e-6);
+      return next ?? cur;
+    });
   return (
     <div className="bp_panel">
       <div className="bp_head">
@@ -230,8 +254,23 @@ export function BlueprintPanel(): React.ReactElement {
         creates. Structural editing lands HERE next (the widened artifact: identity-update lane, lesson miner, world-model
         nodes — build in flight); today the dials below are law, and the phase-transition editor lives in its section underneath.
       </p>
+      <div className="bp_zoom" role="group" aria-label="Map zoom">
+        <button type="button" className={`bp_zoom_btn${zoom === "fit" ? " bp_zoom_on" : ""}`} onClick={() => setZoom("fit")} title="Fit the whole map to the width">
+          fit
+        </button>
+        <button type="button" className="bp_zoom_btn" onClick={() => stepZoom(-1)} aria-label="Zoom out" title="Zoom out">
+          −
+        </button>
+        <button type="button" className="bp_zoom_btn" onClick={() => stepZoom(1)} aria-label="Zoom in" title="Zoom in">
+          +
+        </button>
+        <button type="button" className={`bp_zoom_btn${zoom === "auto" ? " bp_zoom_on" : ""}`} onClick={() => setZoom("auto")} title="Default size">
+          reset
+        </button>
+        {typeof zoom === "number" ? <span className="bp_zoom_val">{Math.round(zoom * 100)}%</span> : null}
+      </div>
       <div className="bp_scroll">
-        <svg viewBox="0 0 1060 1080" className="bp_svg" role="img" aria-label="The cognition machine: stores, acts and the labeled pathways between them">
+        <svg viewBox="0 0 1060 1080" style={bpSvgStyle(zoom)} className="bp_svg" role="img" aria-label="The cognition machine: stores, acts and the labeled pathways between them">
           <defs>
             <marker id="bp_arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a94a6" />
