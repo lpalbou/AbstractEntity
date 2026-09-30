@@ -18,6 +18,7 @@ import React, { useEffect, useState } from "react";
 
 import type { ChatTurnResult, TurnMemory } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
+import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
 export interface TurnDetailModalProps {
   turn: ChatTurnResult;
@@ -70,12 +71,7 @@ function MemoryRow({ m }: { m: TurnMemory }): React.ReactElement {
 type ProbeTab = "context" | "tools" | "system";
 
 async function copyToClipboard(text: string, done: (msg: string) => void): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    done("copied");
-  } catch {
-    done("copy failed");
-  }
+  done((await clipboardWrite(text)) ? "copied" : COPY_FAILED);
 }
 
 export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalProps): React.ReactElement {

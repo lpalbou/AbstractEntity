@@ -13,7 +13,6 @@ the side panel fold away so the detail gets the room. A desktop window keeps
 its layout.
 
 ### Changed
-
 - **Tools tab.** Each tool in each phase is a switch that applies at once:
   there is no **save policy** button any more. Only the phase you changed is
   written to `tool_policy.yaml`, so the other phases keep following the
@@ -43,6 +42,14 @@ its layout.
   own sizes; the map's zoom buttons read it closer.
 - While a phone drawer is open, the graph's own controls under it are hidden
   from screen readers and taps.
+
+### Fixed
+- **Plain http from another machine** (LAN, Tailscale). Browsers withhold
+  `crypto.subtle` and the clipboard API outside https and localhost. The spec
+  drift check now falls back to a plain SHA-256 (same digest) instead of
+  failing, and every **Copy** (visit transcript, turn detail) falls back to a
+  text-selection copy and says whether it worked ("Copy failed — select and
+  copy" when the browser refuses).
 
 ## [0.4.0] - 2026-09-30
 

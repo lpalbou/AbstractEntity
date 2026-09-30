@@ -24,6 +24,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { ChatComposer } from "@abstractframework/panel-chat";
 import { streamTtsJsonl, useGatewayVoice, joinBaseUrl } from "@abstractframework/ui-kit";
+import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
 import { CognitionWaveInline } from "./cognition_wave_inline";
 import { turnPulse, type TurnPulse } from "./turn_pulse";
@@ -805,21 +806,13 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         lines.push("", "---", "");
       }
       const text = lines.join("\n");
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
+      // Plain-HTTP LAN origins have no navigator.clipboard (F25):
+      // clipboardWrite falls back to execCommand and reports the outcome.
+      if (await clipboardWrite(text)) {
+        setNote(`Copied the full visit (${(t.turns ?? []).length} messages) to the clipboard.`);
       } else {
-        // Plain-HTTP LAN origins have no navigator.clipboard (F25) — the
-        // execCommand path still works there and beats a TypeError.
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
+        setNote(`${COPY_FAILED}: the browser refused the clipboard.`);
       }
-      setNote(`Copied the full visit (${(t.turns ?? []).length} messages) to the clipboard.`);
     } catch (e) {
       setNote(`Could not copy the visit: ${refusalText(e as Error & { status?: number })}`);
     }

@@ -21,6 +21,7 @@
 
 import bundledSpecRaw from "../spec/entity_phases.json?raw";
 import { joinBaseUrl } from "@abstractframework/ui-kit";
+import { sha256Hex as sha256HexAnyContext } from "./lib/secure-context";
 
 export interface SpecSyncResult {
   /** "modulated" (LEGACY one-morning wire only, gateway c-t-i #350): the
@@ -48,12 +49,9 @@ function specVersion(raw: string): number | null {
   }
 }
 
+/** crypto.subtle exists only on https/localhost; over plain http this falls back to a plain SHA-256 (same digest). */
 export async function sha256Hex(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return sha256HexAnyContext(text);
 }
 
 /** Compare the bundled spec against another raw copy (pure — testable
