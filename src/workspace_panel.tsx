@@ -1216,7 +1216,10 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
                 const unwired = exec ? exec.ok === false : false;
                 return (
                   <td key={phase}>
-                    <input type="checkbox" checked={draft[phase]?.has(tool) ?? false} onChange={() => toggle(phase, tool)} />
+                    {/* The label is the touch target (44 px on touch, entity.css); the name is for screen readers. */}
+                    <label className="wsp_grant_hit" aria-label={`${tool} in ${phase}`}>
+                      <input type="checkbox" checked={draft[phase]?.has(tool) ?? false} onChange={() => toggle(phase, tool)} />
+                    </label>
                     {unwired && (draft[phase]?.has(tool) ?? false) ? (
                       <span className="wsp_unwired" title={exec?.reason || "granted but not yet callable on this lane"}>
                         ▲
