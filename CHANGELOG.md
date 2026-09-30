@@ -35,8 +35,12 @@ its layout.
 - **The Cognitive Monitor starts folded on phones**, so the conversation gets
   the drawer (about 11 lines of a 393×852 phone instead of 6). Unfold it once
   and the app remembers your choice.
-- **Larger text on phones.** Panel text reads at 14–16 px on a touch phone
-  (1.3× the desktop size; tablets keep 1.2×), and the transcript at 15 px.
+- **Readable text sizes everywhere.** On phones and tablets no text is
+  smaller than 14 px, and panel text reads at 14–17 px (the transcript at
+  15 px). On a desktop, text is at least 13 px, and the ledger and the tool
+  grants at least 12 px, so small labels and notes grow slightly while larger
+  text keeps its size. The graph's node labels and the blueprint map keep their
+  own sizes; the map's zoom buttons read it closer.
 - While a phone drawer is open, the graph's own controls under it are hidden
   from screen readers and taps.
 

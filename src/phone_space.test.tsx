@@ -154,6 +154,30 @@ describe("phone layout rules (< 768 px)", () => {
   it("touch: the disclosure is a 44 px target; phone panes read at 1.3x", () => {
     expect(rule(coarse, ".ei_section h4 .ei_disclosure")).toMatch(/min-height:\s*var\(--tap-min, 44px\)/);
     expect(rule(phoneTouch, ".st_panel")).toMatch(/--font-scale:\s*calc\(var\(--ent-user-scale, 1\) \* 1\.3\)/);
-    expect(rule(phoneTouch, ".cd_thread .pc-md")).toMatch(/15 \/ 13/);
+    expect(rule(coarse, ".cd_thread .pc-md")).toMatch(/15 \/ 13/);
+  });
+});
+
+describe("type floor (DESIGN §12.1)", () => {
+  const coarse = atBlocks("@media (pointer: coarse)");
+
+  it("every small font size in the sheet reads through the floor token", () => {
+    const decls = [...CSS.matchAll(/font-size:\s*([^;}]+)/g)].map((m) => m[1].trim());
+    const raw = decls.filter((v) => {
+      if (v.includes("var(--ent-type-floor")) return false;
+      const px = v.match(/^([0-9.]+)px$/);
+      if (px) return Number(px[1]) < 14;
+      return /^calc\([0-9.]+px \* var\(--font-scale/.test(v) || /rem$/.test(v);
+    });
+    expect(raw).toEqual([]);
+    expect(decls.filter((v) => v.includes("var(--ent-type-floor, 0px)")).length).toBeGreaterThan(300);
+  });
+
+  it("desktop 13 px, dense lists and the tool matrix 12 px, touch 14 px, the blueprint map exempt", () => {
+    expect(rule(CSS, ":root")).toMatch(/--ent-type-floor:\s*13px/);
+    expect(rule(CSS, "#root .el_list")).toMatch(/--ent-type-floor:\s*12px/);
+    expect(rule(coarse, ":root")).toMatch(/--ent-type-floor:\s*14px/);
+    expect(rule(coarse, "#root .wsp_matrix")).toMatch(/--ent-type-floor:\s*14px/);
+    expect(rule(CSS, "#root .bp_svg")).toMatch(/--ent-type-floor:\s*0px/);
   });
 });

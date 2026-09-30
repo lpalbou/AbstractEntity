@@ -212,9 +212,23 @@ export default {
     }, process.env.ENTITY_SPACE_THEME || "");
   },
   // The memory graph canvas is the documented exception (DESIGN §12: "one page scroll except the graph").
-  spaceIgnore: [".entity_canvas_wrap"],
+  // The blueprint map is the same kind of exception: a pannable, zoomable SVG diagram whose labels are
+  // world units scaled with the map.
+  spaceIgnore: [".entity_canvas_wrap", ".bp_scroll"],
   screens: [
     { name: "list", async run(page, info) { await gotoRoster(page, info.baseUrl); }, settle: 900 },
+    {
+      name: "blueprint",
+      async run(page, info) {
+        await page.goto(`${info.baseUrl}/?page=blueprint`, { waitUntil: "domcontentloaded" });
+        await signIn(page);
+        if (!(await page.locator(".bp_page").isVisible().catch(() => false))) {
+          await page.locator(".eix_create_btn", { hasText: "blueprint" }).first().click();
+        }
+        await page.locator(".bp_page").waitFor({ state: "visible", timeout: 15000 });
+      },
+      settle: 1200,
+    },
     {
       name: "detail",
       async run(page, info) {
