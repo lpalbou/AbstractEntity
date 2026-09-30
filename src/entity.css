@@ -3027,6 +3027,21 @@ body {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+/* Phones: the four phase columns of 44 px switches fit beside the tool name;
+ * a longer phase list scrolls sideways inside the table, never the page. */
+@media (max-width: 767.98px) {
+  .wsp_matrix {
+    display: block;
+    overflow-x: auto;
+  }
+  .wsp_matrix th,
+  .wsp_matrix td {
+    padding: 6px 4px;
+  }
+  .wsp_matrix td:first-child code {
+    overflow-wrap: anywhere;
+  }
+}
 .wsp_tier1 {
   color: var(--adm-stimulus);
   margin-left: 5px;
