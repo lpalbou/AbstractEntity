@@ -124,37 +124,60 @@ describe("launch flags (the kit parser)", () => {
     expect(r.stderr).toMatch(/Unknown option --gateway-uri/);
   });
 
-  it("the gateway: flag (any alias) > legacy env > the local gateway pointer > built-in default", async () => {
+  // The gateway: flag (any alias) > legacy env > the local gateway pointer >
+  // built-in default, through the REAL CLI. Each case reads the gateway URL
+  // the running server actually uses (GET /api/connection/gateway: the same
+  // value its page is served with) and the source from its banner. It used
+  // to read the page itself, i.e. the repo's dist/ build: absent on a fresh
+  // checkout and briefly missing while a build rewrote it, so the URL came
+  // back undefined; and the three spawns shared one 5 s test budget, with a
+  // silent 8 s "banner never came" fallback. Now: no dist dependency, the
+  // banner (printed once the server listens) is the synchronisation point,
+  // an early exit fails loudly with the process output, and each case is
+  // its own test.
+  function pointerHome(): string {
     const home = join(scratch, "home");
     mkdirSync(join(home, ".abstractframework"), { recursive: true });
     writeFileSync(join(home, ".abstractframework", "gateway.json"), JSON.stringify({ schema: 1, url: "http://127.0.0.1:18899", port: 18899 }));
-    // The real CLI: the gateway URL its page is served with (what the
-    // sign-in and the session proxy use), with the source from the banner.
-    const served = async (args: string[], env: Record<string, string>) => {
-      const { spawn } = await import("child_process");
-      const port = await freePort();
-      const child = spawn(process.execPath, [CLI, "--port", String(port), ...args], { env: { PATH: process.env.PATH || "", HOME: home, ...env } });
-      let out = "";
-      try {
-        await new Promise<void>((ok) => {
-          child.stdout.on("data", (d) => {
-            out += String(d);
-            if (out.includes("Gateway:")) ok();
-          });
-          child.on("exit", () => ok());
-          setTimeout(ok, 8000);
+    return home;
+  }
+
+  async function served(args: string[], env: Record<string, string>): Promise<[string | undefined, string | undefined]> {
+    const { spawn } = await import("child_process");
+    const port = await freePort();
+    const child = spawn(process.execPath, [CLI, "--port", String(port), ...args], { env: { PATH: process.env.PATH || "", HOME: pointerHome(), ...env } });
+    const exited = new Promise<void>((ok) => child.once("exit", () => ok()));
+    let out = "";
+    let err = "";
+    child.stderr.on("data", (d) => (err += String(d)));
+    try {
+      await new Promise<void>((ok, fail) => {
+        child.stdout.on("data", (d) => {
+          out += String(d);
+          if (/Gateway:\s+\S+ \(\S+\)/.test(out)) ok();
         });
-        const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
-        const url = (/"gateway_url":"([^"]+)"/.exec(html) || [])[1];
-        const source = (/Gateway:\s+\S+ \((\S+)\)/.exec(out) || [])[1];
-        return [url, source];
-      } finally {
-        child.kill();
-        await new Promise((ok) => child.on("exit", ok));
-      }
-    };
+        child.once("exit", (code) => fail(new Error(`the CLI exited (${code}) before listening\nstdout: ${out}\nstderr: ${err}`)));
+      });
+      const conn = await (await fetch(`http://127.0.0.1:${port}/api/connection/gateway`)).json();
+      const source = (/Gateway:\s+\S+ \((\S+)\)/.exec(out) || [])[1];
+      return [conn.gateway_url, source];
+    } finally {
+      child.kill();
+      await exited;
+    }
+  }
+
+  const SPAWN_BUDGET_MS = 30_000; // a guard for a cold node start on a loaded runner, not a synchronisation
+
+  it("the gateway from a flag (any alias) wins over the legacy environment", async () => {
     expect(await served(["--url", "http://flag:1"], { ABSTRACTENTITY_GATEWAY_URL: "http://env:1" })).toEqual(["http://flag:1", "flag"]);
+  }, SPAWN_BUDGET_MS);
+
+  it("the gateway from the legacy environment wins over the local gateway pointer", async () => {
     expect(await served([], { ABSTRACTENTITY_GATEWAY_URL: "http://env:1" })).toEqual(["http://env:1", "env:ABSTRACTENTITY_GATEWAY_URL"]);
+  }, SPAWN_BUDGET_MS);
+
+  it("with no flag and no environment the gateway is the local gateway pointer", async () => {
     expect(await served([], {})).toEqual(["http://127.0.0.1:18899", "pointer"]);
-  });
+  }, SPAWN_BUDGET_MS);
 });

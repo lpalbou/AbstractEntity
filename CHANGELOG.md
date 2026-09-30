@@ -50,6 +50,13 @@ its layout.
   failing, and every **Copy** (visit transcript, turn detail) falls back to a
   text-selection copy and says whether it worked ("Copy failed — select and
   copy" when the browser refuses).
+- **The launch-flag test no longer depends on a build.** The test of the
+  gateway precedence (flag, then environment, then the local gateway pointer)
+  runs the real CLI and now reads the gateway URL from the running server's
+  connection endpoint instead of the page in `dist/`. It failed on a fresh
+  checkout and while a build was rewriting `dist/`. Each case is its own test,
+  the "server is listening" banner is the synchronisation point, and a CLI
+  that exits early fails with its output.
 
 ## [0.4.0] - 2026-09-30
 
