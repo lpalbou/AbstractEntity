@@ -2966,7 +2966,7 @@ body {
 }
 .wsp_add input,
 .wsp_add select {
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  background-color: color-mix(in srgb, var(--bg) 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
   color: var(--text);
   border-radius: 6px;
@@ -3497,7 +3497,7 @@ body {
   color: var(--text-dim);
 }
 .mc_picker select {
-  background: var(--bg-raise, #131a2a);
+  background-color: var(--bg-raise, #131a2a);
   color: var(--text, #e2e8f0);
   border: 1px solid var(--line, #24304a);
   border-radius: 7px;
@@ -4959,7 +4959,7 @@ body {
 
 .sp_select,
 .sp_input {
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
   border: 1px solid color-mix(in srgb, var(--memory) 35%, transparent);
   border-radius: 6px;
@@ -5383,7 +5383,7 @@ body {
 }
 .wsp_voice_row select,
 .wsp_voice_row input {
-  background: var(--bg-primary, #0d1117);
+  background-color: var(--bg-primary, #0d1117);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -5583,7 +5583,7 @@ body {
 .wsp_reasoning { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .wsp_reasoning_row { display: flex; align-items: center; gap: 10px; }
 .wsp_reasoning_label { font-size: 12px; color: var(--text-dim, #8a94a6); text-transform: uppercase; letter-spacing: 0.04em; }
-.wsp_reasoning_select { background: color-mix(in srgb, #0e1420 70%, transparent); color: var(--text, #dbe2ee); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; }
+.wsp_reasoning_select { background-color: color-mix(in srgb, #0e1420 70%, transparent); color: var(--text, #dbe2ee); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; }
 .wsp_reasoning_unlock { background: none; border: 1px dashed color-mix(in srgb, var(--text-dim, #8a94a6) 40%, transparent); color: var(--text-dim, #8a94a6); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .wsp_reasoning_unlock:hover { color: var(--text, #dbe2ee); }
 
@@ -6135,9 +6135,33 @@ body {
     min-width: var(--tap-min, 44px);
   }
   #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-  #root select,
   #root textarea {
     font-size: max(16px, 1em);
+  }
+  /* Native selects: the kit (0.3.2) draws them itself on touch (appearance
+   * none + a chevron image) because WebKit ignores min-height on native
+   * selects. App class rules set padding (and used the background
+   * shorthand); restate the kit's chevron geometry above all of them. */
+  #root select {
+    font-size: max(16px, var(--font-size-input, 16px));
+  }
+  #root select:not([multiple]):where(:not([size]), [size="1"]) {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 32px;
+    background-image: var(--af-select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 12px 8px;
+  }
+  /* WebKit keeps native radios/checkboxes at their own size: the label is
+   * the 44 px target (the kit does the same for its forms). */
+  #root label:has(> input[type="checkbox"]),
+  #root label:has(> input[type="radio"]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--tap-min, 44px);
   }
   #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
     min-height: var(--tap-min, 44px);
