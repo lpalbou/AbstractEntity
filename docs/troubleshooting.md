@@ -40,11 +40,10 @@ session. See [Sign-in in Architecture](architecture.md#components-and-connection
 
 ## Creating an entity with my own starting document is refused
 
-**Cause:** with **Check the document against the framework rules** on (the
-default), the gateway requires the `shared_vulnerability` core value in the
+**Cause:** with the **Framework check** switch on (the default), the gateway requires the `shared_vulnerability` core value in the
 starting document.
 
-**Fix:** add that value to your document, or turn the check off in
+**Fix:** add that value to your document, or switch **Framework check** off in
 **Advanced: starting document** if you deliberately want to skip it.
 
 ## A panel shows a gap instead of data

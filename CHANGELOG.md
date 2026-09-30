@@ -4,12 +4,24 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+On/off settings are switches labelled by what they control; the switch shows
+the state. Anyone who edits an entity's tools or creates an entity is
+affected; nothing changes in how you install, start or sign in.
+
 On a phone the panels use the whole width of the screen, and long lists in
 the side panel fold away so the detail gets the room. A desktop window keeps
 its layout.
 
 ### Changed
 
+- **Tools tab.** Each tool in each phase is a switch that applies at once:
+  there is no **save policy** button any more. Only the phase you changed is
+  written to `tool_policy.yaml`, so the other phases keep following the
+  framework defaults. While a change saves, the other switches wait; a
+  refused change switches back and shows the reason. The confirmation names
+  the new state ("web_search is off for visit — the next summon obeys it").
+- **Create an entity.** **Framework check** under Advanced is a switch; it
+  sets how the entity is created, and **Create entity** stays the one action.
 - **Full-width panels on phones.** Below 768 px the chat transcript, the
   ledger, the health panel and the entity list are flat: no card borders or
   card padding, a thin line between items, and text that starts at the screen
@@ -25,8 +37,6 @@ its layout.
   and the app remembers your choice.
 - **Larger text on phones.** Panel text reads at 14–16 px on a touch phone
   (1.3× the desktop size; tablets keep 1.2×), and the transcript at 15 px.
-- **Tool grants are 44 px touch targets.** Each checkbox in Settings → tools
-  sits in a 44 px cell on touch screens.
 - While a phone drawer is open, the graph's own controls under it are hidden
   from screen readers and taps.
 

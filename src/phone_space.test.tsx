@@ -151,9 +151,8 @@ describe("phone layout rules (< 768 px)", () => {
     expect(sm).toMatch(/\.entity_main:has\(> \.side_tabs_drawer:not\(\.side_tabs_collapsed\)\) > \.entity_canvas_wrap\s*\{\s*visibility:\s*hidden/);
   });
 
-  it("touch: the disclosure and the tool grants are 44 px targets; phone panes read at 1.3x", () => {
+  it("touch: the disclosure is a 44 px target; phone panes read at 1.3x", () => {
     expect(rule(coarse, ".ei_section h4 .ei_disclosure")).toMatch(/min-height:\s*var\(--tap-min, 44px\)/);
-    expect(rule(coarse, ".wsp_grant_hit")).toMatch(/min-width:\s*var\(--tap-min, 44px\)/);
     expect(rule(phoneTouch, ".st_panel")).toMatch(/--font-scale:\s*calc\(var\(--ent-user-scale, 1\) \* 1\.3\)/);
     expect(rule(phoneTouch, ".cd_thread .pc-md")).toMatch(/15 \/ 13/);
   });
