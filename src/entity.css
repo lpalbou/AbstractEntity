@@ -5636,6 +5636,15 @@ body {
   overscroll-behavior: contain;
 }
 
+/* Meet console pickers: flex items shrink with the sheet (a select's
+ * intrinsic width pushed "Second" off the right edge on phones). */
+.mc_picker {
+  min-width: 0;
+}
+.mc_picker select {
+  max-width: 100%;
+}
+
 /* Hover card never wider than the screen. */
 .gc_hovercard {
   width: min(420px, calc(100vw - 16px));
@@ -5721,9 +5730,8 @@ body {
    * glyph-only (the word stays the accessible name). */
   .gc_motion_controls {
     top: auto;
-    bottom: 56px;
+    bottom: 52px;
     right: 8px;
-    flex-direction: column;
   }
   .gc_btn {
     justify-content: center;
@@ -6071,6 +6079,26 @@ body {
   }
   .eh_home {
     padding: 6px 10px;
+  }
+  /* Phase radio + stop + Settings: one swipeable row (two wrapped rows cost
+   * the graph ~50 px on a 667 px phone); Settings stays reachable. */
+  .entity_controls {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .entity_controls::-webkit-scrollbar {
+    display: none;
+  }
+  .entity_controls > * {
+    flex: none;
+  }
+  .ec_settings_btn {
+    margin-left: 0;
+  }
+  .ec_nowline {
+    flex: none;
+    max-width: 70vw;
   }
 }
 
