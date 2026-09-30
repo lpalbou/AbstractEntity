@@ -13,7 +13,7 @@ AbstractRuntime executes it and AbstractGateway serves it.
 
 ## The liveness axis (v2 — ALIVE | STOP)
 
-Above the phase machine sits a two-value **liveness axis** (laurent 16:06):
+Above the phase machine sits a two-value **liveness axis**:
 
 - **alive** — the four phases operate normally. Sleep is alive: memory
   processes run, and a sleeping entity is *reachable* (visits auto-wake).
@@ -80,16 +80,16 @@ stateDiagram-v2
    phase KEYS (`visit`, not `visiting`), closed cause set, ONE writer.
 7. UI: radio semantics (`role=radiogroup/radio`, `aria-checked`), one primary
    label per control, "current phase" wording.
-8. **AWAKE-NEVER-RENDERS (v6, laurent c203 2026-07-20)**: no surface renders
+8. **AWAKE-NEVER-RENDERS (v6)**: no surface renders
    "awake" as a phase, chip, pill or dwelling state. Unphased-alive renders
    as the **settling transition** toward the idle default (sleep) — the
    entity app shows `sleep (settling)`. The word "awake" survives only as
    state-axis machine vocabulary (wake verbs, wire fields), never as display.
-9. **DRIVES-ARE-DRIVERS (v7, laurent dm#82 — supersedes DRIVES-FORBID-IDLE)**:
+9. **DRIVES-ARE-DRIVERS (v7, supersedes DRIVES-FORBID-IDLE)**:
    standing questions, problems, commitments, ideas, interests and tensions
    are the **drivers of cognition and existence** — a day arises because
    something pulls, never because a threshold forbids stillness. The
-   mechanical split (both design adversaries folded): the **GATE** (whether
+   mechanical split: the **GATE** (whether
    a day arises) consumes *standing* drives — any open drive + an armed
    grant lets days arise; a settled desk sleeps. The **OFFER** (which drive
    surfaces in the day cue) consumes *aliveness*
@@ -104,7 +104,7 @@ stateDiagram-v2
    tracked as an open question until it ships (the v6-era loop has no
    drive consult at all — armed means personal unconditionally).
 
-10. **Day rulings (v8, laurent dm#89 2026-07-20)**: (a) **auto-personal
+10. **Day rulings (v8)**: (a) **auto-personal
     yes** — inside a running loop with an armed grant, the day boundary may
     open a personal day; personal is *freedom* ("free to do what it needs,
     what he wants", sandbox execution included; rm outside the workspace and
@@ -124,16 +124,16 @@ stateDiagram-v2
 
 Two v5 rulings complete the rules on sleep and tasks:
 
-- **Sleep is bounded (v5, laurent 2026-07-15 22:38)**: sleep is for a
+- **Sleep is bounded (v5)**: sleep is for a
   limited time (~1h bound); an explicit `wake_at` on the state write wins;
   `paused` never auto-clears (the kill switch).
-- **Tasks request work (v5, laurent c2596)**: a task left with the entity
+- **Tasks request work (v5)**: a task left with the entity
   is a **work-phase request** — the work-entry door and its cause word are
   pending (see open questions).
 
 ## Open questions
 
-- **Awake-idle** — RESOLVED (v4, laurent 2026-07-15): the machine has **no
+- **Awake-idle** — RESOLVED (v4): the machine has **no
   awake-idle node**. Awake is a STATE, never a phase. An alive+awake entity
   is always in a phase — unphased-alive resolves at once: **tasks pending →
   work, no tasks → sleep** (idle *is* sleep). Tasks arrive **through a
@@ -152,8 +152,7 @@ Two v5 rulings complete the rules on sleep and tasks:
 
 ## What an entity IS (representation note)
 
-The entity is **its collection of memories and experiences** (laurent
-14:09). The substrate (provider/model) is **a resource granted to live** —
+The entity is **its collection of memories and experiences**. The substrate (provider/model) is **a resource granted to live** —
 necessary for cognition, never identity; it sits in the granted-resources
 family beside the personal grant, state acts, tool grants and workspaces.
 Every grant change is a durable event in the life's stream.

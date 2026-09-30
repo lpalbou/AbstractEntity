@@ -102,6 +102,44 @@ explore the memory graph offline.
 The **About** button in the top bar shows the app's version and the versions
 your gateway reports; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
 
+## Responsive layout
+
+The app works on a phone, a tablet, a resized browser window and a wide
+monitor.
+
+- **Desktop (1024 px and wider):** the side panel sits beside the memory graph.
+  Drag its left edge to resize it; click the open tab to collapse it.
+- **Tablet and narrow windows (below 1024 px):** the tab rail stays at the right
+  edge and an open tab slides over the graph as a drawer. Close it with Escape,
+  a tap outside it, or its close button. On a narrow screen the app opens with
+  the panel closed, and a wider window brings back the panel you use on the
+  desktop.
+- **Phones (below 768 px, or held sideways):** the tabs become a strip along the
+  bottom of the view, dialogs open from the bottom of the screen, and the header
+  and timeline wrap onto a second row. Below 480 px the phase controls are one
+  row you can swipe.
+- **On-screen keyboard:** while the keyboard is open, an open panel fills the
+  screen above it with the tab strip kept underneath, so the chat stays usable.
+- **Graph overlays:** when the graph is narrower than 860 px, the lens chips and
+  the legend become one scrollable row each and the layout buttons (freeze,
+  settle, reset, fit) show their symbols only.
+- **Blueprint zoom bar:** the memory blueprint (`/?page=blueprint`) has **fit**,
+  **−**, **+** and **reset** buttons. On a phone the map scrolls inside its
+  frame; pinch-zoom also works.
+- **Touch screens:** buttons, selects and fields are at least 44 px tall, text
+  fields use 16 px text, and the side panel, roster, dialogs and blueprint show
+  their text 1.2 times larger. On a desktop the app keeps its compact text.
+
+Limits:
+
+- On a small phone (375 x 667) the memory graph gets about 275 px of height
+  with the panel closed, because the header, phase controls, tab strip and
+  timeline stay on screen. Larger phones give it more room.
+- On a phone held sideways, an open panel covers the graph and the header; the
+  tab strip stays visible under it.
+- The side tabs are buttons: they do not support arrow-key navigation between
+  tabs.
+
 ## Sign-in and security
 
 The `abstractentity` server includes the shared AbstractFramework sign-in proxy:
@@ -112,8 +150,7 @@ loopback (`127.0.0.1`) by default. See [SECURITY.md](SECURITY.md).
 ## Develop from a checkout
 
 ```bash
-# the AbstractUIC repository must sit next to this one at ../abstractuic
-npm install
+npm install          # includes the shared UI packages (ui-kit, panel-chat)
 npm run build
 npm start            # serves dist/ on http://127.0.0.1:3007
 
@@ -215,6 +252,8 @@ diary entries the entity writes.
 ## Next steps
 
 - Tour the tabs described in the [README](../README.md#what-you-can-do-in-the-app).
+- On a phone or tablet, see how the layout adapts in
+  [Responsive layout](../README.md#responsive-layout).
 - Open **convene a meet** on the entities list to put two entities in one
   conversation.
 - Read [Architecture](architecture.md) to see how the app reads a life from the
@@ -340,7 +379,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 
 | Area | Modules |
 | --- | --- |
-| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css`, `entity_assistant.ts` (top-bar assistant over the gateway docs corpus), `app_about.ts` (About dialog: app version and gateway versions) |
+| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css` (layout, including the responsive rules; see [Responsive layout](../README.md#responsive-layout)), `drawer.tsx` + `side_tabs_state.ts` (the side panel: docked at 1024 px and wider, a drawer below), `entity_assistant.ts` (top-bar assistant over the gateway docs corpus), `app_about.ts` (About dialog: app version and gateway versions) |
 | Entities list | `entities_index.tsx`, `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (topic communities), `node_label.ts` |
@@ -608,6 +647,14 @@ Yes, to explore: without a reachable gateway the app opens a bundled demo life,
 and `/?src=URL` loads any exported replay stream. Creating and talking with
 entities needs a gateway.
 
+## Can I use the app on a phone or a tablet?
+
+Yes. Below 1024 px the side panel opens as a drawer over the memory graph, and
+on a phone the tabs sit in a strip along the bottom of the screen, dialogs open
+from the bottom, and controls are sized for touch. See
+[Responsive layout](../README.md#responsive-layout) for the details and the
+limits on small screens.
+
 For fixes to specific problems, see [Troubleshooting](troubleshooting.md).
 
 
@@ -707,12 +754,10 @@ you trust; see [SECURITY.md](../SECURITY.md).
 
 ## `npm run build` fails in a checkout with unresolved `@abstractframework/ui-kit`
 
-**Cause:** the build resolves the shared UI packages from a sibling AbstractUIC
-checkout.
+**Cause:** the dependencies are not installed yet.
 
-**Fix:** clone [AbstractUIC](https://github.com/lpalbou/AbstractUIC) next to this
-repository as `../abstractuic`, then run `npm install` and `npm run build` again.
-See [CONTRIBUTING.md](../CONTRIBUTING.md).
+**Fix:** run `npm install`, then `npm run build` again. See
+[CONTRIBUTING.md](../CONTRIBUTING.md).
 
 
 <!-- ============================================================ -->
@@ -977,15 +1022,13 @@ AbstractGateway, and the app renders and commands it.
 ## Setup
 
 ```bash
-# clone AbstractUIC next to this repository first: ../abstractuic
 npm install
 npm run dev      # Vite dev server on :3007 with the gateway sign-in proxy
 ```
 
-The build resolves `@abstractframework/ui-kit` and
-`@abstractframework/panel-chat` from the sibling `../abstractuic` checkout (see
-the aliases in `vite.config.ts`); `@abstractframework/app-server` comes from
-npm. The dev server proxies `/api` to `ABSTRACTENTITY_GATEWAY_URL` (default
+`@abstractframework/ui-kit`, `@abstractframework/panel-chat` and
+`@abstractframework/app-server` are regular dependencies installed by
+`npm install`. The dev server proxies `/api` to `ABSTRACTENTITY_GATEWAY_URL` (default
 `http://127.0.0.1:8080`).
 
 ## Before you open a pull request
@@ -995,7 +1038,11 @@ npm test         # vitest
 npm run build    # tsc + vite build; must stay green
 ```
 
-CI runs the same two steps with AbstractUIC checked out beside the repository.
+CI runs the same two steps.
+
+To check the layout at phone, tablet and desktop sizes, open the app in your
+browser's device toolbar; the responsive rules are guarded by
+`src/responsive_css.test.ts` and `src/side_tabs_state.test.ts`.
 
 ## Guidelines
 

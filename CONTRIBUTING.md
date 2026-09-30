@@ -7,15 +7,13 @@ AbstractGateway, and the app renders and commands it.
 ## Setup
 
 ```bash
-# clone AbstractUIC next to this repository first: ../abstractuic
 npm install
 npm run dev      # Vite dev server on :3007 with the gateway sign-in proxy
 ```
 
-The build resolves `@abstractframework/ui-kit` and
-`@abstractframework/panel-chat` from the sibling `../abstractuic` checkout (see
-the aliases in `vite.config.ts`); `@abstractframework/app-server` comes from
-npm. The dev server proxies `/api` to `ABSTRACTENTITY_GATEWAY_URL` (default
+`@abstractframework/ui-kit`, `@abstractframework/panel-chat` and
+`@abstractframework/app-server` are regular dependencies installed by
+`npm install`. The dev server proxies `/api` to `ABSTRACTENTITY_GATEWAY_URL` (default
 `http://127.0.0.1:8080`).
 
 ## Before you open a pull request
@@ -25,7 +23,11 @@ npm test         # vitest
 npm run build    # tsc + vite build; must stay green
 ```
 
-CI runs the same two steps with AbstractUIC checked out beside the repository.
+CI runs the same two steps.
+
+To check the layout at phone, tablet and desktop sizes, open the app in your
+browser's device toolbar; the responsive rules are guarded by
+`src/responsive_css.test.ts` and `src/side_tabs_state.test.ts`.
 
 ## Guidelines
 

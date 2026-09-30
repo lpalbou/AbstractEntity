@@ -90,9 +90,7 @@ you trust; see [SECURITY.md](../SECURITY.md).
 
 ## `npm run build` fails in a checkout with unresolved `@abstractframework/ui-kit`
 
-**Cause:** the build resolves the shared UI packages from a sibling AbstractUIC
-checkout.
+**Cause:** the dependencies are not installed yet.
 
-**Fix:** clone [AbstractUIC](https://github.com/lpalbou/AbstractUIC) next to this
-repository as `../abstractuic`, then run `npm install` and `npm run build` again.
-See [CONTRIBUTING.md](../CONTRIBUTING.md).
+**Fix:** run `npm install`, then `npm run build` again. See
+[CONTRIBUTING.md](../CONTRIBUTING.md).

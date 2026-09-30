@@ -77,4 +77,12 @@ Yes, to explore: without a reachable gateway the app opens a bundled demo life,
 and `/?src=URL` loads any exported replay stream. Creating and talking with
 entities needs a gateway.
 
+## Can I use the app on a phone or a tablet?
+
+Yes. Below 1024 px the side panel opens as a drawer over the memory graph, and
+on a phone the tabs sit in a strip along the bottom of the screen, dialogs open
+from the bottom, and controls are sized for touch. See
+[Responsive layout](../README.md#responsive-layout) for the details and the
+limits on small screens.
+
 For fixes to specific problems, see [Troubleshooting](troubleshooting.md).

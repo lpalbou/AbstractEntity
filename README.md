@@ -93,6 +93,44 @@ explore the memory graph offline.
 The **About** button in the top bar shows the app's version and the versions
 your gateway reports; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
 
+## Responsive layout
+
+The app works on a phone, a tablet, a resized browser window and a wide
+monitor.
+
+- **Desktop (1024 px and wider):** the side panel sits beside the memory graph.
+  Drag its left edge to resize it; click the open tab to collapse it.
+- **Tablet and narrow windows (below 1024 px):** the tab rail stays at the right
+  edge and an open tab slides over the graph as a drawer. Close it with Escape,
+  a tap outside it, or its close button. On a narrow screen the app opens with
+  the panel closed, and a wider window brings back the panel you use on the
+  desktop.
+- **Phones (below 768 px, or held sideways):** the tabs become a strip along the
+  bottom of the view, dialogs open from the bottom of the screen, and the header
+  and timeline wrap onto a second row. Below 480 px the phase controls are one
+  row you can swipe.
+- **On-screen keyboard:** while the keyboard is open, an open panel fills the
+  screen above it with the tab strip kept underneath, so the chat stays usable.
+- **Graph overlays:** when the graph is narrower than 860 px, the lens chips and
+  the legend become one scrollable row each and the layout buttons (freeze,
+  settle, reset, fit) show their symbols only.
+- **Blueprint zoom bar:** the memory blueprint (`/?page=blueprint`) has **fit**,
+  **−**, **+** and **reset** buttons. On a phone the map scrolls inside its
+  frame; pinch-zoom also works.
+- **Touch screens:** buttons, selects and fields are at least 44 px tall, text
+  fields use 16 px text, and the side panel, roster, dialogs and blueprint show
+  their text 1.2 times larger. On a desktop the app keeps its compact text.
+
+Limits:
+
+- On a small phone (375 x 667) the memory graph gets about 275 px of height
+  with the panel closed, because the header, phase controls, tab strip and
+  timeline stay on screen. Larger phones give it more room.
+- On a phone held sideways, an open panel covers the graph and the header; the
+  tab strip stays visible under it.
+- The side tabs are buttons: they do not support arrow-key navigation between
+  tabs.
+
 ## Sign-in and security
 
 The `abstractentity` server includes the shared AbstractFramework sign-in proxy:
@@ -103,8 +141,7 @@ loopback (`127.0.0.1`) by default. See [SECURITY.md](SECURITY.md).
 ## Develop from a checkout
 
 ```bash
-# the AbstractUIC repository must sit next to this one at ../abstractuic
-npm install
+npm install          # includes the shared UI packages (ui-kit, panel-chat)
 npm run build
 npm start            # serves dist/ on http://127.0.0.1:3007
 

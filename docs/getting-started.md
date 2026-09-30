@@ -72,6 +72,8 @@ diary entries the entity writes.
 ## Next steps
 
 - Tour the tabs described in the [README](../README.md#what-you-can-do-in-the-app).
+- On a phone or tablet, see how the layout adapts in
+  [Responsive layout](../README.md#responsive-layout).
 - Open **convene a meet** on the entities list to put two entities in one
   conversation.
 - Read [Architecture](architecture.md) to see how the app reads a life from the
