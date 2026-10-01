@@ -15,7 +15,7 @@ create your first one. The pages below go deeper.
 - [FAQ](faq.md): common questions about entities, names, privacy of the diary,
   gateway versions, the About dialog and using the app on a phone or tablet.
 - [Troubleshooting](troubleshooting.md): symptoms and fixes for gateway, sign-in,
-  creation, About, port and build problems.
+  creation, About, port, copy over plain http and build problems.
 
 ## Topic pages
 

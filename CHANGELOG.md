@@ -2,7 +2,7 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
-## [Unreleased]
+## [0.5.0] - 2026-10-01
 
 On/off settings are switches labelled by what they control; the switch shows
 the state. Anyone who edits an entity's tools or creates an entity is
@@ -42,6 +42,8 @@ its layout.
   own sizes; the map's zoom buttons read it closer.
 - While a phone drawer is open, the graph's own controls under it are hidden
   from screen readers and taps.
+- **Shared UI packages.** Builds against `@abstractframework/ui-kit` 0.4.0
+  (the switch, the plain-http helpers).
 
 ### Fixed
 - **Plain http from another machine** (LAN, Tailscale). Browsers withhold

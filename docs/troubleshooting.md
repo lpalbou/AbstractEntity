@@ -87,6 +87,19 @@ upgrade it to a version that serves `GET /about`. The rest of the app is unaffec
 console and every app), or start it with `--host 0.0.0.0` and only on a network
 you trust; see [SECURITY.md](../SECURITY.md).
 
+## Copy says "Copy failed — select and copy"
+
+**Cause:** the app is open over plain `http://` from another machine (a LAN or
+Tailscale address such as `http://100.x.y.z:8080/apps/entity/`). Browsers
+offer the clipboard, the microphone and the camera only on https pages or on
+`localhost`, so **Copy** falls back to a text-selection copy that the browser
+may refuse. Everything else in the app works over plain http.
+
+**Fix:** open the app over https or on the gateway's own computer. With
+Tailscale, run `tailscale serve --bg http://127.0.0.1:<port>` on the gateway
+machine and open `https://<host>.<tailnet>.ts.net/apps/entity/`; the gateway
+console's Network page explains the steps.
+
 ## `npm run build` fails in a checkout with unresolved `@abstractframework/ui-kit`
 
 **Cause:** the dependencies are not installed yet.

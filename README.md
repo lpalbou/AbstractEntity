@@ -71,7 +71,7 @@ for every launch flag.
 | Surface | What it shows |
 | --- | --- |
 | Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
-| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its model, files, tools and system prompt in **Settings** |
+| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its model, files, tools and system prompt in **Settings**. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
 | Detail | One memory: its verbatim text, feelings and associations |
 | Book | The diary as a day-grouped journal; sealed entries stay sealed |
@@ -117,9 +117,21 @@ monitor.
 - **Blueprint zoom bar:** the memory blueprint (`/?page=blueprint`) has **fit**,
   **−**, **+** and **reset** buttons. On a phone the map scrolls inside its
   frame; pinch-zoom also works.
+- **Full-width panels on phones:** below 768 px the chat transcript, the
+  ledger, the health panel and the entity list are flat sections without card
+  borders, with a thin line between items and text that starts at the screen
+  gutter.
+- **Folding lists:** below 1024 px, where the side panel is a drawer, each list
+  in the Detail tab has a heading you tap to fold it. Lists start open, and the
+  app remembers each fold in this browser. On a phone the Cognitive Monitor
+  starts folded, so the conversation gets the drawer; unfold it once and the
+  app remembers your choice.
 - **Touch screens:** buttons, selects and fields are at least 44 px tall, text
-  fields use 16 px text, and the side panel, roster, dialogs and blueprint show
-  their text 1.2 times larger. On a desktop the app keeps its compact text.
+  fields use 16 px text, no text is smaller than 14 px, and the chat
+  transcript reads at 15 px.
+- **Text on a desktop:** text is at least 13 px, and the ledger and the tool
+  grants at least 12 px. The graph's node labels and the blueprint map keep
+  their own sizes; the map's zoom buttons read it closer.
 
 Limits:
 
