@@ -43,7 +43,8 @@ its layout.
 - While a phone drawer is open, the graph's own controls under it are hidden
   from screen readers and taps.
 - **Shared UI packages.** Builds against `@abstractframework/ui-kit` 0.4.0
-  (the switch, the plain-http helpers).
+  (the switch, the plain-http helpers) and `@abstractframework/panel-chat`
+  0.2.2.
 
 ### Fixed
 - **Plain http from another machine** (LAN, Tailscale). Browsers withhold
