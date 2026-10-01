@@ -4,7 +4,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+
 ### Changed
+
 - **Settings → mind and → voice use the shared pickers** from the ui-kit, the same as AbstractCode
   and the gateway console. **Gateway default** comes first and is the default: the entity thinks
   with the gateway's text model and speaks with its default voice. **Custom** sets its own provider
