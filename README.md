@@ -71,7 +71,7 @@ for every launch flag.
 | Surface | What it shows |
 | --- | --- |
 | Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
-| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its model, files, tools and system prompt in **Settings**. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
+| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), voice, files, tools and system prompt in **Settings**. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
 | Detail | One memory: its verbatim text, feelings and associations |
 | Book | The diary as a day-grouped journal; sealed entries stay sealed |

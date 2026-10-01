@@ -2,6 +2,18 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+### Changed
+- **Settings → mind and → voice use the shared pickers** from the ui-kit, the same as AbstractCode
+  and the gateway console. **Gateway default** comes first and is the default: the entity thinks
+  with the gateway's text model and speaks with its default voice. **Custom** sets its own provider
+  and model, with reasoning and MTP depth when the model offers them; the voice picker sets its own
+  voice. Changes save themselves, and choosing Gateway default again clears its own choice. The
+  old provider/model pair, the reasoning dial, the long explanations and the "set his voice" form
+  are gone. Needs an AbstractGateway with the round-3 entity door and a ui-kit with the route-picker
+  props (`inheritLabel`, `optionsInDefaultMode`, VoiceSettings `intro` / `delivery`).
+
 ## [0.5.0] - 2026-10-01
 
 On/off settings are switches labelled by what they control; the switch shows
