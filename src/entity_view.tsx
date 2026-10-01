@@ -51,7 +51,7 @@ import { foldUpToIndex, type FoldCache } from "./stream_fold";
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
 import { activeRuledPhase, dayCauseLine, deriveLifeState, type ClientVisitSignal } from "./entity_state";
-import { loadSubstrateChoice, type SubstrateChoice } from "./substrate_picker";
+import { substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { getEntitySubstrate } from "./stream_source";
 import { checkSpecSync, type SpecSyncResult } from "./spec_sync";
 import { pageFromSearch, searchAfterNavigate } from "./index_page";
@@ -580,11 +580,8 @@ export function EntityView(): React.ReactElement {
   }, [gatewayUrl, sourceKind, authVerified]);
 
   useEffect(() => {
-    // ONE substrate per entity, GATEWAY-OWNED (maintainer ruling 2026-07-09
-    // 06:32: visits and own time share the same mind — and the UI must SHOW
-    // the stored choice, not present an empty picker). The gateway's
-    // substrate endpoint is the source of truth; per-entity localStorage is
-    // only a seed for older gateways without the endpoint (#FALLBACK).
+    // ONE mind per entity, GATEWAY-OWNED (maintainer ruling 2026-07-09 06:32):
+    // its own choice, or null = the Gateway default (round 3).
     if (!entityName) {
       setSubstrate(null);
       return;
@@ -593,15 +590,10 @@ export function EntityView(): React.ReactElement {
     const base = gatewayUrl.trim().replace(/\/+$/, "");
     getEntitySubstrate(base, entityName)
       .then((stored) => {
-        if (cancelled) return;
-        if (stored && stored.provider && stored.model) {
-          setSubstrate({ provider: stored.provider, model: stored.model, thinking: stored.thinking ?? null });
-        } else {
-          setSubstrate(loadSubstrateChoice(entityName)); // legacy seed; saving writes back to the gateway
-        }
+        if (!cancelled) setSubstrate(substrateChoiceOf(stored));
       })
       .catch(() => {
-        if (!cancelled) setSubstrate(loadSubstrateChoice(entityName));
+        if (!cancelled) setSubstrate(null);
       });
     return () => {
       cancelled = true;

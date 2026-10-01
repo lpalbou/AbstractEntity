@@ -1721,13 +1721,29 @@ export function startLoop(
 // in the entity's home; the UI reads it here and writes changes back —
 // pickers never gate an open/start again.
 
+export interface EntityMindRoute {
+  provider: string | null;
+  model: string | null;
+  thinking?: string | null;
+  speculation?: unknown;
+}
+
+/** GET /{name}/substrate (gateway round 3): the entity's OWN choice
+ * (provider/model/thinking/speculation, null when it has none), the
+ * gateway's text route (`gateway_default`) and what its next visit thinks
+ * with (`effective`). `source`: "entity" (its own), "gateway" (the gateway
+ * default) or "unset" (no text model on the gateway; `note` says what to do). */
 export interface EntitySubstrate {
   provider: string | null;
   model: string | null;
-  /** Reasoning effort (wire key `thinking`, contract v1 ladder) — null =
-   * unset; the model thinks at its own default. */
+  /** Reasoning effort (wire key `thinking`) — null = unset. */
   thinking?: string | null;
-  source: "entity" | "operator-env" | "unset";
+  /** MTP intent (the kit's SpeculationValue) — null/absent = unset. */
+  speculation?: unknown;
+  source: "entity" | "gateway" | "unset";
+  effective?: EntityMindRoute | null;
+  gateway_default?: EntityMindRoute | null;
+  note?: string;
 }
 
 export function getEntitySubstrate(baseUrl: string, entity: string): Promise<EntitySubstrate | null> {
@@ -1745,7 +1761,7 @@ export function putEntitySubstrate(
   baseUrl: string,
   entity: string,
   token: string | null,
-  choice: { provider: string; model: string; thinking?: string | null },
+  choice: { provider: string; model: string; thinking?: string | null; speculation?: unknown } | { clear: true },
 ): Promise<EntitySubstrate> {
   const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/substrate`);
   return fetch(url, { credentials: "include", method: "PUT", headers: authHeaders(token), body: JSON.stringify(choice) }).then(async (res) => {
@@ -1827,6 +1843,8 @@ export interface EntityVoiceChoice {
    * default incl. the VOICE id (source "gateway-default"); absent when no
    * default is configured (engine decides — never fabricated). */
   effective?: { provider?: string | null; model?: string | null; voice?: string | null; source?: string };
+  /** Present when no default voice is configured: what the engine does. */
+  note?: string;
 }
 
 export function getEntityVoice(baseUrl: string, entity: string): Promise<EntityVoiceChoice> {
@@ -1862,8 +1880,36 @@ export interface VoiceCatalog {
   [key: string]: unknown;
 }
 
-export function getVoiceCatalog(baseUrl: string): Promise<VoiceCatalog> {
-  return getJson(joinBaseUrl(baseUrl, `api/gateway/voice/voices?compact=true`));
+export function getVoiceCatalog(baseUrl: string, provider?: string, model?: string): Promise<VoiceCatalog> {
+  const q = new URLSearchParams({ compact: "true" });
+  if (provider) q.set("provider", provider);
+  if (model) q.set("model", model);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/voice/voices?${q}`));
+}
+
+/** Discovery for the shared route picker (the same endpoints Code web reads). */
+export async function discoveryProviders(baseUrl: string): Promise<Array<{ name: string; display_name?: string }>> {
+  const d = await getJson<{ providers?: unknown; items?: unknown }>(joinBaseUrl(baseUrl, `api/gateway/discovery/providers`));
+  const items = Array.isArray(d.providers) ? d.providers : Array.isArray(d.items) ? d.items : [];
+  return (items as unknown[])
+    .map((it) => (typeof it === "string" ? { name: it } : (it as { name: string; display_name?: string })))
+    .filter((it) => it && typeof it.name === "string" && it.name);
+}
+
+export async function discoveryProviderModels(baseUrl: string, provider: string): Promise<string[]> {
+  const d = await getJson<{ models?: unknown; items?: unknown }>(
+    joinBaseUrl(baseUrl, `api/gateway/discovery/providers/${encodeURIComponent(provider)}/models`),
+  );
+  const items = Array.isArray(d.models) ? d.models : Array.isArray(d.items) ? d.items : [];
+  return (items as unknown[])
+    .map((m) => (typeof m === "string" ? m : String((m as { id?: string; name?: string }).id || (m as { name?: string }).name || "")))
+    .filter(Boolean);
+}
+
+export function discoveryModelCapabilities(baseUrl: string, model: string, provider = ""): Promise<unknown> {
+  const q = new URLSearchParams({ model_name: model });
+  if (provider) q.set("provider", provider);
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/discovery/models/capabilities?${q}`));
 }
 
 /** The gateway's CONFIGURED capability defaults — the operator's chosen

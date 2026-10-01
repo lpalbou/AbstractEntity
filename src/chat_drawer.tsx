@@ -54,7 +54,7 @@ export { splitVisitDecoration } from "./chat_message_list";
 import { getEntitySeat, refusalText, type EntitySeat } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
-import type { SubstrateChoice } from "./substrate_picker";
+import type { SubstrateChoice } from "./mind_voice_settings";
 import type { ReplayEnvelope } from "./stream_types";
 import { TurnDetailModal } from "./turn_detail_modal";
 
@@ -1006,7 +1006,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               <p className="cd_note" title="Visits and his own time share one mind — change it in Settings → 🧠 mind">
                 {substrate?.provider && substrate?.model
                   ? `mind: ${substrate.provider} / ${substrate.model}${substrate.thinking ? ` · reasoning ${substrate.thinking}` : ""}`
-                  : "mind: the gateway's stored choice for him (set it in Settings → 🧠 mind)"}
+                  : "mind: Gateway default (change it in Settings → 🧠 mind)"}
               </p>
               {/* THE BRAIN SELECTOR (c5190): his own driver (the durable
                 * visit) or the flow brain (entity-chat VisualFlow through

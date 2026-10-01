@@ -4,9 +4,8 @@
  * configures lives behind ONE modal, kept off the top bar by progressive
  * disclosure):
  *
- * - 🧠 mind: the one provider + model carrying his mind (substrate) —
- *   visits and own time both resolve this stored choice. MOVED here from
- *   the top controls strip.
+ * - 🧠 mind / 🔊 voice: the kit's shared pickers ("Gateway default" or its
+ *   own choice; mind_voice_settings.tsx) — visits and own time both use it.
  * - 📁 files: browse the entity's home workspace and read files.
  * - mounts: whitelist extra directories the entity may reach (read-only or
  *   read+write). Writes go through the operator door (token).
@@ -23,28 +22,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { authRefusedMsg } from "./gateway_session";
-import { SubstratePicker, saveSubstrateChoice, type SubstrateChoice } from "./substrate_picker";
+import { EntityMindPicker, EntityVoicePicker, substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { AfSwitch, PhaseCapabilityMatrix } from "@abstractframework/ui-kit";
 
 import {
   getEntityPrompt,
   getEntitySkills,
-  getEntityVoice,
-  getGatewayVoiceDefault,
   getToolPolicy,
-  getVoiceCatalog,
   getWorkspaceMounts,
   listWorkspace,
   putEntityPrompt,
   putEntitySkills,
-  putEntitySubstrate,
-  putEntityVoice,
   putToolPolicy,
   putWorkspaceMounts,
   readWorkspaceFile,
-  type CatalogVoice,
   type EntitySkillsResolved,
-  type EntityVoiceChoice,
   type PromptLayerInfo,
   type ToolPolicyInfo,
   type WorkspaceEntry,
@@ -133,7 +125,6 @@ export function SettingsPanel({ baseUrl, entity, entityName, token, substrate, o
             <MindTab
               baseUrl={baseUrl}
               entity={entity}
-              entityName={entityName}
               token={token}
               substrate={substrate}
               onSubstrateChange={onSubstrateChange}
@@ -142,7 +133,7 @@ export function SettingsPanel({ baseUrl, entity, entityName, token, substrate, o
               loopFacts={loopFacts}
             />
           ) : null}
-          {tab === "voice" ? <VoiceTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+          {tab === "voice" ? <VoiceTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
           {tab === "files" ? <FilesTab baseUrl={baseUrl} entity={entity} /> : null}
           {tab === "mounts" ? <MountsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
           {tab === "tools" ? <ToolsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
@@ -156,13 +147,11 @@ export function SettingsPanel({ baseUrl, entity, entityName, token, substrate, o
 
 // -------------------------------------------------------------------- mind
 
-/** The mind-substrate tab: the ONE provider + model for this entity (moved
- * off the top strip, operator (e)). Persists to the gateway on change; the
- * visit drawer and own-time loop resolve the same stored choice. */
+/** The mind tab: the kit's shared route picker ("Gateway default" or its
+ * own provider + model, reasoning and MTP). Visits and its own time use it. */
 function MindTab({
   baseUrl,
   entity,
-  entityName,
   token,
   substrate,
   onSubstrateChange,
@@ -172,7 +161,6 @@ function MindTab({
 }: {
   baseUrl: string;
   entity: string;
-  entityName: string;
   token: string | null;
   substrate: SubstrateChoice | null;
   onSubstrateChange(choice: SubstrateChoice | null): void;
@@ -185,7 +173,6 @@ function MindTab({
     substrate_at?: string | null;
   } | null;
 }): React.ReactElement {
-  const [note, setNote] = useState<string | null>(null);
   // Two-minded cue (grant audit 2026-07-18): a substrate change persists to
   // the home instantly, but an ALREADY-RUNNING own-time loop keeps the mind
   // it spawned with — until its next day-open re-resolution (runtime c82).
@@ -213,304 +200,38 @@ function MindTab({
   }, [loopFacts, lastSubstrateChangeAt, substrate]);
   return (
     <div className="wsp_mind">
-      <p className="wsp_mind_intro">
-        The one provider + model carrying <strong>{entityName}</strong>'s mind. Visits and his own time both resolve this stored
-        choice — there is no per-mode picker (maintainer ruling 2026-07-09).
-      </p>
       {staleLoop ? (
         <p className="wsp_note wsp_warn">
-          His own-time loop is still speaking the previous substrate
-          {loopFacts?.substrate?.model ? ` (${[loopFacts.substrate.provider, loopFacts.substrate.model].filter(Boolean).join("/")})` : ""} — a
-          restart applies this change now; the loop also adopts it on its own at the next day boundary (and heals onto it if the
-          old mind is failing).
+          Its own time still uses the previous mind until its next day; restart it to switch now.
         </p>
       ) : null}
-      <div className="wsp_mind_picker">
-        <SubstratePicker
-          baseUrl={baseUrl}
-          entity={entity}
-          value={substrate}
-          onChange={(choice) => {
-            onSubstrateChange(choice);
-            if (choice?.provider && choice?.model) {
-              saveSubstrateChoice(entity, choice); // legacy seed for older gateways
-              putEntitySubstrate(baseUrl, entity, token, choice).catch((e: Error) => setNote(`Could not persist his substrate on the gateway: ${e.message}`));
-            }
-          }}
-        />
-      </div>
-      {substrate?.provider && substrate?.model ? (
-        <ReasoningDial
-          value={substrate.thinking ?? null}
-          onPick={(thinking) => {
-            const next = { ...substrate, thinking };
-            onSubstrateChange(next);
-            saveSubstrateChoice(entity, next);
-            putEntitySubstrate(baseUrl, entity, token, next).catch((e: Error) => setNote(`Could not save the reasoning choice: ${e.message}`));
-          }}
-        />
-      ) : null}
-      {note ? <p className="wsp_note wsp_warn">{note}</p> : null}
+      <EntityMindPicker
+        baseUrl={baseUrl}
+        entity={entity}
+        token={token}
+        onSaved={(s) => onSubstrateChange(substrateChoiceOf(s))}
+      />
       {substrateTimeline && substrateTimeline.length > 0 ? (
-        <div className="wsp_mind_history">
-          <div className="wsp_mind_history_head">mind history (from his stream)</div>
+        <details className="wsp_mind_history">
+          <summary className="wsp_mind_history_head">Mind history</summary>
           {substrateTimeline.map((line, i) => (
             <div key={i} className="wsp_mind_history_row">
               {line}
             </div>
           ))}
-        </div>
+        </details>
       ) : null}
-    </div>
-  );
-}
-
-/** The reasoning dial (operator task c5710: provider, model, AND reasoning
- * wherever a mind is chosen). Plain words: this sets how hard the model
- * thinks before it answers. The gateway does not yet tell us whether a
- * given model supports reasoning, so the dial starts LOCKED and an explicit
- * "set anyway" click unlocks it — that way a model that cannot reason is
- * never silently configured, and a local model that CAN is not blocked
- * (the agreed three-state rule; the wire key is `thinking`). */
-const REASONING_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
-
-function ReasoningDial({ value, onPick }: { value: string | null; onPick(thinking: string | null): void }): React.ReactElement {
-  const [unlocked, setUnlocked] = useState(false);
-  const active = unlocked || value != null;
-  return (
-    <div className="wsp_reasoning">
-      <div className="wsp_reasoning_row">
-        <span className="wsp_reasoning_label" title="How hard his mind thinks before answering. 'unset' leaves the model at its own default; the levels only take effect on models that support reasoning — others ignore or refuse them loudly at the provider.">
-          reasoning
-        </span>
-        {active ? (
-          <select
-            className="wsp_reasoning_select"
-            value={value ?? ""}
-            onChange={(e) => onPick(e.target.value === "" ? null : e.target.value)}
-          >
-            <option value="">unset (model's own default)</option>
-            {REASONING_LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <button
-            className="wsp_reasoning_unlock"
-            onClick={() => setUnlocked(true)}
-            title="The gateway does not yet say whether this model supports reasoning, so the dial is locked to be safe. Click to set it anyway — a model that cannot reason will ignore or refuse the setting loudly, never silently."
-          >
-            locked (support unknown) — set anyway
-          </button>
-        )}
-      </div>
-      <p className="wsp_quiet">
-        Saved with his mind: visits and his own time both use it. Applies from the next conversation or day.
-      </p>
     </div>
   );
 }
 
 // ------------------------------------------------------------------ voice
 
-/** The entity's personal voice (entity-personal-voice room, laurent
- * 2026-07-19): pick provider + voice from the gateway's live TTS catalog;
- * the choice persists in the HOME (voice.yaml, travels with the life) and
- * every change is marker-first (voice_changed in his stream). The entity
- * TTS lanes resolve the stored triple automatically — once set, the chat
- * speaker speaks with HIS voice with zero further wiring. */
-function VoiceTab({ baseUrl, entity, entityName, token }: { baseUrl: string; entity: string; entityName: string; token: string | null }): React.ReactElement {
-  const [current, setCurrent] = useState<EntityVoiceChoice | null>(null);
-  const [items, setItems] = useState<CatalogVoice[]>([]);
-  const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({});
-  /** The CONFIGURED gateway default (output.voice row), authoritative and
-   * live today — the one source the console's Defaults modal reads. Only
-   * for the render when the door doesn't yet serve `effective`. */
-  const [gwDefault, setGwDefault] = useState<{ provider?: string; model?: string; voice?: string } | null>(null);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
-  const [provider, setProvider] = useState<string>("");
-  const [voiceId, setVoiceId] = useState<string>("");
-  const [model, setModel] = useState<string>("");
-
-  useEffect(() => {
-    getEntityVoice(baseUrl, entity)
-      .then((v) => {
-        setCurrent(v);
-        if (v.provider) setProvider(v.provider);
-        if (v.voice) setVoiceId(v.voice);
-        if (v.model) setModel(v.model);
-      })
-      .catch((e: Error) => setError(e.message));
-    getVoiceCatalog(baseUrl)
-      .then((c) => {
-        setItems((c.items ?? []).filter((it) => it.provider && it.id));
-        setModelsByProvider(c.tts_models_by_provider ?? {});
-        if (c.error) setCatalogError(String(c.error));
-      })
-      .catch((e: Error) => setCatalogError(`The voice catalog could not be read: ${e.message}`));
-    // The CONFIGURED default (authoritative, live today) — for the render
-    // only when GET /voice does not yet serve `effective`.
-    getGatewayVoiceDefault(baseUrl)
-      .then((row) => {
-        if (row) setGwDefault({ provider: row.provider, model: row.model, voice: row.options?.voice });
-      })
-      .catch(() => {
-        /* absent = engine decides; the render says so, never invents */
-      });
-  }, [baseUrl, entity]);
-
-  const providers = useMemo(() => {
-    const seen = new Set<string>();
-    for (const it of items) seen.add(String(it.provider));
-    return [...seen].sort();
-  }, [items]);
-
-  const voicesOf = useMemo(() => items.filter((it) => String(it.provider) === provider), [items, provider]);
-
-  /** Model for the PUT: the item's own model wins; else the provider's
-   * first catalog model (editable below — the door requires all three). */
-  const deriveModel = (it: CatalogVoice | undefined, prov: string): string =>
-    String(it?.model || modelsByProvider[prov]?.[0] || "");
-
-  const pick = (it: CatalogVoice) => {
-    setVoiceId(String(it.id));
-    setModel(deriveModel(it, String(it.provider)));
-    setSaved(null);
-  };
-
-  const save = () => {
-    if (!provider || !voiceId || !model) {
-      setError("A voice needs provider AND model AND voice — pick a voice, and fill the model if the catalog didn't derive one.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    putEntityVoice(baseUrl, entity, { provider, model, voice: voiceId }, token)
-      .then((v) => {
-        setCurrent(v);
-        setSaved(`saved — his stream carries the voice_changed marker; the speaker uses it from the next utterance`);
-      })
-      .catch((e: Error & { status?: number }) => setError(e.status === 401 || e.status === 403 ? authRefusedMsg(e.status, e.message) : e.message))
-      .finally(() => setBusy(false));
-  };
-
-  const clear = () => {
-    setBusy(true);
-    setError(null);
-    putEntityVoice(baseUrl, entity, { clear: true }, token)
-      .then((v) => {
-        setCurrent(v);
-        setProvider("");
-        setVoiceId("");
-        setModel("");
-        setSaved("cleared — he inherits the gateway default again");
-      })
-      .catch((e: Error & { status?: number }) => setError(e.status === 401 || e.status === 403 ? authRefusedMsg(e.status, e.message) : e.message))
-      .finally(() => setBusy(false));
-  };
-
+/** The entity's voice: the kit's shared voice picker (mind_voice_settings). */
+function VoiceTab({ baseUrl, entity, token }: { baseUrl: string; entity: string; token: string | null }): React.ReactElement {
   return (
     <div className="wsp_voice">
-      <p className="wsp_quiet">
-        The voice <strong>{entityName}</strong> speaks with. The choice lives in his home (<code>voice.yaml</code> — it travels with the
-        life) and every change lands a <code>voice_changed</code> marker in his stream. Once set, the chat speaker uses it automatically.
-      </p>
-      <div className="wsp_voice_current">
-        {current?.source === "entity" ? (
-          <>
-            current: <code>{[current.provider, current.model, current.voice].filter(Boolean).join(" / ")}</code>{" "}
-            <span className="wsp_quiet">(his own choice — overrides the gateway default)</span>
-          </>
-        ) : current?.effective && (current.effective.provider || current.effective.voice) ? (
-          // Inheritance is the ruled semantic (laurent dm#68). The ONLY
-          // source for the inherited triple is the door's served
-          // `effective` (the real gateway default — output.voice
-          // capability). NEVER guess it from the catalog's active fields:
-          // that invented gpt-4o-mini-tts when the real baseline is
-          // supertonic/supertonic-3 (laurent, dm — "STOP INVENTING").
-          <>
-            inheriting the gateway default: <code>{[current.effective.provider, current.effective.model, current.effective.voice].filter(Boolean).join(" / ")}</code>{" "}
-            <span className="wsp_quiet">(pick a voice below to give him his own)</span>
-          </>
-        ) : gwDefault && (gwDefault.provider || gwDefault.voice) ? (
-          // Pre-`effective` door: the CONFIGURED default from
-          // config/capability-defaults (output.voice) — the operator's
-          // chosen baseline, authoritative and live today. NOT the
-          // catalog's active model (that invented gpt-4o-mini-tts).
-          <>
-            inheriting the gateway default: <code>{[gwDefault.provider, gwDefault.model, gwDefault.voice].filter(Boolean).join(" / ")}</code>{" "}
-            <span className="wsp_quiet">(pick a voice below to give him his own)</span>
-          </>
-        ) : (
-          // No configured default served → the engine decides; never invent.
-          <span className="wsp_quiet">inheriting the gateway default (no configured voice — the voice engine decides; pick a voice below to give him his own)</span>
-        )}
-      </div>
-      {catalogError ? <p className="wsp_note wsp_warn">{catalogError}</p> : null}
-      {providers.length > 0 ? (
-        <>
-          <div className="wsp_voice_row">
-            <label>provider</label>
-            <select
-              value={provider}
-              onChange={(e) => {
-                setProvider(e.target.value);
-                setVoiceId("");
-                setModel(modelsByProvider[e.target.value]?.[0] ?? "");
-                setSaved(null);
-              }}
-            >
-              <option value="">choose…</option>
-              {providers.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-          {provider ? (
-            <div className="wsp_voice_list">
-              {voicesOf.map((it) => (
-                <button
-                  key={`${it.provider}:${it.id}`}
-                  className={`wsp_voice_item ${voiceId === it.id ? "wsp_voice_item_on" : ""}`}
-                  onClick={() => pick(it)}
-                  title={`${it.voice_kind === "clone" ? "cloned voice" : it.voice_kind === "voice" ? "custom voice" : "built-in profile"} — id ${it.id}`}
-                >
-                  <span className="wsp_voice_label">{it.label || it.id}</span>
-                  <span className={`wsp_voice_kind wsp_voice_kind_${it.voice_kind || "profile"}`}>{it.voice_kind || "profile"}</span>
-                </button>
-              ))}
-              {voicesOf.length === 0 ? <p className="wsp_quiet">no voices listed for this provider</p> : null}
-            </div>
-          ) : null}
-          {provider && voiceId ? (
-            <div className="wsp_voice_row">
-              <label title="The door requires provider AND model AND voice — a voice id is only meaningful to its backend.">model</label>
-              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="tts model id" />
-            </div>
-          ) : null}
-        </>
-      ) : !catalogError ? (
-        <p className="wsp_quiet">reading the voice catalog…</p>
-      ) : null}
-      {error ? <p className="wsp_error">{error}</p> : null}
-      <div className="wsp_save_row">
-        <button onClick={save} disabled={busy || !provider || !voiceId}>
-          {busy ? "saving…" : "set his voice"}
-        </button>
-        {current?.source === "entity" ? (
-          <button onClick={clear} disabled={busy} className="wsp_voice_clear">
-            clear
-          </button>
-        ) : null}
-        {saved ? <span className="wsp_saved">{saved}</span> : null}
-      </div>
+      <EntityVoicePicker baseUrl={baseUrl} entity={entity} token={token} />
     </div>
   );
 }

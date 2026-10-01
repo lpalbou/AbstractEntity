@@ -6475,3 +6475,27 @@ body {
 #root .bp_svg {
   --ent-type-floor: 0px;
 }
+
+/* Mind / Voice tabs (round 3): the kit's shared pickers (af-pmp,
+ * af-voice-settings) inside the settings modal; one status line below. */
+.wsp_picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+  min-width: 0;
+}
+.wsp_status {
+  margin: 0;
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+}
+.wsp_status_ok {
+  color: var(--diary);
+}
+.wsp_status_error {
+  color: var(--error, #e5484d);
+}
+.wsp_mind_history > summary {
+  cursor: pointer;
+}
