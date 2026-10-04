@@ -105,6 +105,11 @@ function readHeaders(extra: Record<string, string> = {}): Record<string, string>
  * a CSRF header matching the readable csrf cookie the proxy set at
  * connect time (appId "abstractentity" names the cookie). Harmless when
  * absent (direct-gateway posture: no such cookie, no header). */
+/** The same CSRF headers for kit transports that take a GatewayFetch (the Docs assistant). */
+export function proxyCsrfHeaders(): Record<string, string> {
+  return proxyCsrfHeader();
+}
+
 function proxyCsrfHeader(): Record<string, string> {
   const h: Record<string, string> = {};
   const csrf = proxyCsrfToken();

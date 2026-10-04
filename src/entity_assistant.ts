@@ -1,117 +1,41 @@
 /**
- * The entity app's assistant transport — injected into the shared
- * `AssistantPanel` (uic unified top-bar cluster; the same assistant icon
- * flow/continuum/observer carry, operator directive 2026-07-15 (i)).
+ * The entity app's Docs assistant (round 8, R8.3): the kit's shared
+ * `DocsAssistantDrawer` (panel-chat) — the same chat the console and every
+ * app mount — grounded on THIS app's llms.txt (the gateway reads it from
+ * this app's own build: `GET api/gateway/docs/corpus?app=entity`) through
+ * the gateway's docs-qa workflow. Conversation, attachments, streaming and
+ * history (one gateway session per conversation) are the kit's; this module
+ * only supplies the source and the app's authenticated gateway fetch.
  *
- * It is a DOCS-GROUNDED helper: it answers questions about AbstractEntity
- * and the framework from the gateway's own documentation corpus
- * (`api/gateway/docs/corpus`). Generation rides the read-only
- * `api/gateway/runs/{id}/chat` endpoint.
- *
- * Honesty rules (all three were adversary P0s, fixed here):
- * - Same-origin proxy base is `""` (a VALID base), so the "no gateway"
- *   guard tests `baseUrl === null`, never `!baseUrl`.
- * - The corpus is folded into the USER message, not a system message —
- *   the run-chat generator drops non-user/assistant roles.
- * - If the gateway does not serve a usable chat run (the endpoint 404s
- *   until a session run exists — a gateway gap filed on the hub), the
- *   panel gets an HONEST "docs assistant isn't wired on this gateway yet"
- *   message, never a fabricated answer or a raw stack.
- * The corpus cache is keyed by base and only latches on SUCCESS (a
- * pre-sign-in 401 must not poison the session).
+ * The former transport (the corpus folded into a `runs/{session}/chat`
+ * call) is gone: that endpoint needed a pre-existing session run and never
+ * went through docs-qa.
  */
 
-import { gatewayReadHeaders, proxyCsrfToken, refusalDetail } from "./stream_source";
+import type { DocsAssistantSource, GatewayFetch } from "@abstractframework/panel-chat";
 import { joinBaseUrl } from "@abstractframework/ui-kit";
+import { gatewayReadHeaders, proxyCsrfHeaders } from "./stream_source";
 
-const SESSION_ID = "session_memory_entity_docsqa";
+export const ENTITY_DOCS_SOURCE: DocsAssistantSource = { app: "entity", name: "AbstractEntity" };
 
-const corpusByBase = new Map<string, string>();
+export const ENTITY_DOCS_SUGGESTIONS = ["What is an entity?", "How do I summon an entity?", "What does the Cognitive Monitor show?"];
 
-async function loadCorpus(baseUrl: string): Promise<string | null> {
-  if (corpusByBase.has(baseUrl)) return corpusByBase.get(baseUrl) ?? null;
-  try {
-    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/docs/corpus`), {
-      credentials: "include",
-      headers: gatewayReadHeaders({ Accept: "application/json" }),
-    });
-    if (!res.ok) return null; // do NOT cache a failure — a later signed-in ask retries
-    const data = (await res.json()) as { text?: string };
-    const text = typeof data.text === "string" ? data.text : "";
-    if (text) corpusByBase.set(baseUrl, text);
-    return text || null;
-  } catch {
-    return null;
-  }
-}
-
-export interface AssistantContext {
-  signal: AbortSignal;
-  history: Array<{ role: string; content: string }>;
-}
-
-/** Build an `ask(question, ctx)` bound to a gateway base + bearer token.
- * baseUrl === null means no gateway (demo/exported); "" is the valid
- * same-origin proxy base. */
-export function makeEntityAssistant(baseUrl: string | null, token: string | null): (q: string, ctx: AssistantContext) => Promise<string> {
-  return async (question: string, ctx: AssistantContext): Promise<string> => {
-    if (baseUrl === null) {
-      return "I answer questions about AbstractEntity and the framework from the gateway's docs — connect to a gateway (top-right) and ask again.";
-    }
-    const base = baseUrl.trim().replace(/\/+$/, ""); // "" stays "" (same-origin proxy)
-    const corpus = await loadCorpus(base);
-    // Fold the docs into the USER turn (the run-chat generator keeps only
-    // user/assistant roles). The WHOLE corpus: models get their full context
-    // (ADR-0026, operator ruling 2026-09-28); a corpus the model cannot hold
-    // fails loudly at the provider instead of being cut here.
-    const grounding = corpus
-      ? `Answer using ONLY the AbstractEntity/framework documentation below; if it does not cover the question, say so plainly.\n\n<docs>\n${corpus}\n</docs>\n\nQuestion: ${question}`
-      : question;
-    // Skip our own prior error cards so a past failure never becomes
-    // misleading model context (every literal this transport can return).
-    // ASSISTANT-role only: a USER asking "why could not reach the gateway?"
-    // is a legitimate question, not one of our cards (round-2 review).
-    const OWN_ERROR_CARDS = /^#FALLBACK|assistant (?:request|call) failed|isn't wired|could not reach the gateway|returned an empty reply|connect to a gateway/i;
-    const messages = [
-      ...ctx.history
-        .filter((m) => m.role !== "system" && !(m.role === "assistant" && OWN_ERROR_CARDS.test(m.content)))
-        .map((m) => ({ role: m.role, content: m.content })),
-      { role: "user", content: grounding },
-    ];
-    const csrf = proxyCsrfToken();
-    let res: Response;
-    try {
-      res = await fetch(joinBaseUrl(base, `api/gateway/runs/${encodeURIComponent(SESSION_ID)}/chat`), {
-        method: "POST",
-        credentials: "include",
-        signal: ctx.signal,
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(csrf ? { "X-Abstract-CSRF": csrf } : {}),
-        },
-        body: JSON.stringify({ messages, include_subruns: false }),
-      });
-    } catch (e) {
-      if ((e as Error).name === "AbortError") throw e;
-      return "The docs assistant could not reach the gateway. Check the connection (top-right) and try again.";
-    }
-    if (res.status === 404) {
-      // The gateway does not (yet) auto-create the docs-qa chat run —
-      // honest degrade, not a fabricated answer (gateway gap filed).
-      return "The docs assistant isn't wired on this gateway yet (its chat endpoint needs a docs-qa session run). Nothing to answer from — I won't guess.";
-    }
-    if (!res.ok) {
-      const detail = refusalDetail(await res.text().catch(() => ""));
-      return `The docs assistant call failed (HTTP ${res.status}). ${detail.slice(0, 200)}`.trim();
-    }
-    const data = (await res.json()) as { answer?: string };
-    return String(data.answer || "").trim() || "(the assistant returned an empty reply)";
+/**
+ * A GatewayFetch bound to the app's gateway base and credential, read at call
+ * time (`getBase() === null` = no gateway: demo/exported source; "" is the
+ * valid same-origin proxy base). Reads carry the bearer token when one is
+ * held; writes add the proxy / direct-gateway CSRF header, exactly like the
+ * app's other gateway calls.
+ */
+export function makeEntityDocsFetch(getBase: () => string | null, getToken: () => string | null): GatewayFetch {
+  return (path, init = {}) => {
+    const base = getBase();
+    if (base === null) return Promise.reject(new Error("Connect to a gateway to use the docs assistant."));
+    const headers = new Headers(init.headers || {});
+    const token = getToken();
+    for (const [name, value] of Object.entries(gatewayReadHeaders(token ? { Authorization: `Bearer ${token}` } : {}))) headers.set(name, value);
+    const method = String(init.method || "GET").toUpperCase();
+    if (method !== "GET" && method !== "HEAD") for (const [name, value] of Object.entries(proxyCsrfHeaders())) headers.set(name, value);
+    return fetch(joinBaseUrl(base.trim().replace(/\/+$/, ""), path), { ...init, headers, credentials: "include" });
   };
-}
-
-/** Convenience wrapper matching the AssistantPanel `ask` signature. */
-export function askEntityAssistant(baseUrl: string | null, token: string | null, question: string, ctx: AssistantContext): Promise<string> {
-  return makeEntityAssistant(baseUrl, token)(question, ctx);
 }

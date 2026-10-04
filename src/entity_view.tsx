@@ -30,12 +30,11 @@ import {
   type AfPhaseSlot,
   AfTopBarActions,
   AfAppearanceDialog,
-  AfDrawer,
   useAppearanceSettings,
   Icon,
 } from "@abstractframework/ui-kit";
-import { AssistantPanel } from "@abstractframework/panel-chat";
-import { askEntityAssistant } from "./entity_assistant";
+import { DocsAssistantDrawer } from "@abstractframework/panel-chat";
+import { ENTITY_DOCS_SOURCE, ENTITY_DOCS_SUGGESTIONS, makeEntityDocsFetch } from "./entity_assistant";
 
 import { BookReader } from "./book_reader";
 import { CognitionWavePanel } from "./cognition_wave_panel";
@@ -1595,6 +1594,15 @@ export function EntityView(): React.ReactElement {
     return handle ?? `${entityName}@${host ?? "this gateway"}`;
   }, [sourceKind, entityName, handle, gatewayUrl, lanIp]);
 
+  // Docs assistant transport (kit DocsAssistantDrawer): the gateway base and
+  // credential are read at CALL time, so a reconnect between questions is honoured.
+  const docsTargetRef = useRef<{ base: string | null; token: string | null }>({ base: null, token: null });
+  docsTargetRef.current = {
+    base: indexBase ?? (sourceKind === "gateway" ? gatewayUrl.trim().replace(/\/+$/, "") : null),
+    token: controlToken.trim() || null,
+  };
+  const docsFetch = useMemo(() => makeEntityDocsFetch(() => docsTargetRef.current.base, () => docsTargetRef.current.token), []);
+
   return (
     <div className="entity_app" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <header className="entity_header">
@@ -1700,7 +1708,7 @@ export function EntityView(): React.ReactElement {
             </button>
           ) : null}
           <AfTopBarActions
-            assistant={{ open: assistantOpen, onToggle: () => setAssistantOpen((v) => !v), label: "Ask the docs assistant" }}
+            docs={{ open: assistantOpen, onToggle: () => setAssistantOpen((v) => !v), label: "Docs assistant" }}
             appearance={{ onOpen: () => setAppearanceOpen(true) }}
             about={about}
             connection={{
@@ -2134,19 +2142,16 @@ export function EntityView(): React.ReactElement {
 
       {/* SHARED CLUSTER SURFACES (operator 2026-07-15 (i)): the assistant
         * drawer + appearance dialog every AbstractFramework app carries. */}
-      <AfDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} label="Assistant" title="AbstractEntity assistant" topOffset={49}>
-        <AssistantPanel
-          ask={(q, ctx) => askEntityAssistant(indexBase ?? (sourceKind === "gateway" ? gatewayUrl.trim().replace(/\/+$/, "") : null), controlToken.trim() || null, q, ctx)}
-          assistantName="Docs assistant"
-          blockedNotice={
-            gatewayLocked
-              ? "Sign in first (the gateway refused this browser) — the assistant rides the same session."
-              : sourceKind === "gateway"
-                ? undefined
-                : "Connect to a gateway to ground answers in the docs."
-          }
-        />
-      </AfDrawer>
+      <DocsAssistantDrawer
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        source={ENTITY_DOCS_SOURCE}
+        fetchGateway={docsFetch}
+        connected={sourceKind === "gateway" && !gatewayLocked}
+        topOffset={49}
+        placeholder="Ask about AbstractEntity…"
+        suggestions={ENTITY_DOCS_SUGGESTIONS}
+      />
       <AfAppearanceDialog open={appearanceOpen} onClose={() => setAppearanceOpen(false)} value={appearance} onChange={setAppearance} />
 
       <div className="entity_main" style={gatewayLocked || (indexBase !== null && !entityName) ? { display: "none" } : undefined}>

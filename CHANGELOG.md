@@ -39,7 +39,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
   AbstractFramework and AbstractGateway versions, the website, source, docs, issues, feedback and
   contact links, and one author/licence line, at about half the old height. The per-package version
   list is gone; a gateway that cannot answer still shows why, in place of its version.
-- Dependencies: `@abstractframework/ui-kit` ^0.8.0 and `@abstractframework/panel-chat` ^0.3.1.
+- **Docs assistant is the kit's shared `DocsAssistantDrawer`** (panel-chat 0.4.0; the book icon in
+  the top bar, the same drawer as the console and the other apps): your question on the right, the
+  answer on the left with markdown, code, JSON and links rendered, streaming, copy, attachments, an
+  icon-only New conversation and a one-line grounding footer. It answers from this app's `llms.txt`
+  through the gateway's docs-qa workflow (`GET /docs/corpus?app=entity`), one gateway session per
+  conversation; the former `runs/{session}/chat` transport is gone. The build ships `llms.txt` in
+  `dist/` and the app server serves it as `text/plain`.
+- Dependencies: `@abstractframework/ui-kit` ^0.8.0 and `@abstractframework/panel-chat` ^0.4.0.
   Voice needs AbstractGateway 0.13.0 or later (`GET /api/gateway/voice/defaults`).
 
 ## [0.6.0] - 2026-10-01
