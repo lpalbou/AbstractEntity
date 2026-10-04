@@ -4,41 +4,43 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-04
+
 ### Added
 
-- **Voice in a visit** (round 7): the composer **microphone** dictates — hold it while you speak, or
-  tap to start and tap again to stop; the recording goes to the gateway's default speech-to-text
-  route (or the one you chose) and the composer shows `Transcribing… 4 s · faster-whisper /
-  large-v3` while it works; a refusal or no answer within 180 s is a sentence. **Read aloud** speaks
-  each new reply. Built on the ui-kit's `useGatewayVoice`, like AbstractCode.
+- **Voice in a visit**: the composer **microphone** dictates — hold it while you speak, or tap to
+  start and tap again to stop; the recording goes to the gateway's default speech-to-text route (or
+  the one you chose) and the composer shows `Transcribing… 4 s · faster-whisper / large-v3` while it
+  works; a refusal or no answer within 180 s is a sentence. **Read aloud** speaks each new reply.
+  Built on the ui-kit's `useGatewayVoice`, like AbstractCode.
 - **Settings → voice, your half**: below the entity's own voice, the ui-kit's shared voice section —
   speaker choice with Test and volume, microphone choice with Test and a level meter, spoken
   language, input level, Read aloud and latency, kept in this browser. "Gateway default" names the
-  gateway's real routes (`GET /voice/defaults`), never the engine's fallback. Its text-to-speech row
-  is not offered: the entity always speaks with its own voice. Needs ui-kit 0.7.1 and AbstractGateway
-  with `GET /api/gateway/voice/defaults`.
+  gateway's real routes (`GET /voice/defaults`). Its text-to-speech row is not offered: the entity
+  always speaks with its own voice.
 
 ### Fixed
 
-- **Cognitive Monitor: no raw JSON.** A gateway without an embedding route used to print a cut-off
-  `{"detail":"Embeddings are not available…` in the monitor header. It now reads "Embeddings are
-  not configured on this gateway, so the cognitive monitor cannot run." on its own line, with a
-  **Set up embeddings** link to the gateway console's Multimodal page (`/console#defaults`). Every
-  other gateway refusal in the app (record and diary reads, state, uploads, the docs assistant)
-  shows the refusal's `detail` sentence, never the JSON body.
+- **Cognitive Monitor without embeddings.** A gateway without an embedding route makes the monitor
+  read "Embeddings are not configured on this gateway, so the cognitive monitor cannot run." on its
+  own line, with a **Set up embeddings** link to the gateway console's Multimodal page
+  (`/console#defaults`), in place of a cut-off JSON body. Every other gateway refusal in the app
+  (record and diary reads, state, uploads, the docs assistant) shows the refusal's `detail`
+  sentence, never the JSON body.
+- **Stop ends a spoken reply at the gateway too**: Stop aborts the streaming request, so the
+  gateway stops synthesising.
 
 ### Changed
 
-- **Speaking a reply stops for real**: **Stop** now aborts the streaming request (before, playback
-  stopped but the gateway kept synthesising). The request never names a voice, so the entity's own
-  voice — else the gateway default — always speaks. The entity voice picker names the default the
-  same way as every app: `Gateway default · supertonic / supertonic-3 · M3`.
-
-- **About is the shared compact card** (ui-kit 0.7.0 `AfAboutDialog`): the app's name and version,
-  the AbstractFramework and AbstractGateway versions, the website, source, docs, issues, feedback
-  and contact links, and one author/licence line, at about half the old height. The per-package
-  version list is gone; a gateway that cannot answer still shows why, in place of its version.
-  Needs ui-kit 0.7.0.
+- Speaking a reply never names a voice, so the entity's own voice — else the gateway default —
+  always speaks. The entity voice picker names the default the same way as every app:
+  `Gateway default · supertonic / supertonic-3 · M3`.
+- **About is the shared compact card** (ui-kit `AfAboutDialog`): the app's name and version, the
+  AbstractFramework and AbstractGateway versions, the website, source, docs, issues, feedback and
+  contact links, and one author/licence line, at about half the old height. The per-package version
+  list is gone; a gateway that cannot answer still shows why, in place of its version.
+- Dependencies: `@abstractframework/ui-kit` ^0.8.0 and `@abstractframework/panel-chat` ^0.3.1.
+  Voice needs AbstractGateway 0.13.0 or later (`GET /api/gateway/voice/defaults`).
 
 ## [0.6.0] - 2026-10-01
 

@@ -261,7 +261,8 @@ you speak; a sleeping entity wakes up for it. While you talk, the memory graph
 shows memories forming and being recalled, and the **Book** tab collects the
 diary entries the entity writes.
 
-Voice works in a visit when the gateway has voice installed: the speaker on a
+Voice works in a visit when the gateway has voice installed (AbstractGateway
+0.13.0 or later): the speaker on a
 reply reads it aloud in the entity's own voice, and the microphone beside the
 composer dictates (hold it while you speak, or tap to start and tap again to
 stop). **Settings → voice** sets the entity's voice and, below it, your own
@@ -309,11 +310,12 @@ flowchart LR
     Host["GET /app/host<br/>LAN address for entity handles"]
   end
   subgraph Gateway["AbstractGateway (:8080)"]
-    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits"]
+    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits · voice/tts/stream"]
     Meets["/api/gateway/entities/meets/*"]
     Embed["/api/gateway/embeddings"]
     Docs["/api/gateway/docs/corpus"]
     About["/api/gateway/about<br/>versions for the About dialog"]
+    Voice["/api/gateway/voice/defaults · voice/voices<br/>attachments/upload · runs/{run}/audio/transcribe"]
   end
   Memory[("Entity memory<br/>on the gateway host")]
 
@@ -326,6 +328,7 @@ flowchart LR
   Proxy --> Embed
   Proxy --> Docs
   Proxy --> About
+  Proxy --> Voice
   Entities --> Memory
 ```
 
@@ -574,7 +577,8 @@ of invented data.
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
-Voice uses the same gateway routes and ui-kit components as AbstractCode:
+Voice uses the same gateway routes and ui-kit components as AbstractCode. It
+needs AbstractGateway 0.13.0 or later (`GET /voice/defaults`):
 
 - **Speak.** A reply's speaker button, or **Read aloud**, posts the reply to the
   entity-owned streaming lane. The request carries the text and, when set, the
@@ -774,6 +778,18 @@ invented scores.
 
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
+
+## The Cognitive Monitor says "Embeddings are not configured on this gateway"
+
+**Cause:** the gateway has no embedding route, so `POST /api/gateway/embeddings`
+answers 503 and the monitor cannot score. The monitor shows "Embeddings are not
+configured on this gateway, so the cognitive monitor cannot run." and a
+**Set up embeddings** link.
+
+**Fix:** follow **Set up embeddings**; it opens the gateway console's
+Multimodal page (`/console#defaults`), where an administrator sets the
+embedding route. Reopen the entity page afterwards; the monitor scores again.
+The rest of the app works without embeddings.
 
 ## About shows "AbstractGateway: unavailable (…)"
 

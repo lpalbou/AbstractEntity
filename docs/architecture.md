@@ -23,11 +23,12 @@ flowchart LR
     Host["GET /app/host<br/>LAN address for entity handles"]
   end
   subgraph Gateway["AbstractGateway (:8080)"]
-    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits"]
+    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits · voice/tts/stream"]
     Meets["/api/gateway/entities/meets/*"]
     Embed["/api/gateway/embeddings"]
     Docs["/api/gateway/docs/corpus"]
     About["/api/gateway/about<br/>versions for the About dialog"]
+    Voice["/api/gateway/voice/defaults · voice/voices<br/>attachments/upload · runs/{run}/audio/transcribe"]
   end
   Memory[("Entity memory<br/>on the gateway host")]
 
@@ -40,6 +41,7 @@ flowchart LR
   Proxy --> Embed
   Proxy --> Docs
   Proxy --> About
+  Proxy --> Voice
   Entities --> Memory
 ```
 

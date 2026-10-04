@@ -95,7 +95,8 @@ of invented data.
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
-Voice uses the same gateway routes and ui-kit components as AbstractCode:
+Voice uses the same gateway routes and ui-kit components as AbstractCode. It
+needs AbstractGateway 0.13.0 or later (`GET /voice/defaults`):
 
 - **Speak.** A reply's speaker button, or **Read aloud**, posts the reply to the
   entity-owned streaming lane. The request carries the text and, when set, the

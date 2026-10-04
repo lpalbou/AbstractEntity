@@ -64,6 +64,18 @@ invented scores.
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
 
+## The Cognitive Monitor says "Embeddings are not configured on this gateway"
+
+**Cause:** the gateway has no embedding route, so `POST /api/gateway/embeddings`
+answers 503 and the monitor cannot score. The monitor shows "Embeddings are not
+configured on this gateway, so the cognitive monitor cannot run." and a
+**Set up embeddings** link.
+
+**Fix:** follow **Set up embeddings**; it opens the gateway console's
+Multimodal page (`/console#defaults`), where an administrator sets the
+embedding route. Reopen the entity page afterwards; the monitor scores again.
+The rest of the app works without embeddings.
+
 ## About shows "AbstractGateway: unavailable (…)"
 
 **Cause:** the app could not read `GET /api/gateway/about`. The reason in
