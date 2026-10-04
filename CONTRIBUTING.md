@@ -29,6 +29,16 @@ To check the layout at phone, tablet and desktop sizes, open the app in your
 browser's device toolbar; the responsive rules are guarded by
 `src/responsive_css.test.ts` and `src/side_tabs_state.test.ts`.
 
+Voice in a visit has a browser check, `scripts/voice.e2e.mjs`: it drives the built
+app (`node bin/cli.js`) against AbstractCode's isolated fixture gateway
+(`abstractcode/web/e2e/gateway_fixture.py`, no model) with a fake microphone, fakes
+only the speech and transcription routes, and fails on any broken step:
+
+```bash
+node scripts/voice.e2e.mjs --app http://127.0.0.1:18736 --gateway http://127.0.0.1:18737 \
+  [--playwright <dir with @playwright/test>] [--shots <dir>]
+```
+
 ## Guidelines
 
 - Keep logic in pure, tested modules (`stream_fold.ts`, `roster_empty.ts`,

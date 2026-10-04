@@ -90,9 +90,28 @@ of invented data.
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
 | Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
-| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices` |
+| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
+| Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+
+Voice uses the same gateway routes and ui-kit components as AbstractCode:
+
+- **Speak.** A reply's speaker button, or **Read aloud**, posts the reply to the
+  entity-owned streaming lane. The request carries the text and, when set, the
+  listener's latency choice — never a provider, model or voice: the gateway
+  speaks with the entity's own voice (Settings → voice), else its `output.voice`
+  default, and sends the audio one sentence at a time, so the first words play
+  while the rest is synthesised. **Stop** aborts the request.
+- **Dictate.** The composer microphone records in the browser (hold to dictate,
+  or tap to start and tap again to stop), uploads the recording into the
+  session `entity_voice_<name>` and transcribes it on the run the upload names,
+  with the gateway's `input.voice` route unless you chose another. While it
+  works the composer shows `Transcribing… 4 s · faster-whisper / large-v3`; a
+  failure, or no answer within 180 s, shows a sentence.
+- **Defaults.** "Gateway default · supertonic / supertonic-3" and the
+  transcription route come from `GET /voice/defaults`, never from the voice
+  catalog's engine fields.
 
 The replay stream format and the gateway routes are owned by AbstractMemory and
 AbstractGateway; see their documentation for request and response shapes.

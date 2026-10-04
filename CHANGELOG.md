@@ -4,7 +4,26 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- **Voice in a visit** (round 7): the composer **microphone** dictates — hold it while you speak, or
+  tap to start and tap again to stop; the recording goes to the gateway's default speech-to-text
+  route (or the one you chose) and the composer shows `Transcribing… 4 s · faster-whisper /
+  large-v3` while it works; a refusal or no answer within 180 s is a sentence. **Read aloud** speaks
+  each new reply. Built on the ui-kit's `useGatewayVoice`, like AbstractCode.
+- **Settings → voice, your half**: below the entity's own voice, the ui-kit's shared voice section —
+  speaker choice with Test and volume, microphone choice with Test and a level meter, spoken
+  language, input level, Read aloud and latency, kept in this browser. "Gateway default" names the
+  gateway's real routes (`GET /voice/defaults`), never the engine's fallback. Its text-to-speech row
+  is not offered: the entity always speaks with its own voice. Needs ui-kit 0.7.1 and AbstractGateway
+  with `GET /api/gateway/voice/defaults`.
+
 ### Changed
+
+- **Speaking a reply stops for real**: **Stop** now aborts the streaming request (before, playback
+  stopped but the gateway kept synthesising). The request never names a voice, so the entity's own
+  voice — else the gateway default — always speaks. The entity voice picker names the default the
+  same way as every app: `Gateway default · supertonic / supertonic-3 · M3`.
 
 - **About is the shared compact card** (ui-kit 0.7.0 `AfAboutDialog`): the app's name and version,
   the AbstractFramework and AbstractGateway versions, the website, source, docs, issues, feedback

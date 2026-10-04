@@ -182,14 +182,15 @@ export function useEntityVoice(opts: {
 /** A press shorter than this is a tap: recording keeps going until the next tap (Code web's rule). */
 export const TAP_MS = 350;
 
-function useNow(active: boolean): number {
+/** Ticks once a second from `since` (0 = idle); restarts when a recording turns into a transcription. */
+function useNow(since: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!active) return;
+    if (!since) return;
     setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(timer);
-  }, [active]);
+  }, [since]);
   return now;
 }
 
@@ -249,7 +250,7 @@ export function VisitVoiceButtons({
     if (!voice.voice_ptt_recording) latched.current = false;
   }, [voice.voice_ptt_recording]);
   const since = voice.voice_ptt_since || 0;
-  const now = useNow(Boolean(since));
+  const now = useNow(since);
   const status = voice.voice_ptt_recording
     ? `Recording… ${since ? elapsedSeconds(since, now) : ""}`.trim()
     : voice.voice_ptt_busy
@@ -288,7 +289,7 @@ export function VisitVoiceButtons({
             }
           }}
         >
-          <Icon name={voice.voice_ptt_busy ? "loader" : "mic"} size={15} />
+          <Icon name={voice.voice_ptt_busy ? "loader" : "mic"} size={15} className={voice.voice_ptt_busy ? "pc-chat-speak-spinner" : undefined} />
         </button>
       )}
       {voice.tts_playback.status !== "idle" ? (

@@ -69,6 +69,13 @@ you speak; a sleeping entity wakes up for it. While you talk, the memory graph
 shows memories forming and being recalled, and the **Book** tab collects the
 diary entries the entity writes.
 
+Voice works in a visit when the gateway has voice installed: the speaker on a
+reply reads it aloud in the entity's own voice, and the microphone beside the
+composer dictates (hold it while you speak, or tap to start and tap again to
+stop). **Settings → voice** sets the entity's voice and, below it, your own
+speaker, microphone (with a Test and a level meter), spoken language and
+**Read aloud**.
+
 ## Next steps
 
 - Tour the tabs described in the [README](../README.md#what-you-can-do-in-the-app).

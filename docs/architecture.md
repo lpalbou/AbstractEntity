@@ -119,7 +119,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 | Panels | `inspector.tsx`, `identity_card.tsx`, `timeline.tsx`, `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts` |
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx`, `cognitive_monitor.tsx` |
 | Cognition wave | `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `cognition_wave_panel.tsx`, `cognition_wave_inline.tsx`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
-| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind / voice: the kit's shared pickers) |
+| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind / voice: the kit's shared pickers), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`, `entity_handle.ts` (`name@host` handles that offer a meet) |
 | Blueprint | `blueprint_panel.tsx`, `blueprint_tunables.tsx`, `phase_map.tsx`, `phase_editor.tsx`, `edge_ops.ts`, `spec_sync.ts` |
 | Sign-in | `connect_gateway_modal.tsx`, `gateway_session.ts` |
