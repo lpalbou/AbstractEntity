@@ -186,6 +186,16 @@ try {
     await openChat(page);
     check("composer shows the microphone in an open visit", await page.locator('[data-voice="dictate"]').first().isVisible());
 
+    // The fixture gateway has no embedding route (503): the Cognitive Monitor
+    // says so in one sentence with the console link — never the raw JSON body.
+    const note = page.locator('[data-monitor-note="embeddings"]').first();
+    await note.waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
+    const noteText = ((await note.textContent().catch(() => "")) || "").trim();
+    check("monitor: embeddings missing reads as one sentence", noteText.startsWith("Embeddings are not configured on this gateway, so the cognitive monitor cannot run."), noteText.slice(0, 160));
+    const setupHref = (await note.locator("a").getAttribute("href").catch(() => "")) || "";
+    check("monitor: links to the console's embedding route setup", setupHref.endsWith("/console#defaults"), setupHref);
+    check("no raw {\"detail\": …} body anywhere on the page", !((await page.locator("body").innerText()) || "").includes('{"detail"'));
+
     // Speak a reply: the entity lane, no voice field, sentence segments, Stop.
     const speak = page.getByRole("button", { name: "Speak (TTS)" }).last();
     await speak.click();

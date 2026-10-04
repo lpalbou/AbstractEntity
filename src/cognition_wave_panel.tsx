@@ -27,6 +27,8 @@ import { AfCognitionBloom } from "@abstractframework/ui-kit";
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
 import { evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
+import { isEmbeddingsUnconfigured } from "./stream_source";
+import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
 // The frozen basis is ~190 KB of numbers; lazy-load it so opening the Wave
@@ -56,7 +58,8 @@ type Phase =
   | { name: "scoring" }
   | { name: "ready"; samples: ScoredSample[]; warnings: string[] }
   | { name: "empty"; warnings: string[] }
-  | { name: "error"; message: string; warnings: string[] };
+  | { name: "error"; message: string; warnings: string[] }
+  | { name: "unconfigured"; message: string };
 
 const FRAMING = "This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm.";
 
@@ -121,7 +124,8 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
       if (res.samples.length === 0) setPhase({ name: "empty", warnings: res.warnings });
       else setPhase({ name: "ready", samples: res.samples, warnings: res.warnings });
     } catch (e) {
-      setPhase({ name: "error", message: (e as Error).message, warnings: (e as { warnings?: string[] }).warnings ?? [] });
+      if (isEmbeddingsUnconfigured(e)) setPhase({ name: "unconfigured", message: e.message });
+      else setPhase({ name: "error", message: (e as Error).message, warnings: (e as { warnings?: string[] }).warnings ?? [] });
     } finally {
       scoringRef.current = false;
     }
@@ -204,6 +208,11 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
         <p className="cw_note">
           No readable utterances yet — the wave fills as he speaks (visit replies, diary entries, reflections).
           {phase.warnings.length ? <span className="cw_warn"> {phase.warnings[0]}</span> : null}
+        </p>
+      ) : null}
+      {phase.name === "unconfigured" ? (
+        <p className="cw_note cw_note_error">
+          <EmbeddingsUnconfiguredNote baseUrl={source?.baseUrl ?? ""} message={phase.message} className="" />
         </p>
       ) : null}
       {phase.name === "error" ? (

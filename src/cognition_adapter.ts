@@ -25,7 +25,7 @@
  *   scores-only.
  */
 
-import { embedTexts } from "./stream_source";
+import { embedTexts, isEmbeddingsUnconfigured } from "./stream_source";
 import type { FoldState } from "./stream_fold";
 import { harvestCorpus, type HarvestOptions, type Utterance } from "./utterance_harvest";
 
@@ -120,6 +120,8 @@ export async function scoreEntityUtterances(
         continue;
       }
     } catch (e) {
+      // No embedding route at all: every batch would fail the same way.
+      if (isEmbeddingsUnconfigured(e)) throw e;
       warnings.push(`#FALLBACK embed batch ${i}-${i + batch.length} failed: ${(e as Error).message}`);
       continue;
     }

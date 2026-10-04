@@ -21,7 +21,7 @@
  * pre-sign-in 401 must not poison the session).
  */
 
-import { gatewayReadHeaders, proxyCsrfToken } from "./stream_source";
+import { gatewayReadHeaders, proxyCsrfToken, refusalDetail } from "./stream_source";
 import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 const SESSION_ID = "session_memory_entity_docsqa";
@@ -103,7 +103,7 @@ export function makeEntityAssistant(baseUrl: string | null, token: string | null
       return "The docs assistant isn't wired on this gateway yet (its chat endpoint needs a docs-qa session run). Nothing to answer from — I won't guess.";
     }
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
+      const detail = refusalDetail(await res.text().catch(() => ""));
       return `The docs assistant call failed (HTTP ${res.status}). ${detail.slice(0, 200)}`.trim();
     }
     const data = (await res.json()) as { answer?: string };

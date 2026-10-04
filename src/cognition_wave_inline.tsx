@@ -28,7 +28,8 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { BloomAxisOverlay, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
-import { embedTexts, fetchEntityEmbedding } from "./stream_source";
+import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
+import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
 
 async function loadBasis(): Promise<FrozenBasis> {
@@ -90,6 +91,35 @@ export interface CognitionWaveInlineProps {
   tools?: ConductToolCall[] | null;
 }
 
+/** "Embeddings are not configured on this gateway, …" + the console page that sets the route.
+ * Behind the app's proxy (`baseUrl` = "") the console lives on the proxied
+ * gateway, whose address the proxy's connection status names. */
+export function EmbeddingsUnconfiguredNote({ baseUrl, message, className = "cm_err" }: { baseUrl: string; message: string; className?: string }): React.ReactElement {
+  const [proxied, setProxied] = useState("");
+  useEffect(() => {
+    if (baseUrl.trim()) return;
+    let alive = true;
+    void proxyConnectionStatus().then((s) => alive && setProxied(s.gatewayUrl.trim()));
+    return () => {
+      alive = false;
+    };
+  }, [baseUrl]);
+  const gateway = baseUrl.trim() || proxied;
+  return (
+    <span className={className} data-monitor-note="embeddings">
+      {message}
+      {gateway ? (
+        <>
+          {" "}
+          <a href={embeddingsSetupUrl(gateway)} target="_blank" rel="noreferrer">
+            Set up embeddings
+          </a>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, focusAt, effort, effortKey, tools }: CognitionWaveInlineProps): React.ReactElement | null {
   const scorerRef = useRef<VendorScorer | null>(null);
   const embedderRef = useRef<string | null>(null);
@@ -100,7 +130,7 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
   /** Sticky: a KNOWN pin↔basis mismatch never retries. */
   const mismatchRef = useRef(false);
 
-  const [status, setStatus] = useState<"idle" | "scoring" | "live" | "error" | "unavailable">("idle");
+  const [status, setStatus] = useState<"idle" | "scoring" | "live" | "error" | "unavailable" | "unconfigured">("idle");
   const [note, setNote] = useState<string | null>(null);
   const [current, setCurrent] = useState<ScoredText | null>(null);
   const [folded, setFolded] = useState<boolean>(() => {
@@ -273,9 +303,12 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
         if (cancelled) return;
         if ((e as { mismatch?: boolean }).mismatch) {
           setStatus("unavailable");
+        } else if (isEmbeddingsUnconfigured(e)) {
+          setStatus("unconfigured");
+          setNote(e.message);
         } else {
           setStatus("error");
-          setNote((e as Error).message.slice(0, 80));
+          setNote((e as Error).message);
         }
       } finally {
         inflightRef.current.delete(shownText);
@@ -325,6 +358,8 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
         {status === "scoring" ? <span className="cm_reading">reading…</span> : null}
         {status === "error" ? <span className="cm_err">{note || "unavailable"}</span> : null}
       </div>
+      {/* Its own full-width line under the header (never squeezed into the title row). */}
+      {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err cm_note_line" /> : null}
 
       {!folded ? (
         // TWO WIDGETS SIDE BY SIDE (operator 2026-07-15 23:41/23:50):

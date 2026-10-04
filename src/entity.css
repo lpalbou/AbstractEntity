@@ -329,6 +329,15 @@ body {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: color-mix(in srgb, var(--scar) 60%, var(--text));
 }
+/* A refusal sentence wraps on words; it is never cut at the panel edge. */
+.cm_err[data-monitor-note] {
+  white-space: normal;
+}
+.cm_note_line {
+  display: block;
+  padding: 2px 4px 4px 26px;
+  line-height: 1.4;
+}
 /* COMPACT two-slot row (operator 2026-07-15 23:41: "terrible usage of
  * vertical space"; 23:50: "2 side-by-side") — interpretation sentence,
  * right-hand legend and the effort fact-card are all GONE; the row holds

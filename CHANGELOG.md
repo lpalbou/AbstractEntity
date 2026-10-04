@@ -18,6 +18,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
   is not offered: the entity always speaks with its own voice. Needs ui-kit 0.7.1 and AbstractGateway
   with `GET /api/gateway/voice/defaults`.
 
+### Fixed
+
+- **Cognitive Monitor: no raw JSON.** A gateway without an embedding route used to print a cut-off
+  `{"detail":"Embeddings are not available…` in the monitor header. It now reads "Embeddings are
+  not configured on this gateway, so the cognitive monitor cannot run." on its own line, with a
+  **Set up embeddings** link to the gateway console's Multimodal page (`/console#defaults`). Every
+  other gateway refusal in the app (record and diary reads, state, uploads, the docs assistant)
+  shows the refusal's `detail` sentence, never the JSON body.
+
 ### Changed
 
 - **Speaking a reply stops for real**: **Stop** now aborts the streaming request (before, playback

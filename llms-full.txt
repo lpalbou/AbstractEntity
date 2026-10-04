@@ -432,6 +432,13 @@ The test suite pins these:
   every ingest boundary and each envelope is folded under its own guard.
 - **Embedding spaces are never crossed silently.** The cognition wave scores
   only with the entity's own embedder; a mismatch is refused with a message.
+- **A refusal is a sentence, never a JSON body.** Every gateway refusal shows
+  its `detail` (`refusalDetail`), never the raw `{"detail": …}` text. A gateway
+  with no embedding route (503 on `POST /embeddings`) gives the Cognitive
+  Monitor one line — "Embeddings are not configured on this gateway, so the
+  cognitive monitor cannot run." — and a **Set up embeddings** link to the
+  gateway console's Multimodal page (`/console#defaults`, on the proxied
+  gateway when the app runs behind its proxy).
 
 ## Serving
 
@@ -565,7 +572,7 @@ of invented data.
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
-| Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+| Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
 Voice uses the same gateway routes and ui-kit components as AbstractCode:
 

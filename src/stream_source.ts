@@ -300,7 +300,7 @@ export async function fetchRecordVerbatim(baseUrl: string, entity: string, graph
   const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/records/${encodeURIComponent(graphId)}/verbatim`);
   const res = await fetch(url, { credentials: "include", headers: readHeaders({ Accept: "application/json" }) });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = refusalDetail(await res.text().catch(() => ""));
     const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
     err.status = res.status;
     throw err;
@@ -349,7 +349,7 @@ export async function fetchDiaryEntry(baseUrl: string, entity: string, entryId: 
   const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/diary/${encodeURIComponent(entryId)}?reason=${encodeURIComponent(reason)}`);
   const res = await fetch(url, { credentials: "include", headers: readHeaders({ Accept: "application/json" }) });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = refusalDetail(await res.text().catch(() => ""));
     const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
     err.status = res.status;
     throw err;
@@ -393,7 +393,7 @@ export async function postEntityState(
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = refusalDetail(await res.text().catch(() => ""));
     const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
     err.status = res.status;
     throw err;
@@ -504,7 +504,10 @@ export async function embedTexts(baseUrl: string, texts: string[], model?: strin
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    // 503 = the gateway has no embedding route configured: one sentence and
+    // the console page that fixes it, never the raw refusal body.
+    if (res.status === 503) throw embeddingsUnconfiguredError();
+    const detail = refusalDetail(await res.text().catch(() => ""));
     const err = new Error(detail || `embeddings: HTTP ${res.status}`) as Error & { status?: number };
     err.status = res.status;
     throw err;
@@ -728,7 +731,7 @@ async function getJson<T>(url: string): Promise<T> {
     clearTimeout(timer);
   }
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = refusalDetail(await res.text().catch(() => ""));
     const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
     err.status = res.status;
     throw err;
@@ -750,7 +753,7 @@ async function putJson<T>(url: string, body: unknown, token: string | null): Pro
       detail = d == null ? "" : typeof d === "string" ? d : JSON.stringify(d);
       if (data.reason_code && !detail.includes(String(data.reason_code))) detail = `${detail} [reason_code=${String(data.reason_code)}]`.trim();
     } catch {
-      detail = await res.text().catch(() => "");
+      detail = refusalDetail(await res.text().catch(() => ""));
     }
     const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
     err.status = res.status;
@@ -1017,7 +1020,7 @@ async function postJson<T>(url: string, body: unknown, token: string | null, tim
   try {
     const res = await fetch(url, { credentials: "include", method: "POST", headers: authHeaders(token), body: JSON.stringify(body), signal: controller.signal });
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
+      const detail = refusalDetail(await res.text().catch(() => ""));
       const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
       err.status = res.status;
       throw err;
@@ -1948,6 +1951,25 @@ export async function transcribeAudio(
 }
 
 /** The `detail` of a FastAPI refusal body (`{"detail": "STT failed: …"}`), else the text as is. */
+/** Shown when the gateway answers 503 on `/embeddings` (no embedding route set). */
+export const EMBEDDINGS_UNCONFIGURED = "Embeddings are not configured on this gateway, so the cognitive monitor cannot run.";
+
+/** The gateway console page where the embedding route is set (Multimodal → `#defaults`). */
+export function embeddingsSetupUrl(baseUrl: string): string {
+  return joinBaseUrl(baseUrl, "console#defaults");
+}
+
+export type EmbeddingsUnconfigured = Error & { status: number; unconfigured: true };
+
+export function embeddingsUnconfiguredError(): EmbeddingsUnconfigured {
+  return Object.assign(new Error(EMBEDDINGS_UNCONFIGURED), { status: 503, unconfigured: true as const });
+}
+
+export function isEmbeddingsUnconfigured(e: unknown): e is EmbeddingsUnconfigured {
+  return Boolean(e && typeof e === "object" && (e as { unconfigured?: unknown }).unconfigured === true);
+}
+
+/** The gateway's refusal as a sentence: `{"detail": …}` bodies give their detail, never raw JSON. */
 export function refusalDetail(text: string): string {
   try {
     const d = (JSON.parse(text) as { detail?: unknown }).detail;

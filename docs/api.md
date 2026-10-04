@@ -93,7 +93,7 @@ of invented data.
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
-| Other | `POST /embeddings` (cognition wave), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+| Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
 Voice uses the same gateway routes and ui-kit components as AbstractCode:
 

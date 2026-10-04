@@ -146,6 +146,13 @@ The test suite pins these:
   every ingest boundary and each envelope is folded under its own guard.
 - **Embedding spaces are never crossed silently.** The cognition wave scores
   only with the entity's own embedder; a mismatch is refused with a message.
+- **A refusal is a sentence, never a JSON body.** Every gateway refusal shows
+  its `detail` (`refusalDetail`), never the raw `{"detail": …}` text. A gateway
+  with no embedding route (503 on `POST /embeddings`) gives the Cognitive
+  Monitor one line — "Embeddings are not configured on this gateway, so the
+  cognitive monitor cannot run." — and a **Set up embeddings** link to the
+  gateway console's Multimodal page (`/console#defaults`, on the proxied
+  gateway when the app runs behind its proxy).
 
 ## Serving
 
