@@ -106,7 +106,7 @@ describe("Voice: the kit's voice picker, Gateway default voice first", () => {
 
   it("shows the gateway default as the current value; its own voice as the override", () => {
     expect(voiceValueOf(unset)).toEqual({});
-    expect(voiceDefaultHint(unset)).toBe("Gateway default: supertonic · F1.");
+    expect(voiceDefaultHint(unset)).toBe("Gateway default · supertonic / supertonic-3 · F1");
     expect(voiceValueOf(own)).toEqual({ provider: "supertonic", model: "supertonic-3", voice: "M2" });
     expect(voiceDefaultHint(own)).toBeUndefined();
     const html = renderToStaticMarkup(
@@ -121,7 +121,7 @@ describe("Voice: the kit's voice picker, Gateway default voice first", () => {
         voiceDefaultLabel="Gateway default voice"
       />,
     );
-    expect(html).toContain("Gateway default: supertonic · F1.");
+    expect(html).toContain("Gateway default · supertonic / supertonic-3 · F1");
     expect(html).toContain("Gateway default voice");
     expect(html).not.toContain("Speaking speed");
     expect(html).not.toContain("Speech is generated");

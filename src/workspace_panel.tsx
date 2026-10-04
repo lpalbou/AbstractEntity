@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { authRefusedMsg } from "./gateway_session";
 import { EntityMindPicker, EntityVoicePicker, substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
+import { ListenerVoiceSettings } from "./entity_voice";
 import { AfSwitch, PhaseCapabilityMatrix } from "@abstractframework/ui-kit";
 
 import {
@@ -227,11 +228,13 @@ function MindTab({
 
 // ------------------------------------------------------------------ voice
 
-/** The entity's voice: the kit's shared voice picker (mind_voice_settings). */
+/** The entity's voice (the kit's shared voice picker, mind_voice_settings) above the listener's own
+ * playback/microphone settings (the kit's AfVoiceSection, entity_voice.tsx). */
 function VoiceTab({ baseUrl, entity, token }: { baseUrl: string; entity: string; token: string | null }): React.ReactElement {
   return (
     <div className="wsp_voice">
       <EntityVoicePicker baseUrl={baseUrl} entity={entity} token={token} />
+      <ListenerVoiceSettings baseUrl={baseUrl} />
     </div>
   );
 }

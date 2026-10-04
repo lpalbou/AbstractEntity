@@ -15,7 +15,7 @@
  */
 
 import type { ReplayEnvelope } from "./stream_types";
-import { joinBaseUrl } from "@abstractframework/ui-kit";
+import { joinBaseUrl, type VoiceDefaults } from "@abstractframework/ui-kit";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
  * cannot be trusted (code adversary F1/F3): the fold runs in the render
@@ -1885,6 +1885,78 @@ export function getVoiceCatalog(baseUrl: string, provider?: string, model?: stri
   if (provider) q.set("provider", provider);
   if (model) q.set("model", model);
   return getJson(joinBaseUrl(baseUrl, `api/gateway/voice/voices?${q}`));
+}
+
+// ------------------------------------------------------- listening (R7.1)
+// The gateway's ONE voice answer and the dictation transport — the same
+// routes Code web uses: GET voice/defaults (what "Gateway default · …"
+// names), POST attachments/upload (the recording, into a session scope),
+// POST runs/{run}/audio/transcribe (the gateway default STT route unless
+// the listener chose another).
+
+/** `GET /api/gateway/voice/defaults` — the configured output.voice / input.voice routes. */
+export function getVoiceDefaults(baseUrl: string): Promise<VoiceDefaults> {
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/voice/defaults`));
+}
+
+/** Upload a recording into `sessionId`'s scope; the answer names the owner run it landed in. */
+export async function uploadSessionAudio(
+  baseUrl: string,
+  sessionId: string,
+  file: File,
+  token: string | null,
+): Promise<{ run_id: string; attachment: Record<string, unknown> }> {
+  const headers = authHeaders(token);
+  delete headers["Content-Type"]; // the browser sets the multipart boundary
+  const form = new FormData();
+  form.set("session_id", sessionId);
+  form.set("file", file, file.name);
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/attachments/upload`), { credentials: "include", method: "POST", headers, body: form });
+  if (!res.ok) {
+    const detail = refusalDetail(await res.text().catch(() => ""));
+    const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  const data = (await res.json()) as { run_id?: string; attachment?: Record<string, unknown>; artifact?: Record<string, unknown> };
+  const attachment = data.attachment || data.artifact;
+  if (!data.run_id || !attachment) throw new Error("the gateway stored the recording without naming where");
+  return { run_id: data.run_id, attachment };
+}
+
+export interface TranscriptionResult {
+  text?: string;
+  provider?: string | null;
+  model?: string | null;
+  duration_ms?: number;
+}
+
+/** `POST /runs/{run}/audio/transcribe`; a gateway that never answers fails as a sentence after `timeoutMs`. */
+export async function transcribeAudio(
+  baseUrl: string,
+  runId: string,
+  body: Record<string, unknown>,
+  token: string | null,
+  timeoutMs: number,
+): Promise<TranscriptionResult> {
+  try {
+    return await postJson<TranscriptionResult>(joinBaseUrl(baseUrl, `api/gateway/runs/${encodeURIComponent(runId)}/audio/transcribe`), body, token, timeoutMs);
+  } catch (e) {
+    if ((e as Error).name === "AbortError") throw new Error(`the gateway did not answer within ${Math.round(timeoutMs / 1000)} s`);
+    throw new Error(refusalDetail((e as Error).message));
+  }
+}
+
+/** The `detail` of a FastAPI refusal body (`{"detail": "STT failed: …"}`), else the text as is. */
+export function refusalDetail(text: string): string {
+  try {
+    const d = (JSON.parse(text) as { detail?: unknown }).detail;
+    if (typeof d === "string" && d) return d;
+    if (d && typeof d === "object") return String((d as { message?: unknown }).message || JSON.stringify(d));
+  } catch {
+    /* plain text */
+  }
+  return text;
 }
 
 /** Discovery for the shared route picker (the same endpoints Code web reads). */

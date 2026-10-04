@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ProviderModelPicker,
   VoiceSettings,
+  voiceRouteText,
   type ProviderModelPickerValue,
   type VoicePreferences,
 } from "@abstractframework/ui-kit";
@@ -186,7 +187,8 @@ export function voiceSaveBody(next: VoicePreferences, hasOwn: boolean): VoiceSav
 export function voiceDefaultHint(v: EntityVoiceChoice | null): string | undefined {
   if (v?.provider) return undefined;
   const eff = v?.effective;
-  if (eff?.provider) return `Gateway default: ${eff.provider} · ${eff.voice || "the provider's default voice"}.`;
+  // The kit's wording ("Gateway default · supertonic / supertonic-3"), plus the voice id the route names.
+  if (eff?.provider) return `Gateway default · ${voiceRouteText(eff)} · ${eff.voice || "the engine's default voice"}`;
   return v?.note || "No gateway default voice is set, so the speech engine decides.";
 }
 

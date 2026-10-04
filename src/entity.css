@@ -6499,3 +6499,39 @@ body {
 .wsp_mind_history > summary {
   cursor: pointer;
 }
+
+/* ------------------------------------------- voice in a visit (R7.1) */
+/* Settings → voice: the listener half is the kit's AfVoiceSection. Its
+ * text→speech override row is not offered: the entity speaks with its own
+ * voice (the picker above). */
+.ent_listener_voice {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #24304a);
+  min-width: 0;
+}
+.ent_listener_voice .af-override[data-setting="tts"] {
+  display: none;
+}
+.wsp_listener_head {
+  margin: 0 0 4px;
+  font-size: max(calc(14px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+}
+.ent_listener_voice .wsp_note {
+  margin: 0 0 10px;
+  color: var(--text-dim);
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+/* Composer: microphone + "Transcribing… 12 s · faster-whisper / large-v3". */
+.cd_mic_btn[aria-pressed="true"] {
+  border-color: var(--ea-accent);
+  color: var(--ea-accent);
+}
+.cd_voice_status {
+  align-self: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}

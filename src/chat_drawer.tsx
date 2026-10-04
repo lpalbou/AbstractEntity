@@ -23,7 +23,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatComposer } from "@abstractframework/panel-chat";
-import { streamTtsJsonl, useGatewayVoice, joinBaseUrl } from "@abstractframework/ui-kit";
+import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
 import { CognitionWaveInline } from "./cognition_wave_inline";
@@ -37,7 +37,6 @@ import {
   isAsleepWakeRefusal,
   openVisit,
   postEntityState,
-  proxyCsrfToken,
   sendVisitTurn,
   visitBodyProblem,
   writeEntityWorkspaceFile,
@@ -57,6 +56,7 @@ import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import type { SubstrateChoice } from "./mind_voice_settings";
 import type { ReplayEnvelope } from "./stream_types";
 import { TurnDetailModal } from "./turn_detail_modal";
+import { VisitVoiceButtons, useEntityVoice, useVoiceDefaults, useVoicePreferences } from "./entity_voice";
 
 /** The reflection's visible acts in the live stream: every envelope past
  * the close-start seq, rendered as ledger lines, filtered to the tones
@@ -214,37 +214,27 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * adopted session, not once per status poll. */
   const rehydratedRef = useRef<Set<string>>(new Set());
 
-  /** Speaker control (operator item 3, c1216/c1239): streaming TTS through
-   * the gateway JSONL endpoint via uic's useGatewayVoice + streamTtsJsonl —
-   * plays on the first synthesized segment, pause/resume, stop aborts.
-   *
-   * Run scope: entity visits are hosted ChatSessions, NOT durable runs, so
-   * the visit's chat id is unknown to the gateway run store. The route
-   * auto-creates owner runs ONLY for `session_memory_*` ids (gateway c1220)
-   * — derive one from the chat id so synthesized-audio artifacts group per
-   * visit. Both postures speak: proxy rides cookies + the CSRF twin;
-   * direct-bearer rides Authorization through the kit's headers passthrough
-   * (uic folded it on this seat's c1242 flag).
-   */
-  const ttsStream = useMemo(() => {
-    if (!runId) return undefined;
-    // The entity-owned TTS lane (gateway dm#10 ship, c2981 ask 2): the
-    // door resolves HIS voice server-side (home voice.yaml triple,
-    // late-bound; X-Voice-Source names the source) — the old
-    // session_memory_visit_ run-scope workaround retires with it.
-    return (text: string) =>
-      streamTtsJsonl({
-        path: joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/voice/tts/stream`),
-        body: { text, format: "wav" },
-        csrfToken: proxyCsrfToken() ?? undefined,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-  }, [token, runId, baseUrl, entity]);
-  const voice = useGatewayVoice({
-    tts_stream: ttsStream,
+  /** Voice (round 7 R7.1): speak and dictate through the kit hook and the
+   * gateway's voice routes (entity_voice.tsx). Speaking rides the
+   * entity-owned TTS lane — the door resolves HIS voice server-side (his
+   * own choice, else the gateway's output.voice default; X-Voice-Source
+   * names which) and streams it sentence by sentence; Stop aborts the
+   * request. Dictation uploads the recording into his voice scope and
+   * transcribes it with the gateway default STT route (or the listener's
+   * choice in Settings → voice). Both postures speak: proxy rides cookies +
+   * the CSRF twin; direct-bearer rides Authorization. */
+  const [voicePrefs] = useVoicePreferences();
+  const voiceDefaults = useVoiceDefaults(baseUrl);
+  const voice = useEntityVoice({
+    baseUrl,
+    entity,
+    token,
+    active: Boolean(runId),
+    prefs: voicePrefs,
+    onTranscript: (text) => setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
     // The hook clears errors with ""; only real messages reach the note line.
-    on_error: (m) => {
-      if (m) setNote(`Speech failed: ${m}`);
+    onError: (m) => {
+      if (m) setNote(m);
     },
   });
   const { stop_tts } = voice;
@@ -260,8 +250,13 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   // A closed room must fall silent: runId flips to null on close/switch and
   // any buffered playback for the previous visit stops. Deps: runId ONLY —
   // stop_tts identity churns per render (see storm note above).
+  const cancelRecordingRef = useRef(voice.cancel_voice_ptt_recording);
+  cancelRecordingRef.current = voice.cancel_voice_ptt_recording;
   useEffect(() => {
-    if (!runId) stopTtsRef.current();
+    if (!runId) {
+      stopTtsRef.current();
+      cancelRecordingRef.current?.(); // a dictation for a closed room is dropped
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
@@ -289,6 +284,24 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   /** Turns lived in THIS thread (the one being lived counts — its user
    * message is already pushed when the wait begins). */
   const turnCount = useMemo(() => messages.filter((m) => m.role === "user").length, [messages]);
+
+  /** Read aloud (Settings → voice): each NEW reply in this visit is spoken
+   * in his voice. Replies already on screen when the visit (re)opens are
+   * not — only what arrives after. */
+  const latestSpoken = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant" && m.content.trim()), [messages]);
+  const latestReplyId = latestSpoken ? String(latestSpoken.id) : "";
+  const readAloudSeen = useRef<{ run: string | null; id: string }>({ run: null, id: "" });
+  useEffect(() => {
+    const seen = readAloudSeen.current;
+    if (seen.run !== runId) {
+      readAloudSeen.current = { run: runId, id: latestReplyId };
+      return;
+    }
+    if (!latestReplyId || latestReplyId === seen.id) return;
+    readAloudSeen.current = { run: runId, id: latestReplyId };
+    if (voicePrefs.read_aloud === true && voice.tts_supported && latestSpoken) void voice.toggle_tts(latestReplyId, latestSpoken.content);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, latestReplyId, voicePrefs.read_aloud, voice.tts_supported]);
 
   const push = useCallback((msg: Omit<DrawerMessage, "id">) => {
     idRef.current += 1;
@@ -1218,6 +1231,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
                 >
                   {uploading ? "…" : "📎"}
                 </button>
+                {runId ? <VisitVoiceButtons voice={voice} route={sttRouteText(voicePrefs, voiceDefaults.value)} disabled={busy === "closing"} /> : null}
                 <button className="cd_attach_btn" onClick={() => void copyVisit()} title="Copy the full visit verbatim to the clipboard (every voice + tools, for debugging)">
                   ⧉
                 </button>
