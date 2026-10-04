@@ -55,18 +55,20 @@ entity** shortcut needs AbstractGateway 0.4.1 or newer.
 
 ## How do I see which versions I am running?
 
-Open **About** (the info button at the top right). It shows the app's name and
-version, the AbstractFramework website, author and licence, and links to the
-source, documentation, issue tracker and feedback. Each time the dialog opens,
-the app asks the connected gateway for its versions (`GET /api/gateway/about`):
+Open **About** (the info button at the top right). It is one short card: the
+app's name and version, the **AbstractFramework** and **AbstractGateway**
+versions, links to the website, source, documentation, issue tracker, feedback
+and contact, and the author and licence line. It does not list packages. Each
+time the card opens, the app asks the connected gateway for its versions
+(`GET /api/gateway/about`); the AbstractGateway line reads:
 
-- **Gateway: checking…** while the answer is on its way;
-- **Gateway: AbstractGateway X.Y.Z**, **Gateway framework** and one
-  **Gateway package** row per package the gateway reports;
-- **Gateway: unavailable (reason)** when the gateway cannot answer, for example
+- **checking…** while the answer is on its way;
+- the version, for example **0.12.0**, once the gateway answers (the
+  AbstractFramework line then shows the framework installed on the gateway
+  host, or says it is not installed there);
+- **unavailable (reason)** when the gateway cannot answer, for example
   `unavailable (HTTP 404)`;
-- **Gateway: not connected** when the app shows the demo life or a `?src=`
-  stream.
+- **not connected** when the app shows the demo life or a `?src=` stream.
 
 The app's version is the `@abstractframework/entity` package version, fixed at
 build time.

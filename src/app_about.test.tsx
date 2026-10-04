@@ -1,6 +1,8 @@
 /**
- * The About dialog: build-time version, descriptor identity, the top-bar
- * About action, the dialog rows, and the gateway versions read on open.
+ * The About dialog (kit 0.7.0 compact card): build-time version, descriptor
+ * identity, the top-bar About action, the card content (name + version,
+ * framework + gateway versions, six links, licence line, NO package list),
+ * and the gateway versions read on open.
  * No DOM in this package's tests (see roster_empty.test.tsx), so the kit
  * components render with react-dom/server.
  */
@@ -12,19 +14,19 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { AfAboutDialog, AfTopBarActions, gatewayVersionRows } from "@abstractframework/ui-kit";
+import { AfAboutDialog, AfTopBarActions, aboutVersionsFromGateway, frameworkIdentity } from "@abstractframework/ui-kit";
 
-import { APP_VERSION, ENTITY_IDENTITY, loadGatewayAboutRows, resolveAppVersion } from "./app_about";
+import { ABOUT_NOT_CONNECTED, APP_VERSION, ENTITY_IDENTITY, loadGatewayAboutVersions, resolveAppVersion } from "./app_about";
 import { ENTITY_DOCS_URL } from "./entities_index";
 
 const ROOT = resolve(__dirname, "..");
 const PKG = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8")) as { version: string };
 
-// Wrap the kit's formatter (behaviour unchanged) so the tests can prove the
-// gateway rows come from it and not from a local copy.
+// Wrap the kit's reducer (behaviour unchanged) so the tests can prove the
+// versions come from it and not from a local copy.
 vi.mock("@abstractframework/ui-kit", async (importOriginal) => {
   const kit = await importOriginal<typeof import("@abstractframework/ui-kit")>();
-  return { ...kit, gatewayVersionRows: vi.fn(kit.gatewayVersionRows) };
+  return { ...kit, aboutVersionsFromGateway: vi.fn(kit.aboutVersionsFromGateway) };
 });
 
 function jsonResponse(body: unknown, status = 200, contentType = "application/json"): Response {
@@ -75,7 +77,7 @@ describe("top-bar About action", () => {
   it("renders an About button when the about prop is given", () => {
     const html = renderToStaticMarkup(
       <AfTopBarActions
-        about={{ identity: ENTITY_IDENTITY, extraRows: [], onOpen: () => undefined }}
+        about={{ identity: ENTITY_IDENTITY, versions: ABOUT_NOT_CONNECTED, onOpen: () => undefined }}
         connection={{ phase: "disconnected", onConnect: () => undefined, onDisconnect: () => undefined }}
       />,
     );
@@ -100,8 +102,7 @@ describe("top-bar About action", () => {
   });
 });
 
-describe("About dialog rows", () => {
-  let extraRows: Array<[string, string]> = [];
+describe("About card content", () => {
   let html = "";
   beforeAll(async () => {
     const fakeFetch = (async () =>
@@ -110,45 +111,38 @@ describe("About dialog rows", () => {
         abstractframework: "0.3.3",
         packages: { abstractgateway: "0.4.3", abstractcore: "2.15.2", abstractruntime: "0.4.33" },
       })) as unknown as typeof fetch;
-    extraRows = await loadGatewayAboutRows("", fakeFetch);
-    html = renderToStaticMarkup(
-      <AfAboutDialog open onClose={() => undefined} identity={ENTITY_IDENTITY} extraRows={extraRows} />,
-    );
+    const versions = await loadGatewayAboutVersions("", fakeFetch);
+    html = renderToStaticMarkup(<AfAboutDialog open onClose={() => undefined} identity={ENTITY_IDENTITY} versions={versions} />);
   });
 
   it("names the app and its version", () => {
-    expect(html).toContain("About AbstractEntity");
-    expect(html).toContain(`AbstractEntity ${PKG.version}`);
+    expect(html).toContain(`AbstractEntity <span class="af-about-card__version">${PKG.version}</span>`);
   });
 
-  it("states the framework website and the author", () => {
-    expect(html).toContain('AbstractFramework — <a class="af-about__link" href="https://abstractframework.ai"');
-    expect(html).toContain("Laurent-Philippe Albou, PhD (2023-2026)");
+  it("states the framework and gateway versions", () => {
+    expect(html).toContain("<dt>AbstractFramework</dt><dd>0.3.3</dd>");
+    expect(html).toContain("<dt>AbstractGateway</dt><dd>0.4.3</dd>");
   });
 
-  it("links the framework website, then website, source, documentation, issues and feedback in a new tab", () => {
-    const links = [...html.matchAll(/<a class="af-about__link" href="([^"]+)" target="_blank" rel="noopener noreferrer">/g)].map(
-      (m) => m[1],
-    );
+  it("links website, source, docs, issues and feedback in a new tab, then contact by mail", () => {
+    const links = [...html.matchAll(/data-link="([a-z]+)" href="([^"]+)"/g)].map((m) => [m[1], m[2]]);
     expect(links).toEqual([
-      "https://abstractframework.ai",
-      ENTITY_IDENTITY.website,
-      ENTITY_IDENTITY.repo,
-      ENTITY_IDENTITY.docs,
-      ENTITY_IDENTITY.issues,
-      ENTITY_IDENTITY.feedback,
+      ["website", ENTITY_IDENTITY.website],
+      ["source", ENTITY_IDENTITY.repo],
+      ["docs", ENTITY_IDENTITY.docs],
+      ["issues", ENTITY_IDENTITY.issues],
+      ["feedback", ENTITY_IDENTITY.feedback],
+      ["contact", `mailto:${frameworkIdentity().contact_email}`],
     ]);
+    expect((html.match(/target="_blank" rel="noopener noreferrer"/g) || []).length).toBe(5);
   });
 
-  it("appends the gateway versions after the standard rows", () => {
-    expect(extraRows).toEqual([
-      ["Gateway", "AbstractGateway 0.4.3"],
-      ["Gateway framework", "AbstractFramework 0.3.3"],
-      ["Gateway package abstractcore", "2.15.2"],
-      ["Gateway package abstractruntime", "0.4.33"],
-    ]);
-    expect(html.indexOf("Give feedback")).toBeLessThan(html.indexOf("Gateway framework"));
-    expect(html).toContain("Gateway package abstractruntime");
+  it("carries the author/licence line", () => {
+    expect(html).toContain(frameworkIdentity().copyright.replace(/&/g, "&amp;"));
+  });
+
+  it("never lists packages", () => {
+    for (const s of ["abstractcore", "abstractruntime", "2.15.2", "0.4.33", "Gateway package"]) expect(html).not.toContain(s);
   });
 });
 
@@ -159,9 +153,9 @@ describe("gateway versions (read on open)", () => {
       calls.push({ url, init });
       return jsonResponse({ abstractframework: null, abstractgateway: "0.4.3", packages: { abstractcore: "2.15.2" } });
     }) as unknown as typeof fetch;
-    vi.mocked(gatewayVersionRows).mockClear();
-    const rows = await loadGatewayAboutRows("http://127.0.0.1:8080/", fakeFetch);
-    expect(vi.mocked(gatewayVersionRows)).toHaveBeenCalledWith({
+    vi.mocked(aboutVersionsFromGateway).mockClear();
+    const v = await loadGatewayAboutVersions("http://127.0.0.1:8080/", fakeFetch);
+    expect(vi.mocked(aboutVersionsFromGateway)).toHaveBeenCalledWith({
       abstractframework: null,
       abstractgateway: "0.4.3",
       packages: { abstractcore: "2.15.2" },
@@ -169,11 +163,7 @@ describe("gateway versions (read on open)", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe("http://127.0.0.1:8080/api/gateway/about");
     expect(calls[0].init?.credentials).toBe("include");
-    expect(rows).toEqual([
-      ["Gateway", "AbstractGateway 0.4.3"],
-      ["Gateway framework", "not installed on the gateway host"],
-      ["Gateway package abstractcore", "2.15.2"],
-    ]);
+    expect(v).toEqual({ framework: null, gateway: "0.4.3", frameworkNote: "not installed on the gateway host" });
   });
 
   it("uses the app base (a RELATIVE path) in the proxy posture", async () => {
@@ -182,33 +172,36 @@ describe("gateway versions (read on open)", () => {
       seen = url;
       return jsonResponse({ abstractframework: "0.3.3", abstractgateway: "0.4.3", packages: {} });
     }) as unknown as typeof fetch;
-    await loadGatewayAboutRows("", fakeFetch);
+    await loadGatewayAboutVersions("", fakeFetch);
     expect(seen).toBe("api/gateway/about");
   });
 
-  it("shows one row with the HTTP status when the gateway refuses", async () => {
+  it("says the HTTP status when the gateway refuses", async () => {
     const fakeFetch = (async () => jsonResponse({ detail: "nope" }, 404)) as unknown as typeof fetch;
-    vi.mocked(gatewayVersionRows).mockClear();
-    expect(await loadGatewayAboutRows("", fakeFetch)).toEqual([["Gateway", "unavailable (HTTP 404)"]]);
-    expect(vi.mocked(gatewayVersionRows)).toHaveBeenCalledWith(null, "HTTP 404");
+    vi.mocked(aboutVersionsFromGateway).mockClear();
+    expect((await loadGatewayAboutVersions("", fakeFetch)).gatewayNote).toBe("unavailable (HTTP 404)");
+    expect(vi.mocked(aboutVersionsFromGateway)).toHaveBeenCalledWith(null, "HTTP 404");
   });
 
-  it("shows one row with the error when the gateway is unreachable", async () => {
+  it("says the error when the gateway is unreachable", async () => {
     const fakeFetch = (async () => {
       throw new TypeError("Failed to fetch");
     }) as unknown as typeof fetch;
-    expect(await loadGatewayAboutRows("", fakeFetch)).toEqual([["Gateway", "unavailable (Failed to fetch)"]]);
+    expect((await loadGatewayAboutVersions("", fakeFetch)).gatewayNote).toBe("unavailable (Failed to fetch)");
   });
 
   it("does not mistake the app's own HTML page for a gateway", async () => {
     const fakeFetch = (async () => jsonResponse("<!doctype html>", 200, "text/html")) as unknown as typeof fetch;
-    expect(await loadGatewayAboutRows("", fakeFetch)).toEqual([["Gateway", "unavailable (not a gateway response)"]]);
+    expect((await loadGatewayAboutVersions("", fakeFetch)).gatewayNote).toBe("unavailable (not a gateway response)");
   });
 
   it("reports a body without the gateway version as unavailable", async () => {
     const fakeFetch = (async () => jsonResponse({ ok: true })) as unknown as typeof fetch;
-    expect(await loadGatewayAboutRows("", fakeFetch)).toEqual([
-      ["Gateway", "unavailable (the gateway did not report its version)"],
-    ]);
+    expect((await loadGatewayAboutVersions("", fakeFetch)).gatewayNote).toBe("unavailable (the gateway did not report its version)");
+  });
+
+  it("a page without a gateway says not connected", () => {
+    const html = renderToStaticMarkup(<AfAboutDialog open onClose={() => undefined} identity={ENTITY_IDENTITY} versions={ABOUT_NOT_CONNECTED} />);
+    expect(html).toContain("<dt>AbstractGateway</dt><dd>not connected</dd>");
   });
 });

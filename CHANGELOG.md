@@ -4,7 +4,13 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **About is the shared compact card** (ui-kit 0.7.0 `AfAboutDialog`): the app's name and version,
+  the AbstractFramework and AbstractGateway versions, the website, source, docs, issues, feedback
+  and contact links, and one author/licence line, at about half the old height. The per-package
+  version list is gone; a gateway that cannot answer still shows why, in place of its version.
+  Needs ui-kit 0.7.0.
 
 ## [0.6.0] - 2026-10-01
 

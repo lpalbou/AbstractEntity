@@ -90,8 +90,8 @@ same picture. See [Architecture](docs/architecture.md) for how this works.
 Without a reachable gateway the app opens a bundled demo life, so you can
 explore the memory graph offline.
 
-The **About** button in the top bar shows the app's version and the versions
-your gateway reports; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
+The **About** button in the top bar shows the app's version, the AbstractFramework
+and AbstractGateway versions your gateway reports, and the project links; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
 
 ## Responsive layout
 

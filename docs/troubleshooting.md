@@ -64,7 +64,7 @@ invented scores.
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
 
-## About shows "Gateway: unavailable (…)"
+## About shows "AbstractGateway: unavailable (…)"
 
 **Cause:** the app could not read `GET /api/gateway/about`. The reason in
 brackets tells you why: `HTTP 404` means the gateway does not serve the About
