@@ -21,9 +21,10 @@ npm run dev      # Vite dev server on :3007 with the gateway sign-in proxy
 ```bash
 npm test         # vitest
 npm run build    # tsc + vite build; must stay green
+npm run check:lock  # package-lock.json matches package.json (see Lockfile check)
 ```
 
-CI runs the same two steps.
+CI runs the same steps.
 
 To check the layout at phone, tablet and desktop sizes, open the app in your
 browser's device toolbar; the responsive rules are guarded by
@@ -37,6 +38,24 @@ only the speech and transcription routes, and fails on any broken step:
 ```bash
 node scripts/voice.e2e.mjs --app http://127.0.0.1:18736 --gateway http://127.0.0.1:18737 \
   [--playwright <dir with @playwright/test>] [--shots <dir>]
+```
+
+## Lockfile check
+
+`npm run check:lock` runs `scripts/check_lock.mjs`, and CI runs it before `npm ci`. It
+fails when `package-lock.json` lags `package.json` (the lock's root entry records a different
+dependency spec: `package.json` was edited without `npm install`), and when an
+`@abstractframework/*` dependency (`ui-kit`, `panel-chat`, `app-server`, `monitor-*`) is missing
+from the lock, resolves below the `package.json` floor or to another major.minor, comes from a
+local `file:` tarball, or has a nested copy that differs from the top-level one. Fix it with
+`npm install` (or `npm install @abstractframework/<name>@^<version>` to raise a floor) and commit
+both files.
+
+At release time, `npm run check:lock -- --latest` also fails when npm has a newer patch of an
+`@abstractframework/*` dependency than the lock resolves (needs the network).
+
+```bash
+npm run check:lock
 ```
 
 ## Guidelines
