@@ -1754,6 +1754,27 @@ export interface EntitySubstrate {
   note?: string;
 }
 
+/** `GET /entities/{name}/access` (gateway 0.14+, R16.5 "the creator configures their entity"):
+ * may the caller change its settings — an admin or the entity's creator — and the sentence when
+ * not. `null` = a gateway without the route (it still refuses a write with its own sentence). */
+export interface EntityAccess {
+  entity: string;
+  can_configure: boolean;
+  as: "admin" | "creator" | null;
+  reason: string | null;
+}
+
+export function getEntityAccess(baseUrl: string, entity: string): Promise<EntityAccess | null> {
+  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/access`), {
+    credentials: "include",
+    headers: gatewayReadHeaders({ Accept: "application/json" }),
+  }).then((res) => {
+    if (res.status === 404 || res.status === 405) return null; // older gateway
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json() as Promise<EntityAccess>;
+  });
+}
+
 export function getEntitySubstrate(baseUrl: string, entity: string): Promise<EntitySubstrate | null> {
   return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/substrate`), {
     credentials: "include",

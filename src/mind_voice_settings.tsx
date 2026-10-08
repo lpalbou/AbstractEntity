@@ -24,14 +24,50 @@ import {
   discoveryModelCapabilities,
   discoveryProviderModels,
   discoveryProviders,
+  getEntityAccess,
   getEntitySubstrate,
   getEntityVoice,
   getVoiceCatalog,
   putEntitySubstrate,
   putEntityVoice,
+  type EntityAccess,
   type EntitySubstrate,
   type EntityVoiceChoice,
 } from "./stream_source";
+
+// ------------------------------------------------------------- who may change it
+
+/** R16.5 (operator ruling 2026-10-08): an entity's mind and voice are changed by an admin or the
+ * entity's CREATOR — the gateway says which (`GET /entities/{name}/access`). `null` = the gateway
+ * has no access route (older): the controls stay live and a refused write shows the gateway's own
+ * sentence. The refusal sentence of someone who may not, else null. */
+export function accessRefusal(access: EntityAccess | null): string | null {
+  if (!access || access.can_configure) return null;
+  return access.reason || "Only an admin or the entity's creator can change its settings.";
+}
+
+function useEntityAccess(baseUrl: string, entity: string): { access: EntityAccess | null; error: string | null } {
+  const [state, setState] = useState<{ access: EntityAccess | null; error: string | null }>({ access: null, error: null });
+  useEffect(() => {
+    let alive = true;
+    getEntityAccess(baseUrl, entity)
+      .then((access) => alive && setState({ access, error: null }))
+      .catch((e: Error) => alive && setState({ access: null, error: `Who may change its settings could not be read: ${e.message}` }));
+    return () => {
+      alive = false;
+    };
+  }, [baseUrl, entity]);
+  return state;
+}
+
+/** The sentence line under a control the caller may not use (the kit tooltip carries it too). */
+function RefusalLine({ text }: { text: string }): React.ReactElement {
+  return (
+    <p className="wsp_status wsp_status_refused" role="note" data-af-tip={text} data-testid="entity-settings-refusal">
+      {text}
+    </p>
+  );
+}
 
 // ------------------------------------------------------------------ mind
 
@@ -96,6 +132,8 @@ export function EntityMindPicker({
   const [mind, setMind] = useState<EntitySubstrate | null>(null);
   const [value, setValue] = useState<ProviderModelPickerValue>({ provider: "", model: "" });
   const [status, setStatus] = useState<{ text: string; tone: "ok" | "error" | "" } | null>(null);
+  const { access, error: accessError } = useEntityAccess(baseUrl, entity);
+  const refused = accessRefusal(access) || accessError;
 
   useEffect(() => {
     let alive = true;
@@ -148,7 +186,9 @@ export function EntityMindPicker({
         fetchProviders={() => discoveryProviders(baseUrl)}
         fetchModels={(provider) => discoveryProviderModels(baseUrl, provider)}
         fetchModelCapabilities={(model, provider) => discoveryModelCapabilities(baseUrl, model, provider)}
+        disabled={Boolean(refused)}
       />
+      {refused ? <RefusalLine text={refused} /> : null}
       {status ? (
         <p className={`wsp_status${status.tone ? ` wsp_status_${status.tone}` : ""}`} role="status" aria-live="polite">
           {status.text}
@@ -196,6 +236,8 @@ export function EntityVoicePicker({ baseUrl, entity, token }: { baseUrl: string;
   const [current, setCurrent] = useState<EntityVoiceChoice | null>(null);
   const [value, setValue] = useState<VoicePreferences>({});
   const [status, setStatus] = useState<{ text: string; tone: "ok" | "error" | "" } | null>(null);
+  const { access, error: accessError } = useEntityAccess(baseUrl, entity);
+  const refused = accessRefusal(access) || accessError;
 
   useEffect(() => {
     let alive = true;
@@ -245,6 +287,15 @@ export function EntityVoicePicker({ baseUrl, entity, token }: { baseUrl: string;
 
   return (
     <div className="wsp_picker" data-testid="entity-voice-picker">
+      {refused ? (
+        <>
+          {/* Someone who may not change it reads its voice as text (the console's rule). */}
+          <p className="wsp_status" data-testid="entity-voice-current">
+            {current?.provider ? `Its own voice: ${current.provider} · ${current.voice || "?"}.` : voiceDefaultHint(current)}
+          </p>
+          <RefusalLine text={refused} />
+        </>
+      ) : (
       <VoiceSettings
         value={value}
         onChange={(next) => void change(next)}
@@ -255,6 +306,7 @@ export function EntityVoicePicker({ baseUrl, entity, token }: { baseUrl: string;
         defaultHint={voiceDefaultHint(current)}
         voiceDefaultLabel="Gateway default voice"
       />
+      )}
       {status ? (
         <p className={`wsp_status${status.tone ? ` wsp_status_${status.tone}` : ""}`} role="status" aria-live="polite">
           {status.text}

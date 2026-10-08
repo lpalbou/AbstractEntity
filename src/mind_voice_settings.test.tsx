@@ -12,6 +12,7 @@ import { ProviderModelPicker, VoiceSettings } from "@abstractframework/ui-kit";
 import { describe, expect, it } from "vitest";
 
 import {
+  accessRefusal,
   mindDefaultHint,
   mindSaveBody,
   mindValueOf,
@@ -145,5 +146,25 @@ describe("the bespoke forms are gone", () => {
       expect(panel).not.toContain(gone);
     }
     expect(fs.existsSync(path.resolve(__dirname, "substrate_picker.tsx"))).toBe(false);
+  });
+});
+
+
+describe("R16.5: the creator configures their entity (GET /entities/{name}/access)", () => {
+  it("an admin or the creator may; anyone else reads the gateway's sentence", () => {
+    expect(accessRefusal({ entity: "nova", can_configure: true, as: "creator", reason: null })).toBeNull();
+    expect(accessRefusal({ entity: "nova", can_configure: true, as: "admin", reason: null })).toBeNull();
+    expect(
+      accessRefusal({ entity: "nova", can_configure: false, as: null, reason: "Only an admin or nova's creator can change its settings." }),
+    ).toBe("Only an admin or nova's creator can change its settings.");
+  });
+  it("a gateway without the route keeps the controls live (its write refusal carries its own sentence)", () => {
+    expect(accessRefusal(null)).toBeNull();
+  });
+  it("the pickers follow the answer: mind disabled + the sentence, voice read as text + the sentence", () => {
+    const src = fs.readFileSync(path.join(__dirname, "mind_voice_settings.tsx"), "utf8");
+    expect(src).toContain("disabled={Boolean(refused)}");
+    expect(src.match(/<RefusalLine text=\{refused\} \/>/g)?.length).toBe(2);
+    expect(src).toContain('data-testid="entity-voice-current"');
   });
 });
