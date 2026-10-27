@@ -10,17 +10,20 @@
  * The state mapping is pure (mindValueOf / mindSaveBody / voiceValueOf /
  * voiceSaveBody) so the tests pin the default/override rules without a DOM.
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ProviderModelPicker,
   VoiceSettings,
   voiceRouteText,
   type ProviderModelPickerValue,
+  type VoiceCreation,
   type VoicePreferences,
 } from "@abstractframework/ui-kit";
 
 import { authRefusedMsg } from "./gateway_session";
 import {
+  cloneVoice,
+  designVoice,
   discoveryModelCapabilities,
   discoveryProviderModels,
   discoveryProviders,
@@ -232,12 +235,22 @@ export function voiceDefaultHint(v: EntityVoiceChoice | null): string | undefine
   return v?.note || "No gateway default voice is set, so the speech engine decides.";
 }
 
+/** "Create a voice" in his voice picker: the gateway's voice library (`voice/design`, `voice/clones`).
+ * The new voice is selected and saved as his own, like any picked voice. */
+export function entityVoiceCreation(baseUrl: string, token: string | null): VoiceCreation {
+  return {
+    design: (request) => designVoice(baseUrl, request, token),
+    clone: (file, request) => cloneVoice(baseUrl, file, request, token),
+  };
+}
+
 export function EntityVoicePicker({ baseUrl, entity, token }: { baseUrl: string; entity: string; token: string | null }): React.ReactElement {
   const [current, setCurrent] = useState<EntityVoiceChoice | null>(null);
   const [value, setValue] = useState<VoicePreferences>({});
   const [status, setStatus] = useState<{ text: string; tone: "ok" | "error" | "" } | null>(null);
   const { access, error: accessError } = useEntityAccess(baseUrl, entity);
   const refused = accessRefusal(access) || accessError;
+  const createVoice = useMemo(() => entityVoiceCreation(baseUrl, token), [baseUrl, token]);
 
   useEffect(() => {
     let alive = true;
@@ -305,6 +318,7 @@ export function EntityVoicePicker({ baseUrl, entity, token }: { baseUrl: string;
         showReset={false}
         defaultHint={voiceDefaultHint(current)}
         voiceDefaultLabel="Gateway default voice"
+        createVoice={createVoice}
       />
       )}
       {status ? (

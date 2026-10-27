@@ -1928,6 +1928,57 @@ export function getVoiceDefaults(baseUrl: string): Promise<VoiceDefaults> {
   return getJson(joinBaseUrl(baseUrl, `api/gateway/voice/defaults`));
 }
 
+// ------------------------------------------------------- the voice library
+// Creating a voice (AbstractGateway 0.16.0): from a written description
+// (POST voice/design) or from a recording (POST voice/clones, multipart).
+// Both answer the stored record with its `voice_id`; a refusal (403 shared
+// store, 501 engine missing) throws the gateway's own sentence.
+
+export interface CreatedVoice {
+  voice_id: string;
+  name?: string;
+  engine?: string;
+}
+
+/** Designing a voice may first load the design engine: minutes, not seconds. */
+export const VOICE_DESIGN_TIMEOUT_MS = 600_000;
+
+/** `POST /api/gateway/voice/design` — a voice from a written description. */
+export function designVoice(
+  baseUrl: string,
+  request: { description: string; name?: string; language?: string },
+  token: string | null,
+): Promise<CreatedVoice> {
+  const body: Record<string, string> = { description: request.description };
+  if (request.name) body.name = request.name;
+  if (request.language) body.language = request.language;
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/voice/design`), body, token, VOICE_DESIGN_TIMEOUT_MS);
+}
+
+/** `POST /api/gateway/voice/clones` (multipart) — a voice from a recording. */
+export async function cloneVoice(
+  baseUrl: string,
+  file: Blob,
+  request: { name?: string; language?: string; reference_text?: string },
+  token: string | null,
+): Promise<CreatedVoice> {
+  const headers = authHeaders(token);
+  delete headers["Content-Type"]; // the browser sets the multipart boundary
+  const form = new FormData();
+  form.set("file", file, (file as File).name || "recording.wav");
+  if (request.name) form.set("name", request.name);
+  if (request.language) form.set("language", request.language);
+  if (request.reference_text) form.set("reference_text", request.reference_text);
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/voice/clones`), { credentials: "include", method: "POST", headers, body: form });
+  if (!res.ok) {
+    const detail = refusalDetail(await res.text().catch(() => ""));
+    const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return (await res.json()) as CreatedVoice;
+}
+
 /** Upload a recording into `sessionId`'s scope; the answer names the owner run it landed in. */
 export async function uploadSessionAudio(
   baseUrl: string,
