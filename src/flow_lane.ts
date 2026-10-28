@@ -76,19 +76,25 @@ export async function pollRunToTerminal(
 }
 
 /** A wait for a person somewhere in the run tree, as the replay view serves it. */
-export type RunWaiting = Pick<ReplayViewInteraction, "kind" | "run_id" | "wait_key" | "prompt" | "choices">;
+export type RunWaiting = Pick<ReplayViewInteraction, "kind" | "run_id" | "wait_key" | "step_id" | "prompt" | "choices">;
 
 /**
  * Follow a summoned run to terminal through the gateway's REPLAY VIEW (`GET runs/{id}/view` +
  * `/view/stream`, AbstractGateway >= 0.17.0; runtime backlog 0854): no timed `GET runs/{id}`
  * poll. A wait for a person anywhere in the tree (a tool approval, a question) is reported once
- * per wait through `onWaiting`, so a turn that asks is shown as asking, never as a silent hang.
- * At terminal the run summary is read ONCE for its structured `output` (the degraded contract,
- * `tool_rounds`); the view's final message stands in only if the summary never turns terminal.
+ * per occurrence through `onWaiting`, so a turn that asks is shown as asking, never as a silent
+ * hang. At terminal the run summary is read (retried briefly) for its structured `output` and
+ * `error` (the degraded contract, `tool_rounds`); the view stands in only if the summary never
+ * turns terminal, as `{answer: <final message>}` with the summary's or the view's error.
+ *
+ * Reconnects (a dropped or idle stream, a `done` that left the view open) back off up to 2 s and
+ * give up (`lost_view`) only after `reconnectBudgetMs` (default 30 s) without a single frame.
+ * Idle detection is the transport's (`gatewayReplayView`: a request budget and a byte-idle
+ * watchdog on the stream).
  *
  * Fallback, labeled: a gateway without the view route (`ReplayViewUnavailableError`) gets the
  * old poll (`pollRunToTerminal`), reported through `onFallback(reason)`. Any other view failure
- * counts toward `lost_view` like a failed poll.
+ * counts toward `lost_view`.
  */
 export async function followRunToTerminal(
   runId: string,
@@ -99,84 +105,133 @@ export async function followRunToTerminal(
     aborted: () => boolean;
     onWaiting?: (waiting: RunWaiting) => void;
     onFallback?: (reason: string) => void;
-    maxConsecutiveFailures?: number;
+    reconnectBudgetMs?: number;
+    /** How long the terminal summary is retried before the view stands in (default 15 s). */
+    settleMs?: number;
     now?: () => number;
     sleep?: (ms: number) => Promise<void>;
+    /** How often the abort/deadline callbacks are checked while a request is open (default 250 ms). */
+    watchMs?: number;
   },
 ): Promise<PollOutcome> {
   const now = opts.now ?? (() => Date.now());
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const maxFailures = opts.maxConsecutiveFailures ?? 5;
+  const budget = opts.reconnectBudgetMs ?? 30_000;
   const deadline = now() + opts.deadlineMs;
-  const fold = new ReplayViewFold();
-  const seenWaits = new Set<string>();
+  let fold = new ReplayViewFold();
+  // One report per occurrence: a wait first served from a snapshot (no step id) and then from
+  // its record is the same occurrence; a repeated ask on the same key (a new step) is a new one.
+  const seenWaits = new Map<string, string>();
+  let failingSince: number | null = null;
   let failures = 0;
   let lastStatus = "starting";
-  const ctrl = new AbortController();
+  let ctrl = new AbortController();
+  const stop = (): PollOutcome | null =>
+    opts.aborted() ? { kind: "aborted", lastStatus } : now() > deadline ? { kind: "deadline", lastStatus } : null;
   const watchdog = setInterval(() => {
     if (opts.aborted() || now() > deadline) ctrl.abort();
-  }, 250);
+  }, opts.watchMs ?? 250);
   const observe = (view: ReplayView | null): boolean => {
     if (!view) return false;
     lastStatus = String(view.status || lastStatus);
     const it = view.interaction;
-    if (it && !seenWaits.has(`${it.run_id}:${it.wait_key}`)) {
-      seenWaits.add(`${it.run_id}:${it.wait_key}`);
-      opts.onWaiting?.({ kind: it.kind, run_id: it.run_id, wait_key: it.wait_key, prompt: it.prompt, choices: it.choices });
+    if (it) {
+      const key = `${it.run_id}:${it.wait_key}`;
+      const step = String(it.step_id ?? "");
+      const seen = seenWaits.get(key);
+      if (seen === undefined || (seen && step && seen !== step)) {
+        opts.onWaiting?.({ kind: it.kind, run_id: it.run_id, wait_key: it.wait_key, step_id: it.step_id, prompt: it.prompt, choices: it.choices });
+      }
+      seenWaits.set(key, step || seen || "");
     }
     return TERMINAL_STATUSES.has(lastStatus);
   };
+  /** A frameless failure: back off, or give up once the budget is spent. */
+  const failed = async (): Promise<PollOutcome | null> => {
+    failures += 1;
+    if (failingSince === null) failingSince = now();
+    if (now() - failingSince >= budget) return { kind: "lost_view", lastStatus };
+    await sleep(Math.min(2000, 150 * 2 ** Math.min(failures - 1, 4)));
+    return stop();
+  };
   try {
     for (;;) {
-      if (opts.aborted()) return { kind: "aborted", lastStatus };
-      if (now() > deadline) return { kind: "deadline", lastStatus };
+      const early = stop();
+      if (early) return early;
       try {
         if (!fold.view) {
           const read = await opts.view.getView(runId, { signal: ctrl.signal });
           if (!read.notModified) fold.adopt(read.view, read.etag);
+          failingSince = null;
+          failures = 0;
         }
         if (!observe(fold.view)) {
           let reached = false;
-          await opts.view.streamView(runId, {
-            lastEventId: fold.lastEventId,
-            signal: ctrl.signal,
-            onFrame: (frame) => {
-              const outcome = fold.apply(frame);
-              if (outcome === "view" || outcome === "delta") {
-                failures = 0;
-                if (observe(fold.view)) { reached = true; ctrl.abort(); }
-              }
-            },
-          }).catch((e) => { if (!reached) throw e; });
+          await opts.view
+            .streamView(runId, {
+              lastEventId: fold.lastEventId,
+              signal: ctrl.signal,
+              onFrame: (frame) => {
+                const outcome = fold.apply(frame);
+                if (outcome === "view" || outcome === "delta") {
+                  failingSince = null;
+                  failures = 0;
+                  if (observe(fold.view)) {
+                    reached = true;
+                    ctrl.abort();
+                  }
+                }
+              },
+            })
+            .catch((e) => {
+              if (!reached) throw e;
+            });
           if (!reached) {
-            if (opts.aborted()) return { kind: "aborted", lastStatus };
-            if (now() > deadline) return { kind: "deadline", lastStatus };
-            if (fold.terminal) { observe(fold.view); } else { failures += 1; if (failures >= maxFailures) return { kind: "lost_view", lastStatus }; await sleep(Math.min(2000, 150 * 2 ** (failures - 1))); continue; }
+            const halt = stop();
+            if (halt) return halt;
+            if (fold.terminal) {
+              // `done` with a view that does not read terminal: start over from a fresh read.
+              fold = new ReplayViewFold();
+            }
+            const out = await failed();
+            if (out) return out;
+            continue;
           }
         }
       } catch (e) {
         if ((e as Error)?.name === "ReplayViewUnavailableError") {
           opts.onFallback?.((e as Error).message);
-          return pollRunToTerminal(opts.fetchSummary, { deadlineMs: Math.max(0, deadline - now()), aborted: opts.aborted, maxConsecutiveFailures: maxFailures, now: opts.now, sleep: opts.sleep });
+          return pollRunToTerminal(opts.fetchSummary, { deadlineMs: Math.max(0, deadline - now()), aborted: opts.aborted, now: opts.now, sleep: opts.sleep });
         }
-        if (opts.aborted()) return { kind: "aborted", lastStatus };
-        if (now() > deadline) return { kind: "deadline", lastStatus };
-        failures += 1;
-        if (failures >= maxFailures) return { kind: "lost_view", lastStatus };
-        await sleep(Math.min(2000, 150 * 2 ** (failures - 1)));
+        const halt = stop();
+        if (halt) return halt;
+        if (ctrl.signal.aborted) ctrl = new AbortController(); // an idle/budget abort of one request
+        const out = await failed();
+        if (out) return out;
         continue;
       }
       if (!TERMINAL_STATUSES.has(lastStatus)) continue;
-      // Terminal in the view: the run summary carries the structured output. It can trail the
-      // ledger's terminal record by a moment (the runtime appends, then saves).
-      const settled = await pollRunToTerminal(opts.fetchSummary, { deadlineMs: 15_000, intervalMs: 500, aborted: opts.aborted, maxConsecutiveFailures: maxFailures, now: opts.now, sleep: opts.sleep });
-      if (settled.kind === "terminal") return settled;
-      const view = fold.view!;
-      const final = (view.messages || []).find((m) => m.id === `${view.root_run_id}:final`);
-      return { kind: "terminal", status: lastStatus as "completed" | "failed" | "cancelled", output: final ? final.text : null, error: lastStatus === "completed" ? null : `run ${lastStatus}` };
+      return await settle(fold.view!);
     }
   } finally {
     clearInterval(watchdog);
+  }
+
+  async function settle(view: ReplayView): Promise<PollOutcome> {
+    // Terminal in the view: the run summary carries the structured output. It can trail the
+    // ledger's terminal record by a moment (the runtime appends, then saves), or fail briefly.
+    let last: RunSummaryShape | null = null;
+    const settleMs = opts.settleMs ?? 15_000;
+    const settled = await pollRunToTerminal(
+      async () => (last = await opts.fetchSummary()),
+      { deadlineMs: settleMs, intervalMs: 500, maxConsecutiveFailures: Math.max(5, Math.ceil(settleMs / 500)), aborted: opts.aborted, now: opts.now, sleep: opts.sleep },
+    );
+    if (settled.kind === "terminal" || settled.kind === "aborted") return settled;
+    const status = lastStatus as "completed" | "failed" | "cancelled";
+    const final = (view.messages || []).find((m) => m.id === `${view.root_run_id}:final`);
+    const lastError = (last as RunSummaryShape | null)?.error;
+    const error = status === "completed" ? null : String(lastError || view.display_status || `run ${status}`);
+    return { kind: "terminal", status, output: final ? { answer: final.text } : null, error };
   }
 }
 

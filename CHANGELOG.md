@@ -21,6 +21,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **A turn that asks no longer hangs silently.** A tool approval or a question anywhere in the run tree is shown once
   per wait ("The turn is waiting for a tool approval … Answer it from AbstractCode or the Observer"), and the lane keeps
   following the run; before, a waiting run counted as unfinished until the 10-minute deadline.
+- The follower never parks on a half-open connection: a view read has a 30 s budget, the view stream is aborted after
+  20 s without a byte (the gateway's keep-alive comments count) and reconnects from its last frame; reconnects back off
+  up to 2 s and the run is reported lost only after 30 s without a frame. A stop during the final summary read stops
+  the turn (the old answer is not shown); a summary that trails the run is retried, and when the view stands in it keeps
+  the goodbye's words and the summary's real error. A repeated question on the same step key is shown again.
 - A gateway without the replay view (before 0.17.0) keeps the status poll, said once in the conversation ("Following
   runs by polling their status: …"). Any other failure of the view counts toward "the drawer lost its view of the run",
   never a silent switch.

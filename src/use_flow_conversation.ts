@@ -93,7 +93,7 @@ export function useFlowConversation(io: {
       if (outcome.kind === "deadline")
         throw new Error(`the summoned turn did not finish within 10 minutes (run ${runId.slice(0, 8)}, last seen ${outcome.lastStatus}) — it may still be ticking; his memory keeps whatever it lived`);
       if (outcome.kind === "lost_view")
-        throw new Error("the drawer lost its view of the run (5 poll failures) — the turn may have completed; his memory keeps whatever it lived");
+        throw new Error("the drawer lost its view of the run (the gateway stopped answering) — the turn may have completed; his memory keeps whatever it lived");
       if (outcome.status !== "completed") throw new Error(String(outcome.error || `run ${outcome.status}`));
       // Tolerant answer fold + the DEGRADED CONTRACT (flow 0.0.2+):
       // structured degraded/moment_error distinguish "he said nothing"
@@ -401,7 +401,7 @@ export function useFlowConversation(io: {
           return;
         }
         if (outcome.kind === "lost_view") {
-          finish("The drawer lost its view of the close (5 poll failures) — it may have completed server-side; his look-back lands with it.", "warn");
+          finish("The drawer lost its view of the close (the gateway stopped answering) — it may have completed server-side; his look-back lands with it.", "warn");
           return;
         }
         if (outcome.status !== "completed") {
