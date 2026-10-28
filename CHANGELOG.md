@@ -10,7 +10,7 @@ On AbstractUIC 0.8.4 (`@abstractframework/ui-kit` ^0.9.5, `@abstractframework/pa
 
 ### Fixed
 
-- From the kit, in the entity chat (`chat_message_list.tsx` renders panel-chat's `ChatMessageCard`): a message's stamp carries the date when it is not from today ("Yesterday · 10:52 PM", "Oct 21 · 10:52 PM"; the full date on hover), the speaker stays on every assistant message while the voice is available (disabled with its reason while a reply is still being written), and the "files changed" chip opens the same structured detail as the tokens, tools and time chips (AbstractUIC backlog 0064, the message footer spec).
+- From the kit, in the entity chat (`chat_message_list.tsx` renders panel-chat's `ChatMessageCard`): a message's stamp carries the date when it is not from today ("Yesterday · 10:52 PM", "Oct 21 · 10:52 PM"; the full date on hover), and a reply with no text keeps its speaker, disabled with the reason "No text to read aloud" (AbstractUIC backlog 0064, the message footer spec).
 
 ## [0.9.2] - 2026-10-28
 
