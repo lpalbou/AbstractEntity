@@ -4,6 +4,27 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-28
+
+### Changed
+
+- **A summoned turn is followed on the gateway's replay view** (AbstractGateway 0.17.0 `GET runs/{id}/view` and
+  `/view/stream`; AbstractRuntime backlog 0854, framework backlog 0993): the drawer's flow lane, the queue's admitted
+  turn and the goodbye no longer poll `GET runs/{id}` every 1.5 s. The view stream says when the run ends; the run
+  summary is then read once for its structured output (the degraded contract, `tool_rounds`), and the view's final
+  message stands in if the summary never turns terminal (`followRunToTerminal` in `src/flow_lane.ts`).
+- Built on `@abstractframework/panel-chat` ^0.6.0 (AbstractUIC 0.8.0), up from ^0.5.0, for its replay view client
+  (`createReplayViewTransport`, `ReplayViewFold`).
+
+### Fixed
+
+- **A turn that asks no longer hangs silently.** A tool approval or a question anywhere in the run tree is shown once
+  per wait ("The turn is waiting for a tool approval … Answer it from AbstractCode or the Observer"), and the lane keeps
+  following the run; before, a waiting run counted as unfinished until the 10-minute deadline.
+- A gateway without the replay view (before 0.17.0) keeps the status poll, said once in the conversation ("Following
+  runs by polling their status: …"). Any other failure of the view counts toward "the drawer lost its view of the run",
+  never a silent switch.
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

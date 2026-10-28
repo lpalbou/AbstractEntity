@@ -16,6 +16,7 @@
 
 import type { ReplayEnvelope } from "./stream_types";
 import { joinBaseUrl, type VoiceDefaults } from "@abstractframework/ui-kit";
+import { createReplayViewTransport, type ReplayViewTransport } from "@abstractframework/panel-chat";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
  * cannot be trusted (code adversary F1/F3): the fold runs in the render
@@ -848,6 +849,21 @@ export function summonEntity(
   current_idle_deadline?: string | null;
 }> {
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/summon`), body, token);
+}
+
+/**
+ * The gateway's replay view of a run (`GET runs/{id}/view` + `/view/stream`, AbstractGateway
+ * >= 0.17.0) over the same credentials as every read here (cookie session or bearer).
+ */
+export function gatewayReplayView(baseUrl: string): ReplayViewTransport {
+  return createReplayViewTransport({
+    fetch: (path, init) =>
+      fetch(joinBaseUrl(baseUrl, `api/gateway/${path}`), {
+        ...init,
+        credentials: "include",
+        headers: readHeaders({ ...((init.headers as Record<string, string> | undefined) || {}) }),
+      }),
+  });
 }
 
 export function getRunSummary(

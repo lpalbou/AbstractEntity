@@ -9,8 +9,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { flowSession, foldFlowAnswer, foldGoodbyeWords, pollRunToTerminal, queueCardLine, screenDiaryFences, type PollOutcome } from "./flow_lane";
-import { getRunSummary, leaveQueue, pollQueueEntry, refusalText, summonEntity } from "./stream_source";
+import { flowSession, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, queueCardLine, screenDiaryFences, waitingLine, type PollOutcome } from "./flow_lane";
+import { gatewayReplayView, getRunSummary, leaveQueue, pollQueueEntry, refusalText, summonEntity } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import type { ReplayEnvelope } from "./stream_types";
 import type { DrawerMessage } from "./chat_message_list";
@@ -165,6 +165,28 @@ export function useFlowConversation(io: {
   const renderFlowOutcomeRef = useRef(renderFlowOutcome);
   renderFlowOutcomeRef.current = renderFlowOutcome;
 
+  /** Follow a summoned run on the gateway's replay view (no timed poll); a wait for a person is
+   * shown once per wait, and a gateway without the view falls back to the poll, labeled. */
+  const fallbackSaidRef = useRef(false);
+  const followRun = useCallback(
+    (runId: string, gen: number, deadlineMs: number): Promise<PollOutcome> =>
+      followRunToTerminal(runId, {
+        view: gatewayReplayView(baseUrl),
+        fetchSummary: () => getRunSummary(baseUrl, runId),
+        deadlineMs,
+        aborted: () => pollGenRef.current !== gen,
+        onWaiting: (w) => push({ role: "system", content: waitingLine(w), level: "warn" }),
+        onFallback: (reason) => {
+          if (fallbackSaidRef.current) return;
+          fallbackSaidRef.current = true;
+          push({ role: "system", content: `Following runs by polling their status: ${reason}`, level: "info" });
+        },
+      }),
+    [baseUrl, push],
+  );
+  const followRunRef = useRef(followRun);
+  followRunRef.current = followRun;
+
   /** Drive one summoned run to terminal and render its turn — the queue's
    * admitted state rides this (contract §4: the door executed at
    * admission; the client only follows the run). */
@@ -177,10 +199,7 @@ export function useFlowConversation(io: {
       turnStartSeqRef.current = envelopesRef.current.length > 0 ? envelopesRef.current[envelopesRef.current.length - 1].seq : 0;
       setBusy("turn");
       try {
-        const outcome = await pollRunToTerminal(() => getRunSummary(baseUrl, runId), {
-          deadlineMs: 600_000,
-          aborted: () => pollGenRef.current !== gen,
-        });
+        const outcome = await followRunRef.current(runId, gen, 600_000);
         await renderFlowOutcomeRef.current(outcome, runId);
       } catch (e) {
         push({ role: "system", content: `The admitted turn failed: ${refusalText(e as Error & { status?: number })}`, level: "error" });
@@ -296,14 +315,11 @@ export function useFlowConversation(io: {
             return;
           }
           // The summoned run executes async in the runner — poll to
-          // terminal via the ONE shared loop (flow_lane.pollRunToTerminal).
+          // terminal on the gateway's replay view (flow_lane.followRunToTerminal; the poll is its fallback).
           // 600s: tool rounds (entity-life 0.0.10, ≤3 bounded) add 2-3
           // provider calls per turn on top of the lived turn (flow c5285
           // ask1); contended-model turns measured 1-8 min BEFORE tools.
-          const outcome = await pollRunToTerminal(() => getRunSummary(baseUrl, r.run_id), {
-            deadlineMs: 600_000,
-            aborted: () => pollGenRef.current !== gen,
-          });
+          const outcome = await followRunRef.current(r.run_id, gen, 600_000);
           await renderFlowOutcomeRef.current(outcome, r.run_id);
         })
         .catch((e: Error & { status?: number }) => {
@@ -375,10 +391,7 @@ export function useFlowConversation(io: {
       token,
     )
       .then(async (r) => {
-        const outcome = await pollRunToTerminal(() => getRunSummary(baseUrl, r.run_id), {
-          deadlineMs: 180_000,
-          aborted: () => pollGenRef.current !== gen,
-        });
+        const outcome = await followRunRef.current(r.run_id, gen, 180_000);
         if (outcome.kind === "aborted") {
           finish(`Stopped waiting on the close (run ${r.run_id.slice(0, 8)}) — it keeps running server-side; his look-back lands regardless.`);
           return;

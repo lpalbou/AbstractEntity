@@ -8,6 +8,8 @@
  * component composes these and owns only pixels + state.
  */
 
+import { ReplayViewFold, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
+
 export type PollOutcome =
   | { kind: "aborted"; lastStatus: string }
   | { kind: "deadline"; lastStatus: string }
@@ -71,6 +73,120 @@ export async function pollRunToTerminal(
       return { kind: "terminal", status: st, output: run.output, error: run.error == null ? null : String(run.error) };
     }
   }
+}
+
+/** A wait for a person somewhere in the run tree, as the replay view serves it. */
+export type RunWaiting = Pick<ReplayViewInteraction, "kind" | "run_id" | "wait_key" | "prompt" | "choices">;
+
+/**
+ * Follow a summoned run to terminal through the gateway's REPLAY VIEW (`GET runs/{id}/view` +
+ * `/view/stream`, AbstractGateway >= 0.17.0; runtime backlog 0854): no timed `GET runs/{id}`
+ * poll. A wait for a person anywhere in the tree (a tool approval, a question) is reported once
+ * per wait through `onWaiting`, so a turn that asks is shown as asking, never as a silent hang.
+ * At terminal the run summary is read ONCE for its structured `output` (the degraded contract,
+ * `tool_rounds`); the view's final message stands in only if the summary never turns terminal.
+ *
+ * Fallback, labeled: a gateway without the view route (`ReplayViewUnavailableError`) gets the
+ * old poll (`pollRunToTerminal`), reported through `onFallback(reason)`. Any other view failure
+ * counts toward `lost_view` like a failed poll.
+ */
+export async function followRunToTerminal(
+  runId: string,
+  opts: {
+    view: ReplayViewTransport;
+    fetchSummary: () => Promise<RunSummaryShape>;
+    deadlineMs: number;
+    aborted: () => boolean;
+    onWaiting?: (waiting: RunWaiting) => void;
+    onFallback?: (reason: string) => void;
+    maxConsecutiveFailures?: number;
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+  },
+): Promise<PollOutcome> {
+  const now = opts.now ?? (() => Date.now());
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const maxFailures = opts.maxConsecutiveFailures ?? 5;
+  const deadline = now() + opts.deadlineMs;
+  const fold = new ReplayViewFold();
+  const seenWaits = new Set<string>();
+  let failures = 0;
+  let lastStatus = "starting";
+  const ctrl = new AbortController();
+  const watchdog = setInterval(() => {
+    if (opts.aborted() || now() > deadline) ctrl.abort();
+  }, 250);
+  const observe = (view: ReplayView | null): boolean => {
+    if (!view) return false;
+    lastStatus = String(view.status || lastStatus);
+    const it = view.interaction;
+    if (it && !seenWaits.has(`${it.run_id}:${it.wait_key}`)) {
+      seenWaits.add(`${it.run_id}:${it.wait_key}`);
+      opts.onWaiting?.({ kind: it.kind, run_id: it.run_id, wait_key: it.wait_key, prompt: it.prompt, choices: it.choices });
+    }
+    return TERMINAL_STATUSES.has(lastStatus);
+  };
+  try {
+    for (;;) {
+      if (opts.aborted()) return { kind: "aborted", lastStatus };
+      if (now() > deadline) return { kind: "deadline", lastStatus };
+      try {
+        if (!fold.view) {
+          const read = await opts.view.getView(runId, { signal: ctrl.signal });
+          if (!read.notModified) fold.adopt(read.view, read.etag);
+        }
+        if (!observe(fold.view)) {
+          let reached = false;
+          await opts.view.streamView(runId, {
+            lastEventId: fold.lastEventId,
+            signal: ctrl.signal,
+            onFrame: (frame) => {
+              const outcome = fold.apply(frame);
+              if (outcome === "view" || outcome === "delta") {
+                failures = 0;
+                if (observe(fold.view)) { reached = true; ctrl.abort(); }
+              }
+            },
+          }).catch((e) => { if (!reached) throw e; });
+          if (!reached) {
+            if (opts.aborted()) return { kind: "aborted", lastStatus };
+            if (now() > deadline) return { kind: "deadline", lastStatus };
+            if (fold.terminal) { observe(fold.view); } else { failures += 1; if (failures >= maxFailures) return { kind: "lost_view", lastStatus }; await sleep(Math.min(2000, 150 * 2 ** (failures - 1))); continue; }
+          }
+        }
+      } catch (e) {
+        if ((e as Error)?.name === "ReplayViewUnavailableError") {
+          opts.onFallback?.((e as Error).message);
+          return pollRunToTerminal(opts.fetchSummary, { deadlineMs: Math.max(0, deadline - now()), aborted: opts.aborted, maxConsecutiveFailures: maxFailures, now: opts.now, sleep: opts.sleep });
+        }
+        if (opts.aborted()) return { kind: "aborted", lastStatus };
+        if (now() > deadline) return { kind: "deadline", lastStatus };
+        failures += 1;
+        if (failures >= maxFailures) return { kind: "lost_view", lastStatus };
+        await sleep(Math.min(2000, 150 * 2 ** (failures - 1)));
+        continue;
+      }
+      if (!TERMINAL_STATUSES.has(lastStatus)) continue;
+      // Terminal in the view: the run summary carries the structured output. It can trail the
+      // ledger's terminal record by a moment (the runtime appends, then saves).
+      const settled = await pollRunToTerminal(opts.fetchSummary, { deadlineMs: 15_000, intervalMs: 500, aborted: opts.aborted, maxConsecutiveFailures: maxFailures, now: opts.now, sleep: opts.sleep });
+      if (settled.kind === "terminal") return settled;
+      const view = fold.view!;
+      const final = (view.messages || []).find((m) => m.id === `${view.root_run_id}:final`);
+      return { kind: "terminal", status: lastStatus as "completed" | "failed" | "cancelled", output: final ? final.text : null, error: lastStatus === "completed" ? null : `run ${lastStatus}` };
+    }
+  } finally {
+    clearInterval(watchdog);
+  }
+}
+
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+
+/** One line for a person-facing wait the drawer cannot answer itself. */
+export function waitingLine(w: RunWaiting): string {
+  const what = w.kind === "tool_approval" ? "a tool approval" : w.kind === "ask_user" ? "an answer to a question" : "an event";
+  const prompt = typeof w.prompt === "string" && w.prompt.trim() ? `: “${w.prompt.trim()}”` : "";
+  return `The turn is waiting for ${what}${prompt} (run ${w.run_id.slice(0, 8)}). Answer it from AbstractCode or the Observer; this lane keeps following the run.`;
 }
 
 /**
