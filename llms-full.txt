@@ -387,6 +387,19 @@ The state at any position is the fold of every envelope up to it, so replay,
 live tail and time scrub are one code path, and every tab agrees at any
 position.
 
+## Where a memory comes from
+
+Every memory an entity forms is tied to the ledger that recorded the moment
+(AbstractMemory ADR 0003, 2026-10-27): the run and ledger row `(run_id, seq)` of
+the step that formed it, the verbatim artifact it was digested from, the
+hash-chained diary entry it projects, or the memories it was derived from, whose
+own sources reach the ledger. AbstractMemory keeps the references and the
+revision history ("reconsidered on, superseded by"); AbstractRuntime's memory
+facade rebuilds the verbatim from them, or answers `source_gone` when a run or
+artifact has been deleted; the gateway serves both under `/api/gateway/memory/`.
+The app only reads: see the proposed item
+[Every memory names its ledger sources](backlog/proposed/2026-10-27_memory_sources_from_the_ledger.md).
+
 ## Scope of this repository
 
 This repository ships the Entity app. The services that make entities live
