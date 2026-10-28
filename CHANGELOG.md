@@ -2,6 +2,23 @@
 
 All notable changes to `@abstractframework/entity` are recorded here.
 
+## [Unreleased]
+
+## [0.8.0] - 2026-10-28
+
+### Added
+
+- **Create a voice for him** (AbstractGateway 0.16.0 voice library): Settings → Voice offers **Create…** on his voice
+  picker: from a description (`POST voice/design`, with an optional name and language; bounded at 10 minutes because the
+  design engine may load first) or from a recording (`POST voice/clones`: file, name, language, reference text). The new
+  voice is selected and saved as his own. A refusal (403 on a gateway with one shared voice store, 501 when the engine is
+  missing) shows the gateway's own sentence. Not offered on the listener section, whose speech never carries a voice.
+
+### Changed
+
+- Built on `@abstractframework/ui-kit` ^0.9.2 and `@abstractframework/panel-chat` ^0.5.0 (AbstractUIC 0.7.2), up from
+  ui-kit ^0.8.9 / panel-chat ^0.4.0.
+
 ## [0.7.1] - 2026-10-15
 
 ### Changed
