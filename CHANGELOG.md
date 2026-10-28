@@ -4,6 +4,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-10-28
+
+On AbstractUIC 0.8.4 (`@abstractframework/ui-kit` ^0.9.5, `@abstractframework/panel-chat` ^0.6.4, `@abstractframework/app-server` ^0.1.13).
+
+### Fixed
+
+- From the kit, in the entity chat (`chat_message_list.tsx` renders panel-chat's `ChatMessageCard`): a message's stamp carries the date when it is not from today ("Yesterday · 10:52 PM", "Oct 21 · 10:52 PM"; the full date on hover), and a reply with no text keeps its speaker, disabled with the reason "No text to read aloud" (AbstractUIC backlog 0064, the message footer spec).
+
 ## [0.9.2] - 2026-10-28
 
 On AbstractUIC 0.8.3 (`@abstractframework/ui-kit` ^0.9.5, `@abstractframework/panel-chat` ^0.6.3, `@abstractframework/app-server` ^0.1.13).
