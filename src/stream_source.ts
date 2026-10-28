@@ -16,6 +16,7 @@
 
 import type { ReplayEnvelope } from "./stream_types";
 import { joinBaseUrl, type VoiceDefaults } from "@abstractframework/ui-kit";
+import { createReplayViewTransport, type ReplayViewTransport } from "@abstractframework/panel-chat";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
  * cannot be trusted (code adversary F1/F3): the fold runs in the render
@@ -848,6 +849,76 @@ export function summonEntity(
   current_idle_deadline?: string | null;
 }> {
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/summon`), body, token);
+}
+
+/**
+ * The gateway's replay view of a run (`GET runs/{id}/view` + `/view/stream`, AbstractGateway
+ * >= 0.17.0) over the same credentials as every read here (cookie session or bearer).
+ *
+ * Never parks forever on a half-open connection: a view read has `requestBudgetMs` (30 s, as
+ * every status read here) for its headers AND body; the stream is aborted when no byte arrives
+ * for `idleMs` (20 s: the gateway sends a `: keep-alive` comment every 5 s, which the client's
+ * frame parser does not surface, so the watchdog counts the body's bytes). An aborted stream
+ * rejects; the follower reconnects from its Last-Event-ID.
+ */
+export function gatewayReplayView(baseUrl: string, opts: { requestBudgetMs?: number; idleMs?: number; fetchImpl?: typeof fetch } = {}): ReplayViewTransport {
+  const requestBudgetMs = opts.requestBudgetMs ?? 30_000;
+  const idleMs = opts.idleMs ?? 20_000;
+  const doFetch = opts.fetchImpl ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
+  return createReplayViewTransport({
+    fetch: async (path, init) => {
+      const stream = path.endsWith("/stream");
+      const inner = new AbortController();
+      const outer = init.signal;
+      const onOuter = () => inner.abort();
+      if (outer) {
+        if (outer.aborted) inner.abort();
+        else outer.addEventListener("abort", onOuter, { once: true });
+      }
+      const limit = stream ? idleMs : requestBudgetMs;
+      const what = stream ? `the run's view stream sent nothing for ${Math.round(idleMs / 1000)}s` : `the gateway did not answer the view read within ${Math.round(requestBudgetMs / 1000)}s`;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const done = () => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        outer?.removeEventListener("abort", onOuter);
+      };
+      const arm = () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => inner.abort(new Error(what)), limit);
+      };
+      arm();
+      let res: Response;
+      try {
+        res = await doFetch(joinBaseUrl(baseUrl, `api/gateway/${path}`), {
+          ...init,
+          signal: inner.signal,
+          credentials: "include",
+          headers: readHeaders({ ...((init.headers as Record<string, string> | undefined) || {}) }),
+        });
+      } catch (e) {
+        done();
+        throw e;
+      }
+      if (!res.body) {
+        done();
+        return res;
+      }
+      const watched = res.body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, c) {
+            if (stream) arm(); // any byte, keep-alive comments included, proves the stream alive
+            c.enqueue(chunk);
+          },
+          flush() {
+            done();
+          },
+        }),
+        { signal: inner.signal },
+      );
+      return new Response(watched, { status: res.status, statusText: res.statusText, headers: res.headers });
+    },
+  });
 }
 
 export function getRunSummary(
