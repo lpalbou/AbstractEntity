@@ -4,6 +4,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-10-28
+
+On AbstractUIC 0.8.3 (`@abstractframework/ui-kit` ^0.9.5, `@abstractframework/panel-chat` ^0.6.3, `@abstractframework/app-server` ^0.1.13).
+
+### Fixed
+
+- From the kit: in the entity chat, a reply's speaker and copy buttons are always visible (they appeared only on hover); the speaker shows a spinner only while the first audio is generated, then Pause, and Play when paused (`chat_message_list.tsx` renders panel-chat's `ChatMessageCard`); the entity's own voice picker (`mind_voice_settings.tsx`, the kit's `VoiceSettings`) shows each speech model once, labels a saved voice the gateway no longer lists "Saved voice (not listed)" instead of its id, and under a cloned voice names the model it is always spoken with.
+
 ## [0.9.1] - 2026-10-28
 
 On AbstractUIC 0.8.2 (`@abstractframework/ui-kit` ^0.9.4, `@abstractframework/panel-chat` ^0.6.2, `@abstractframework/app-server` ^0.1.13).
