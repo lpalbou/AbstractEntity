@@ -4,6 +4,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-28
+
+On AbstractUIC 0.8.2 (`@abstractframework/ui-kit` ^0.9.4, `@abstractframework/panel-chat` ^0.6.2, `@abstractframework/app-server` ^0.1.13).
+
+### Fixed
+
+- The connection dialog says "Gateway … did not answer" when the gateway is down (it said "Session rejected — sign in again"); the voice settings list each Qwen3-TTS voice once and style "Create a voice" / "Manage voices".
+- Also in the kit (where this app shows them): the tool approval card makes "Allow once" its primary and keeps one visible scope line (the full sentences behind "What the broader choices allow"); a gateway that does not answer reads "Gateway … did not answer" instead of "Session rejected — sign in again"; "Create a voice" and "Manage voices" are styled; the voice picker lists each Qwen3-TTS voice once; one duration format in the chat, and a tool time that includes an approval wait says so; tool-row badges and the model picker's "Custom" are no longer cut.
+
 ## [0.9.0] - 2026-10-28
 
 ### Changed
