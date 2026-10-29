@@ -33,7 +33,9 @@ import {
   useAppearanceSettings,
   Icon,
 } from "@abstractframework/ui-kit";
+import type { GatewayConnectionState } from "@abstractframework/ui-kit";
 import { DocsAssistantDrawer } from "@abstractframework/panel-chat";
+import { bearerAccountStatus } from "./entity_account";
 import { ENTITY_DOCS_SOURCE, ENTITY_DOCS_SUGGESTIONS, makeEntityDocsFetch } from "./entity_assistant";
 
 import { BookReader } from "./book_reader";
@@ -198,6 +200,9 @@ export function EntityView(): React.ReactElement {
   // ONLY on a confirming probe (boot re-verify) or a fresh successful
   // sign-in (the modal probed/logged-in), and false on disconnect/refusal.
   const [authVerified, setAuthVerified] = useState(false);
+  /** The signed-in account the top bar's kit account widget shows (entity_account.ts): the proxy's
+   * own answer, or the verified bearer's. Rendered only while the phase is connected. */
+  const [accountStatus, setAccountStatus] = useState<GatewayConnectionState | null>(null);
   const authVerifiedRef = useRef(false);
   authVerifiedRef.current = authVerified;
   /** PROXY posture (the abstractflow shape, maintainer 2026-07-10 22:5x):
@@ -255,6 +260,7 @@ export function EntityView(): React.ReactElement {
         }
         if (status.ok) {
           setAuthState({ mode: "session", userId: status.userId || "operator", token: null, remembered: true });
+          setAccountStatus(status.state);
           setAuthVerified(true);
           setShowAuth(false);
           setControlNote(null);
@@ -294,6 +300,7 @@ export function EntityView(): React.ReactElement {
             storeAuth({ ...authState, base });
             setAuthState({ ...authState, base });
           }
+          setAccountStatus(bearerAccountStatus({ ...authState, base: storedBase || base }, probe.probe));
           setAuthVerified(true);
           setShowAuth(false);
           setControlNote(null);
@@ -817,6 +824,7 @@ export function EntityView(): React.ReactElement {
       // best-effort
     }
     setAuthState(null);
+    setAccountStatus(null);
     setAuthVerified(false); // lock the content gate again
     setControlNote("Disconnected — this browser holds no gateway credential.");
   }, []);
@@ -1711,6 +1719,10 @@ export function EntityView(): React.ReactElement {
             docs={{ open: assistantOpen, onToggle: () => setAssistantOpen((v) => !v), label: "Docs assistant" }}
             appearance={{ onOpen: () => setAppearanceOpen(true) }}
             about={about}
+            // The kit's ONE account widget (top-bar set, operator 2026-10-29): signed in, the
+            // person, the name and the connection light in one button; its menu says who and
+            // which gateway, with Copy user id and Disconnect (= disconnectGateway).
+            identity="menu"
             connection={{
               // Phase keys on VERIFIED auth, not the stored claim (a rejected
               // credential must not read "Disconnect" beside the sign-in lock);
@@ -1726,6 +1738,7 @@ export function EntityView(): React.ReactElement {
                       : "disconnected",
               onConnect: () => setShowAuth(true),
               onDisconnect: () => void disconnectGateway(),
+              status: accountStatus,
             }}
           />
         </div>
@@ -2064,9 +2077,10 @@ export function EntityView(): React.ReactElement {
           proxyMode={proxyMode === true}
           baseUrl={gatewayUrl}
           onBaseUrlChange={setGatewayUrl}
-          onConnected={(state) => {
+          onConnected={(state, status) => {
             if (state.token) setGatewayToken(state.token);
             setAuthState(state);
+            setAccountStatus(state.mode === "bearer" ? bearerAccountStatus(state) : status ?? null);
             // Direct posture: converge EVERY base on the one the credential
             // was verified against (refresh-audit F7: a URL edited in the
             // modal updated gatewayUrl but left the roster's indexBase on
