@@ -21,7 +21,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { READ_ALOUD_INITIAL, readAloudStep } from "./read_aloud";
+import { READ_ALOUD_INITIAL, entityReadAloudInput, readAloudStep } from "./read_aloud";
 
 import { ChatComposer } from "@abstractframework/panel-chat";
 import { sttRouteText } from "@abstractframework/ui-kit";
@@ -296,11 +296,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const readAloudState = useRef(READ_ALOUD_INITIAL);
   const turnLive = busy === "turn";
   useEffect(() => {
-    const { state, speak } = readAloudStep(readAloudState.current, {
-      scope: String(runId || ""),
-      live: turnLive,
-      reply: latestSpoken ? { id: latestReplyId, text: latestSpoken.content } : null,
-    });
+    const { state, speak } = readAloudStep(readAloudState.current, entityReadAloudInput(readAloudState.current.scope, runId, turnLive, latestSpoken ? { id: latestReplyId, text: latestSpoken.content } : null));
     readAloudState.current = state;
     if (speak && voicePrefs.read_aloud === true && voice.tts_supported) void voice.toggle_tts(speak.id, speak.text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
