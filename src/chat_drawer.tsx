@@ -21,6 +21,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { READ_ALOUD_INITIAL, entityReadAloudInput, readAloudStep } from "./read_aloud";
 
 import { ChatComposer } from "@abstractframework/panel-chat";
 import { sttRouteText } from "@abstractframework/ui-kit";
@@ -285,23 +286,21 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * message is already pushed when the wait begins). */
   const turnCount = useMemo(() => messages.filter((m) => m.role === "user").length, [messages]);
 
-  /** Read aloud (Settings → voice): each NEW reply in this visit is spoken
-   * in his voice. Replies already on screen when the visit (re)opens are
-   * not — only what arrives after. */
+  /** Read aloud (Settings → voice): a reply lived in this visit is spoken in
+   * his voice. Replies already on screen when the visit (re)opens are not. */
   const latestSpoken = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant" && m.content.trim()), [messages]);
   const latestReplyId = latestSpoken ? String(latestSpoken.id) : "";
-  const readAloudSeen = useRef<{ run: string | null; id: string }>({ run: null, id: "" });
+  // Only a reply lived in this visit is spoken by itself: its turn was seen in
+  // progress here (operator 2026-10-29: re-opening a visit spoke its existing
+  // messages). The kit's rule (`read_aloud.ts`).
+  const readAloudState = useRef(READ_ALOUD_INITIAL);
+  const turnLive = busy === "turn";
   useEffect(() => {
-    const seen = readAloudSeen.current;
-    if (seen.run !== runId) {
-      readAloudSeen.current = { run: runId, id: latestReplyId };
-      return;
-    }
-    if (!latestReplyId || latestReplyId === seen.id) return;
-    readAloudSeen.current = { run: runId, id: latestReplyId };
-    if (voicePrefs.read_aloud === true && voice.tts_supported && latestSpoken) void voice.toggle_tts(latestReplyId, latestSpoken.content);
+    const { state, speak } = readAloudStep(readAloudState.current, entityReadAloudInput(readAloudState.current.scope, runId, turnLive, latestSpoken ? { id: latestReplyId, text: latestSpoken.content } : null));
+    readAloudState.current = state;
+    if (speak && voicePrefs.read_aloud === true && voice.tts_supported) void voice.toggle_tts(speak.id, speak.text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, latestReplyId, voicePrefs.read_aloud, voice.tts_supported]);
+  }, [runId, latestReplyId, turnLive, voicePrefs.read_aloud, voice.tts_supported]);
 
   const push = useCallback((msg: Omit<DrawerMessage, "id">) => {
     idRef.current += 1;
