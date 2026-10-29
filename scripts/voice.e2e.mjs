@@ -133,7 +133,8 @@ async function installRoutes(page) {
 
 async function signIn(page) {
   const dialog = page.getByRole("dialog", { name: "Gateway connection" });
-  const connected = page.locator(".af-topbar__pill--connected");
+  // Signed in = the kit's ONE account widget (person, name, light; ui-kit 0.9.6), not a pill.
+  const connected = page.getByRole("button", { name: /^Account: Signed in as / });
   const end = Date.now() + 20000;
   while (Date.now() < end) {
     if (await dialog.isVisible().catch(() => false)) break;

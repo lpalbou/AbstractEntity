@@ -26,7 +26,7 @@
  * only on a definitive no.
  */
 
-import { GATEWAY_CONNECTION_PATH } from "@abstractframework/ui-kit";
+import { GATEWAY_CONNECTION_PATH, type GatewayConnectionState } from "@abstractframework/ui-kit";
 
 export interface ProxyConnectionStatus {
   /** The proxy route exists on this origin (served by this app's CLI). */
@@ -37,6 +37,9 @@ export interface ProxyConnectionStatus {
   gatewayUrl: string;
   userId: string | null;
   detail: string | null;
+  /** The route's answer as is (the kit's connection state), when it answered JSON: the top bar's
+   * account widget reads the principal and the gateway from it. */
+  state: GatewayConnectionState | null;
 }
 
 function principalUserId(payload: unknown): string | null {
@@ -71,7 +74,7 @@ export function authRefusedMsg(status: number | undefined, detail?: string): str
  * app-origin proxy? `available:false` means the route does not exist here
  * (direct-gateway posture applies); never throws. */
 export async function proxyConnectionStatus(): Promise<ProxyConnectionStatus> {
-  const none: ProxyConnectionStatus = { available: false, ok: false, hasSession: false, gatewayUrl: "", userId: null, detail: null };
+  const none: ProxyConnectionStatus = { available: false, ok: false, hasSession: false, gatewayUrl: "", userId: null, detail: null, state: null };
   try {
     const res = await fetch(GATEWAY_CONNECTION_PATH, { credentials: "include", headers: { Accept: "application/json" } });
     const ct = res.headers.get("content-type") || "";
@@ -79,7 +82,7 @@ export async function proxyConnectionStatus(): Promise<ProxyConnectionStatus> {
     const payload = (await res.json()) as { ok?: boolean; gateway_url?: string; has_session?: boolean; detail?: string; gateway?: unknown };
     if (!res.ok && res.status !== 200) {
       // The route exists (it answered JSON) but refused — treat as signed out.
-      return { available: true, ok: false, hasSession: false, gatewayUrl: String(payload.gateway_url || ""), userId: null, detail: String(payload.detail || "") || null };
+      return { available: true, ok: false, hasSession: false, gatewayUrl: String(payload.gateway_url || ""), userId: null, detail: String(payload.detail || "") || null, state: null };
     }
     return {
       available: true,
@@ -88,6 +91,7 @@ export async function proxyConnectionStatus(): Promise<ProxyConnectionStatus> {
       gatewayUrl: String(payload.gateway_url || ""),
       userId: principalUserId(payload),
       detail: typeof payload.detail === "string" ? payload.detail : null,
+      state: payload as GatewayConnectionState,
     };
   } catch {
     return none;

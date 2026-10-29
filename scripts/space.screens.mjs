@@ -130,7 +130,8 @@ async function closeOverlays(page) {
 
 async function signIn(page) {
   const dialog = page.getByRole("dialog", { name: "Gateway connection" });
-  const connected = page.locator(".af-topbar__pill--connected");
+  // Signed in = the kit's ONE account widget (person, name, light; ui-kit 0.9.6), not a pill.
+  const connected = page.getByRole("button", { name: /^Account: Signed in as / });
   // The sign-in dialog opens by itself once the app's auth probe answers 401; a stored session
   // answers "connected" instead. Wait for whichever comes first.
   const end = Date.now() + 15000;
@@ -148,7 +149,7 @@ async function signIn(page) {
   await page.locator("#gateway-session-token").fill(TOKEN);
   await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
   await dialog.waitFor({ state: "hidden", timeout: 15000 });
-  await page.locator(".af-topbar__pill--connected").waitFor({ state: "visible", timeout: 15000 });
+  await connected.waitFor({ state: "visible", timeout: 15000 });
 }
 
 async function gotoRoster(page, baseUrl) {

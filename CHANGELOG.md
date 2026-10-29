@@ -4,6 +4,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- **The top bar's account is the kit's ONE account widget** (operator ruling 2026-10-29: the docs button, Appearance,
+  About and the account are the same kit components in every app). Signed in, one button shows the person icon, your
+  name and the connection light; its menu holds Signed in as, Gateway, Copy user id and Disconnect. It replaces the
+  Disconnect pill. The account comes from the app server's connection answer (proxy posture) or the verified bearer
+  (`src/entity_account.ts`). Needs `@abstractframework/ui-kit` ^0.9.6 (was ^0.9.5). Test: `src/top_bar_set.test.tsx`.
+
 ### Fixed
 
 - **Read aloud no longer speaks existing messages** when re-opening a visit (operator 2026-10-29): a reply is spoken by

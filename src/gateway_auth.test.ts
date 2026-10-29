@@ -51,6 +51,8 @@ describe("proxy connection status (the ONE silent check)", () => {
     expect(s.available).toBe(true);
     expect(s.ok).toBe(true);
     expect(s.userId).toBe("albou");
+    // The answer as is: the top bar's kit account widget reads the principal and gateway from it.
+    expect(s.state).toEqual({ ok: true, has_session: true, gateway_url: "http://127.0.0.1:8080", gateway: { principal: { user_id: "albou" } } });
   });
 
   it("signed out through a live proxy: available, not ok — sign-in is the answer", async () => {

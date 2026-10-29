@@ -77,13 +77,14 @@ export interface ConnectGatewayModalProps {
    * connect with no base known yet (the URL field is shown). */
   baseUrl: string;
   onBaseUrlChange(value: string): void;
-  onConnected(state: GatewayAuthState): void;
+  /** `status`: the app server's connection state after a proxy sign-in (the top bar's account reads it). */
+  onConnected(state: GatewayAuthState, status?: GatewayConnectionState | null): void;
   onClose(): void;
 }
 
 function ProxyKitModal(props: {
   onClose(): void;
-  onConnected(state: GatewayAuthState): void;
+  onConnected(state: GatewayAuthState, status?: GatewayConnectionState | null): void;
   defaultGatewayUrl: string;
 }): React.ReactElement {
   // First status = the open-probe baseline; only a session gained AFTER it
@@ -105,7 +106,7 @@ function ProxyKitModal(props: {
         }
         if (signed_in && !hadSessionAtOpen.current) {
           const principal = String(s?.gateway?.principal?.user_id || "").trim();
-          props.onConnected({ mode: "session", userId: principal || "operator", token: null, remembered: true });
+          props.onConnected({ mode: "session", userId: principal || "operator", token: null, remembered: true }, s);
         }
         // Sign-out inside the modal: the baseline resets so a re-sign-in
         // in the same open reports as fresh.
