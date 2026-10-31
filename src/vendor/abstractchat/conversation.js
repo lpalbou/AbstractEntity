@@ -2815,9 +2815,10 @@ function publicUpdate(value, runId) {
 function conversationMessages(messages) {
   const seen = /* @__PURE__ */ new Set();
   return messages.filter((m) => {
-    if (m.live || m.toolActivity || !m.content.trim())
+    const hasFiles = Boolean(m.attachments?.length || m.artifactRefs?.length || m.media?.length);
+    if (m.live || m.toolActivity || !m.content.trim() && !hasFiles)
       return false;
-    const allowed = m.role === "user" || m.role === "assistant" && ["public_update", "answer", "final", "question"].includes(m.kind || "") || m.role === "system" && m.kind === "question_outcome" && m.source === "emit_event";
+    const allowed = m.role === "user" || m.role === "assistant" && ["public_update", "answer", "final", "question", "attachments"].includes(m.kind || "") || m.role === "system" && m.kind === "question_outcome" && m.source === "emit_event";
     if (!allowed || m.kind === "public_update" && !m.publicUpdate)
       return false;
     const key = `${m.runId || ""}:${m.publicUpdate?.id || m.id || `${m.kind}:${m.content}`}`;
@@ -2948,7 +2949,8 @@ function AvatarConversationSession(props) {
   }, [attended, props.onAttendedChange]);
   const [shown, setShown] = useState14(latest);
   const [page, setPage] = useState14(0);
-  const pages = useMemo7(() => conversationPages(shown?.content || ""), [shown?.content]);
+  const shownText = shown?.content || (shown?.attachments?.length || shown?.artifactRefs?.length || shown?.media?.length ? "A result file is ready. Open conversation history to view it." : "");
+  const pages = useMemo7(() => conversationPages(shownText), [shownText]);
   const state = conversationState(props);
   const cursor = useRef9(null);
   const narrationCursor = useRef9(null);
@@ -3398,7 +3400,11 @@ function WorkflowChat(props) {
   ].filter(Boolean).join(" "), "aria-label": "Workflow chat", "data-stream-replies": props.streamReplies || "gateway_default", children: [props.header || toolbarRow ? _jsxs15("header", { className: [
     "pc-workflow-chat__header",
     toolbarRow ? "pc-workflow-chat__header--toolbar" : ""
-  ].filter(Boolean).join(" "), children: [props.header ? _jsx18("div", { className: "pc-workflow-chat__header-main", children: props.header }) : null, toolbarRow] }) : null, _jsx18("div", { className: "pc-workflow-chat__transcript", children: _jsxs15(ArtifactFetchContext.Provider, { value: artifactFetch, children: [transcript.error && _jsxs15("p", { role: "status", className: "pc-workflow-chat__error", children: [transcript.error, " ", _jsx18("button", { type: "button", onClick: transcript.retry, children: "Retry attachment check" })] }), props.avatarConversation ? _jsx18(AvatarConversation, { ...props.avatarConversation, messages: transcript.messages, messageProps: { ...props.messageProps, ...props.renderMarkdown ? { renderMarkdown: props.renderMarkdown } : {} }, attended: Boolean(props.draft.trim()), interaction: _jsxs15(_Fragment8, { children: [props.interaction ? _jsx18(WorkflowInteractionPanel, { interaction: props.interaction, disabled }) : null, blocked ? _jsx18("div", { className: "pc-workflow-chat__blocked", role: "status", children: props.blockedNotice }) : null] }) }) : _jsx18(ChatThread, { messages: transcript.messages, empty: props.emptyState, autoScroll: true, messageProps: {
+  ].filter(Boolean).join(" "), children: [props.header ? _jsx18("div", { className: "pc-workflow-chat__header-main", children: props.header }) : null, toolbarRow] }) : null, _jsx18("div", { className: "pc-workflow-chat__transcript", children: _jsxs15(ArtifactFetchContext.Provider, { value: artifactFetch, children: [transcript.error && _jsxs15("p", { role: "status", className: "pc-workflow-chat__error", children: [transcript.error, " ", _jsx18("button", { type: "button", onClick: transcript.retry, children: "Retry attachment check" })] }), props.avatarConversation ? _jsx18(AvatarConversation, { ...props.avatarConversation, messages: transcript.messages, messageProps: {
+    ...props.messageProps,
+    ...props.messageProps?.renderFooter ? { renderFooter: (m) => props.messageProps.renderFooter(props.messages.find((original) => original === m || original.id && original.id === m.id) || m) } : {},
+    ...props.renderMarkdown ? { renderMarkdown: props.renderMarkdown } : {}
+  }, attended: Boolean(props.draft.trim()), interaction: _jsxs15(_Fragment8, { children: [props.interaction ? _jsx18(WorkflowInteractionPanel, { interaction: props.interaction, disabled }) : null, blocked ? _jsx18("div", { className: "pc-workflow-chat__blocked", role: "status", children: props.blockedNotice }) : null] }) }) : _jsx18(ChatThread, { messages: transcript.messages, empty: props.emptyState, autoScroll: true, messageProps: {
     ...props.messageProps,
     ...props.messageProps?.renderFooter ? {
       renderFooter: (m) => props.messageProps.renderFooter(props.messages.find((original) => original === m || original.id && original.id === m.id) || m)
@@ -6664,12 +6670,13 @@ function presentInteraction(input, controller, options = {}) {
   const question = details.question && typeof details.question === "object" && details.question.purpose === "conversation" ? details.question : null;
   const essential = question?.importance === "essential";
   const clarification = question?.importance === "clarification";
+  const deadlineTime = typeof question?.deadline === "string" && Number.isFinite(Date.parse(question.deadline)) ? new Date(question.deadline).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
   if (wait.reason === "user" || wait.reason === "ask_user")
     return {
       id,
       kind: "ask-user",
       title: essential ? "Your answer is required" : clarification ? "A clarification for you" : "A question for you",
-      ...essential ? { description: "This question needs your answer. I will keep waiting; silence does not grant permission." } : clarification ? { description: `${question.deadline ? `Answer by ${String(question.deadline)}. ` : ""}${question.fallback ? `Without an answer: ${String(question.fallback)}` : ""}` } : {},
+      ...essential ? { description: "This question needs your answer. I will keep waiting; silence does not grant permission." } : clarification ? { description: `${deadlineTime ? `Answer by ${deadlineTime}. ` : ""}${question.fallback ? `Without an answer: ${String(question.fallback)}` : ""}` } : {},
       prompt: String(wait.prompt || details.prompt || "How would you like to continue?"),
       allowFreeText: wait.allow_free_text !== false,
       choices: (Array.isArray(wait.choices) ? wait.choices : []).map((choice) => typeof choice === "object" && choice !== null ? {
