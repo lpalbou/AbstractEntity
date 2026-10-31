@@ -2817,7 +2817,7 @@ function conversationMessages(messages) {
   return messages.filter((m) => {
     if (m.live || m.toolActivity || !m.content.trim())
       return false;
-    const allowed = m.role === "user" || m.role === "assistant" && ["public_update", "answer", "final", "question"].includes(m.kind || "");
+    const allowed = m.role === "user" || m.role === "assistant" && ["public_update", "answer", "final", "question"].includes(m.kind || "") || m.role === "system" && m.kind === "question_outcome" && m.source === "emit_event";
     if (!allowed || m.kind === "public_update" && !m.publicUpdate)
       return false;
     const key = `${m.runId || ""}:${m.publicUpdate?.id || m.id || `${m.kind}:${m.content}`}`;
@@ -2827,15 +2827,15 @@ function conversationMessages(messages) {
     return true;
   });
 }
-function conversationReply(text4, context, currentRunId) {
+function conversationReply(text4, context, currentRunId, allowedSourceRunIds = []) {
   if (!context)
     return text4;
   if (context.kind !== "public_update" || !context.publicUpdate)
     return text4;
-  if (!currentRunId || context.runId !== currentRunId || context.publicUpdate.runId !== currentRunId)
+  if (!currentRunId || context.publicUpdate.runId !== context.runId || context.runId !== currentRunId && !allowedSourceRunIds.includes(context.publicUpdate.runId))
     throw new Error("The selected public update belongs to another run. Return to the latest exchange before guiding this run.");
   return `The person is replying to this quoted public update (context only):
-${JSON.stringify({ message_id: context.id || context.publicUpdate.id, run_id: currentRunId, text: context.content })}
+${JSON.stringify({ message_id: context.id || context.publicUpdate.id, run_id: context.publicUpdate.runId, root_run_id: currentRunId, text: context.content })}
 
 The person's message:
 ${text4}`;
@@ -2940,7 +2940,7 @@ function AvatarConversationSession(props) {
   const [localPreferences, setLocalPreferences] = useState14(DEFAULT_CONVERSATION_CUES);
   const preferences = props.preferences || localPreferences;
   const messages = useMemo7(() => conversationMessages(props.messages), [props.messages]);
-  const latest = [...messages].reverse().find((m) => m.role === "assistant") || null;
+  const latest = [...messages].reverse().find((m) => m.role === "assistant" || m.kind === "question_outcome") || null;
   const attended = Boolean(props.attended || history || paused || hovered || focused || selected);
   useEffect13(() => {
     props.onAttendedChange?.(attended);
@@ -3032,7 +3032,7 @@ function AvatarConversationSession(props) {
   }, children: "Conversation history" }), attended ? _jsx17("button", { type: "button", onClick: follow, children: "Return to latest" }) : null, props.voiceControl ? _jsx17("span", { onPointerDownCapture: interrupt, onKeyDownCapture: (event) => {
     if (event.key === "Enter" || event.key === " ")
       interrupt();
-  }, children: props.voiceControl }) : null, props.playbackControl] }), history ? _jsx17("ol", { className: "pc-avatar-conversation__history", "aria-label": "Public conversation history", children: messages.map((m, i) => _jsxs14("li", { children: [_jsx17("strong", { children: m.role === "user" ? "You" : m.kind === "public_update" ? "Public update" : "Reply" }), _jsx17(ChatMessageCard, { ...props.messageProps, message: { ...m, reasoning: void 0, live: void 0, toolActivity: void 0 } }), m.publicUpdate?.sourceCallIds.length ? _jsxs14("details", { children: [_jsx17("summary", { children: "Sources" }), _jsx17("ul", { children: m.publicUpdate.sourceCallIds.map((id) => _jsx17("li", { children: id }, id)) })] }) : null, m.publicUpdate ? _jsx17("button", { type: "button", "aria-pressed": selected === m, onClick: () => {
+  }, children: props.voiceControl }) : null, props.playbackControl] }), history ? _jsx17("ol", { className: "pc-avatar-conversation__history", "aria-label": "Public conversation history", children: messages.map((m, i) => _jsxs14("li", { children: [_jsx17("strong", { children: m.role === "user" ? "You" : m.kind === "question_outcome" ? "Question status" : m.kind === "public_update" ? "Public update" : "Reply" }), _jsx17(ChatMessageCard, { ...props.messageProps, message: { ...m, reasoning: void 0, live: void 0, toolActivity: void 0 } }), m.publicUpdate?.sourceCallIds.length ? _jsxs14("details", { children: [_jsx17("summary", { children: "Sources" }), _jsx17("ul", { children: m.publicUpdate.sourceCallIds.map((id) => _jsx17("li", { children: id }, id)) })] }) : null, m.publicUpdate ? _jsx17("button", { type: "button", "aria-pressed": selected === m, onClick: () => {
     interrupt();
     setSelected(m);
     setShown(m);

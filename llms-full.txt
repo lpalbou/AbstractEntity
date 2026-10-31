@@ -108,6 +108,11 @@ history to hold subtitles; **Return to latest** resumes following. Independent
 visual/audio cue preferences are stored for this gateway, account and entity.
 Audio is off by default; optional narration uses the existing read-aloud setting
 and the entity's own voice. History, reconnects and hidden panels stay silent.
+Question history restores actual answers, expiry with its declared fallback, and
+late replies retained for their original question. A fallback is a system outcome,
+not a human answer. This public view is bounded; when the gateway omits earlier
+exchanges or descendant runs, it says **Some earlier exchanges are not shown in
+this view.** The durable conversation remains on the gateway.
 
 The app is a thin client: it keeps no server state of its own. Every view is
 read from the gateway, and the memory views are computed from the memory
@@ -622,8 +627,17 @@ of invented data.
 The optional Avatar presentation requests `conversation: true` on a new durable
 visit's open body. Existing visits keep their initial mode. The app reads only
 `GET /entities/{name}/visit/{run}/state` public fields: `public_updates`,
-`public_messages`, `pending_question` and `pending_wait`. It does not derive
+`public_messages`, `public_questions`, `pending_question` and `pending_wait`. It does not derive
 public speech from the entity's private replay envelopes or technical output.
+
+`public_questions` carries canonical question, real user answer, system expiry and
+retained-reply messages with their original run/question identity and source.
+An expiry fallback stays a system outcome; it is never rendered as a person answering.
+Public arrays merge by the gateway's recorded `order` and `published_at`, not a
+browser-time estimate. Each of the three public arrays is bounded to 64 messages,
+with at most 32 runs in the visit tree inspected. Positive `public_updates_omitted`,
+`public_messages_omitted`, `public_questions_omitted` or `conversation_runs_omitted`
+shows the earlier-exchanges notice. These bounds limit the view, not durable storage.
 
 During a durable visit, `POST /guidance` under that visit sends
 `{text, display_text}`: `text` may quote a selected public update, while

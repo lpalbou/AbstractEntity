@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitAttention, visitAvatarStatus, visitQuestion } from "./avatar_visit";
-import { answerVisit, decideVisit, guideVisit, openVisit, setGatewayToken } from "./stream_source";
+import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitHistoryOmitted, publicVisitMessages, visitAttention, visitAvatarStatus, visitQuestion } from "./avatar_visit";
+import { answerVisit, decideVisit, getVisitConversation, guideVisit, openVisit, setGatewayToken } from "./stream_source";
 
 afterEach(() => { vi.unstubAllGlobals(); setGatewayToken(null); });
 const update = { id: "public-1", text: "A supported format was found.", run_id: "actor", session_id: "visit", source_call_ids: ["call-1"], iteration: 2 };
@@ -45,6 +45,40 @@ describe("avatar public entity boundary", () => {
     expect(publicVisitMessages(state!)[0].content).toBe(update.text);
     expect(JSON.stringify(state)).not.toContain("SECRET");
     expect(state!.pending_question).toMatchObject({ run_id: "child", wait_key: "q" });
+  });
+  it("restores ordered questions, real answers, expiry and retained replies with exact original identities", async () => {
+    const at = (n: number) => [`2026-11-01T10:00:0${n}Z`, "actor", n];
+    const questions = [
+      { id: "actor:q1", text: "Which separator?", role: "assistant", kind: "question", run_id: "actor", source: "wait", wait_key: "ask:1", question: { id: "q-first", importance: "essential" }, step_ids: ["ask-first"], seqs: [2], order: at(2) },
+      { id: "actor:answer1", text: "Use commas", role: "user", kind: "answer", run_id: "actor", source: "resume", wait_key: "ask:1", question_id: "q-first", order: at(3) },
+      { id: "actor:q2", text: "Should I keep the header?", role: "assistant", kind: "question", run_id: "actor", source: "wait", wait_key: "ask:2", question: { id: "q-second", importance: "clarification" }, order: at(5) },
+      { id: "actor:expired", text: "No answer arrived. Continuing with the declared fallback.", role: "system", kind: "question_outcome", run_id: "actor", source: "emit_event", question: { id: "q-second", outcome: "expired", fallback: "Keep the header" }, order: at(6) },
+      { id: "actor:late", text: "Actually remove it", role: "user", kind: "retained_reply", run_id: "actor", source: "emit_event", question_id: "q-second", reply_status: "retained", reason: "question_expired", order: at(7) },
+      { id: "fake-answer", text: "Keep the header", role: "user", kind: "answer", run_id: "actor", source: "emit_event", wait_key: "ask:2" },
+      { id: "private-question", text: "Public prompt", role: "assistant", kind: "question", run_id: "actor", source: "wait", wait_key: "ask:3", question: { id: "private", fallback: "<think>SECRET</think>" } },
+    ];
+    const served = { run_id: "visit", public_updates: [{ ...update, order: at(4) }], public_messages: [{ id: "guidance", role: "user", kind: "guidance", text: "Keep CSV", run_id: "actor", order: at(1) }], public_questions: [...questions].reverse() };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(served), { status: 200 })));
+    const reopened = publicVisitMessages(await getVisitConversation("", "castor", "visit"));
+    expect(reopened.map((m) => m.kind)).toEqual(["guidance", "question", "answer", "public_update", "question", "question_outcome", "retained_reply"]);
+    expect(reopened[1].questionContext).toMatchObject({ wait_key: "ask:1", question: { id: "q-first" }, step_ids: ["ask-first"], seqs: [2] });
+    expect(reopened[2].questionContext?.question_id).toBe("q-first");
+    expect(reopened.at(-1)?.questionContext).toMatchObject({ question_id: "q-second", reply_status: "retained", reason: "question_expired" });
+    expect(reopened.find((m) => m.kind === "question_outcome")?.role).toBe("system");
+    expect(reopened.filter((m) => m.role === "user").map((m) => m.content)).toEqual(["Keep CSV", "Use commas", "Actually remove it"]);
+    expect(JSON.stringify(reopened)).not.toContain("SECRET");
+    const local = [{ id: "local", role: "user", kind: "answer", source: "local_question_answer", content: "Use commas", runId: "actor", questionContext: { wait_key: "ask:1", question_id: "q-first" } }];
+    expect(avatarVisitHistory(local, [], "visit", true)).toEqual([]);
+    expect(avatarVisitHistory(local, reopened, "visit", true).filter((m) => m.content === "Use commas")).toHaveLength(1);
+    const flow = flowConversationState({ root_run_id: "flow", session_id: "session", status: "running", messages: [...questions], activities: [], interaction: null } as never);
+    expect(publicVisitMessages(flow!).map((m) => m.kind)).toEqual(["question", "answer", "question", "question_outcome", "retained_reply"]);
+  });
+  it("discloses each server-side bound without claiming missing exchanges were loaded", () => {
+    for (const field of ["public_updates_omitted", "public_messages_omitted", "public_questions_omitted", "conversation_runs_omitted"]) {
+      expect(publicVisitHistoryOmitted({ run_id: "visit", [field]: 1 })).toBe(true);
+    }
+    expect(publicVisitHistoryOmitted({ run_id: "visit", public_updates_omitted: 0, public_messages_omitted: 0, public_questions_omitted: 0, conversation_runs_omitted: 0 })).toBe(false);
+    expect(publicVisitHistoryOmitted(null)).toBe(false);
   });
 });
 

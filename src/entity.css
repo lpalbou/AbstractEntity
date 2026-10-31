@@ -6551,6 +6551,7 @@ body {
 .cd_view_modes button[aria-pressed="true"] { color: var(--text-primary); background: var(--ui-surface-2); }
 .chat_drawer > .pc-avatar-conversation { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .cd_avatar_hint { flex: 0 0 auto; margin: 6px 12px; }
+.cd_avatar_history_notice { flex: 0 0 auto; margin: 6px 12px; }
 .side_tabs_emphasized { flex: 0 0 100%; min-width: 0; }
 .entity_main:has(> .side_tabs_emphasized) > .entity_canvas_wrap { overflow: hidden; }
 @media (max-width: 767.98px), (max-height: 599.98px) {

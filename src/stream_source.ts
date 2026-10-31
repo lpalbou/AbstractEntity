@@ -1414,8 +1414,11 @@ export interface VisitConversationState {
   reply?: string | null;
   public_updates?: unknown[];
   public_messages?: unknown[];
+  public_questions?: unknown[];
   public_updates_omitted?: number;
   public_messages_omitted?: number;
+  public_questions_omitted?: number;
+  conversation_runs_omitted?: number;
   pending_question?: VisitPublicWait | null;
   pending_wait?: VisitPublicWait | null;
 }

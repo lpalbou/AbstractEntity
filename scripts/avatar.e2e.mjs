@@ -21,6 +21,10 @@ let opened = false, working = false, question = null, finishTurn;
 const update = { id: "brief-1", text: "I found the supported CSV format.", run_id: "visit-actor", session_id: "visit-session", source_call_ids: ["source-call-1"], iteration: 1 };
 const seen = { open: [], guidance: [], answer: [], decisions: [], commands: [], state: 0 };
 const accepted = [];
+const publicQuestions = [];
+let historyOmitted = 0;
+let historySequence = 1;
+const historyOrder = () => [`2026-11-01T10:00:${String(historySequence).padStart(2, "0")}Z`, "visit-actor", historySequence++];
 const life = readFileSync(resolve(root, "public/demo/castor.ndjson"), "utf8");
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, reducedMotion: "reduce" });
@@ -43,7 +47,11 @@ try {
     if (p.endsWith("/visit")) return json({ open: opened, run_id: opened ? "visit-root" : undefined, status: "waiting" });
     if (p.endsWith("/visit/visit-root/state")) {
       seen.state += 1;
-      return json({ run_id: "visit-root", session_id: "visit-session", status: working ? "running" : "waiting", public_updates: working ? [update, { ...update, id: "private", text: "```diary visibility=private\nPRIVATE diary update\n```" }] : [], public_messages: accepted, pending_question: question?.reason === "user" ? question : null, pending_wait: question });
+      if (question?.reason === "user") {
+        const id = `visit-actor:${question.details.question.id}:question`;
+        if (!publicQuestions.some((row) => row.id === id)) publicQuestions.push({ id, role: "assistant", kind: "question", text: question.prompt, run_id: question.run_id, source: "wait", wait_key: question.wait_key, question: question.details.question, order: historyOrder() });
+      }
+      return json({ run_id: "visit-root", session_id: "visit-session", status: working ? "running" : "waiting", public_updates: working ? [update, { ...update, id: "private", text: "```diary visibility=private\nPRIVATE diary update\n```" }] : [], public_messages: accepted, public_questions: publicQuestions, public_questions_omitted: historyOmitted, pending_question: question?.reason === "user" ? question : null, pending_wait: question });
     }
     if (p.endsWith("/visit/visit-root/turn")) {
       working = true;
@@ -58,7 +66,11 @@ try {
       accepted.push({ id: "visit-actor:guidance:2", role: "user", kind: "guidance", text: body.display_text, run_id: "visit-actor", session_id: "visit-session" });
       return json({ accepted: true, seq: 2, run_id: "visit-actor" });
     }
-    if (p.endsWith("/visit/visit-root/answer")) { seen.answer.push(request.postDataJSON()); question = null; return json({ accepted: true }); }
+    if (p.endsWith("/visit/visit-root/answer")) {
+      const body = request.postDataJSON(); seen.answer.push(body);
+      publicQuestions.push({ id: `visit-actor:${question.details.question.id}:answer`, role: "user", kind: "answer", text: body.response, run_id: question.run_id, source: "resume", wait_key: body.wait_key, question_id: question.details.question.id, order: historyOrder() });
+      question = null; return json({ accepted: true });
+    }
     if (p.endsWith("/visit/visit-root/decision")) { seen.decisions.push(request.postDataJSON()); question = null; return json({ accepted: true }); }
     if (p.endsWith("/commands")) { seen.commands.push(request.postDataJSON()); return json({ accepted: false }, 403); }
     if (p.endsWith("/visit/visit-root/transcript")) return json({ run_id: "visit-root", turns: [] });
@@ -80,12 +92,14 @@ try {
   assert.deepEqual(seen.open, [{ conversation: true }]);
   const composer = page.locator(".chat_drawer .pc-composer textarea");
   const send = page.locator(".chat_drawer .pc-composer").getByRole("button", { name: "Send", exact: true });
+  await page.locator(".side_tabs_emphasized").waitFor();
   const focusedWidth = await page.locator(".side_tabs").evaluate((node) => node.getBoundingClientRect().width);
   assert(focusedWidth >= 1400, "Avatar centers the conversation across the main scene");
   await page.locator('.chat_drawer input[type="file"]').setInputFiles({ name: "format.txt", mimeType: "text/plain", buffer: Buffer.from("CSV format") });
   await page.locator(".cd_file_chip").getByText("format.txt", { exact: false }).waitFor();
   await composer.fill("Draft with a file");
   await modes.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('.side_tabs')?.classList.contains('side_tabs_emphasized'));
   assert((await page.locator(".side_tabs").evaluate((node) => node.getBoundingClientRect().width)) < 600, "Chat restores its saved technical pane width");
   assert.equal(await composer.inputValue(), "Draft with a file");
   assert.equal(await page.locator(".cd_file_chip").count(), 1);
@@ -112,15 +126,15 @@ try {
   assert.equal(await composer.inputValue(), "");
   assert.deepEqual(seen.guidance.map((body) => body.display_text), ["Keep CSV format", "Keep CSV format"]);
   question = { run_id: "visit-actor", wait_key: "choice-1", reason: "user", prompt: "Choose a separator", allow_free_text: false, choices: ["comma", "tab"], details: { question: { id: "choice-id", purpose: "conversation", importance: "essential" } } };
-  await page.getByText("Choose a separator", { exact: true }).waitFor({ timeout: 10_000 });
+  await page.locator(".pc-workflow-interaction__prompt").filter({ hasText: "Choose a separator" }).waitFor({ timeout: 10_000 });
   await composer.fill("Retain my draft"); await send.click();
   await page.getByText("Choose one of the question's options above. Your draft is kept here.", { exact: true }).waitFor();
   assert.equal(seen.answer.length, 0);
   assert.equal(await composer.inputValue(), "Retain my draft");
   await page.getByRole("button", { name: "comma", exact: true }).click();
-  await page.waitForFunction(() => !document.body.textContent.includes('Choose a separator'));
+  await page.waitForFunction(() => ![...document.querySelectorAll('.pc-workflow-interaction__prompt')].some((node) => node.textContent.includes('Choose a separator')));
   question = { run_id: "visit-actor", wait_key: "essential-1", reason: "user", prompt: "Which delimiter should I use?", allow_free_text: true, details: { question: { id: "essential-id", purpose: "conversation", importance: "essential" } } };
-  await page.getByText("Which delimiter should I use?", { exact: true }).waitFor({ timeout: 10_000 });
+  await page.locator(".pc-workflow-interaction__prompt").filter({ hasText: "Which delimiter should I use?" }).waitFor({ timeout: 10_000 });
   await composer.fill("Use commas");
   await send.click();
   await page.waitForFunction(() => [...document.querySelectorAll('.cd_note')].some((node) => node.textContent.includes('Your answer was accepted')));
@@ -157,6 +171,30 @@ try {
   assert(phoneScene.captionTop >= phoneScene.regionTop && phoneScene.captionBottom <= Math.min(phoneScene.regionBottom, phoneScene.composerTop), `phone subtitles stay visible with avatar and composer: ${JSON.stringify(phoneScene)}`);
   assert(phoneScene.composerBottom <= phoneScene.height, "phone composer remains in the visible viewport");
   if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-phone.png") });
+  publicQuestions.push(
+    { id: "visit-actor:expired-question", role: "assistant", kind: "question", text: "Should the header stay?", run_id: "visit-actor", source: "wait", wait_key: "expired-key", question: { id: "expired-id", importance: "clarification" }, order: historyOrder() },
+    { id: "visit-actor:expired-outcome", role: "system", kind: "question_outcome", text: "No answer arrived before the deadline. Continuing with: Keep the header.", run_id: "visit-actor", source: "emit_event", question: { id: "expired-id", outcome: "expired", fallback: "Keep the header." }, order: historyOrder() },
+    { id: "visit-actor:retained", role: "user", kind: "retained_reply", text: "Late answer: remove the header.", run_id: "visit-actor", source: "emit_event", question_id: "expired-id", reply_status: "retained", reason: "question_expired", order: historyOrder() },
+    { id: "private-question", role: "assistant", kind: "question", text: "```diary\nPRIVATE restored question\n```", run_id: "visit-actor", source: "wait", wait_key: "private-q" },
+  );
+  historyOmitted = 2;
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.reload();
+  await page.getByLabel("Avatar conversation").waitFor({ state: "attached" });
+  if (!(await page.getByLabel("Avatar conversation").isVisible())) await page.locator(".st_tab", { hasText: "Chat" }).first().click();
+  await page.getByLabel("Avatar conversation").waitFor();
+  await page.getByText("Some earlier exchanges are not shown in this view.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Conversation history", exact: true }).click();
+  const restored = page.getByRole("list", { name: "Public conversation history" });
+  await restored.getByText("Which delimiter should I use?", { exact: true }).waitFor();
+  await restored.getByText("Use commas", { exact: true }).waitFor();
+  await restored.getByText("No answer arrived before the deadline. Continuing with: Keep the header.", { exact: true }).waitFor();
+  await restored.getByText("Late answer: remove the header.", { exact: true }).waitFor();
+  assert.equal(await restored.getByText("Reply retained for its original question.", { exact: true }).count(), 1);
+  assert.equal(await restored.locator('[data-question-id="expired-id"]').count(), 3);
+  assert(!(await restored.innerText()).includes("PRIVATE"));
+  assert.equal(publicQuestions.filter((row) => row.role === "user" && row.text === "Keep the header.").length, 0, "an expired fallback is not a human answer");
+  if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-question-history.png") });
   assert.deepEqual(errors, []);
   // The separate summoned Flow lane lives in the principal's workflow store.
   // Its existing replay view and ordinary commands are valid; driver commands above are absent.
@@ -164,7 +202,7 @@ try {
   let seq = 1, flowDone = false, flowQuestion = null;
   const flowSeen = { summons: [], commands: [] };
   const flowMessages = [{ id: "flow-public", text: "I checked the Flow format.", run_id: "flow-actor", role: "assistant", kind: "public_update", source: "emit_event", source_call_ids: ["flow-call"], iteration: 1 }];
-  const flowView = () => ({ version: "replay_view_v1", root_run_id: "flow-root", session_id: "flow-session", status: flowDone ? "completed" : "running", display_status: null, cursor: { token: `flow:${seq}`, records: seq, runs: { "flow-root": seq } }, runs: [{ run_id: "flow-root", status: flowDone ? "completed" : "running" }], interaction: flowQuestion, open_waits: flowQuestion ? [flowQuestion] : [], messages: flowMessages, activities: [], artifacts: [], usage: null, warnings: [] });
+  const flowView = () => ({ version: "replay_view_v1", root_run_id: "flow-root", session_id: "flow-session", status: flowDone ? "completed" : "running", display_status: null, cursor: { token: `flow:${seq}`, records: seq, runs: { "flow-root": seq } }, runs: [{ run_id: "flow-root", status: flowDone ? "completed" : "running" }, { run_id: "flow-actor", status: flowDone ? "completed" : "running" }], interaction: flowQuestion, open_waits: flowQuestion ? [flowQuestion] : [], messages: flowMessages, activities: [], artifacts: [], usage: null, warnings: [] });
   await flow.route("**/*", async (route) => {
     const request = route.request(), url = new URL(request.url()), p = url.pathname;
     if (url.origin !== origin) return route.abort("blockedbyclient");
@@ -215,4 +253,5 @@ try {
   if (arg("shots")) await flow.screenshot({ path: resolve(arg("shots"), "entity-avatar-flow.png") });
   console.log("Entity built-browser avatar PASS: default Chat, opt-in, privacy, busy correction/refusal/retry, question targeting, mode/draft continuity, final/history; no generic driver commands.");
   console.log("Entity built-browser Flow PASS: existing summoned view, start opt-in, public update, live guidance with human history, exact child question answer and final result.");
+  console.log("Entity question reconnect PASS: original question/answer, system expiry, original late-retained reply, omitted-view notice and privacy; no fallback human answer.");
 } finally { finishTurn?.(); await browser.close(); await new Promise((resolve) => server.close(resolve)); }

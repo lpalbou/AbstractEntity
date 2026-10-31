@@ -99,6 +99,11 @@ history to hold subtitles; **Return to latest** resumes following. Independent
 visual/audio cue preferences are stored for this gateway, account and entity.
 Audio is off by default; optional narration uses the existing read-aloud setting
 and the entity's own voice. History, reconnects and hidden panels stay silent.
+Question history restores actual answers, expiry with its declared fallback, and
+late replies retained for their original question. A fallback is a system outcome,
+not a human answer. This public view is bounded; when the gateway omits earlier
+exchanges or descendant runs, it says **Some earlier exchanges are not shown in
+this view.** The durable conversation remains on the gateway.
 
 The app is a thin client: it keeps no server state of its own. Every view is
 read from the gateway, and the memory views are computed from the memory

@@ -3,7 +3,7 @@ import { ActivityAvatar, type AvatarPose } from "@abstractframework/ui-kit";
 import { WorkflowInteractionPanel, type WorkflowInteraction } from "@abstractframework/panel-chat";
 import { AvatarConversation, conversationState, type AvatarConversationOptions, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
 import { screenDiaryFences } from "./flow_lane";
-import { visitAttention, visitAvatarStatus } from "./avatar_visit";
+import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus, type EntityPublicMessage } from "./avatar_visit";
 import type { VisitConversationState, VisitPublicWait } from "./stream_source";
 
 export function AvatarVisitView(props: {
@@ -17,11 +17,11 @@ export function AvatarVisitView(props: {
   onDecision(wait: VisitPublicWait, approved: boolean): Promise<unknown>;
   onError(message: string): void;
 }) {
-  const status = visitAvatarStatus(props.state, props.busy, props.messages.some((m) => m.role === "assistant" && m.kind !== "public_update"));
+  const status = visitAvatarStatus(props.state, props.busy, props.messages.some((m) => m.role === "assistant" && ["answer", "final"].includes(m.kind || "")));
   const attention = useMemo<ConversationAttention | null>(() => {
     const waiting = visitAttention(props.state);
     if (waiting) return waiting;
-    const final = [...props.messages].reverse().find((m) => m.role === "assistant" && m.kind !== "public_update");
+    const final = [...props.messages].reverse().find((m) => m.role === "assistant" && ["answer", "final"].includes(m.kind || ""));
     return status === "completed" && final ? { id: `${final.runId}:${final.id}:completed`, kind: "completion" } : null;
   }, [props.state, props.messages, status]);
   const state = conversationState({ ...props.options, attention, status });
@@ -45,5 +45,15 @@ export function AvatarVisitView(props: {
     const deadline = attention.deadline && Number.isFinite(Date.parse(attention.deadline)) ? new Date(attention.deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : attention.deadline;
     return { id: attention.id, kind: "ask-user", title: attention.importance === "essential" ? "Your answer is required" : "A question for you", prompt, choices, allowFreeText: wait.allow_free_text !== false, description: attention.importance === "essential" ? "I will keep waiting for your answer." : attention.importance === "clarification" ? `${deadline ? `Answer by ${deadline}. ` : ""}Without an answer: ${attention.fallback || ""}` : undefined, onSubmit: (answer) => props.onAnswer(wait, answer) };
   }, [wait, attention, props.onAnswer, props.onDecision]);
-  return <AvatarConversation {...props.options} avatar={<ActivityAvatar pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())} interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} /> : null} />;
+  return <>
+    {publicVisitHistoryOmitted(props.state) ? <p className="cd_note cd_avatar_history_notice" role="status">Some earlier exchanges are not shown in this view.</p> : null}
+    <AvatarConversation {...props.options} avatar={<ActivityAvatar pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())}
+    messageProps={{ renderFooter: (message) => {
+      const context = (message as EntityPublicMessage).questionContext;
+      if (!context) return null;
+      const label = message.kind === "retained_reply" ? "Reply retained for its original question." : message.kind === "question_outcome" ? "Question expired; the declared fallback was used." : message.kind === "question" ? "Question" : "Answer";
+      return <p className="cd_question_receipt" data-question-id={context.question_id || String(context.question?.id || "")} data-wait-key={context.wait_key}>{label}</p>;
+    } }}
+    interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} /> : null} />
+  </>;
 }

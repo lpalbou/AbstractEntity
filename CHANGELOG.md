@@ -6,6 +6,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- Avatar question history restores actual answers, expiry outcomes and late replies
+  retained for their original question after reconnect. Public events follow the
+  gateway's recorded order, and bounded history shows an explicit omissions notice.
+
 - **Optional Avatar conversation view** centers the entity with public subtitles,
   revisit-able history, source IDs, scoped cue preferences and the existing voice,
   file and composer controls. Chat stays the default. New Avatar visits and Flow

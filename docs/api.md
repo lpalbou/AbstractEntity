@@ -100,8 +100,17 @@ of invented data.
 The optional Avatar presentation requests `conversation: true` on a new durable
 visit's open body. Existing visits keep their initial mode. The app reads only
 `GET /entities/{name}/visit/{run}/state` public fields: `public_updates`,
-`public_messages`, `pending_question` and `pending_wait`. It does not derive
+`public_messages`, `public_questions`, `pending_question` and `pending_wait`. It does not derive
 public speech from the entity's private replay envelopes or technical output.
+
+`public_questions` carries canonical question, real user answer, system expiry and
+retained-reply messages with their original run/question identity and source.
+An expiry fallback stays a system outcome; it is never rendered as a person answering.
+Public arrays merge by the gateway's recorded `order` and `published_at`, not a
+browser-time estimate. Each of the three public arrays is bounded to 64 messages,
+with at most 32 runs in the visit tree inspected. Positive `public_updates_omitted`,
+`public_messages_omitted`, `public_questions_omitted` or `conversation_runs_omitted`
+shows the earlier-exchanges notice. These bounds limit the view, not durable storage.
 
 During a durable visit, `POST /guidance` under that visit sends
 `{text, display_text}`: `text` may quote a selected public update, while
