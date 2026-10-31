@@ -26,7 +26,7 @@
     "dist/file_drop.js": "4390bd4580ec49f9140d04be619047b1d4b865c0089df6975fed5b9b93152f5a",
     "dist/workflow_interaction_core.js": "a9ab043b5aa6e83e36b305ce34d66ef86805f35a753985c07fafd34f9caf4b3c",
     "dist/workflow_interaction.js": "2f79577a06559a34da5c49513a0934b858144e194c337c8b764310716ce3d591",
-    "dist/conversation_model.js": "2ad6d4f31a2d514625e67eddd0df878bfb117b2ce61612fc1e8a6cc13e22d320",
+    "dist/conversation_model.js": "70ea45579548eba34154dba0eb74139ec03ccc0ca3e88fd5f6419baa1b39a2bc",
     "dist/avatar_conversation.js": "60c654bea4ede396594a1e9e77275af8bd288951e1c256eae612bbf810a80270",
     "dist/workflow_chat.js": "0e5039031852cc6151b489e607132fda2e78c721a71e1a2d28e34db206455354",
     "dist/workflow_evidence.js": "105d7552003c32b14642abad277c42839de792610df58ae3eca03e54f2717dec",
@@ -42,7 +42,7 @@
     "src/panel_chat.css": "3e7579cbcf429afb3d11cf8d48f3ce1aa35b2c074d62c5a1f279a0d67d3bf81c"
   },
   "artifacts": {
-    "conversation.js": "93c79017e142e9bd5a397e05dabccb6eaf64fa3ca0be4bf9e8b52efa62101453",
+    "conversation.js": "55aaa0f46e72967f277ae225c7d0c3e0e2cf9496eecf154835e0df37d16a677d",
     "artifact_preview.d.ts": "40c581cd1ef271dcb631c23f20898583822581c1c8e7ea0b0a68bbede8414432",
     "artifact_provenance.d.ts": "c4b4f810379ec2bfcde8f60db49fad72953cd07da16f4aff7e2bf22e0d3fe49a",
     "assistant_panel.d.ts": "8bb13704be43f1b09469e3aeeb1c25d179663ae01d1de5b1a88feb39ca429222",
