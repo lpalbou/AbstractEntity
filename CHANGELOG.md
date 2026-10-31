@@ -6,6 +6,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- **Optional Avatar conversation view** centers the entity with public subtitles,
+  revisit-able history, source IDs, scoped cue preferences and the existing voice,
+  file and composer controls. Chat stays the default. New Avatar visits and Flow
+  turns opt in to public updates; view changes preserve ongoing work and drafts.
+  Corrections during a durable visit use its owned guidance/answer routes, while
+  summoned Flow turns use their existing principal-owned workflow runtime.
+  Questions and permissions remain distinct, refusals preserve the draft, and
+  history/reconnect/hidden-panel speech stays silent. Diary content and technical
+  internals never enter the public subtitle projection.
+
 - **The top bar's account is the kit's ONE account widget** (operator ruling 2026-10-29: the docs button, Appearance,
   About and the account are the same kit components in every app). Signed in, one button shows the person icon, your
   name and the connection light; its menu holds Signed in as, Gateway, Copy user id and Disconnect. It replaces the

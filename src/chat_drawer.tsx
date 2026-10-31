@@ -24,6 +24,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { READ_ALOUD_INITIAL, entityReadAloudInput, readAloudStep } from "./read_aloud";
 
 import { ChatComposer } from "@abstractframework/panel-chat";
+import { useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
+import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitQuestion } from "./avatar_visit";
+import { AvatarVisitView } from "./avatar_visit_view";
+import { useAvatarVisit } from "./use_avatar_visit";
+import { screenDiaryFences } from "./flow_lane";
 import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
@@ -31,6 +36,10 @@ import { CognitionWaveInline } from "./cognition_wave_inline";
 import { turnPulse, type TurnPulse } from "./turn_pulse";
 import { TurnPulseBars } from "./turn_pulse_bars";
 import {
+  answerVisit,
+  decideVisit,
+  guideVisit,
+  flowConversationCommand,
   closeVisit,
   getEntitySubstrate,
   getVisitStatus,
@@ -44,6 +53,7 @@ import {
   type ChatTurnResult,
   type VisitStatus,
   type VisitTurnResult,
+  type VisitPublicWait,
 } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import { ownVisitSignal, type ClientVisitSignal } from "./entity_state";
@@ -141,6 +151,9 @@ export interface ChatDrawerProps {
    * whenever the folded signal changes: null = no visit this drawer
    * knows of. */
   onVisitStateChange?(signal: ClientVisitSignal | null): void;
+  onAvatarModeChange?(active: boolean): void;
+  /** The panel remains mounted on tab changes; background speech/cues stay silent. */
+  visible?: boolean;
 }
 
 export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
@@ -149,6 +162,17 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * spoofable client-side (the door verifies regardless; this is the
    * honest display of what will be stamped). */
   const participant = authUserId ? `person:${authUserId}` : "";
+  const avatarPrefs = useAvatarConversationPreferences(`${baseUrl}:${authUserId || "guest"}:${entity}`);
+  const avatarMode = avatarPrefs.mode === "avatar";
+  useEffect(() => {
+    props.onAvatarModeChange?.(avatarMode);
+    return () => props.onAvatarModeChange?.(false);
+  }, [avatarMode, props.onAvatarModeChange]);
+  const [replyContext, setReplyContext] = useState<ChatMessage | null>(null);
+  const [avatarAttended, setAvatarAttended] = useState(false);
+  const [replyPending, setReplyPending] = useState(false);
+  const replyInFlight = useRef(false);
+  const [hydrating, setHydrating] = useState(false);
   const [status, setStatus] = useState<VisitStatus | null>(null);
   /** The open DURABLE visit's run id (the steer key, the reattach key, the
    * R2 proof surface — §5 consumer contract). */
@@ -230,7 +254,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     baseUrl,
     entity,
     token,
-    active: Boolean(runId),
+    active: Boolean(runId || (avatarMode && brain === "flow")),
     prefs: voicePrefs,
     onTranscript: (text) => setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
     // The hook clears errors with ""; only real messages reach the note line.
@@ -260,6 +284,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+  useEffect(() => {
+    if (avatarMode && props.visible === false) {
+      stopTtsRef.current(); cancelRecordingRef.current?.();
+    }
+  }, [avatarMode, props.visible]);
 
   const liveActivity = useMemo(() => {
     if (busy !== "turn") return [];
@@ -295,12 +324,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   // messages). The kit's rule (`read_aloud.ts`).
   const readAloudState = useRef(READ_ALOUD_INITIAL);
   const turnLive = busy === "turn";
-  useEffect(() => {
-    const { state, speak } = readAloudStep(readAloudState.current, entityReadAloudInput(readAloudState.current.scope, runId, turnLive, latestSpoken ? { id: latestReplyId, text: latestSpoken.content } : null));
-    readAloudState.current = state;
-    if (speak && voicePrefs.read_aloud === true && voice.tts_supported) void voice.toggle_tts(speak.id, speak.text);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, latestReplyId, turnLive, voicePrefs.read_aloud, voice.tts_supported]);
+
 
   const push = useCallback((msg: Omit<DrawerMessage, "id">) => {
     idRef.current += 1;
@@ -316,6 +340,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   // The drawer keeps pixels + the composer.
   const {
     flowActive,
+    flowRunId,
+    flowView,
+    flowSessionId,
+    flowPublicHistory,
     startConversation,
     sendFlow,
     endFlowConversation,
@@ -326,7 +354,31 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     dismissQueueOffer,
     queueState,
     stepAway,
-  } = useFlowConversation({ baseUrl, entity, entityName, token, push, setBusy, setDraft, envelopesRef, turnStartSeqRef });
+  } = useFlowConversation({ baseUrl, entity, entityName, token, push, setBusy, setDraft, envelopesRef, turnStartSeqRef, conversation: avatarMode });
+  const publicVisit = useAvatarVisit(baseUrl, entity, runId, avatarMode && brain === "driver", busy === "turn");
+  const flowPublic = useMemo(() => flowConversationState(flowView), [flowView]);
+  const publicState = brain === "flow" ? flowPublic : publicVisit.state;
+  const publicMessages = useMemo(() => brain === "flow" ? flowPublicHistory : publicState ? publicVisitMessages(publicState) : [], [brain, flowPublicHistory, publicState]);
+  const avatarMessages = useMemo(() => {
+    const working = busy !== "idle" || publicState?.status === "running" || publicState?.ready_for_input === false;
+    const rows = avatarVisitHistory(messages, publicMessages, runId || flowRunId, working);
+    return brain === "driver" ? completedVisitReply(publicState, rows) : rows;
+  }, [messages, publicMessages, runId, flowRunId, busy, publicState, brain]);
+  const pendingQuestion = visitQuestion(publicState);
+  const reportAvatarError = useCallback((message: string) => setNote(message), []);
+  const interruptAvatarSpeech = useCallback(() => stopTtsRef.current(), []);
+  useEffect(() => {
+    if (brain === "flow" && !flowActive) { stopTtsRef.current(); cancelRecordingRef.current?.(); }
+  }, [brain, flowActive]);
+  useEffect(() => {
+    const { state, speak } = readAloudStep(readAloudState.current, entityReadAloudInput(readAloudState.current.scope, runId || flowRunId, turnLive, latestSpoken ? { id: latestReplyId, text: latestSpoken.content } : null));
+    readAloudState.current = state;
+    if (speak && (!avatarMode || (props.visible !== false && !avatarAttended && !draft.trim() && !voice.voice_ptt_recording && !hydrating && !publicVisit.loading)) && voicePrefs.read_aloud === true && voice.tts_supported) {
+      const text = avatarMode ? screenDiaryFences(speak.text).display : speak.text;
+      if (text.trim()) void voice.toggle_tts(speak.id, text);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, flowRunId, latestReplyId, turnLive, voicePrefs.read_aloud, voice.tts_supported, avatarMode, avatarAttended, draft, voice.voice_ptt_recording, hydrating, publicVisit.loading, props.visible]);
 
   /** Resume a visit after a remount/reload: the durable transcript (pure
    * read from the run's own vars, works on live AND terminal runs) rebuilds
@@ -351,6 +403,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         return;
       }
       setRunId(ownRunId);
+      setHydrating(true);
       getVisitTranscript(baseUrl, entity, ownRunId)
         .then((t) => {
           // Mark rehydrated ON SUCCESS only (code adversary F17): marking
@@ -390,6 +443,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           idRef.current = mid;
           setMessages(rebuilt);
         })
+        .finally(() => setHydrating(false))
         .catch((e: Error) => {
           push({ role: "system", content: `Rejoined the open visit; earlier turns could not be fetched (${e.message}) — reopen the tab to retry.`, level: "warn" });
         });
@@ -565,7 +619,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       if (!retried && isAsleepWakeRefusal(refusal)) {
         setNote(`He is asleep — waking him for your visit…`);
         postEntityState(baseUrl, entity, "awake", `visit requested by ${who} (auto-wake)`, token)
-          .then(() => openVisit(baseUrl, entity, token))
+          .then(() => openVisit(baseUrl, entity, token, undefined, avatarMode))
           .then(onOpened)
           .catch((e2: Error & { status?: number }) => onRefused(e2, true))
           .finally(() => setBusy("idle"));
@@ -593,7 +647,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       setBusy("idle");
       return;
     }
-    openVisit(baseUrl, entity, token)
+    openVisit(baseUrl, entity, token, undefined, avatarMode)
       .then((r) => {
         onOpened(r);
         setBusy("idle");
@@ -602,7 +656,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     // substrate deliberately NOT a dep (the gateway resolves the persisted
     // choice; a picker change must not re-open a live visit); onAuthRefused
     // IS one (func review: a stale closure served the 401 recovery path).
-  }, [baseUrl, entity, entityName, participant, token, push, onAuthRefused, flowActive]);
+  }, [baseUrl, entity, entityName, participant, token, push, onAuthRefused, flowActive, avatarMode]);
 
   /** Sanitize a dropped filename into a safe workspace leaf. */
   const safeName = (name: string): string =>
@@ -653,7 +707,53 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
 
 
 
+  const answerPublic = useCallback(async (wait: VisitPublicWait, answer: string) => {
+    const result = brain === "driver"
+      ? await answerVisit(baseUrl, entity, runId!, wait, answer, token)
+      : await flowConversationCommand(baseUrl, wait.run_id, "resume", { wait_key: wait.wait_key, response: answer }, token);
+    if (result.accepted !== true) throw new Error("The gateway did not accept this answer.");
+    push({ role: "user", content: answer });
+    publicVisit.refresh();
+  }, [brain, baseUrl, entity, runId, token, publicVisit.refresh, push]);
+  const decidePublic = useCallback(async (wait: VisitPublicWait, approved: boolean) => {
+    const result = brain === "driver"
+      ? await decideVisit(baseUrl, entity, runId!, wait, approved, token)
+      : await flowConversationCommand(baseUrl, wait.run_id, "resume", { wait_key: wait.wait_key, approved }, token);
+    if (result.accepted !== true) throw new Error("The gateway did not accept this decision.");
+    publicVisit.refresh();
+  }, [brain, baseUrl, entity, runId, token, publicVisit.refresh]);
+
+  const sendDuringWork = useCallback(async () => {
+    const words = draft.trim();
+    if (!words || replyInFlight.current) return;
+    const targetRun = runId || flowRunId;
+    if (!targetRun) { setNote("The conversation is still opening. Your words are kept here."); return; }
+    if (pendingQuestion?.allow_free_text === false) { setNote("Choose one of the question's options above. Your draft is kept here."); return; }
+    if (pendingFiles.length) { setNote("Keep these files attached for the next full turn. Send this reply without files, or wait for the current turn to finish."); return; }
+    replyInFlight.current = true; setReplyPending(true); setNote(null); stopTtsRef.current();
+    try {
+      if (pendingQuestion) {
+        await answerPublic(pendingQuestion, words);
+        setNote("Your answer was accepted.");
+      } else {
+        if (replyContext?.publicUpdate && !(publicState ? publicVisitMessages(publicState) : []).some((m) => m.id === replyContext.id && m.runId === replyContext.runId)) throw new Error("The selected update belongs to an earlier turn. Return to latest before sending this reply.");
+        const wrapped = conversationReply(words, replyContext, replyContext?.publicUpdate?.runId || targetRun);
+        const result = brain === "driver"
+          ? await guideVisit(baseUrl, entity, targetRun, wrapped, words, token)
+          : await flowConversationCommand(baseUrl, targetRun, "inject_guidance", { guidance: wrapped, display_text: words }, token);
+        if (result.accepted !== true) throw new Error("The gateway did not accept your message.");
+        // The durable public_messages projection provides human history; acceptance is not adoption.
+        setNote("Your message was accepted. The assistant can consider it at its next opportunity; this does not confirm that its plan changed.");
+        publicVisit.refresh();
+      }
+      setDraft((current) => current.trim() === words ? "" : current);
+      setReplyContext(null);
+    } catch (error) { setNote(`Your message was not sent: ${refusalText(error as Error)}. Your words are kept in the composer.`); }
+    finally { replyInFlight.current = false; setReplyPending(false); }
+  }, [draft, runId, flowRunId, brain, baseUrl, entity, token, pendingFiles.length, pendingQuestion, answerPublic, replyContext, publicState, publicVisit.refresh]);
+
   const send = useCallback(() => {
+    if (avatarMode && (busy === "turn" || publicState?.status === "running" || publicState?.ready_for_input === false || pendingQuestion)) { void sendDuringWork(); return; }
     let text = draft.trim();
     // Reference any handed-over files so the entity knows to read them.
     if (pendingFiles.length > 0) {
@@ -750,7 +850,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         setDraft((cur) => cur || text);
       })
       .finally(() => setBusy("idle"));
-  }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow]);
+  }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow, avatarMode, publicState?.status, publicState?.ready_for_input, pendingQuestion, sendDuringWork]);
 
   const close = useCallback(() => {
     if (!runId || busy !== "idle") return;
@@ -953,6 +1053,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       }}
       onDrop={onDrop}
     >
+      <div className="cd_view_modes" role="group" aria-label="Conversation view">
+        <button type="button" aria-pressed={!avatarMode} onClick={() => { stopTtsRef.current(); avatarPrefs.setMode("chat"); }}>Chat</button>
+        <button type="button" aria-pressed={avatarMode} onClick={() => { stopTtsRef.current(); avatarPrefs.setMode("avatar"); }}>Avatar</button>
+      </div>
+      {avatarPrefs.error ? <p role="status" className="cd_note">{avatarPrefs.error}</p> : null}
       {/* The Cognitive Monitor (operator 2026-07-15 pm): a proper foldable
         * panel — title + (i) modal, 3-letter axis codes on the bloom and
         * listed on the right, a human-readable interpretation line, and
@@ -960,7 +1065,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         * operator scrolled to). Cheap by construction: one embed per
         * DISTINCT reply text, cached — never a harvest (flood lesson
         * c2155). The full Wave tab stays for the corpus read. */}
-      {runId ? (
+      {runId && !avatarMode ? (
         <CognitionWaveInline
           baseUrl={baseUrl}
           entity={entity}
@@ -1046,7 +1151,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               )}
             </>
           )}
-          {note ? <p className="cd_note">{note}</p> : null}
+          {avatarMode && publicVisit.error ? <p className="cd_note" role="status">{publicVisit.error} <button type="button" onClick={publicVisit.refresh}>Retry</button></p> : null}
+          {note ? <p className="cd_note" role="status">{note}</p> : null}
           {seatBusy ? (
             <button
               className="cd_open_btn"
@@ -1060,13 +1166,28 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         </div>
       ) : (
         <>
-          <ChatMessageList
+          {avatarMode && runId && publicState && !Array.isArray(publicState.public_updates) ? <p className="cd_note cd_avatar_hint">Begin a new conversation here to receive progress messages.</p> : null}
+          {avatarMode ? <AvatarVisitView
+            entityName={entityName} messages={avatarMessages} state={publicState} busy={busy} draft={draft}
+            onAnswer={answerPublic} onDecision={decidePublic} onError={reportAvatarError}
+            options={{ sessionKey: `${baseUrl}:${authUserId}:${entity}:${runId || flowSessionId || "flow"}`,
+              connection: brain === "driver" && publicVisit.error ? "disconnected" : "connected",
+              replaying: props.visible === false || hydrating || (brain === "driver" ? publicVisit.loading : !flowView && busy === "turn"),
+              listening: voice.voice_ptt_recording || voice.voice_ptt_busy,
+              speaking: voice.tts_playback.status === "playing", preferences: avatarPrefs.preferences,
+              onPreferencesChange: avatarPrefs.setPreferences, onAttendedChange: setAvatarAttended,
+              onCue: (cue) => { void playConversationCue(cue).catch((e: Error) => setNote(e.message)); },
+              narrate: voicePrefs.read_aloud === true && voice.tts_supported,
+              onNarrate: (m) => { void voice.toggle_tts(String(m.id), m.content); },
+              onInterruptSpeech: interruptAvatarSpeech, onReplyContext: setReplyContext,
+            }}
+          /> : <ChatMessageList
             messages={messages}
             onDetail={setDetailTurn}
             onSpeakToggle={voice.tts_supported ? (m) => void voice.toggle_tts(String(m.id || ""), m.content) : undefined}
             getSpeakState={voice.tts_supported ? (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle") : undefined}
             onFocusMessage={setFocusMid}
-          />
+          />}
           {detailTurn ? <TurnDetailModal turn={detailTurn} entityName={entityName} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (
             <div className="cd_queue_offer">
@@ -1102,7 +1223,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               </button>
             </div>
           ) : null}
-          {busy === "turn" ? (
+          {busy === "turn" && !avatarMode ? (
             <div className="cd_thinking" aria-live="polite">
               {/* THE PULSE BARS (operator 2026-08-01: "make them represent
                 * something more meaningful … turns, tool calls and tokens
@@ -1139,7 +1260,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             * reflection's acts land in the live stream — every envelope
             * past the close-click seq renders here as it happens (feelings
             * moved, summary formed, interests kept, session sealed). */}
-          {busy === "closing" ? (
+          {busy === "closing" && !avatarMode ? (
             <div className="cd_closing" aria-live="polite">
               <div className="cd_closing_head">
                 <span className="cd_closing_spin" aria-hidden="true" />
@@ -1159,7 +1280,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               )}
             </div>
           ) : null}
-          {note ? <p className="cd_note">{note}</p> : null}
+          {avatarMode && publicVisit.error ? <p className="cd_note" role="status">{publicVisit.error} <button type="button" onClick={publicVisit.refresh}>Retry</button></p> : null}
+          {note ? <p className="cd_note" role="status">{note}</p> : null}
           {pendingFiles.length > 0 ? (
             <div className="cd_files">
               {pendingFiles.map((f, i) => (
@@ -1214,11 +1336,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           />
           <ChatComposer
             value={draft}
-            onChange={setDraft}
+            onChange={(text) => { if (avatarMode) stopTtsRef.current(); setDraft(text); }}
             onSubmit={send}
             placeholder={`talk with ${entityName}…  (drop or attach files)`}
-            busy={busy === "turn"}
-            disabled={busy !== "idle"}
+            busy={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy === "turn"}
+            disabled={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy !== "idle"}
             rows={2}
             actions={
               <>
@@ -1230,7 +1352,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
                 >
                   {uploading ? "…" : "📎"}
                 </button>
-                {runId ? <VisitVoiceButtons voice={voice} route={sttRouteText(voicePrefs, voiceDefaults.value)} disabled={busy === "closing"} /> : null}
+                {runId || (avatarMode && flowActive) ? <VisitVoiceButtons voice={voice} route={sttRouteText(voicePrefs, voiceDefaults.value)} disabled={busy === "closing"} /> : null}
                 <button className="cd_attach_btn" onClick={() => void copyVisit()} title="Copy the full visit verbatim to the clipboard (every voice + tools, for debugging)">
                   ⧉
                 </button>
@@ -1265,8 +1387,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             * HONEST LIMIT (func review): the visit turn channel is
             * BETWEEN-TURNS only — send() refuses while a turn runs (one
             * turn at a time through the door). Mid-turn interjection would
-            * need the steer rite (H5), which does not exist yet; until it
-            * does, the operator waits for the turn to land. */}
+            * uses the owned /visit guidance/answer paths in the optional
+            * avatar view. The existing Chat view keeps its between-turn behavior. */}
         </>
       )}
     </div>

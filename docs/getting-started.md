@@ -64,8 +64,16 @@ the form reports **Pollux already exists — opening it.** and opens that entity
 
 ## 4. Talk with it
 
-On the entity's page, open the **Chat** tab and say hello. A visit starts when
-you speak; a sleeping entity wakes up for it. While you talk, the memory graph
+On the entity's page, open the **Chat** tab and say hello. Choose **Avatar** for
+public subtitles and a focused conversation scene; **Chat** keeps the transcript
+and technical view. The draft and ongoing work survive view changes. New Avatar
+visits request public updates; Flow turns request them when started in Avatar.
+During work, send a correction in the same composer or answer the question shown.
+An accepted correction is available to the assistant, but is not confirmation
+that its plan changed. Questions and permission decisions stay separate.
+
+A visit starts when you choose **visit**; a sleeping entity wakes up for it.
+Send a message in the composer to begin talking. In Chat, the memory graph
 shows memories forming and being recalled, and the **Book** tab collects the
 diary entries the entity writes.
 

@@ -6,7 +6,7 @@ import ReactDOM from "react-dom/client";
 // never imported its stylesheet — the card rendered as bare unstyled HTML).
 import "@abstractframework/ui-kit/theme.css";
 import { applyTheme, installViewportVars } from "@abstractframework/ui-kit";
-import "@abstractframework/panel-chat/panel_chat.css";
+import "./vendor/abstractchat/conversation.css";
 
 import { EntityView } from "./entity_view";
 import { ErrorBoundary } from "./error_boundary";

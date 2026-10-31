@@ -82,6 +82,24 @@ for every launch flag.
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
 
+Chat also offers an optional **Avatar** view. It brings the entity to the center
+of the scene with public subtitles, conversation history and the same composer,
+files and voice controls. Chat remains the default. Switching views keeps the
+current work and draft; the technical panels and their saved width return when
+you switch back. New Avatar visits request public updates, and Flow turns request
+them when started in Avatar. An already running visit keeps its original settings.
+
+While work runs, send a correction in the composer. The gateway may accept it
+for the assistant's next opportunity; acceptance does not confirm that the plan
+changed. If the entity asks a question, the same composer answers that exact
+question. Permission requests keep separate Allow/Deny controls. Refused messages
+stay in the composer for retry. Public updates retain source IDs, and diary fences
+are screened before captions, history or narration. Hover, focus, pause or open
+history to hold subtitles; **Return to latest** resumes following. Independent
+visual/audio cue preferences are stored for this gateway, account and entity.
+Audio is off by default; optional narration uses the existing read-aloud setting
+and the entity's own voice. History, reconnects and hidden panels stay silent.
+
 The app is a thin client: it keeps no server state of its own. Every view is
 read from the gateway, and the memory views are computed from the memory
 engine's replay stream, so replay, live tail and scrubbing back in time show the

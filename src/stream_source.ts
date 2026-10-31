@@ -15,7 +15,7 @@
  */
 
 import type { ReplayEnvelope } from "./stream_types";
-import { joinBaseUrl, type VoiceDefaults } from "@abstractframework/ui-kit";
+import { joinBaseUrl, randomId, type VoiceDefaults } from "@abstractframework/ui-kit";
 import { createReplayViewTransport, type ReplayViewTransport } from "@abstractframework/panel-chat";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
@@ -1385,12 +1385,55 @@ export function isAsleepWakeRefusal(refusal: string): boolean {
   return /asleep/i.test(t) && /wake/i.test(t);
 }
 
-export function openVisit(baseUrl: string, entity: string, token: string | null, sessionId?: string): Promise<VisitOpenResult> {
+export function openVisit(baseUrl: string, entity: string, token: string | null, sessionId?: string, conversation = false): Promise<VisitOpenResult> {
   const body: Record<string, unknown> = {};
   if (sessionId?.trim()) body["session_id"] = sessionId.trim();
+  if (conversation) body["conversation"] = true;
   // The open may auto-yield the own-time loop at a tick boundary (up to
   // ~55s server-side) — same budget as the hosted lane's open.
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/open`), body, token, 90000);
+}
+
+/** Public conversation projection and owned reply paths. Never read entity-private ledgers. */
+export interface VisitPublicWait {
+  run_id: string;
+  wait_key: string;
+  reason?: string;
+  prompt?: string;
+  choices?: unknown[];
+  allow_free_text?: boolean;
+  details?: Record<string, unknown>;
+}
+export interface VisitConversationState {
+  run_id: string;
+  session_id?: string;
+  status?: string;
+  ready_for_input?: boolean;
+  turn_complete?: boolean;
+  turn_n?: number;
+  reply?: string | null;
+  public_updates?: unknown[];
+  public_messages?: unknown[];
+  public_updates_omitted?: number;
+  public_messages_omitted?: number;
+  pending_question?: VisitPublicWait | null;
+  pending_wait?: VisitPublicWait | null;
+}
+export function getVisitConversation(baseUrl: string, entity: string, runId: string): Promise<VisitConversationState> {
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/state`));
+}
+export function guideVisit(baseUrl: string, entity: string, runId: string, text: string, displayText: string, token: string | null): Promise<{ accepted: boolean; seq?: number; run_id?: string }> {
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/guidance`), { text, display_text: displayText }, token);
+}
+export function answerVisit(baseUrl: string, entity: string, runId: string, target: VisitPublicWait, response: string, token: string | null): Promise<{ accepted: boolean }> {
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/answer`), { wait_key: target.wait_key, response, target_run_id: target.run_id }, token);
+}
+export function decideVisit(baseUrl: string, entity: string, runId: string, target: VisitPublicWait, approved: boolean, token: string | null): Promise<{ accepted: boolean }> {
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/decision`), { wait_key: target.wait_key, approved }, token);
+}
+/** Summoned Flow runs use the principal's workflow runtime, unlike private durable visits. */
+export function flowConversationCommand(baseUrl: string, runId: string, type: "inject_guidance" | "resume", payload: Record<string, unknown>, token: string | null): Promise<{ accepted: boolean; seq?: number }> {
+  return postJson(joinBaseUrl(baseUrl, "api/gateway/commands"), { command_id: randomId(), run_id: runId, type, payload, client_id: "abstractentity" }, token);
 }
 
 export function sendVisitTurn(

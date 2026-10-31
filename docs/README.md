@@ -11,7 +11,7 @@ create your first one. The pages below go deeper.
   uses, with diagrams; the replay-stream fold and the invariants the tests pin.
 - [API and configuration](api.md): the `abstractentity` command, environment
   variables, app URLs (`#new`, `?entity=`, `?page=blueprint`), server routes and
-  the gateway routes the app calls.
+  the gateway routes the app calls, including optional Avatar conversation.
 - [FAQ](faq.md): common questions about entities, names, privacy of the diary,
   gateway versions, the About dialog and using the app on a phone or tablet.
 - [Troubleshooting](troubleshooting.md): symptoms and fixes for gateway, sign-in,

@@ -369,6 +369,7 @@ export function EntityView(): React.ReactElement {
    * drawer reports its own open session up; the derive ranks it above the
    * served composite (and below the kill switch). */
   const [clientVisit, setClientVisit] = useState<ClientVisitSignal | null>(null);
+  const [avatarChat, setAvatarChat] = useState(false);
   /** On-disk footprint (gateway c1788) — bytes at rest + maintenance the
    * stream cannot carry; null when the route is unserved (stale gateway),
    * where the health panel renders the labeled gap. */
@@ -2370,6 +2371,7 @@ export function EntityView(): React.ReactElement {
         </div>
         <SideTabs
           defaultTab="ledger"
+          emphasizedTab={avatarChat ? "chat" : undefined}
           activeTab={requestedTab ? `${requestedTab.tab}#${requestedTab.nonce}` : undefined}
           tabs={[
             // Gateway tabs mount only for a VERIFIED browser (F14: the
@@ -2387,7 +2389,7 @@ export function EntityView(): React.ReactElement {
                     // while the chip said personal — a third independently
                     // sourced visit word in the same viewport).
                     hint: life.visiting,
-                    content: (
+                    content: (visible: boolean) => (
                       <ChatDrawer
                         key={entityName} // F9: a direct A→B switch must remount — A's thread/runId must never render in B's room
                         baseUrl={gatewayUrl.trim().replace(/\/+$/, "")}
@@ -2404,6 +2406,8 @@ export function EntityView(): React.ReactElement {
                           setShowMeetConsole(true);
                         }}
                         onVisitStateChange={handleVisitStateChange}
+                        onAvatarModeChange={setAvatarChat}
+                        visible={visible}
                       />
                     ),
                   },
