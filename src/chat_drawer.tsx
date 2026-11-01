@@ -23,8 +23,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { READ_ALOUD_INITIAL, entityReadAloudInput, readAloudStep } from "./read_aloud";
 
-import { ChatComposer } from "@abstractframework/panel-chat";
-import { useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
+import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
 import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -1348,17 +1347,13 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             busy={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy === "turn"}
             disabled={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy !== "idle"}
             rows={2}
+            onAttach={() => fileInputRef.current?.click()}
+            attachLabel="Give a file (placed in the workspace, read with read_file)"
+            attachPending={uploading}
+            attachDisabled={busy !== "idle"}
+            trailingActions={runId || (avatarMode && flowActive) ? <VisitVoiceButtons voice={voice} route={sttRouteText(voicePrefs, voiceDefaults.value)} disabled={busy === "closing"} /> : undefined}
             actions={
               <>
-                <button
-                  className="cd_attach_btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading || busy !== "idle"}
-                  title="Give him a file — placed in his workspace, he reads it with read_file"
-                >
-                  {uploading ? "…" : "📎"}
-                </button>
-                {runId || (avatarMode && flowActive) ? <VisitVoiceButtons voice={voice} route={sttRouteText(voicePrefs, voiceDefaults.value)} disabled={busy === "closing"} /> : null}
                 <button className="cd_attach_btn" onClick={() => void copyVisit()} title="Copy the full visit verbatim to the clipboard (every voice + tools, for debugging)">
                   ⧉
                 </button>

@@ -6,6 +6,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- The chat drawer and the meet console use the shared rounded multiline composer (AbstractUIC
+  panel-chat 0.7.0). The meet console keeps "speak to" above the field, Ctrl/Cmd+Enter to relay,
+  and the closing note next to Send; the chat drawer's Attach button is the composer's own and
+  its voice controls sit beside Send. A browser check covers the meet console:
+  `npm run e2e:meet -- --playwright ../abstractcode/web` after `npm run build`.
+
 - Avatar question history restores actual answers, expiry outcomes and late replies
   retained for their original question after reconnect. Public events follow the
   gateway's recorded order, and bounded history shows an explicit omissions notice.

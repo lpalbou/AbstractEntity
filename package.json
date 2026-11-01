@@ -41,7 +41,8 @@
     "start": "node ./bin/cli.js",
     "test": "vitest run",
     "check:lock": "node scripts/check_lock.mjs",
-    "sync:conversation": "node scripts/sync_conversation.mjs"
+    "sync:conversation": "node scripts/sync_conversation.mjs",
+    "e2e:meet": "node scripts/meet_console.e2e.mjs"
   },
   "dependencies": {
     "@abstractframework/app-server": "^0.1.13",
