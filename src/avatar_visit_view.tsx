@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { ActivityAvatar, type AvatarPose } from "@abstractframework/ui-kit";
-import { WorkflowInteractionPanel, type WorkflowInteraction } from "@abstractframework/panel-chat";
-import { AvatarConversation, conversationState, type AvatarConversationOptions, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
+import { WorkflowInteractionPanel, publicApprovalRequest, AvatarConversation, conversationState, type WorkflowInteraction, type AvatarConversationOptions, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
 import { screenDiaryFences } from "./flow_lane";
 import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus, type EntityPublicMessage } from "./avatar_visit";
 import type { VisitConversationState, VisitPublicWait } from "./stream_source";
@@ -34,7 +33,7 @@ export function AvatarVisitView(props: {
     if (attention.kind === "approval") {
       const calls = Array.isArray(wait.details?.tool_calls) ? wait.details.tool_calls : [];
       const names = calls.map((call) => call && typeof call === "object" && typeof call.name === "string" ? call.name : "requested action");
-      return { id: attention.id, kind: "tool-approval", title: "Permission required", toolName: names.join(", ") || "Requested action", detail: "Choose explicitly whether to allow this action. Waiting never grants permission.", onApprove: () => props.onDecision(wait, true), onDeny: () => props.onDecision(wait, false) };
+      return { id: attention.id, kind: "tool-approval", title: "Permission required", toolName: names.join(", ") || "Requested action", publicRequest: publicApprovalRequest(calls, wait.details?.public_action, wait.run_id), onApprove: () => props.onDecision(wait, true), onDeny: () => props.onDecision(wait, false) };
     }
     if (attention.kind !== "question") return null;
     const choices = (wait.choices || []).map((choice) => {
@@ -54,6 +53,7 @@ export function AvatarVisitView(props: {
       const label = message.kind === "retained_reply" ? "Reply retained for its original question." : message.kind === "question_outcome" ? "Question expired; the declared fallback was used." : message.kind === "question" ? "Question" : "Answer";
       return <p className="cd_question_receipt" data-question-id={context.question_id || String(context.question?.id || "")} data-wait-key={context.wait_key}>{label}</p>;
     } }}
-    interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} /> : null} />
+    interactionId={interaction?.id || ""}
+    interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} variant="conversation" onReviewTechnical={props.options.onTechnicalView} /> : null} />
   </>;
 }

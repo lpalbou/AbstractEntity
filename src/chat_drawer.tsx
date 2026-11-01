@@ -1176,6 +1176,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             entityName={entityName} messages={avatarMessages} state={publicState} busy={busy} draft={draft}
             onAnswer={answerPublic} onDecision={decidePublic} onError={reportAvatarError}
             options={{ sessionKey: `${baseUrl}:${authUserId}:${entity}:${runId || flowSessionId || "flow"}`,
+              onTechnicalView: () => { stopTtsRef.current(); avatarPrefs.setMode("chat"); },
               connection: brain === "driver" && publicVisit.error ? "disconnected" : "connected",
               replaying: props.visible === false || hydrating || (brain === "driver" ? publicVisit.loading : !flowView && busy === "turn"),
               listening: voice.voice_ptt_recording || voice.voice_ptt_busy,

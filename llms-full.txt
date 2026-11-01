@@ -97,6 +97,9 @@ files and voice controls. Chat remains the default. Switching views keeps the
 current work and draft; the technical panels and their saved width return when
 you switch back. New Avatar visits request public updates, and Flow turns request
 them when started in Avatar. An already running visit keeps its original settings.
+Permission requests show ordinary actions and destinations, labeled decision icons,
+and the assistant’s public reason when it is attached to that exact request. “Review
+details” returns to the detailed Chat view. Unknown actions require that review.
 
 While work runs, send a correction in the composer. The gateway may accept it
 for the assistant's next opportunity; acceptance does not confirm that the plan
