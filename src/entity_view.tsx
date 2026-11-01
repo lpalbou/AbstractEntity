@@ -2163,7 +2163,6 @@ export function EntityView(): React.ReactElement {
         source={ENTITY_DOCS_SOURCE}
         fetchGateway={docsFetch}
         connected={sourceKind === "gateway" && !gatewayLocked}
-        topOffset={49}
         placeholder="Ask about AbstractEntity…"
         suggestions={ENTITY_DOCS_SUGGESTIONS}
       />
