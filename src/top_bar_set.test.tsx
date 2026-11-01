@@ -66,7 +66,7 @@ describe("the shared top-bar set", () => {
 
   it("opens the kit dialog and the panel-chat drawer, never local copies", () => {
     expect(jsxProps(view, "AfAppearanceDialog")).toMatch(/open=\{appearanceOpen\}/);
-    expect(view).toMatch(/import \{ DocsAssistantDrawer \} from "@abstractframework\/panel-chat"/);
+    expect(view).toMatch(/import \{ DocsAssistantDrawer \} from "\.\/vendor\/abstractdocs\/docs_assistant\.js"/);
     expect(jsxProps(view, "DocsAssistantDrawer")).toMatch(/open=\{assistantOpen\}/);
     for (const local of [/function \w*About\w*Dialog/, /function \w*Appearance\w*Dialog/, /Signed in as/, /af-topbar__/]) expect(view).not.toMatch(local);
   });

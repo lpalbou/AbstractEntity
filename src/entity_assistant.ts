@@ -12,7 +12,8 @@
  * went through docs-qa.
  */
 
-import type { DocsAssistantSource, GatewayFetch } from "@abstractframework/panel-chat";
+import type { DocsAssistantSource } from "./vendor/abstractdocs/docs_assistant.js";
+import type { GatewayFetch } from "./vendor/abstractdocs/workspace_browser.js";
 import { joinBaseUrl } from "@abstractframework/ui-kit";
 import { gatewayReadHeaders, proxyCsrfHeaders } from "./stream_source";
 

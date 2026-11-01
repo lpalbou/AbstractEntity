@@ -34,7 +34,7 @@ import {
   Icon,
 } from "@abstractframework/ui-kit";
 import type { GatewayConnectionState } from "@abstractframework/ui-kit";
-import { DocsAssistantDrawer } from "@abstractframework/panel-chat";
+import { DocsAssistantDrawer } from "./vendor/abstractdocs/docs_assistant.js";
 import { bearerAccountStatus } from "./entity_account";
 import { ENTITY_DOCS_SOURCE, ENTITY_DOCS_SUGGESTIONS, makeEntityDocsFetch } from "./entity_assistant";
 
