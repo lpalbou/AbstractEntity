@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { ActivityAvatar, type AvatarPose } from "@abstractframework/ui-kit";
 import { WorkflowInteractionPanel, publicApprovalRequest, AvatarConversation, conversationState, type WorkflowInteraction, type AvatarConversationOptions, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
 import { screenDiaryFences } from "./flow_lane";
-import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus, type EntityPublicMessage } from "./avatar_visit";
+import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus } from "./avatar_visit";
 import type { VisitConversationState, VisitPublicWait } from "./stream_source";
 
 export function AvatarVisitView(props: {
@@ -47,12 +47,6 @@ export function AvatarVisitView(props: {
   return <>
     {publicVisitHistoryOmitted(props.state) ? <p className="cd_note cd_avatar_history_notice" role="status">Some earlier exchanges are not shown in this view.</p> : null}
     <AvatarConversation {...props.options} avatar={<ActivityAvatar pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())}
-    messageProps={{ renderFooter: (message) => {
-      const context = (message as EntityPublicMessage).questionContext;
-      if (!context) return null;
-      const label = message.kind === "retained_reply" ? "Reply retained for its original question." : message.kind === "question_outcome" ? "Question expired; the declared fallback was used." : message.kind === "question" ? "Question" : "Answer";
-      return <p className="cd_question_receipt" data-question-id={context.question_id || String(context.question?.id || "")} data-wait-key={context.wait_key}>{label}</p>;
-    } }}
     interactionId={interaction?.id || ""}
     interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} variant="conversation" onReviewTechnical={props.options.onTechnicalView} /> : null} />
   </>;

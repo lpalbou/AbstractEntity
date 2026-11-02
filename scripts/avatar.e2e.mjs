@@ -109,7 +109,7 @@ try {
   await page.locator(".cd_file_x").click();
   await composer.fill("Investigate the supported format");
   await send.click();
-  await page.getByLabel("Public subtitles").getByText(update.text, { exact: true }).waitFor({ timeout: 10_000 });
+  await page.locator(".pc-avatar-conversation__line").getByText(update.text, { exact: true }).waitFor({ timeout: 10_000 });
   assert(!(await page.locator(".chat_drawer").innerText()).includes("PRIVATE"));
   assert(await composer.isEnabled(), "the avatar composer remains available during owned work");
   await composer.fill("Keep CSV format");
@@ -147,24 +147,17 @@ try {
   assert.deepEqual(seen.decisions, [{ wait_key: "approval-1", approved: false }]);
   assert.equal(seen.commands.length, 0, "driver never falls through to a generic runtime command");
   finishTurn();
-  await page.getByLabel("Public subtitles").getByText(/The CSV result is ready/).waitFor();
-  await page.getByRole("button", { name: "Conversation history", exact: true }).click();
-  const history = page.getByRole("list", { name: "Public conversation history" });
-  assert(!(await history.innerText()).includes("PRIVATE"));
-  assert((await history.innerText()).includes("Keep CSV format"));
-  if (arg("shots")) { mkdirSync(arg("shots"), { recursive: true }); await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-history-desktop.png") }); }
-  // History takes the captions' place; closing it brings the rolling captions back.
-  await page.getByRole("button", { name: "Conversation history", exact: true }).click();
-  await page.getByLabel("Public subtitles").getByText(/The CSV result is ready/).waitFor();
-  if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-desktop.png") });
+  // The answer replaces the live line, once, as a message.
+  await page.locator(".pc-avatar-conversation__answer").getByText(/The CSV result is ready/).waitFor();
+  assert.equal(await page.locator(".pc-avatar-conversation__line").count(), 0);
+  assert(!(await page.locator(".chat_drawer").innerText()).includes("PRIVATE"));
+  if (arg("shots")) { mkdirSync(arg("shots"), { recursive: true }); await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-desktop.png") }); }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".side_tabs_drawer").waitFor();
   if (!(await page.getByLabel("Avatar conversation").isVisible())) await chatTab.click();
   assert(await composer.isVisible());
   assert((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 1, "phone has no horizontal overflow");
-  const captionLines = await page.getByLabel("Public subtitles").evaluate((node) => node.clientHeight / parseFloat(getComputedStyle(node).lineHeight));
-  assert(Math.abs(captionLines - 3) < 0.2, `phone captions keep a three-line area (${captionLines})`);
-  const phoneScene = await page.getByLabel("Public subtitles").evaluate((node) => {
+  const phoneScene = await page.locator(".pc-avatar-conversation__answer").evaluate((node) => {
     const caption = node.getBoundingClientRect();
     const composer = document.querySelector('.chat_drawer .pc-composer').getBoundingClientRect();
     const avatar = document.querySelector('.pc-avatar-conversation__scene').getBoundingClientRect();
@@ -172,7 +165,7 @@ try {
     return { captionTop: caption.top, captionBottom: caption.bottom, composerTop: composer.top, composerBottom: composer.bottom, avatarTop: avatar.top, avatarBottom: avatar.bottom, regionTop: region.top, regionBottom: region.bottom, height: innerHeight };
   });
   assert(phoneScene.avatarTop >= phoneScene.regionTop && phoneScene.avatarBottom <= phoneScene.regionBottom, "phone avatar is visible without scrolling");
-  assert(phoneScene.captionTop >= phoneScene.regionTop && phoneScene.captionBottom <= Math.min(phoneScene.regionBottom, phoneScene.composerTop), `phone subtitles stay visible with avatar and composer: ${JSON.stringify(phoneScene)}`);
+  assert(phoneScene.captionTop >= phoneScene.regionTop && phoneScene.captionBottom <= Math.min(phoneScene.regionBottom, phoneScene.composerTop), `phone answer stays visible with avatar and composer: ${JSON.stringify(phoneScene)}`);
   assert(phoneScene.composerBottom <= phoneScene.height, "phone composer remains in the visible viewport");
   if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-phone.png") });
   publicQuestions.push(
@@ -188,15 +181,10 @@ try {
   if (!(await page.getByLabel("Avatar conversation").isVisible())) await page.locator(".st_tab", { hasText: "Chat" }).first().click();
   await page.getByLabel("Avatar conversation").waitFor();
   await page.getByText("Some earlier exchanges are not shown in this view.", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Conversation history", exact: true }).click();
-  const restored = page.getByRole("list", { name: "Public conversation history" });
-  await restored.getByText("Which delimiter should I use?", { exact: true }).waitFor();
-  await restored.getByText("Use commas", { exact: true }).waitFor();
-  await restored.getByText("No answer arrived before the deadline. Continuing with: Keep the header.", { exact: true }).waitFor();
-  await restored.getByText("Late answer: remove the header.", { exact: true }).waitFor();
-  assert.equal(await restored.getByText("Reply retained for its original question.", { exact: true }).count(), 1);
-  assert.equal(await restored.locator('[data-question-id="expired-id"]').count(), 3);
-  assert(!(await restored.innerText()).includes("PRIVATE"));
+  // The Avatar view shows the current exchange only (no history pane): the retained late reply
+  // is the person's latest message, so nothing of the earlier exchange is on screen.
+  assert.equal(await page.locator(".pc-avatar-conversation__line, .pc-avatar-conversation__answer").count(), 0);
+  assert(!(await page.locator(".chat_drawer").innerText()).includes("PRIVATE"));
   assert.equal(publicQuestions.filter((row) => row.role === "user" && row.text === "Keep the header.").length, 0, "an expired fallback is not a human answer");
   if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-question-history.png") });
   assert.deepEqual(errors, []);
@@ -241,7 +229,7 @@ try {
   const flowComposer = flow.locator(".chat_drawer .pc-composer textarea");
   const flowSend = flow.locator(".chat_drawer .pc-composer").getByRole("button", { name: "Send", exact: true });
   await flowComposer.fill("Find the supported Flow format"); await flowSend.click();
-  await flow.getByLabel("Public subtitles").getByText("I checked the Flow format.", { exact: true }).waitFor();
+  await flow.locator(".pc-avatar-conversation__line").getByText("I checked the Flow format.", { exact: true }).waitFor();
   assert.equal(flowSeen.summons[0].input_data._runtime.conversation.enabled, true);
   await flowComposer.fill("Keep the Flow CSV format"); await flowSend.click();
   await flow.getByText("Which Flow delimiter?", { exact: true }).waitFor();
@@ -253,7 +241,7 @@ try {
   assert.equal(flowSeen.commands[1].run_id, "flow-actor");
   assert.deepEqual(flowSeen.commands[1].payload, { wait_key: "flow-essential", response: "Use Flow commas" });
   flowDone = true;
-  await flow.getByLabel("Public subtitles").getByText("The Flow CSV result is ready.", { exact: true }).waitFor();
+  await flow.locator(".pc-avatar-conversation__answer").getByText("The Flow CSV result is ready.", { exact: true }).waitFor();
   if (arg("shots")) await flow.screenshot({ path: resolve(arg("shots"), "entity-avatar-flow.png") });
   console.log("Entity built-browser avatar PASS: default Chat, opt-in, privacy, busy correction/refusal/retry, question targeting, mode/draft continuity, final/history; no generic driver commands.");
   console.log("Entity built-browser Flow PASS: existing summoned view, start opt-in, public update, live guidance with human history, exact child question answer and final result.");

@@ -90,7 +90,7 @@ for every launch flag.
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
-of the scene with public subtitles, conversation history and the same composer,
+of the scene with one live line of what it reports, a Findings panel and the same composer,
 files and voice controls. Chat remains the default. Switching views keeps the
 current work and draft; the technical panels and their saved width return when
 you switch back. The Avatar view needs AbstractGateway 0.19.0 or newer; with an
@@ -107,17 +107,13 @@ for the assistant's next opportunity; acceptance does not confirm that the plan
 changed. If the entity asks a question, the same composer answers that exact
 question. Permission requests keep separate Allow/Deny controls. Refused messages
 stay in the composer for retry. Public updates keep their source IDs for the technical view, and diary fences
-are screened before captions, history or narration. Captions roll in realtime under
-the avatar: what the entity says publicly during the current turn, newest at the bottom,
-rendered like the conversation (Markdown, links, files); nothing cycles, and a long
-answer starts at its first line and scrolls in place. **Conversation history** shows the
-full public exchanges in their place. A question, a
+are screened before the live line, the findings or narration. The avatar shows activity and, under it, one live line: the latest thing the entity reports while it works, replaced as soon as something new arrives (nothing cycles). Click it to read it in full, then **Reply to this** to answer it or **Latest** to follow again. The findings it reports (facts or evidence it established) accumulate in a **Findings** panel beside the avatar, or a sheet you open with **Findings** on a phone; open one to see the results it came from. The answer appears once, as a message, with Markdown, links and files like the conversation. A question, a
 permission request and a finished answer are each signalled with both a visual and
 an audio cue; the view itself has no cue settings. Optional narration uses the
 existing read-aloud setting and the entity's own voice. History, reconnects and hidden panels stay silent.
-Question history restores actual answers, expiry with its declared fallback, and
-late replies retained for their original question. A fallback is a system outcome,
-not a human answer. This public view is bounded; when the gateway omits earlier
+Reopening a visit restores its public conversation, including actual answers, expired
+questions with their declared fallback, and late replies retained for their original
+question. A fallback is a system outcome, not a human answer. This public view is bounded; when the gateway omits earlier
 exchanges or descendant runs, it says **Some earlier exchanges are not shown in
 this view.** The durable conversation remains on the gateway.
 
