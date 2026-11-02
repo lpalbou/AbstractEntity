@@ -15,6 +15,13 @@ live memory graph, and read their diaries. It is published on npm as
 `@abstractframework/entity` and runs as a small local web app in front of your
 [AbstractGateway](https://github.com/lpalbou/AbstractGateway).
 
+## What's new
+
+0.10.0 adds an optional **Avatar** conversation view (public subtitles, questions,
+corrections and permission requests; needs AbstractGateway 0.19.0 or newer), the
+shared rounded composer in the chat drawer and the meet console, and the shared
+account widget in the top bar. See the [changelog](CHANGELOG.md#0100---2026-11-02).
+
 ## What is an entity?
 
 An entity is an AI companion with a lasting memory of its own. You give it a
@@ -90,6 +97,35 @@ for every launch flag.
 | Wave | The cognition wave: the expressive character of the entity's own words over time (not its inner state) |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
+
+Chat also offers an optional **Avatar** view. It brings the entity to the center
+of the scene with public subtitles, conversation history and the same composer,
+files and voice controls. Chat remains the default. Switching views keeps the
+current work and draft; the technical panels and their saved width return when
+you switch back. The Avatar view needs AbstractGateway 0.19.0 or newer; with an
+older gateway it cannot show progress messages (it asks you to begin a new
+conversation, or says the public conversation could not be refreshed), and Chat
+works as before. New Avatar visits request public updates, and Flow turns request
+them when started in Avatar. An already running visit keeps its original settings.
+Permission requests show ordinary actions and destinations, labeled decision icons,
+and the assistant’s public reason when it is attached to that exact request. “Review
+details” returns to the detailed Chat view. Unknown actions require that review.
+
+While work runs, send a correction in the composer. The gateway may accept it
+for the assistant's next opportunity; acceptance does not confirm that the plan
+changed. If the entity asks a question, the same composer answers that exact
+question. Permission requests keep separate Allow/Deny controls. Refused messages
+stay in the composer for retry. Public updates retain source IDs, and diary fences
+are screened before captions, history or narration. Hover, focus, pause or open
+history to hold subtitles; **Return to latest** resumes following. A question, a
+permission request and a finished answer are each signalled with both a visual and
+an audio cue; the view itself has no cue settings. Optional narration uses the
+existing read-aloud setting and the entity's own voice. History, reconnects and hidden panels stay silent.
+Question history restores actual answers, expiry with its declared fallback, and
+late replies retained for their original question. A fallback is a system outcome,
+not a human answer. This public view is bounded; when the gateway omits earlier
+exchanges or descendant runs, it says **Some earlier exchanges are not shown in
+this view.** The durable conversation remains on the gateway.
 
 The app is a thin client: it keeps no server state of its own. Every view is
 read from the gateway, and the memory views are computed from the memory
@@ -256,8 +292,16 @@ the form reports **Pollux already exists — opening it.** and opens that entity
 
 ## 4. Talk with it
 
-On the entity's page, open the **Chat** tab and say hello. A visit starts when
-you speak; a sleeping entity wakes up for it. While you talk, the memory graph
+On the entity's page, open the **Chat** tab and say hello. Choose **Avatar** for
+public subtitles and a focused conversation scene; **Chat** keeps the transcript
+and technical view. The draft and ongoing work survive view changes. New Avatar
+visits request public updates; Flow turns request them when started in Avatar.
+During work, send a correction in the same composer or answer the question shown.
+An accepted correction is available to the assistant, but is not confirmation
+that its plan changed. Questions and permission decisions stay separate.
+
+A visit starts when you choose **visit**; a sleeping entity wakes up for it.
+Send a message in the composer to begin talking. In Chat, the memory graph
 shows memories forming and being recalled, and the **Book** tab collects the
 diary entries the entity writes.
 
@@ -310,7 +354,7 @@ flowchart LR
     Host["GET /app/host<br/>LAN address for entity handles"]
   end
   subgraph Gateway["AbstractGateway (:8080)"]
-    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits · voice/tts/stream"]
+    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits · voice/tts/stream<br/>visit/{run}: state · guidance · answer · decision (Avatar)"]
     Meets["/api/gateway/entities/meets/*"]
     Embed["/api/gateway/embeddings"]
     Docs["/api/gateway/docs/corpus"]
@@ -414,7 +458,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 
 | Area | Modules |
 | --- | --- |
-| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css` (layout, including the responsive rules; see [Responsive layout](../README.md#responsive-layout)), `drawer.tsx` + `side_tabs_state.ts` (the side panel: docked at 1024 px and wider, a drawer below), `entity_assistant.ts` (top-bar assistant over the gateway docs corpus), `app_about.ts` (About dialog: app version and gateway versions) |
+| Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css` (layout, including the responsive rules; see [Responsive layout](../README.md#responsive-layout)), `drawer.tsx` + `side_tabs_state.ts` (the side panel: docked at 1024 px and wider, a drawer below), `entity_assistant.ts` (top-bar assistant over the gateway docs corpus; the drawer is AbstractUIC's shared Docs assistant, vendored in `vendor/abstractdocs/` by `npm run sync:docs`), `app_about.ts` (About dialog: app version and gateway versions) |
 | Entities list | `entities_index.tsx`, `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (topic communities), `node_label.ts` |
@@ -422,6 +466,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx`, `cognitive_monitor.tsx` |
 | Cognition wave | `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `cognition_wave_panel.tsx`, `cognition_wave_inline.tsx`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
 | Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind / voice: the kit's shared pickers), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
+| Optional Avatar conversation | `avatar_visit.ts` (explicit public projection and privacy boundary), `use_avatar_visit.ts` (public visit state), `avatar_visit_view.tsx` (avatar, questions and permissions), `vendor/abstractchat/` (canonical AbstractUIC presenter). Shares the chat's composer and execution paths; does not read private life envelopes for public text. |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`, `entity_handle.ts` (`name@host` handles that offer a meet) |
 | Blueprint | `blueprint_panel.tsx`, `blueprint_tunables.tsx`, `phase_map.tsx`, `phase_editor.tsx`, `edge_ops.ts`, `spec_sync.ts` |
 | Sign-in | `connect_gateway_modal.tsx`, `gateway_session.ts` |
@@ -584,11 +629,52 @@ of invented data.
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
 | Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
-| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
+| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+
+### Avatar conversation
+
+The optional Avatar presentation needs AbstractGateway 0.19.0 or newer. It requests
+`conversation: true` on a new durable visit's open body. Existing visits keep their initial mode. The app reads only
+`GET /entities/{name}/visit/{run}/state` public fields: `public_updates`,
+`public_messages`, `public_questions`, `pending_question` and `pending_wait`. It does not derive
+public speech from the entity's private replay envelopes or technical output.
+
+`public_questions` carries canonical question, real user answer, system expiry and
+retained-reply messages with their original run/question identity and source.
+An expiry fallback stays a system outcome; it is never rendered as a person answering.
+Public arrays merge by the gateway's recorded `order` and `published_at`, not a
+browser-time estimate. Each of the three public arrays is bounded to 64 messages,
+with at most 32 runs in the visit tree inspected. Positive `public_updates_omitted`,
+`public_messages_omitted`, `public_questions_omitted` or `conversation_runs_omitted`
+shows the earlier-exchanges notice. These bounds limit the view, not durable storage.
+
+During a durable visit, `POST /guidance` under that visit sends
+`{text, display_text}`: `text` may quote a selected public update, while
+`display_text` is the person's own words for public history. Its accepted receipt
+means the guidance is available, not that the actor adopted it. A pending question
+uses `POST /answer` with `{wait_key, response, target_run_id}` from that exact
+question. Permission controls use `POST /decision` with `{wait_key, approved}`;
+silence does not grant permission. A refusal keeps the draft for retry.
+
+The Flow-brain lane is a separate summoned workflow in the authenticated
+principal's runtime. Avatar turns request
+`input_data._runtime.conversation.enabled: true`. Its existing served run view
+provides explicit public messages and interactions; supported workflow commands
+carry live guidance or an exact wait response. Durable visit runs use their owned
+visit routes and never fall through to those generic commands.
+
+Essential questions wait for an answer. Clarifications show the server's deadline
+and declared fallback. Visual and audio cues are both on; the view has no cue
+settings. Public-update narration uses the
+listener's read-aloud preference and the entity voice described below. Opening,
+history restoration, reconnects and hidden conversation panels establish silent
+baselines.
+
+### Voice uses the same gateway routes
 
 Voice uses the same gateway routes and ui-kit components as AbstractCode. It
 needs AbstractGateway 0.13.0 or later (`GET /voice/defaults`):
@@ -683,7 +769,9 @@ a separate app for runs and gateway activity.
 
 The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
-entity** shortcut needs AbstractGateway 0.4.1 or newer.
+entity** shortcut needs AbstractGateway 0.4.1 or newer. The optional Avatar
+conversation (public updates, corrections and question answers during a visit)
+needs AbstractGateway 0.19.0 or newer.
 
 ## How do I see which versions I am running?
 
@@ -1142,6 +1230,35 @@ only the speech and transcription routes, and fails on any broken step:
 node scripts/voice.e2e.mjs --app http://127.0.0.1:18736 --gateway http://127.0.0.1:18737 \
   [--playwright <dir with @playwright/test>] [--shots <dir>]
 ```
+
+## Avatar browser check
+
+The optional Avatar view has a browser check over the actual built app, with
+deterministic gateway route doubles and no model or external traffic:
+
+```bash
+npm run build
+PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  node scripts/avatar.e2e.mjs --playwright ../abstractcode/web --shots /tmp/entity-avatar-shots
+```
+
+`--playwright` points to a project with `@playwright/test` installed. Omit the
+executable override when Playwright's browser is installed. The check covers the
+driver's owned reply routes and the separate summoned Flow runtime. The shared
+presenter in `src/vendor/abstractchat` is generated by AbstractUIC's canonical
+exporter: `npm run sync:conversation`. Never edit those artifacts directly;
+the build checks their provenance hashes.
+
+The meet console has its own browser check, run the same way:
+
+```bash
+PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  npm run e2e:meet -- --playwright ../abstractcode/web
+```
+
+It verifies the shared composer (Enter adds a line, Ctrl/Cmd+Enter relays to the
+chosen speaker, the relay busy state, the empty-draft Send gate and the closing
+note) on desktop and phone viewports.
 
 ## Lockfile check
 

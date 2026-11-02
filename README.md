@@ -6,6 +6,13 @@ live memory graph, and read their diaries. It is published on npm as
 `@abstractframework/entity` and runs as a small local web app in front of your
 [AbstractGateway](https://github.com/lpalbou/AbstractGateway).
 
+## What's new
+
+0.10.0 adds an optional **Avatar** conversation view (public subtitles, questions,
+corrections and permission requests; needs AbstractGateway 0.19.0 or newer), the
+shared rounded composer in the chat drawer and the meet console, and the shared
+account widget in the top bar. See the [changelog](CHANGELOG.md#0100---2026-11-02).
+
 ## What is an entity?
 
 An entity is an AI companion with a lasting memory of its own. You give it a
@@ -81,6 +88,35 @@ for every launch flag.
 | Wave | The cognition wave: the expressive character of the entity's own words over time (not its inner state) |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
+
+Chat also offers an optional **Avatar** view. It brings the entity to the center
+of the scene with public subtitles, conversation history and the same composer,
+files and voice controls. Chat remains the default. Switching views keeps the
+current work and draft; the technical panels and their saved width return when
+you switch back. The Avatar view needs AbstractGateway 0.19.0 or newer; with an
+older gateway it cannot show progress messages (it asks you to begin a new
+conversation, or says the public conversation could not be refreshed), and Chat
+works as before. New Avatar visits request public updates, and Flow turns request
+them when started in Avatar. An already running visit keeps its original settings.
+Permission requests show ordinary actions and destinations, labeled decision icons,
+and the assistant’s public reason when it is attached to that exact request. “Review
+details” returns to the detailed Chat view. Unknown actions require that review.
+
+While work runs, send a correction in the composer. The gateway may accept it
+for the assistant's next opportunity; acceptance does not confirm that the plan
+changed. If the entity asks a question, the same composer answers that exact
+question. Permission requests keep separate Allow/Deny controls. Refused messages
+stay in the composer for retry. Public updates retain source IDs, and diary fences
+are screened before captions, history or narration. Hover, focus, pause or open
+history to hold subtitles; **Return to latest** resumes following. A question, a
+permission request and a finished answer are each signalled with both a visual and
+an audio cue; the view itself has no cue settings. Optional narration uses the
+existing read-aloud setting and the entity's own voice. History, reconnects and hidden panels stay silent.
+Question history restores actual answers, expiry with its declared fallback, and
+late replies retained for their original question. A fallback is a system outcome,
+not a human answer. This public view is bounded; when the gateway omits earlier
+exchanges or descendant runs, it says **Some earlier exchanges are not shown in
+this view.** The durable conversation remains on the gateway.
 
 The app is a thin client: it keeps no server state of its own. Every view is
 read from the gateway, and the memory views are computed from the memory

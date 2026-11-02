@@ -89,11 +89,52 @@ of invented data.
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
 | Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
-| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
+| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+
+### Avatar conversation
+
+The optional Avatar presentation needs AbstractGateway 0.19.0 or newer. It requests
+`conversation: true` on a new durable visit's open body. Existing visits keep their initial mode. The app reads only
+`GET /entities/{name}/visit/{run}/state` public fields: `public_updates`,
+`public_messages`, `public_questions`, `pending_question` and `pending_wait`. It does not derive
+public speech from the entity's private replay envelopes or technical output.
+
+`public_questions` carries canonical question, real user answer, system expiry and
+retained-reply messages with their original run/question identity and source.
+An expiry fallback stays a system outcome; it is never rendered as a person answering.
+Public arrays merge by the gateway's recorded `order` and `published_at`, not a
+browser-time estimate. Each of the three public arrays is bounded to 64 messages,
+with at most 32 runs in the visit tree inspected. Positive `public_updates_omitted`,
+`public_messages_omitted`, `public_questions_omitted` or `conversation_runs_omitted`
+shows the earlier-exchanges notice. These bounds limit the view, not durable storage.
+
+During a durable visit, `POST /guidance` under that visit sends
+`{text, display_text}`: `text` may quote a selected public update, while
+`display_text` is the person's own words for public history. Its accepted receipt
+means the guidance is available, not that the actor adopted it. A pending question
+uses `POST /answer` with `{wait_key, response, target_run_id}` from that exact
+question. Permission controls use `POST /decision` with `{wait_key, approved}`;
+silence does not grant permission. A refusal keeps the draft for retry.
+
+The Flow-brain lane is a separate summoned workflow in the authenticated
+principal's runtime. Avatar turns request
+`input_data._runtime.conversation.enabled: true`. Its existing served run view
+provides explicit public messages and interactions; supported workflow commands
+carry live guidance or an exact wait response. Durable visit runs use their owned
+visit routes and never fall through to those generic commands.
+
+Essential questions wait for an answer. Clarifications show the server's deadline
+and declared fallback. Visual and audio cues are both on; the view has no cue
+settings. Public-update narration uses the
+listener's read-aloud preference and the entity voice described below. Opening,
+history restoration, reconnects and hidden conversation panels establish silent
+baselines.
+
+### Voice uses the same gateway routes
 
 Voice uses the same gateway routes and ui-kit components as AbstractCode. It
 needs AbstractGateway 0.13.0 or later (`GET /voice/defaults`):

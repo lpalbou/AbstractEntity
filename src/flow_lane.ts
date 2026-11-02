@@ -105,6 +105,8 @@ export async function followRunToTerminal(
     aborted: () => boolean;
     onWaiting?: (waiting: RunWaiting) => void;
     onFallback?: (reason: string) => void;
+    /** Safe served view for optional public conversation; never raw entity envelopes. */
+    onView?: (view: ReplayView) => void;
     reconnectBudgetMs?: number;
     /** How long the terminal summary is retried before the view stands in (default 15 s). */
     settleMs?: number;
@@ -134,6 +136,7 @@ export async function followRunToTerminal(
   const observe = (view: ReplayView | null): boolean => {
     if (!view) return false;
     lastStatus = String(view.status || lastStatus);
+    opts.onView?.(view);
     const it = view.interaction;
     if (it) {
       const key = `${it.run_id}:${it.wait_key}`;

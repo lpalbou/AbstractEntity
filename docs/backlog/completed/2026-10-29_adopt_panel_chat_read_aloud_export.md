@@ -2,7 +2,7 @@
 
 ## Metadata
 - Created: 2026-10-29
-- Status: Planned — blocked on the next `@abstractframework/panel-chat` release (nothing is released tonight)
+- Status: Completed 2026-11-02 (release 0.10.0, on `@abstractframework/panel-chat` 0.7.0)
 - Area: `src/read_aloud.ts` (the inlined copy), `src/chat_drawer.tsx` and `src/read_aloud.test.ts` (the importers)
 - Related: AbstractUIC backlog 0065 (the rule, panel-chat PR #26) and 0066 (the kit-side tracker of this debt);
   AbstractEntity PR #9 (the inlining)
@@ -34,3 +34,12 @@ dated debt.
 - `grep -rn "function readAloudStep" src` finds nothing; `readAloudStep` is imported from
   `@abstractframework/panel-chat` only.
 - `npm test` green; CHANGELOG names the kit version adopted.
+
+## Evidence (2026-11-02)
+- `package.json`: `@abstractframework/panel-chat` ^0.7.0 (published 2026-11-02, exports `READ_ALOUD_INITIAL`,
+  `readAloudStep`, `readAloudPhase` and the types); lockfile resolves 0.7.0 (`npm run check:lock` OK).
+- `src/read_aloud.ts` holds only the adapter `entityReadAloudInput` (types imported from the kit);
+  `src/chat_drawer.tsx` and `src/read_aloud.test.ts` import `READ_ALOUD_INITIAL` and `readAloudStep` from
+  `@abstractframework/panel-chat`.
+- `grep -rn "function readAloudStep" src` finds only the vendored `.d.ts` declarations, no implementation.
+- `npm test`: 60 files, 600 passed, 1 skipped; `src/read_aloud.test.ts` unchanged and green.

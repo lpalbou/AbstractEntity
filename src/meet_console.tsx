@@ -32,6 +32,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { ChatComposer } from "./vendor/abstractchat/conversation";
+
 import {
   closeMeet,
   fetchMeetStatus,
@@ -328,52 +330,55 @@ export function MeetConsole({ baseUrl, token, onClose, onReadMeet, presetA, pres
 
             {error ? <p className="mc_error mc_error_inline">{error}</p> : null}
 
-            <div className="mc_composer">
-              <div className="mc_lead">
-                <span>speak to</span>
-                {(["a", "b"] as const).map((side) => (
-                  <button
-                    key={side}
-                    className={`mc_lead_btn ${opener === side ? "mc_lead_on" : ""}`}
-                    onClick={() => setOpener(side)}
-                    disabled={relaying || phase.name === "closing"}
-                  >
-                    {nameOf(side)}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                className="mc_steer"
-                placeholder={`A line for ${nameOf(opener)} — ${nameOf(opener === "a" ? "b" : "a")} will hear their reply and answer`}
-                value={steer}
-                onChange={(e) => setSteer(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    doRelay();
-                  }
-                }}
-                disabled={relaying || phase.name === "closing"}
-                rows={2}
-              />
-              <div className="mc_actions">
-                <button className="mc_relay_btn" onClick={doRelay} disabled={relaying || phase.name === "closing" || !steer.trim()}>
-                  {relaying ? "relaying…" : "send (⌘↵)"}
-                </button>
+            {/* The shared panel-chat composer (rounded multiline default). The
+              * steering line keeps its multiline-first rule: ⌘/Ctrl+Enter
+              * relays, Enter is a newline. "speak to" chooses the opener above
+              * the field; ending the meet sits beside Send, as before. */}
+            <ChatComposer
+              className="mc_composer"
+              value={steer}
+              onChange={setSteer}
+              onSubmit={doRelay}
+              submitKey="mod-enter"
+              placeholder={`A line for ${nameOf(opener)} — ${nameOf(opener === "a" ? "b" : "a")} will hear their reply and answer`}
+              disabled={relaying || phase.name === "closing"}
+              busy={relaying}
+              busyLabel="relaying…"
+              sendLabel="send (⌘↵)"
+              rows={2}
+              leading={
+                <div className="mc_lead">
+                  <span>speak to</span>
+                  {(["a", "b"] as const).map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      className={`mc_lead_btn ${opener === side ? "mc_lead_on" : ""}`}
+                      aria-pressed={opener === side}
+                      onClick={() => setOpener(side)}
+                      disabled={relaying || phase.name === "closing"}
+                    >
+                      {nameOf(side)}
+                    </button>
+                  ))}
+                </div>
+              }
+              trailingActions={
                 <div className="mc_close_group">
                   <input
                     className="mc_close_reason"
                     placeholder="closing note (reaches each reflection)"
+                    aria-label="Closing note (reaches each reflection)"
                     value={closeReason}
                     onChange={(e) => setCloseReason(e.target.value)}
                     disabled={phase.name === "closing"}
                   />
-                  <button className="mc_end_btn" onClick={doClose} disabled={phase.name === "closing"}>
+                  <button type="button" className="mc_end_btn" onClick={doClose} disabled={phase.name === "closing"}>
                     {phase.name === "closing" ? "closing…" : "end the meet"}
                   </button>
                 </div>
-              </div>
-            </div>
+              }
+            />
           </>
         ) : null}
 

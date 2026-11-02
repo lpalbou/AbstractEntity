@@ -3686,17 +3686,19 @@ body {
   padding: 8px 12px;
   white-space: pre-wrap;
 }
+/* The meet's steering composer is the shared panel-chat ChatComposer; this
+ * only seats its rounded box inside the panel. */
 .mc_composer {
-  border-top: 1px solid var(--line);
-  padding: 10px 16px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  width: auto;
+  margin: 10px 16px 14px;
+  flex-shrink: 0;
 }
 .mc_lead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  padding-inline: 8px;
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim);
 }
@@ -3713,34 +3715,6 @@ body {
   border-color: var(--standing);
   color: color-mix(in srgb, var(--standing) 55%, var(--text));
   background: color-mix(in srgb, var(--standing) 12%, transparent);
-}
-.mc_steer {
-  background: var(--bg-raise, #131a2a);
-  color: var(--text, #e2e8f0);
-  border: 1px solid var(--line, #24304a);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font: inherit;
-  resize: vertical;
-}
-.mc_actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.mc_relay_btn {
-  background: color-mix(in srgb, var(--standing) 16%, transparent);
-  color: color-mix(in srgb, var(--standing) 55%, var(--text));
-  border: 1px solid color-mix(in srgb, var(--standing) 50%, transparent);
-  border-radius: 8px;
-  padding: 8px 16px;
-  font: inherit;
-  cursor: pointer;
-}
-.mc_relay_btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .mc_close_group {
   display: flex;
@@ -6544,3 +6518,22 @@ body {
   color: var(--text-dim);
   font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
+
+/* Optional avatar presentation shares the existing composer and file controls. */
+.cd_view_modes { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--ui-border-1); }
+.cd_view_modes button { border: 1px solid var(--ui-border-1); background: transparent; color: var(--text-secondary); padding: 6px 12px; border-radius: 6px; font: inherit; cursor: pointer; }
+.cd_view_modes button[aria-pressed="true"] { color: var(--text-primary); background: var(--ui-surface-2); }
+.chat_drawer > .pc-avatar-conversation { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.cd_avatar_hint { flex: 0 0 auto; margin: 6px 12px; }
+.cd_avatar_history_notice { flex: 0 0 auto; margin: 6px 12px; }
+.side_tabs_emphasized { flex: 0 0 100%; min-width: 0; }
+.entity_main:has(> .side_tabs_emphasized) > .entity_canvas_wrap { overflow: hidden; }
+@media (max-width: 767.98px), (max-height: 599.98px) {
+  .entity_main:has(> .side_tabs_avatar) ~ .entity_timeline { display: none; }
+  .side_tabs_avatar .pc-avatar-conversation { gap: .45rem; padding: .45rem; }
+  .side_tabs_avatar .pc-avatar-conversation__scene { flex: 0 0 auto; min-height: 0; height: min(20dvh, 144px); }
+  .side_tabs_avatar .pc-avatar-conversation__scene canvas { width: min(20dvh, 144px) !important; height: min(20dvh, 144px) !important; }
+  .side_tabs_avatar .pc-avatar-conversation__attention { padding: .25rem .5rem; font-size: .9em; }
+  .side_tabs_avatar .cd_view_modes { padding: .3rem; }
+}
+@media (pointer: coarse) { .cd_view_modes button { min-height: 44px; } }

@@ -14,9 +14,16 @@ import { gatewayReplayView, getRunSummary, leaveQueue, pollQueueEntry, refusalTe
 import { toolClaimVerdict } from "./tool_claim_guard";
 import type { ReplayEnvelope } from "./stream_types";
 import type { DrawerMessage } from "./chat_message_list";
+import type { ReplayView } from "@abstractframework/panel-chat";
+import type { ChatMessage } from "./vendor/abstractchat/conversation";
+import { flowConversationState, publicVisitMessages } from "./avatar_visit";
 
 export interface FlowConversationApi {
   flowActive: boolean;
+  flowRunId: string | null;
+  flowView: ReplayView | null;
+  flowSessionId: string | null;
+  flowPublicHistory: ChatMessage[];
   /** Open the conversation view (resuming a stored unclosed session). */
   startConversation(): void;
   sendFlow(text: string, opts?: { queue?: boolean; park?: boolean }): void;
@@ -42,9 +49,15 @@ export function useFlowConversation(io: {
   setDraft(updater: (cur: string) => string): void;
   envelopesRef: React.MutableRefObject<ReplayEnvelope[]>;
   turnStartSeqRef: React.MutableRefObject<number>;
+  conversation?: boolean;
 }): FlowConversationApi {
   const { baseUrl, entity, entityName, token, push, setBusy, setDraft, envelopesRef, turnStartSeqRef } = io;
   const [flowActive, setFlowActive] = useState(false);
+  const [flowRunId, setFlowRunId] = useState<string | null>(null);
+  const [flowView, setFlowView] = useState<ReplayView | null>(null);
+  const [flowPublicHistory, setFlowPublicHistory] = useState<ChatMessage[]>([]);
+  const conversationRef = useRef(io.conversation);
+  conversationRef.current = io.conversation;
   const flowSessionRef = useRef<string | null>(null);
   const flowWarnedRef = useRef<Set<string>>(new Set());
   /** F2 (app-half adversary): the fabrication accusation unlocks only
@@ -175,6 +188,17 @@ export function useFlowConversation(io: {
         fetchSummary: () => getRunSummary(baseUrl, runId),
         deadlineMs,
         aborted: () => pollGenRef.current !== gen,
+        onView: (view) => {
+          if (pollGenRef.current !== gen) return;
+          setFlowView(view);
+          const state = flowConversationState(view);
+          const messages = state ? publicVisitMessages(state) : [];
+          if (messages.length) setFlowPublicHistory((previous) => {
+            const known = new Set(previous.map((m) => `${m.runId}:${m.id}`));
+            const fresh = messages.filter((m) => !known.has(`${m.runId}:${m.id}`));
+            return fresh.length ? [...previous, ...fresh] : previous;
+          });
+        },
         onWaiting: (w) => push({ role: "system", content: waitingLine(w), level: "warn" }),
         onFallback: (reason) => {
           if (fallbackSaidRef.current) return;
@@ -192,6 +216,7 @@ export function useFlowConversation(io: {
    * admission; the client only follows the run). */
   const driveFlowTurn = useCallback(
     async (runId: string, gen: number) => {
+      setFlowRunId(runId); setFlowView(null);
       // Fresh pulse boundary at ADMISSION (pulse adversary F2): the enqueue
       // stamped it minutes ago — everything the current seat-holder lived
       // in between would fold into OUR thinking bars as if it were this
@@ -279,7 +304,7 @@ export function useFlowConversation(io: {
           // of THIS session from the run store (durable-sessions v1),
           // so a reload or another client resumes the same thread. Her
           // memory carries the meaning; the session carries the words.
-          input_data: { use_session_history: true },
+          input_data: { use_session_history: true, ...(conversationRef.current ? { _runtime: { conversation: { enabled: true } } } : {}) },
           // Queue opt-in ONLY from the human's buttons (contract §1) —
           // never sent on a plain send.
           ...(opts.queue ? { queue: true } : {}),
@@ -315,6 +340,7 @@ export function useFlowConversation(io: {
             return;
           }
           // The summoned run executes async in the runner — poll to
+          setFlowRunId(r.run_id); setFlowView(null);
           // terminal on the gateway's replay view (flow_lane.followRunToTerminal; the poll is its fallback).
           // 600s: tool rounds (entity-life 0.0.10, ≤3 bounded) add 2-3
           // provider calls per turn on top of the lived turn (flow c5285
@@ -358,6 +384,8 @@ export function useFlowConversation(io: {
     const sessionId = flowSessionRef.current;
     const finish = (line: string, level?: "info" | "warn" | "error") => {
       setFlowActive(false);
+      setFlowRunId(null); setFlowView(null);
+      setFlowPublicHistory([]);
       flowSessionRef.current = null;
       flowSession.clear(entity);
       // Per-conversation evidence dies with the conversation (fable5
@@ -482,5 +510,5 @@ export function useFlowConversation(io: {
       .catch(() => push({ role: "system", content: "The step-away did not reach the door — its idle reaping will release the place.", level: "warn" }));
   }, [queueState, baseUrl, entity, token, push]);
 
-  return { flowActive, startConversation, sendFlow, endFlowConversation, stopWaiting, warnOnce, queueOffer, acceptQueueOffer, dismissQueueOffer, queueState, stepAway };
+  return { flowActive, flowRunId, flowView, flowSessionId: flowSessionRef.current, flowPublicHistory, startConversation, sendFlow, endFlowConversation, stopWaiting, warnOnce, queueOffer, acceptQueueOffer, dismissQueueOffer, queueState, stepAway };
 }

@@ -4,19 +4,53 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-02
+
+On AbstractUIC 0.9.0 (`@abstractframework/ui-kit` ^0.9.12, `@abstractframework/panel-chat` ^0.7.0, `@abstractframework/app-server` ^0.1.13).
+The Avatar conversation's public updates, corrections and question answers need AbstractGateway 0.19.0 or newer; Chat works with any gateway.
+
 ### Changed
+
+- The chat drawer and the meet console use the shared rounded multiline composer (AbstractUIC
+  panel-chat 0.7.0). The meet console keeps "speak to" above the field, Ctrl/Cmd+Enter to relay,
+  and the closing note next to Send; the chat drawer's Attach button is the composer's own and
+  its voice controls sit beside Send. A browser check covers the meet console:
+  `npm run e2e:meet -- --playwright ../abstractcode/web` after `npm run build`. The Docs assistant
+  drawer is the shared AbstractUIC component (vendored, `npm run sync:docs`), so its composer,
+  dictation microphone and footer ("Powered by AbstractEntity’s documentation.") match every app,
+  and it opens under the top bar.
+
+- Avatar question history restores actual answers, expiry outcomes and late replies
+  retained for their original question after reconnect. Public events follow the
+  gateway's recorded order, and bounded history shows an explicit omissions notice.
+
+- **Optional Avatar conversation view** centers the entity with public subtitles,
+  revisit-able history, source IDs and the existing voice,
+  file and composer controls. Chat stays the default. New Avatar visits and Flow
+  turns opt in to public updates; view changes preserve ongoing work and drafts.
+  A message sent just after a reply lands starts a new turn; it is sent as guidance
+  only while the visit is still working.
+  Corrections during a durable visit use its owned guidance/answer routes, while
+  summoned Flow turns use their existing principal-owned workflow runtime.
+  Questions and permissions remain distinct, refusals preserve the draft, and
+  history/reconnect/hidden-panel speech stays silent. Diary content and technical
+  internals never enter the public subtitle projection. Permission requests show the
+  assistant's public reason when it is attached to that exact request. The avatar
+  signals questions, permission requests and completion with both a visual and an
+  audio cue; the view itself has no cue settings. The avatar follows the gateway's
+  pause state, and files delivered in a reply use the shared presenter.
 
 - **The top bar's account is the kit's ONE account widget** (operator ruling 2026-10-29: the docs button, Appearance,
   About and the account are the same kit components in every app). Signed in, one button shows the person icon, your
   name and the connection light; its menu holds Signed in as, Gateway, Copy user id and Disconnect. It replaces the
   Disconnect pill. The account comes from the app server's connection answer (proxy posture) or the verified bearer
-  (`src/entity_account.ts`). Needs `@abstractframework/ui-kit` ^0.9.6 (was ^0.9.5). Test: `src/top_bar_set.test.tsx`.
+  (`src/entity_account.ts`). Test: `src/top_bar_set.test.tsx`.
 
 ### Fixed
 
 - **Read aloud no longer speaks existing messages** when re-opening a visit (operator 2026-10-29): a reply is spoken by
   itself only when it was produced while the conversation is open (AbstractUIC panel-chat's rule, `readAloudStep`,
-  inlined in `read_aloud.ts` until the next kit release). The effect used to remember the newest reply before the
+  imported from `@abstractframework/panel-chat` 0.7.0). The effect used to remember the newest reply before the
   conversation had loaded, so the first loaded reply was spoken.
 
 ## [0.9.3] - 2026-10-28

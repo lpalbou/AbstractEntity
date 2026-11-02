@@ -75,7 +75,7 @@ describe("entity Docs assistant (kit DocsAssistantDrawer)", () => {
     expect(html).toContain("pc-chat-item--user");
     expect(html).toContain("pc-chat-item--assistant");
     expect(html).toContain("<strong>Summon</strong>");
-    expect(html).toContain("Grounded on AbstractEntity’s documentation (llms.txt) · docs-qa");
+    expect(html).toContain("Powered by AbstractEntity’s documentation.");
   });
 
   it("no gateway (demo/exported source) refuses honestly instead of fetching", async () => {

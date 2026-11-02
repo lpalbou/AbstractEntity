@@ -29,7 +29,7 @@ export interface SideTab {
   title: string;
   /** Small live hint rendered as a dot on the tab (e.g. visiting). */
   hint?: boolean;
-  content: React.ReactNode;
+  content: React.ReactNode | ((visible: boolean) => React.ReactNode);
 }
 
 const WIDTH_KEY = "abstractentity_side_width_v1";
@@ -44,9 +44,11 @@ export interface SideTabsProps {
   defaultTab?: string;
   /** Controlled active tab (roster-open lands on chat: "join its room"). */
   activeTab?: string | null;
+  /** Optional focused presentation; the saved technical pane width is retained. */
+  emphasizedTab?: string;
 }
 
-export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTabsProps): React.ReactElement {
+export function SideTabs({ tabs, defaultTab, activeTab: controlledTab, emphasizedTab }: SideTabsProps): React.ReactElement {
   const narrow = useAfMedia(AF_MEDIA.md);
   // Two slots (side_tabs_state.ts): the docked layout's persisted choice and
   // the drawer's own state (starts closed, never persisted).
@@ -157,14 +159,16 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
   }, [width]);
 
   const activeTab = tabs.find((t) => t.id === active) ?? null;
+  const focusedConversation = Boolean(emphasizedTab && activeTab?.id === emphasizedTab);
+  const emphasized = focusedConversation && !narrow;
 
   return (
     <div
-      className={`side_tabs ${activeTab ? "" : "side_tabs_collapsed"}${narrow ? " side_tabs_drawer" : ""}`}
-      style={activeTab && !narrow ? { width } : undefined}
+      className={`side_tabs ${activeTab ? "" : "side_tabs_collapsed"}${narrow ? " side_tabs_drawer" : ""}${emphasized ? " side_tabs_emphasized" : ""}${focusedConversation ? " side_tabs_avatar" : ""}`}
+      style={activeTab && !narrow ? { width: emphasized ? "100%" : width } : undefined}
     >
       {drawerOpen ? <div className="st_backdrop" aria-hidden="true" onClick={() => setActive(null)} /> : null}
-      {activeTab && !narrow ? (
+      {activeTab && !narrow && !emphasized ? (
         <div
           className="st_resize"
           title="Drag to resize — more room for the conversation"
@@ -220,7 +224,7 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab }: SideTab
               </button>
             </div>
           ) : null}
-          <ErrorBoundary label={`the ${tab.title.toLowerCase()} panel`}>{tab.content}</ErrorBoundary>
+          <ErrorBoundary label={`the ${tab.title.toLowerCase()} panel`}>{typeof tab.content === "function" ? tab.content(tab.id === active) : tab.content}</ErrorBoundary>
         </div>
       ))}
     </div>
