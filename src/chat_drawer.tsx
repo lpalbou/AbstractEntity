@@ -21,7 +21,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { READ_ALOUD_INITIAL, entityReadAloudInput, readAloudStep } from "./read_aloud";
+import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat";
+import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
 import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitQuestion } from "./avatar_visit";
@@ -320,7 +321,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const latestReplyId = latestSpoken ? String(latestSpoken.id) : "";
   // Only a reply lived in this visit is spoken by itself: its turn was seen in
   // progress here (operator 2026-10-29: re-opening a visit spoke its existing
-  // messages). The kit's rule (`read_aloud.ts`).
+  // messages). The kit's rule (panel-chat `readAloudStep`).
   const readAloudState = useRef(READ_ALOUD_INITIAL);
   const turnLive = busy === "turn";
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { READ_ALOUD_INITIAL, entityReadAloudInput, readAloudStep } from "./read_aloud";
+import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat";
+import { entityReadAloudInput } from "./read_aloud";
 
 /** The operator's case (2026-10-29) through the drawer's wiring: re-opening a visit with replies
  * never speaks them; a turn lived in the drawer speaks its reply, even when the visit's run id is
