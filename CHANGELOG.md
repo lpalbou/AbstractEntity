@@ -14,6 +14,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   on desktop and phone. Shared conversation bundle re-synced from AbstractUIC panel-chat.
 - **Avatar history in plain words.** Entries are labelled You, Update, Question or Answer, and
   technical source ids are no longer listed there.
+- **Avatar captions show whole lines** and fade at an edge where text continues; an open question
+  appears once, above the captions. Replying to an update from an earlier exchange now says:
+  "Choose Clear reply context, then send your message again."
 
 ## [0.10.0] - 2026-11-02
 

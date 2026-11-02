@@ -738,7 +738,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         await answerPublic(pendingQuestion, words);
         setNote("Your answer was accepted.");
       } else {
-        if (replyContext?.publicUpdate && !(publicState ? publicVisitMessages(publicState) : []).some((m) => m.id === replyContext.id && m.runId === replyContext.runId)) throw new Error("The selected update belongs to an earlier turn. Return to latest before sending this reply.");
+        if (replyContext?.publicUpdate && !(publicState ? publicVisitMessages(publicState) : []).some((m) => m.id === replyContext.id && m.runId === replyContext.runId)) throw new Error("The update you chose to reply to is from an earlier exchange. Choose Clear reply context, then send your message again.");
         const currentSourceRuns = brain === "flow"
           ? (flowView?.runs || []).map((run) => run.run_id)
           : (publicState ? publicVisitMessages(publicState) : []).filter((m) => m.kind === "public_update").map((m) => m.runId!).filter(Boolean);
