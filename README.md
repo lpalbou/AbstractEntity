@@ -106,7 +106,7 @@ While work runs, send a correction in the composer. The gateway may accept it
 for the assistant's next opportunity; acceptance does not confirm that the plan
 changed. If the entity asks a question, the same composer answers that exact
 question. Permission requests keep separate Allow/Deny controls. Refused messages
-stay in the composer for retry. Public updates retain source IDs, and diary fences
+stay in the composer for retry. Public updates keep their source IDs for the technical view, and diary fences
 are screened before captions, history or narration. Captions roll in realtime under
 the avatar: what the entity says publicly during the current turn, newest at the bottom,
 rendered like the conversation (Markdown, links, files); nothing cycles, and a long

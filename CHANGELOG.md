@@ -12,6 +12,8 @@ All notable changes to `@abstractframework/entity` are recorded here.
   focusing no longer holds them (nothing moves on its own). **Conversation history** shows the
   public exchanges in place of the captions. The captions and buttons stay above the composer
   on desktop and phone. Shared conversation bundle re-synced from AbstractUIC panel-chat.
+- **Avatar history in plain words.** Entries are labelled You, Update, Question or Answer, and
+  technical source ids are no longer listed there.
 
 ## [0.10.0] - 2026-11-02
 
