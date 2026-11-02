@@ -4,6 +4,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Avatar captions roll in realtime.** The captions under the avatar list the current turn's
+  public updates, questions and answer, newest at the bottom, rendered like the conversation
+  (Markdown, links, files); an answer is no longer split into pages that cycle, and hovering or
+  focusing no longer holds them (nothing moves on its own). **Conversation history** shows the
+  public exchanges in place of the captions. The captions and buttons stay above the composer
+  on desktop and phone. Shared conversation bundle re-synced from AbstractUIC panel-chat.
+- **Avatar history in plain words.** Entries are labelled You, Update, Question or Answer, and
+  technical source ids are no longer listed there.
+- **Avatar captions show whole lines** and fade at an edge where text continues; an open question
+  appears once, above the captions. Replying to an update from an earlier exchange now says:
+  "Choose Clear reply context, then send your message again."
+
 ## [0.10.0] - 2026-11-02
 
 On AbstractUIC 0.9.0 (`@abstractframework/ui-kit` ^0.9.12, `@abstractframework/panel-chat` ^0.7.0, `@abstractframework/app-server` ^0.1.13).
