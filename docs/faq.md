@@ -51,7 +51,9 @@ a separate app for runs and gateway activity.
 
 The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
-entity** shortcut needs AbstractGateway 0.4.1 or newer.
+entity** shortcut needs AbstractGateway 0.4.1 or newer. The optional Avatar
+conversation (public updates, corrections and question answers during a visit)
+needs AbstractGateway 0.19.0 or newer.
 
 ## How do I see which versions I am running?
 

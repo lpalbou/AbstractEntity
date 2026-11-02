@@ -6,6 +6,13 @@ live memory graph, and read their diaries. It is published on npm as
 `@abstractframework/entity` and runs as a small local web app in front of your
 [AbstractGateway](https://github.com/lpalbou/AbstractGateway).
 
+## What's new
+
+0.10.0 adds an optional **Avatar** conversation view (public subtitles, questions,
+corrections and permission requests; needs AbstractGateway 0.19.0 or newer), the
+shared rounded composer in the chat drawer and the meet console, and the shared
+account widget in the top bar. See the [changelog](CHANGELOG.md#0100---2026-11-02).
+
 ## What is an entity?
 
 An entity is an AI companion with a lasting memory of its own. You give it a
@@ -86,7 +93,9 @@ Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with public subtitles, conversation history and the same composer,
 files and voice controls. Chat remains the default. Switching views keeps the
 current work and draft; the technical panels and their saved width return when
-you switch back. New Avatar visits request public updates, and Flow turns request
+you switch back. The Avatar view needs AbstractGateway 0.19.0 or newer; with an
+older gateway it asks you to begin a new conversation to receive progress
+messages, and Chat works as before. New Avatar visits request public updates, and Flow turns request
 them when started in Avatar. An already running visit keeps its original settings.
 Permission requests show ordinary actions and destinations, labeled decision icons,
 and the assistant’s public reason when it is attached to that exact request. “Review
@@ -98,10 +107,10 @@ changed. If the entity asks a question, the same composer answers that exact
 question. Permission requests keep separate Allow/Deny controls. Refused messages
 stay in the composer for retry. Public updates retain source IDs, and diary fences
 are screened before captions, history or narration. Hover, focus, pause or open
-history to hold subtitles; **Return to latest** resumes following. Independent
-visual/audio cue preferences are stored for this gateway, account and entity.
-Audio is off by default; optional narration uses the existing read-aloud setting
-and the entity's own voice. History, reconnects and hidden panels stay silent.
+history to hold subtitles; **Return to latest** resumes following. A question, a
+permission request and a finished answer are each signalled with both a visual and
+an audio cue; the view itself has no cue settings. Optional narration uses the
+existing read-aloud setting and the entity's own voice. History, reconnects and hidden panels stay silent.
 Question history restores actual answers, expiry with its declared fallback, and
 late replies retained for their original question. A fallback is a system outcome,
 not a human answer. This public view is bounded; when the gateway omits earlier

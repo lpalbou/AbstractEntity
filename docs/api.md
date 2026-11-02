@@ -97,8 +97,8 @@ of invented data.
 
 ### Avatar conversation
 
-The optional Avatar presentation requests `conversation: true` on a new durable
-visit's open body. Existing visits keep their initial mode. The app reads only
+The optional Avatar presentation needs AbstractGateway 0.19.0 or newer. It requests
+`conversation: true` on a new durable visit's open body. Existing visits keep their initial mode. The app reads only
 `GET /entities/{name}/visit/{run}/state` public fields: `public_updates`,
 `public_messages`, `public_questions`, `pending_question` and `pending_wait`. It does not derive
 public speech from the entity's private replay envelopes or technical output.
