@@ -107,8 +107,11 @@ for the assistant's next opportunity; acceptance does not confirm that the plan
 changed. If the entity asks a question, the same composer answers that exact
 question. Permission requests keep separate Allow/Deny controls. Refused messages
 stay in the composer for retry. Public updates retain source IDs, and diary fences
-are screened before captions, history or narration. Hover, focus, pause or open
-history to hold subtitles; **Return to latest** resumes following. A question, a
+are screened before captions, history or narration. Captions roll in realtime under
+the avatar: what the entity says publicly during the current turn, newest at the bottom,
+rendered like the conversation (Markdown, links, files); nothing cycles, and a long
+answer starts at its first line and scrolls in place. **Conversation history** shows the
+full public exchanges in their place. A question, a
 permission request and a finished answer are each signalled with both a visual and
 an audio cue; the view itself has no cue settings. Optional narration uses the
 existing read-aloud setting and the entity's own voice. History, reconnects and hidden panels stay silent.

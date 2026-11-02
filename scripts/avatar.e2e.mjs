@@ -152,15 +152,19 @@ try {
   const history = page.getByRole("list", { name: "Public conversation history" });
   assert(!(await history.innerText()).includes("PRIVATE"));
   assert((await history.innerText()).includes("Keep CSV format"));
-  if (arg("shots")) { mkdirSync(arg("shots"), { recursive: true }); await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-desktop.png") }); }
+  if (arg("shots")) { mkdirSync(arg("shots"), { recursive: true }); await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-history-desktop.png") }); }
+  // History takes the captions' place; closing it brings the rolling captions back.
+  await page.getByRole("button", { name: "Conversation history", exact: true }).click();
+  await page.getByLabel("Public subtitles").getByText(/The CSV result is ready/).waitFor();
+  if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".side_tabs_drawer").waitFor();
   if (!(await page.getByLabel("Avatar conversation").isVisible())) await chatTab.click();
   assert(await composer.isVisible());
   assert((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 1, "phone has no horizontal overflow");
-  const captionLines = await page.getByLabel("Public subtitles").locator("p").first().evaluate((node) => node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight));
-  assert(captionLines <= 3.1, "phone subtitles retain a three-line viewport");
-  const phoneScene = await page.getByLabel("Public subtitles").locator("p").first().evaluate((node) => {
+  const captionLines = await page.getByLabel("Public subtitles").evaluate((node) => node.clientHeight / parseFloat(getComputedStyle(node).lineHeight));
+  assert(Math.abs(captionLines - 3) < 0.2, `phone captions keep a three-line area (${captionLines})`);
+  const phoneScene = await page.getByLabel("Public subtitles").evaluate((node) => {
     const caption = node.getBoundingClientRect();
     const composer = document.querySelector('.chat_drawer .pc-composer').getBoundingClientRect();
     const avatar = document.querySelector('.pc-avatar-conversation__scene').getBoundingClientRect();
