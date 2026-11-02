@@ -128,7 +128,8 @@ carry live guidance or an exact wait response. Durable visit runs use their owne
 visit routes and never fall through to those generic commands.
 
 Essential questions wait for an answer. Clarifications show the server's deadline
-and declared fallback. Audio cues default off. Public-update narration uses the
+and declared fallback. Visual and audio cues are both on; the view has no cue
+settings. Public-update narration uses the
 listener's read-aloud preference and the entity voice described below. Opening,
 history restoration, reconnects and hidden conversation panels establish silent
 baselines.

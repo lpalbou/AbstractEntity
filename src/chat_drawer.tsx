@@ -25,7 +25,7 @@ import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat
 import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
-import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitQuestion } from "./avatar_visit";
+import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
 import { screenDiaryFences } from "./flow_lane";
@@ -758,7 +758,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   }, [draft, runId, flowRunId, flowView, brain, baseUrl, entity, token, pendingFiles.length, pendingQuestion, answerPublic, replyContext, publicState, publicVisit.refresh]);
 
   const send = useCallback(() => {
-    if (avatarMode && (busy === "turn" || publicState?.status === "running" || publicState?.ready_for_input === false || pendingQuestion)) { void sendDuringWork(); return; }
+    if (avatarMode && avatarSendsDuringWork({ turnInFlight: busy === "turn", pendingQuestion: Boolean(pendingQuestion), fresh: brain === "flow" || publicVisit.fresh, status: publicState?.status, readyForInput: publicState?.ready_for_input })) { void sendDuringWork(); return; }
     let text = draft.trim();
     // Reference any handed-over files so the entity knows to read them.
     if (pendingFiles.length > 0) {
@@ -855,7 +855,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         setDraft((cur) => cur || text);
       })
       .finally(() => setBusy("idle"));
-  }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow, avatarMode, publicState?.status, publicState?.ready_for_input, pendingQuestion, sendDuringWork]);
+  }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow, avatarMode, publicState?.status, publicState?.ready_for_input, publicVisit.fresh, pendingQuestion, sendDuringWork]);
 
   const close = useCallback(() => {
     if (!runId || busy !== "idle") return;

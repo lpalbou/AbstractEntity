@@ -135,3 +135,15 @@ export function flowConversationState(view: ReplayView | null): VisitConversatio
   const omissions = Object.fromEntries(["public_updates_omitted", "public_messages_omitted", "public_questions_omitted", "conversation_runs_omitted"].map((key) => [key, (view as unknown as Record<string, unknown>)[key]]).filter(([, value]) => typeof value === "number"));
   return { run_id: view.root_run_id, session_id: view.session_id || undefined, status: view.status, public_updates: view.messages.filter((m) => m.kind === "public_update"), public_messages: view.messages.filter((m) => m.role === "user" && m.kind === "guidance"), public_questions: view.messages.filter((m) => ["question", "answer", "question_outcome", "retained_reply"].includes(m.kind)), ...omissions, pending_question: it?.kind === "ask_user" ? pending : null, pending_wait: pending };
 }
+
+/**
+ * Whether an Avatar send goes to the work in progress (guidance or the pending answer) rather than
+ * starting a turn. A pending question always takes the answer. The polled run status counts only
+ * when that poll is fresh: right after a turn ends, a status read during the turn would otherwise
+ * turn the next message into guidance for a run that is no longer working.
+ */
+export function avatarSendsDuringWork(input: { turnInFlight: boolean; pendingQuestion: boolean; fresh: boolean; status?: string; readyForInput?: boolean }): boolean {
+  if (input.turnInFlight || input.pendingQuestion) return true;
+  if (!input.fresh) return false;
+  return input.status === "running" || input.readyForInput === false;
+}

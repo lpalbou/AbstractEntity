@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitHistoryOmitted, publicVisitMessages, visitAttention, visitAvatarStatus, visitQuestion } from "./avatar_visit";
+import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitHistoryOmitted, publicVisitMessages, visitAttention, visitAvatarStatus, visitQuestion } from "./avatar_visit";
 import { answerVisit, decideVisit, getVisitConversation, guideVisit, openVisit, setGatewayToken } from "./stream_source";
 
 afterEach(() => { vi.unstubAllGlobals(); setGatewayToken(null); });
@@ -109,5 +109,23 @@ describe("owned entity conversation routes", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(guideVisit("", "castor", "visit", "correction", "correction", null)).rejects.toThrow(/No active actor/);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Avatar send routing (avatarSendsDuringWork)", () => {
+  const base = { turnInFlight: false, pendingQuestion: false, fresh: true, status: "completed", readyForInput: true };
+  it("starts a turn when the visit is idle", () => {
+    expect(avatarSendsDuringWork(base)).toBe(false);
+  });
+  it("sends guidance while a turn is in flight or a fresh poll says the run is working", () => {
+    expect(avatarSendsDuringWork({ ...base, turnInFlight: true })).toBe(true);
+    expect(avatarSendsDuringWork({ ...base, status: "running" })).toBe(true);
+    expect(avatarSendsDuringWork({ ...base, readyForInput: false })).toBe(true);
+  });
+  it("ignores a run status read during the previous turn (stale or failed poll)", () => {
+    expect(avatarSendsDuringWork({ ...base, fresh: false, status: "running", readyForInput: false })).toBe(false);
+  });
+  it("always answers a pending question, fresh or not", () => {
+    expect(avatarSendsDuringWork({ ...base, fresh: false, pendingQuestion: true })).toBe(true);
   });
 });

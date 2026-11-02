@@ -94,8 +94,9 @@ of the scene with public subtitles, conversation history and the same composer,
 files and voice controls. Chat remains the default. Switching views keeps the
 current work and draft; the technical panels and their saved width return when
 you switch back. The Avatar view needs AbstractGateway 0.19.0 or newer; with an
-older gateway it asks you to begin a new conversation to receive progress
-messages, and Chat works as before. New Avatar visits request public updates, and Flow turns request
+older gateway it cannot show progress messages (it asks you to begin a new
+conversation, or says the public conversation could not be refreshed), and Chat
+works as before. New Avatar visits request public updates, and Flow turns request
 them when started in Avatar. An already running visit keeps its original settings.
 Permission requests show ordinary actions and destinations, labeled decision icons,
 and the assistant’s public reason when it is attached to that exact request. “Review

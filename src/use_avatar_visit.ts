@@ -3,7 +3,7 @@ import { getVisitConversation, refusalText, type VisitConversationState } from "
 
 /** Public projection only, while the optional presentation is visible. */
 export function useAvatarVisit(baseUrl: string, entity: string, runId: string | null, active: boolean, busy: boolean) {
-  const [stored, setStored] = useState<{ scope: string; value: VisitConversationState | null; error: string | null; loading: boolean }>({ scope: "", value: null, error: null, loading: false });
+  const [stored, setStored] = useState<{ scope: string; value: VisitConversationState | null; error: string | null; loading: boolean; fetchedBusy?: boolean }>({ scope: "", value: null, error: null, loading: false });
   const scope = `${baseUrl}:${entity}:${runId || ""}`;
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
@@ -15,7 +15,7 @@ export function useAvatarVisit(baseUrl: string, entity: string, runId: string | 
     const poll = async () => {
       try {
         const value = await getVisitConversation(baseUrl, entity, runId);
-        if (!cancelled) setStored({ scope, value, error: null, loading: false });
+        if (!cancelled) setStored({ scope, value, error: null, loading: false, fetchedBusy: busy });
       } catch (error) {
         if (!cancelled) setStored((old) => ({ scope, value: old.scope === scope ? old.value : null, error: `Public conversation could not be refreshed: ${refusalText(error as Error)}`, loading: false }));
       }
@@ -24,6 +24,9 @@ export function useAvatarVisit(baseUrl: string, entity: string, runId: string | 
     void poll();
     return () => { cancelled = true; clearTimeout(timer); };
   }, [baseUrl, entity, runId, scope, active, busy, revision]);
-  const current = stored.scope === scope && active ? stored : { value: null, error: null, loading: Boolean(active && runId) };
-  return { state: current.value, error: current.error, loading: current.loading, refresh };
+  const current = stored.scope === scope && active ? stored : { value: null, error: null, loading: Boolean(active && runId), fetchedBusy: undefined };
+  // Fresh = the last poll succeeded and was read in the current turn phase. Right after a turn
+  // ends (or while polls fail) the retained run status still describes the turn in flight.
+  const fresh = current.value !== null && current.error === null && current.fetchedBusy === busy;
+  return { state: current.value, error: current.error, loading: current.loading, fresh, refresh };
 }

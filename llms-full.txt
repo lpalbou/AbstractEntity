@@ -103,8 +103,9 @@ of the scene with public subtitles, conversation history and the same composer,
 files and voice controls. Chat remains the default. Switching views keeps the
 current work and draft; the technical panels and their saved width return when
 you switch back. The Avatar view needs AbstractGateway 0.19.0 or newer; with an
-older gateway it asks you to begin a new conversation to receive progress
-messages, and Chat works as before. New Avatar visits request public updates, and Flow turns request
+older gateway it cannot show progress messages (it asks you to begin a new
+conversation, or says the public conversation could not be refreshed), and Chat
+works as before. New Avatar visits request public updates, and Flow turns request
 them when started in Avatar. An already running visit keeps its original settings.
 Permission requests show ordinary actions and destinations, labeled decision icons,
 and the assistant’s public reason when it is attached to that exact request. “Review
@@ -667,7 +668,8 @@ carry live guidance or an exact wait response. Durable visit runs use their owne
 visit routes and never fall through to those generic commands.
 
 Essential questions wait for an answer. Clarifications show the server's deadline
-and declared fallback. Audio cues default off. Public-update narration uses the
+and declared fallback. Visual and audio cues are both on; the view has no cue
+settings. Public-update narration uses the
 listener's read-aloud preference and the entity voice described below. Opening,
 history restoration, reconnects and hidden conversation panels establish silent
 baselines.

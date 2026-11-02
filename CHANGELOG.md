@@ -25,9 +25,11 @@ The Avatar conversation's public updates, corrections and question answers need 
   gateway's recorded order, and bounded history shows an explicit omissions notice.
 
 - **Optional Avatar conversation view** centers the entity with public subtitles,
-  revisit-able history, source IDs, scoped cue preferences and the existing voice,
+  revisit-able history, source IDs and the existing voice,
   file and composer controls. Chat stays the default. New Avatar visits and Flow
   turns opt in to public updates; view changes preserve ongoing work and drafts.
+  A message sent just after a reply lands starts a new turn; it is sent as guidance
+  only while the visit is still working.
   Corrections during a durable visit use its owned guidance/answer routes, while
   summoned Flow turns use their existing principal-owned workflow runtime.
   Questions and permissions remain distinct, refusals preserve the draft, and
@@ -42,7 +44,7 @@ The Avatar conversation's public updates, corrections and question answers need 
   About and the account are the same kit components in every app). Signed in, one button shows the person icon, your
   name and the connection light; its menu holds Signed in as, Gateway, Copy user id and Disconnect. It replaces the
   Disconnect pill. The account comes from the app server's connection answer (proxy posture) or the verified bearer
-  (`src/entity_account.ts`). Needs `@abstractframework/ui-kit` ^0.9.6 (was ^0.9.5). Test: `src/top_bar_set.test.tsx`.
+  (`src/entity_account.ts`). Test: `src/top_bar_set.test.tsx`.
 
 ### Fixed
 
