@@ -184,6 +184,8 @@ try {
   // The Avatar view shows the current exchange only (no history pane): the retained late reply
   // is the person's latest message, so nothing of the earlier exchange is on screen.
   assert.equal(await page.locator(".pc-avatar-conversation__line, .pc-avatar-conversation__answer").count(), 0);
+  assert(await page.locator(".pc-avatar-conversation__scene").isVisible(), "the avatar is shown");
+  assert((await page.locator(".pc-avatar-conversation__status").innerText()).trim().length > 0, "the avatar's state is shown");
   assert(!(await page.locator(".chat_drawer").innerText()).includes("PRIVATE"));
   assert.equal(publicQuestions.filter((row) => row.role === "user" && row.text === "Keep the header.").length, 0, "an expired fallback is not a human answer");
   if (arg("shots")) await page.screenshot({ path: resolve(arg("shots"), "entity-avatar-question-history.png") });
