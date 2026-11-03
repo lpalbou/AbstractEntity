@@ -10,7 +10,9 @@ describe("avatar public entity boundary", () => {
     const messages = publicVisitMessages({ run_id: "visit", public_updates: [update, update, { ...update, id: "private", text: "```diary visibility=private\nSECRET" }, { ...update, id: "mixed", text: "Visible\n```diary\nSECRET\n```\nStill visible" }, { id: "raw", text: "raw output" }], public_messages: [{ id: "guidance", run_id: "actor", role: "user", kind: "guidance", text: "Keep the existing format." }, { id: "spoof", role: "assistant", kind: "thought", text: "SECRET" }] });
     expect(messages).toHaveLength(2);
     expect(JSON.stringify(messages)).not.toContain("SECRET");
-    expect(messages[0].publicUpdate).toMatchObject({ runId: "actor", sessionId: "visit", sourceCallIds: ["call-1"], iteration: 2 });
+    expect(messages[0].publicUpdate).toMatchObject({ runId: "actor", sessionId: "visit", sourceCallIds: ["call-1"], iteration: 2, kind: "progress" });
+    const typed = publicVisitMessages({ run_id: "visit", public_updates: [{ ...update, id: "found", update_kind: "finding" }, { ...update, id: "doing", update_kind: "progress" }] });
+    expect(typed.map((m) => m.publicUpdate?.kind)).toEqual(["finding", "progress"]);
     expect(messages[1]).toMatchObject({ role: "user", content: "Keep the existing format.", source: "user_guidance" });
   });
   it("screens avatar finals and excludes technical detail without changing the existing source", () => {

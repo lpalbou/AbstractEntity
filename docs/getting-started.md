@@ -65,7 +65,7 @@ the form reports **Pollux already exists — opening it.** and opens that entity
 ## 4. Talk with it
 
 On the entity's page, open the **Chat** tab and say hello. Choose **Avatar** for
-realtime captions of what the entity says and a focused conversation scene; **Chat** keeps the transcript
+a focused conversation scene: one live line of what the entity reports, and the findings it has established so far; **Chat** keeps the transcript
 and technical view. The draft and ongoing work survive view changes. New Avatar
 visits request public updates; Flow turns request them when started in Avatar.
 During work, send a correction in the same composer or answer the question shown.

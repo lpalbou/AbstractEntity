@@ -6,17 +6,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
-- **Avatar captions roll in realtime.** The captions under the avatar list the current turn's
-  public updates, questions and answer, newest at the bottom, rendered like the conversation
-  (Markdown, links, files); an answer is no longer split into pages that cycle, and hovering or
-  focusing no longer holds them (nothing moves on its own). **Conversation history** shows the
-  public exchanges in place of the captions. The captions and buttons stay above the composer
-  on desktop and phone. Shared conversation bundle re-synced from AbstractUIC panel-chat.
-- **Avatar history in plain words.** Entries are labelled You, Update, Question or Answer, and
-  technical source ids are no longer listed there.
-- **Avatar captions show whole lines** and fade at an edge where text continues; an open question
-  appears once, above the captions. Replying to an update from an earlier exchange now says:
-  "Choose Clear reply context, then send your message again."
+- **Avatar view: one live line and a Findings panel.** Under the avatar, one line shows the latest
+  thing the entity reports while it works, replaced as soon as something new arrives; click it to
+  read it in full, then **Reply to this** or **Latest** (back to following). The findings it reports
+  (facts or evidence it established) accumulate in a **Findings** panel beside the avatar, a sheet
+  opened with **Findings** on a phone; each opens to the results it came from. The answer appears
+  once, as a message. The rolling captions and the in-view Conversation history are gone. Needs the producer-typed public
+  updates of AbstractAgent (`kind`) and AbstractRuntime (`update_kind`); older updates are shown as
+  progress. Shared conversation bundle re-synced from AbstractUIC panel-chat.
+- An open question appears once, above the live line. Replying to an update from an earlier
+  exchange now says: "Choose Latest, then send your message again."
 
 ## [0.10.0] - 2026-11-02
 

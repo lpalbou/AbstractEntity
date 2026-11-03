@@ -55,7 +55,8 @@ export function publicVisitMessages(state: VisitConversationState): EntityPublic
   for (const raw of state.public_updates || []) {
     const p = row(raw);
     if (!p || typeof p.run_id !== "string") continue;
-    const parsed = publicUpdate(p, p.run_id);
+    // The gateway serves the actor's own type as `update_kind` ("finding" | "progress").
+    const parsed = publicUpdate({ ...p, kind: p.update_kind }, p.run_id);
     if (!parsed) continue;
     const screened = screenDiaryFences(parsed.text);
     // A public update is exact authored text: a privacy redaction must not become
