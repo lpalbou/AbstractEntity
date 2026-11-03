@@ -4,6 +4,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-03
+
+The Avatar view's live line and Findings panel need AbstractGateway 0.20.0 (with AbstractAgent 0.6.0 and
+AbstractRuntime 0.17.0); with AbstractGateway 0.19.0 every update is shown as progress. Chat works with any gateway.
+
 ### Changed
 
 - **Avatar view: one live line and a Findings panel.** Under the avatar, one line shows the latest
@@ -14,8 +19,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
   once, as a message. The rolling captions and the in-view Conversation history are gone. Needs the producer-typed public
   updates of AbstractAgent (`kind`) and AbstractRuntime (`update_kind`); older updates are shown as
   progress. Shared conversation bundle re-synced from AbstractUIC panel-chat.
-- An open question appears once, above the live line. Replying to an update from an earlier
-  exchange now says: "Choose Latest, then send your message again."
+- An open question appears once, above the live line, and answered questions no longer carry a
+  "Question" / "Answer" footer. Replying to an update from an earlier exchange now says: "Choose
+  Latest, then send your message again."
+- Each public update keeps the type the gateway serves (`update_kind`: `finding` or `progress`), so
+  findings reach the Findings panel.
 
 ## [0.10.0] - 2026-11-02
 

@@ -8,6 +8,12 @@ live memory graph, and read their diaries. It is published on npm as
 
 ## What's new
 
+0.11.0 reworks the **Avatar** view: one live line under the avatar (click it for
+**Reply to this** or **Latest**) and a **Findings** panel that collects what the
+entity established, each finding opening the results it cited (a sheet on a phone).
+Findings need AbstractGateway 0.20.0 or newer. See the
+[changelog](CHANGELOG.md#0110---2026-11-03).
+
 0.10.0 adds an optional **Avatar** conversation view (public subtitles, questions,
 corrections and permission requests; needs AbstractGateway 0.19.0 or newer), the
 shared rounded composer in the chat drawer and the meet console, and the shared
