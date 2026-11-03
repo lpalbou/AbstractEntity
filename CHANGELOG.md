@@ -6,6 +6,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [0.11.0] - 2026-11-03
 
+On AbstractUIC `@abstractframework/ui-kit` ^0.9.13 and `@abstractframework/panel-chat` ^0.8.0.
 The Avatar view's live line and Findings panel need AbstractGateway 0.20.0 (with AbstractAgent 0.6.0 and
 AbstractRuntime 0.17.0); with AbstractGateway 0.19.0 every update is shown as progress. Chat works with any gateway.
 
