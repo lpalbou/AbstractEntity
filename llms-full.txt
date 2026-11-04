@@ -17,11 +17,17 @@ live memory graph, and read their diaries. It is published on npm as
 
 ## What's new
 
-0.11.0 reworks the **Avatar** view: one live line under the avatar (click it for
-**Reply to this** or **Latest**) and a **Findings** panel that collects what the
-entity established, each finding opening the results it cited (a sheet on a phone).
-Findings need AbstractGateway 0.20.0 or newer. See the
-[changelog](CHANGELOG.md#0110---2026-11-03).
+0.11.0 gives each entity its own identity and a track record. **Settings → identity**
+keeps its look (design and colour) and its voice in one record that you save once and
+the gateway checks; the Avatar view draws the entity in that design and colour.
+**Settings → track record** counts its sessions, runs, successes, failures and tokens,
+shows its trust for each kind of task as a completion rate only (a success means the
+task finished; nobody has judged the quality of the work yet), and lists **who it has
+met**: the people and the other entities, how many times, first and last. The
+**Avatar** view also gets one live line under the avatar (click it for **Reply to
+this** or **Latest**) and a **Findings** panel that collects what the entity
+established (a sheet on a phone). All of this needs AbstractGateway 0.20.0 or newer.
+See the [changelog](CHANGELOG.md#0110---2026-11-04).
 
 0.10.0 adds an optional **Avatar** conversation view (public subtitles, questions,
 corrections and permission requests; needs AbstractGateway 0.19.0 or newer), the
