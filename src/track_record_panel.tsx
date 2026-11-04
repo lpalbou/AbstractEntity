@@ -45,6 +45,13 @@ export function trustText(cell: TrustCell): string {
   return `Trust ${cell.trust.toFixed(2)} over ${cell.support} ${cell.support === 1 ? "outcome" : "outcomes"}`;
 }
 
+/** The plain gloss beside a trust number: how many of its outcomes finished, and how the number
+ * moves (it starts in the middle, 0.5, and each outcome moves it). Empty with no outcome. */
+export function trustGloss(cell: TrustCell): string {
+  if (!cell.support) return "";
+  return `${cell.successes} of ${cell.support} finished; trust starts in the middle and moves with each outcome`;
+}
+
 /** The plain sentence for the runtime's basis; another basis is shown as the runtime words it. */
 export function basisText(basis: string): string {
   return basis === COMPLETION_RATE_ONLY ? "A success here only means the task finished: nobody has judged the quality of the work yet." : basis;
@@ -144,6 +151,7 @@ export function TrackRecordPanel({ baseUrl, entity, entityName }: { baseUrl: str
           <>
             <p className="trk_overall" data-testid="trust-overall">
               <strong>Overall:</strong> {trustText(reputation.overall)}
+              {reputation.overall.support ? <span className="trk_gloss"> ({trustGloss(reputation.overall)})</span> : null}
             </p>
             {kindRows(reputation, record).length ? (
               <ul className="trk_list" data-testid="trust-by-task">
@@ -155,7 +163,7 @@ export function TrackRecordPanel({ baseUrl, entity, entityName }: { baseUrl: str
                     </span>
                     <span className="trk_value">
                       {trustText(row.cell)}
-                      {row.cell.support ? ` · ${row.cell.successes} succeeded, ${row.cell.failures} failed` : ""}
+                      {row.cell.support ? ` · ${trustGloss(row.cell)}` : ""}
                       {row.cell.last_outcome_at ? ` · last ${dayText(row.cell.last_outcome_at)}` : ""}
                     </span>
                   </li>

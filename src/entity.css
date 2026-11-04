@@ -6676,6 +6676,13 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.trk_gloss,
+.idn_scope {
+  color: var(--text-dim);
+}
+.idn_scope {
+  margin: 4px 0 0;
+}
 .trk_basis {
   margin: 0;
   color: var(--text-dim);

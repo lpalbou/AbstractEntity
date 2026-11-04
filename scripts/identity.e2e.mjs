@@ -100,6 +100,7 @@ try {
         assert.equal((await page.getByTestId("identity-no-voice").textContent()).trim(), NO_VOICE);
         assert.equal(await page.getByTestId("identity-save").isDisabled(), true, "nothing to save without a voice");
         assert.match(await pane.textContent(), /Choose a voice to save\./);
+        assert.equal((await page.getByTestId("identity-scope").textContent()).trim(), "Saves castor's look and voice for everyone who meets it, on every device.");
         await shoot(page, `identity-no-voice-${viewport.name}`);
       } else {
         assert.equal(await page.getByTestId("identity-no-voice").count(), 0, "a recorded voice shows no absence sentence");
@@ -134,9 +135,9 @@ try {
         await page.getByTestId("trust-by-task").waitFor();
         const counts = await page.getByTestId("track-record-counts").textContent();
         for (const want of ["Sessions4", "Runs7", "Successes5", "Failures1", "Tokens40,420"]) assert.ok(counts.replace(/\s+/g, "").includes(want), `${want} in ${counts}`);
-        assert.match(await page.getByTestId("trust-overall").textContent(), /Trust 0\.75 over 6 outcomes/);
+        assert.match(await page.getByTestId("trust-overall").textContent(), /Trust 0\.75 over 6 outcomes \(5 of 6 finished; trust starts in the middle and moves with each outcome\)/);
         const kinds = await page.getByTestId("trust-by-task").textContent();
-        assert.match(kinds, /Visits.*Trust 0\.75 over 6 outcomes · 5 succeeded, 1 failed/s);
+        assert.match(kinds, /Visits.*Trust 0\.75 over 6 outcomes · 5 of 6 finished; trust starts in the middle and moves with each outcome/s);
         assert.match(kinds, /Tasks left for it.*No experience yet/s);
         assert.match(await page.getByTestId("trust-basis").textContent(), /nobody has judged the quality of the work yet/);
         assert.match(await page.getByTestId("met-people").textContent(), /laurent.*5 times/s);

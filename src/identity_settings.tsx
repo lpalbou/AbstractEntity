@@ -317,6 +317,7 @@ export function IdentitySettings({ baseUrl, entity, entityName, token }: { baseU
           {status.text}
         </p>
       ) : null}
+      {!refused ? <p className="wsp_note idn_scope" data-testid="identity-scope">Saves {entityName}'s look and voice for everyone who meets it, on every device.</p> : null}
       {!refused ? (
         <div className="wsp_save_row idn_actions">
           {status?.download ? (

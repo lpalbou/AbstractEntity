@@ -15,7 +15,7 @@ import { visitIdentityRef } from "./avatar_visit";
 import { IdentityAvatar, identityAvatarStyle, lookOf } from "./identity_avatar";
 import { byWhom, designOptions, formChanged, formOf, historyRevs, historyRows, noVoiceText, saveOf } from "./identity_settings";
 import { IdentityRefusal, getEntityIdentity, identityRefusalOf, putEntityIdentity, startOfferedDownload, type IdentityRecord, type Reputation, type TrackRecord } from "./stream_source";
-import { basisText, kindRows, nameOf, notCountedText, trustText } from "./track_record_panel";
+import { basisText, kindRows, nameOf, notCountedText, trustGloss, trustText } from "./track_record_panel";
 
 const VOICE = { provider: "openai", model: "tts-1", voice: "alloy", source: "chosen" };
 const rec = (rev: number, over: Partial<IdentityRecord> = {}): IdentityRecord => ({
@@ -193,6 +193,15 @@ describe("track record: trust always with its support, in plain words", () => {
     expect(trustText({ trust: 0.5, support: 0, successes: 0, failures: 0, last_outcome_at: null })).toBe("No experience yet");
     expect(trustText({ trust: 2 / 3, support: 1, successes: 1, failures: 0, last_outcome_at: null })).toBe("Trust 0.67 over 1 outcome");
     expect(trustText({ trust: 0.75, support: 12, successes: 9, failures: 3, last_outcome_at: null })).toBe("Trust 0.75 over 12 outcomes");
+  });
+  it("each trust number carries a plain gloss: how many finished, how the number moves", () => {
+    expect(trustGloss({ trust: 0.75, support: 2, successes: 2, failures: 0, last_outcome_at: null })).toBe("2 of 2 finished; trust starts in the middle and moves with each outcome");
+    expect(trustGloss({ trust: 0.75, support: 6, successes: 5, failures: 1, last_outcome_at: null })).toBe("5 of 6 finished; trust starts in the middle and moves with each outcome");
+    expect(trustGloss({ trust: 0.5, support: 0, successes: 0, failures: 0, last_outcome_at: null })).toBe("");
+  });
+  it("Save says what it changes and for whom", () => {
+    const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
+    expect(src).toContain("Saves {entityName}'s look and voice for everyone who meets it, on every device.");
   });
   it("completion-rate only is said plainly; never the word basis", () => {
     expect(basisText("completion-rate only")).toBe("A success here only means the task finished: nobody has judged the quality of the work yet.");
