@@ -4,8 +4,13 @@
  * configures lives behind ONE modal, kept off the top bar by progressive
  * disclosure):
  *
- * - 🧠 mind / 🔊 voice: the kit's shared pickers ("Gateway default" or its
- *   own choice; mind_voice_settings.tsx) — visits and own time both use it.
+ * - 🧠 mind: the kit's shared picker ("Gateway default" or its own choice;
+ *   mind_voice_settings.tsx) — visits and own time both use it.
+ * - 🪪 identity: its look (design + colour) and its voice, one record, one
+ *   Save (framework ADR 0052; identity_settings.tsx).
+ * - 📈 track record: what it has done, trust by task, whom it has met
+ *   (track_record_panel.tsx), read when the tab opens.
+ * - 🔊 voice: the listener's own playback and microphone.
  * - 📁 files: browse the entity's home workspace and read files.
  * - mounts: whitelist extra directories the entity may reach (read-only or
  *   read+write). Writes go through the operator door (token).
@@ -22,7 +27,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { authRefusedMsg } from "./gateway_session";
-import { EntityMindPicker, EntityVoicePicker, substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
+import { EntityMindPicker, substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
+import { IdentitySettings } from "./identity_settings";
+import { TrackRecordPanel } from "./track_record_panel";
 import { ListenerVoiceSettings } from "./entity_voice";
 import { AfSwitch, PhaseCapabilityMatrix } from "@abstractframework/ui-kit";
 
@@ -69,10 +76,12 @@ export interface SettingsPanelProps {
   onClose(): void;
 }
 
-type Tab = "mind" | "voice" | "files" | "mounts" | "tools" | "skills" | "prompt";
+type Tab = "mind" | "identity" | "record" | "voice" | "files" | "mounts" | "tools" | "skills" | "prompt";
 
 const TAB_LABELS: Array<[Tab, string]> = [
   ["mind", "🧠 mind"],
+  ["identity", "🪪 identity"],
+  ["record", "📈 track record"],
   ["voice", "🔊 voice"],
   ["files", "📁 files"],
   ["mounts", "🗂 mounts"],
@@ -134,7 +143,9 @@ export function SettingsPanel({ baseUrl, entity, entityName, token, substrate, o
               loopFacts={loopFacts}
             />
           ) : null}
-          {tab === "voice" ? <VoiceTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
+          {tab === "identity" ? <IdentitySettings baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+          {tab === "record" ? <TrackRecordPanel baseUrl={baseUrl} entity={entity} entityName={entityName} /> : null}
+          {tab === "voice" ? <VoiceTab baseUrl={baseUrl} /> : null}
           {tab === "files" ? <FilesTab baseUrl={baseUrl} entity={entity} /> : null}
           {tab === "mounts" ? <MountsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
           {tab === "tools" ? <ToolsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
@@ -228,12 +239,12 @@ function MindTab({
 
 // ------------------------------------------------------------------ voice
 
-/** The entity's voice (the kit's shared voice picker, mind_voice_settings) above the listener's own
- * playback/microphone settings (the kit's AfVoiceSection, entity_voice.tsx). */
-function VoiceTab({ baseUrl, entity, token }: { baseUrl: string; entity: string; token: string | null }): React.ReactElement {
+/** The listener's own playback/microphone settings (the kit's AfVoiceSection, entity_voice.tsx). The
+ * entity's own voice is part of its identity (the identity tab). */
+function VoiceTab({ baseUrl }: { baseUrl: string }): React.ReactElement {
   return (
     <div className="wsp_voice">
-      <EntityVoicePicker baseUrl={baseUrl} entity={entity} token={token} />
+      <p className="wsp_note">The voice it speaks with is part of its identity: choose it in 🪪 identity.</p>
       <ListenerVoiceSettings baseUrl={baseUrl} />
     </div>
   );

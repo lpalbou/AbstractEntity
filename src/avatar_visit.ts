@@ -2,7 +2,7 @@ import type { AvatarConversationState, ChatMessage, ConversationAttention, Publi
 import { publicUpdate } from "./vendor/abstractchat/conversation";
 import type { DrawerMessage } from "./chat_message_list";
 import { screenDiaryFences } from "./flow_lane";
-import type { VisitConversationState, VisitPublicWait } from "./stream_source";
+import type { IdentityRef, VisitConversationState, VisitPublicWait } from "./stream_source";
 import { compareReplayOrder, type ReplayView } from "@abstractframework/panel-chat";
 
 const row = (v: unknown): Record<string, unknown> | null => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
@@ -147,4 +147,16 @@ export function avatarSendsDuringWork(input: { turnInFlight: boolean; pendingQue
   if (input.turnInFlight || input.pendingQuestion) return true;
   if (!input.fresh) return false;
   return input.status === "running" || input.readyForInput === false;
+}
+
+/** The identity the visit speaks with (framework ADR 0052 §3): the `identity_ref` the gateway stamps
+ * on the visit's public updates (the newest one), else the one the visit opened with. null when
+ * neither carries one: a reference is never made up. */
+export function visitIdentityRef(state: VisitConversationState | null, opened: IdentityRef | null): IdentityRef | null {
+  const updates = Array.isArray(state?.public_updates) ? state.public_updates : [];
+  for (let i = updates.length - 1; i >= 0; i--) {
+    const ref = row(row(updates[i])?.identity_ref);
+    if (ref && typeof ref.of === "string" && ref.of && Number.isInteger(ref.rev)) return { of: ref.of, rev: ref.rev as number };
+  }
+  return opened;
 }

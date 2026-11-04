@@ -93,7 +93,7 @@ for every launch flag.
 | Surface | What it shows |
 | --- | --- |
 | Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
-| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), voice, files, tools and system prompt in **Settings** — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and voice with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
+| Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), its identity (avatar design, colour and voice, with their history), files, tools and system prompt in **Settings**, and read its track record (what it has done, trust by task, whom it has met) — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and identity with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
 | Detail | One memory: its verbatim text, feelings and associations |
 | Book | The diary as a day-grouped journal; sealed entries stay sealed |
@@ -314,9 +314,12 @@ Voice works in a visit when the gateway has voice installed (AbstractGateway
 0.13.0 or later): the speaker on a
 reply reads it aloud in the entity's own voice, and the microphone beside the
 composer dictates (hold it while you speak, or tap to start and tap again to
-stop). **Settings → voice** sets the entity's voice and, below it, your own
+stop). **Settings → identity** sets the entity's look (its avatar's design and
+colour) and its voice, saved together; **Settings → voice** sets your own
 speaker, microphone (with a Test and a level meter), spoken language and
-**Read aloud**.
+**Read aloud**. **Settings → track record** shows what the entity has done, how
+far it can be trusted for each kind of task, and whom it has met
+(AbstractGateway 0.20.0 or later).
 
 ## Next steps
 
@@ -470,7 +473,7 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 | Panels | `inspector.tsx`, `identity_card.tsx`, `timeline.tsx`, `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts` |
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx`, `cognitive_monitor.tsx` |
 | Cognition wave | `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `cognition_wave_panel.tsx`, `cognition_wave_inline.tsx`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
-| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind / voice: the kit's shared pickers), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
+| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: design, colour, voice, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
 | Optional Avatar conversation | `avatar_visit.ts` (explicit public projection and privacy boundary), `use_avatar_visit.ts` (public visit state), `avatar_visit_view.tsx` (avatar, questions and permissions), `vendor/abstractchat/` (canonical AbstractUIC presenter). Shares the chat's composer and execution paths; does not read private life envelopes for public text. |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`, `entity_handle.ts` (`name@host` handles that offer a meet) |
 | Blueprint | `blueprint_panel.tsx`, `blueprint_tunables.tsx`, `phase_map.tsx`, `phase_editor.tsx`, `edge_ops.ts`, `spec_sync.ts` |
@@ -635,7 +638,9 @@ of invented data.
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
 | Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
-| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
+| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
+| Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
+| Track record (AbstractGateway 0.20.0) | `GET /entities/{name}/track-record`, `/reputation`, `/acquaintances`, read when the tab opens |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
@@ -679,6 +684,26 @@ listener's read-aloud preference and the entity voice described below. Opening,
 history restoration, reconnects and hidden conversation panels establish silent
 baselines.
 
+### Identity and track record
+
+Settings → identity reads `GET /entities/{name}/identity` and saves the whole record with one
+`PUT` (`{avatar: {style, color}, voice: {provider, model, voice}}`; the record's speed and quality
+ride along while the voice is unchanged). The design list is the AbstractAvatar catalog bundled in
+the ui-kit, limited to designs with a Watch code (the gateway refuses the others). The avatar draws
+the design in the entity's colour: the colour replaces the theme's `--warning` token around the
+canvas, the body colour of the kit's palette. A refusal is shown word for word and nothing is
+retried. History reads `?rev=N` for every revision, newest first. A record without a voice shows
+the `note` of `GET /entities/{name}/voice`, the gateway's sentence.
+
+The Avatar view resolves the visit's `identity_ref` (from `POST /visit/open`, or the newest public
+update that carries one) with `GET /entities/{name}/identity?rev=N`. A visit that names no identity
+(a visit rejoined after a reload before any update arrives, a Flow conversation) draws the kit's
+avatar.
+
+Settings → track record shows the gateway's numbers as they are; the words are the app's: a trust
+cell with no outcome reads "No experience yet", and the `completion-rate only` basis reads "A
+success here only means the task finished: nobody has judged the quality of the work yet."
+
 ### Voice uses the same gateway routes
 
 Voice uses the same gateway routes and ui-kit components as AbstractCode. It
@@ -687,7 +712,7 @@ needs AbstractGateway 0.13.0 or later (`GET /voice/defaults`):
 - **Speak.** A reply's speaker button, or **Read aloud**, posts the reply to the
   entity-owned streaming lane. The request carries the text and, when set, the
   listener's latency choice — never a provider, model or voice: the gateway
-  speaks with the entity's own voice (Settings → voice), else its `output.voice`
+  speaks with the entity's own voice (Settings → identity), else its `output.voice`
   default, and sends the audio one sentence at a time, so the first words play
   while the rest is synthesised. **Stop** aborts the request.
 - **Dictate.** The composer microphone records in the browser (hold to dictate,

@@ -6537,3 +6537,153 @@ body {
   .side_tabs_avatar .cd_view_modes { padding: .3rem; }
 }
 @media (pointer: coarse) { .cd_view_modes button { min-height: 44px; } }
+
+/* ------------------------------------------- identity + track record (ADR 0052) */
+/* Settings → identity: the look (avatar, design, colour), the voice, the history, one Save at the
+ * bottom. Settings → track record: counts, trust by task, whom it has met. */
+.idn,
+.trk {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 640px;
+}
+.idn_look {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.idn_avatar {
+  display: inline-flex;
+  flex: none;
+  border-radius: 12px;
+  background: var(--bg-raise);
+}
+.idn_fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.idn_field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.idn_field select {
+  max-width: 100%;
+}
+.idn_field input[type="color"] {
+  width: 64px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+}
+.idn_head {
+  margin: 4px 0 0;
+  font-size: max(calc(14px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+}
+.idn_history {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.idn_history > summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.idn_history_list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.idn_history_row,
+.trk_row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.idn_history_detail,
+.trk_value,
+.trk_detail {
+  color: var(--text-dim);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.idn_swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: baseline;
+}
+.idn_actions .wsp_note {
+  color: var(--text-dim);
+}
+.trk_section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trk_counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.trk_counts > div {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raise);
+}
+.trk_counts dt {
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.trk_counts dd {
+  margin: 2px 0 0;
+  font-size: max(calc(18px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-variant-numeric: tabular-nums;
+}
+.trk_overall {
+  margin: 0;
+}
+.trk_list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trk_subhead {
+  margin: 6px 0 4px;
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.trk_gloss,
+.idn_scope {
+  color: var(--text-dim);
+}
+.idn_scope {
+  margin: 4px 0 0;
+}
+.trk_basis {
+  margin: 0;
+  color: var(--text-dim);
+}

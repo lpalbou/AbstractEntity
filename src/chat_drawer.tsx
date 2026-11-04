@@ -25,9 +25,10 @@ import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat
 import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
-import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitQuestion } from "./avatar_visit";
+import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
+import { useIdentityLook } from "./use_identity_look";
 import { screenDiaryFences } from "./flow_lane";
 import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
@@ -61,7 +62,7 @@ import { resolveMentions } from "./entity_handle";
 import { foldVisitStatus } from "./visit_status_poll";
 import { ChatMessageList, splitVisitDecoration, toolGaugeTrustworthy, type DrawerMessage } from "./chat_message_list";
 export { splitVisitDecoration } from "./chat_message_list";
-import { getEntitySeat, refusalText, type EntitySeat } from "./stream_source";
+import { getEntitySeat, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import type { SubstrateChoice } from "./mind_voice_settings";
@@ -177,6 +178,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   /** The open DURABLE visit's run id (the steer key, the reattach key, the
    * R2 proof surface — §5 consumer contract). */
   const [runId, setRunId] = useState<string | null>(null);
+  /** The identity the visit opened with (`identity_ref` of the open answer), by run. */
+  const [openedRef, setOpenedRef] = useState<{ runId: string; ref: IdentityRef } | null>(null);
   // THE FLOW-BRAIN LANE (operator tasking c5190; door acceptance GREEN
   // c5246): an alternative brain for the conversation — each prompt is ONE
   // summon of the entity-chat VisualFlow (recall → lived turn → elections →
@@ -366,6 +369,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   }, [messages, publicMessages, runId, flowRunId, busy, publicState, brain]);
   const pendingQuestion = visitQuestion(publicState);
   const reportAvatarError = useCallback((message: string) => setNote(message), []);
+  const visitRef = brain === "driver" ? visitIdentityRef(publicState, openedRef && openedRef.runId === runId ? openedRef.ref : null) : null;
+  const visitLook = useIdentityLook(baseUrl, entity, avatarMode ? visitRef : null, reportAvatarError);
   const interruptAvatarSpeech = useCallback(() => stopTtsRef.current(), []);
   useEffect(() => {
     if (brain === "flow" && !flowActive) { stopTtsRef.current(); cancelRecordingRef.current?.(); }
@@ -566,6 +571,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     const onOpened = (r: Awaited<ReturnType<typeof openVisit>>) => {
       setSeatBusy(false);
       setRunId(r.run_id);
+      setOpenedRef(r.identity_ref ? { runId: r.run_id, ref: r.identity_ref } : null);
       rehydratedRef.current.add(r.run_id); // freshly opened: nothing to fetch
       try {
         localStorage.setItem(chatSessionStorageKey(entity), r.run_id);
@@ -1173,7 +1179,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         <>
           {avatarMode && runId && publicState && !Array.isArray(publicState.public_updates) ? <p className="cd_note cd_avatar_hint">Begin a new conversation here to receive progress messages.</p> : null}
           {avatarMode ? <AvatarVisitView
-            entityName={entityName} messages={avatarMessages} state={publicState} busy={busy} draft={draft}
+            entityName={entityName} look={visitLook} messages={avatarMessages} state={publicState} busy={busy} draft={draft}
             onAnswer={answerPublic} onDecision={decidePublic} onError={reportAvatarError}
             options={{ sessionKey: `${baseUrl}:${authUserId}:${entity}:${runId || flowSessionId || "flow"}`,
               onTechnicalView: () => { stopTtsRef.current(); avatarPrefs.setMode("chat"); },
