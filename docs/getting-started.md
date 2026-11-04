@@ -81,9 +81,12 @@ Voice works in a visit when the gateway has voice installed (AbstractGateway
 0.13.0 or later): the speaker on a
 reply reads it aloud in the entity's own voice, and the microphone beside the
 composer dictates (hold it while you speak, or tap to start and tap again to
-stop). **Settings → voice** sets the entity's voice and, below it, your own
+stop). **Settings → identity** sets the entity's look (its avatar's design and
+colour) and its voice, saved together; **Settings → voice** sets your own
 speaker, microphone (with a Test and a level meter), spoken language and
-**Read aloud**.
+**Read aloud**. **Settings → track record** shows what the entity has done, how
+far it can be trusted for each kind of task, and whom it has met
+(AbstractGateway 0.20.0 or later).
 
 ## Next steps
 

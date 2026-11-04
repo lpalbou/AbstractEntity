@@ -4,6 +4,34 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+Needs AbstractGateway 0.20.0 (the digital identity, with AbstractRuntime 0.18.0) for the two new
+Settings tabs and the visit's own look; with an older gateway those tabs say what could not be read
+and the visit keeps the kit's avatar.
+
+### Added
+
+- **Settings → identity** (framework ADR 0052): the entity's look and voice, one record kept in its
+  home. Its avatar is drawn in its own design and colour; choose another **Design** (the designs the
+  Watch can draw too), a **Colour** and a **Voice** (the kit's voice picker, with Create a voice),
+  then **Save** once. The gateway checks the choice when it is saved: when it refuses (closed for
+  maintenance, a design it cannot draw, a voice it does not offer, a voice model not downloaded),
+  its sentence is shown as it is, never retried, with a **Download** button when it offers one. An
+  entity without a voice yet shows the gateway's own sentence ("Castor has no voice yet: …") and no
+  voice in its place. **History** lists every revision, newest first: what changed, when and by whom.
+- **Settings → track record**: sessions, runs, successes, failures and tokens; **Trust by task**
+  with how many outcomes each trust rests on ("Trust 0.75 over 6 outcomes", "No experience yet")
+  and the plain note that a success only means the task finished; **Who it has met**: the people
+  and the entities, how many times, first and last. Read when the tab opens, never on a poll.
+- **The Avatar view draws the entity by the identity its visit names**: its design and colour from
+  the record (`identity_ref` of the visit, resolved with `GET /entities/{name}/identity?rev=N`).
+  The live line and the Findings panel are unchanged.
+
+### Changed
+
+- **Settings → voice** keeps your own speaker, microphone, language and Read aloud; the entity's
+  voice moved to Settings → identity (its "Gateway default voice" choice is gone: an identity always
+  names its voice).
+
 ## [0.11.0] - 2026-11-03
 
 On AbstractUIC `@abstractframework/ui-kit` ^0.9.14 and `@abstractframework/panel-chat` ^0.8.1.

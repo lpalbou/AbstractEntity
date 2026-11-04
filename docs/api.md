@@ -90,7 +90,9 @@ of invented data.
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
 | Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
-| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/voice`; `GET /voice/voices`, `GET /voice/defaults` |
+| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
+| Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
+| Track record (AbstractGateway 0.20.0) | `GET /entities/{name}/track-record`, `/reputation`, `/acquaintances`, read when the tab opens |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
@@ -134,6 +136,26 @@ listener's read-aloud preference and the entity voice described below. Opening,
 history restoration, reconnects and hidden conversation panels establish silent
 baselines.
 
+### Identity and track record
+
+Settings → identity reads `GET /entities/{name}/identity` and saves the whole record with one
+`PUT` (`{avatar: {style, color}, voice: {provider, model, voice}}`; the record's speed and quality
+ride along while the voice is unchanged). The design list is the AbstractAvatar catalog bundled in
+the ui-kit, limited to designs with a Watch code (the gateway refuses the others). The avatar draws
+the design in the entity's colour: the colour replaces the theme's `--warning` token around the
+canvas, the body colour of the kit's palette. A refusal is shown word for word and nothing is
+retried. History reads `?rev=N` for every revision, newest first. A record without a voice shows
+the `note` of `GET /entities/{name}/voice`, the gateway's sentence.
+
+The Avatar view resolves the visit's `identity_ref` (from `POST /visit/open`, or the newest public
+update that carries one) with `GET /entities/{name}/identity?rev=N`. A visit that names no identity
+(a visit rejoined after a reload before any update arrives, a Flow conversation) draws the kit's
+avatar.
+
+Settings → track record shows the gateway's numbers as they are; the words are the app's: a trust
+cell with no outcome reads "No experience yet", and the `completion-rate only` basis reads "A
+success here only means the task finished: nobody has judged the quality of the work yet."
+
 ### Voice uses the same gateway routes
 
 Voice uses the same gateway routes and ui-kit components as AbstractCode. It
@@ -142,7 +164,7 @@ needs AbstractGateway 0.13.0 or later (`GET /voice/defaults`):
 - **Speak.** A reply's speaker button, or **Read aloud**, posts the reply to the
   entity-owned streaming lane. The request carries the text and, when set, the
   listener's latency choice — never a provider, model or voice: the gateway
-  speaks with the entity's own voice (Settings → voice), else its `output.voice`
+  speaks with the entity's own voice (Settings → identity), else its `output.voice`
   default, and sends the audio one sentence at a time, so the first words play
   while the rest is synthesised. **Stop** aborts the request.
 - **Dictate.** The composer microphone records in the browser (hold to dictate,
