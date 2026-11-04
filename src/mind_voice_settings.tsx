@@ -1,20 +1,20 @@
 /**
- * Settings → Mind and → Voice (round 3, operator 2026-10-01): the kit's
- * SHARED pickers, exactly as Code / Assistant / the gateway console mount
- * them. "Gateway default" is the first choice and the default: the entity
- * then thinks with the gateway's text route and speaks with its default
- * voice. A provider/model (or a voice) is the entity's own override. Every
- * change saves itself; going back to "Gateway default" clears the override
- * on the gateway (recorded in its history like any mind change).
+ * Settings → Mind (round 3, operator 2026-10-01): the kit's SHARED picker,
+ * exactly as Code / Assistant / the gateway console mount it. "Gateway
+ * default" is the first choice and the default: the entity then thinks with
+ * the gateway's text route. A provider/model is the entity's own override.
+ * Every change saves itself; going back to "Gateway default" clears the
+ * override on the gateway (recorded in its history like any mind change).
  *
- * The state mapping is pure (mindValueOf / mindSaveBody / voiceValueOf /
- * voiceSaveBody) so the tests pin the default/override rules without a DOM.
+ * Its voice is part of its identity (framework ADR 0052): chosen in
+ * Settings → Identity (identity_settings.tsx) with the kit's voice picker;
+ * the voice helpers it shares live here (voiceValueOf, entityVoiceCreation).
+ *
+ * The state mapping is pure (mindValueOf / mindSaveBody / voiceValueOf) so the tests pin the default/override rules without a DOM.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ProviderModelPicker,
-  VoiceSettings,
-  voiceRouteText,
   type ProviderModelPickerValue,
   type VoiceCreation,
   type VoicePreferences,
@@ -29,10 +29,7 @@ import {
   discoveryProviders,
   getEntityAccess,
   getEntitySubstrate,
-  getEntityVoice,
-  getVoiceCatalog,
   putEntitySubstrate,
-  putEntityVoice,
   type EntityAccess,
   type EntitySubstrate,
   type EntityVoiceChoice,
@@ -40,7 +37,7 @@ import {
 
 // ------------------------------------------------------------- who may change it
 
-/** R16.5 (operator ruling 2026-10-08): an entity's mind and voice are changed by an admin or the
+/** R16.5 (operator ruling 2026-10-08): an entity's mind and identity are changed by an admin or the
  * entity's CREATOR — the gateway says which (`GET /entities/{name}/access`). `null` = the gateway
  * has no access route (older): the controls stay live and a refused write shows the gateway's own
  * sentence. The refusal sentence of someone who may not, else null. */
@@ -49,7 +46,7 @@ export function accessRefusal(access: EntityAccess | null): string | null {
   return access.reason || "Only an admin or the entity's creator can change its settings.";
 }
 
-function useEntityAccess(baseUrl: string, entity: string): { access: EntityAccess | null; error: string | null } {
+export function useEntityAccess(baseUrl: string, entity: string): { access: EntityAccess | null; error: string | null } {
   const [state, setState] = useState<{ access: EntityAccess | null; error: string | null }>({ access: null, error: null });
   useEffect(() => {
     let alive = true;
@@ -64,7 +61,7 @@ function useEntityAccess(baseUrl: string, entity: string): { access: EntityAcces
 }
 
 /** The sentence line under a control the caller may not use (the kit tooltip carries it too). */
-function RefusalLine({ text }: { text: string }): React.ReactElement {
+export function RefusalLine({ text }: { text: string }): React.ReactElement {
   return (
     <p className="wsp_status wsp_status_refused" role="note" data-af-tip={text} data-testid="entity-settings-refusal">
       {text}
@@ -209,32 +206,6 @@ export function voiceValueOf(v: EntityVoiceChoice | null): VoicePreferences {
   return { provider: v.provider || "", model: v.model || "", voice: v.voice || "" };
 }
 
-export type VoiceSave =
-  | { provider: string; model: string; voice: string }
-  | { clear: true }
-  | { needsModel: string; voice: string }
-  | null;
-
-/** What a voice picker change writes. The door stores provider + model +
- * voice together: a voice picked without a model asks the caller for its
- * provider's speech model (`needsModel`). */
-export function voiceSaveBody(next: VoicePreferences, hasOwn: boolean): VoiceSave {
-  const provider = String(next.provider || "").trim();
-  const voice = String(next.voice || next.profile || "").trim();
-  if (!provider && !voice) return hasOwn ? { clear: true } : null;
-  if (!provider || !voice) return null;
-  const model = String(next.model || "").trim();
-  return model ? { provider, model, voice } : { needsModel: provider, voice };
-}
-
-export function voiceDefaultHint(v: EntityVoiceChoice | null): string | undefined {
-  if (v?.provider) return undefined;
-  const eff = v?.effective;
-  // The kit's wording ("Gateway default · supertonic / supertonic-3"), plus the voice id the route names.
-  if (eff?.provider) return `Gateway default · ${voiceRouteText(eff)} · ${eff.voice || "the engine's default voice"}`;
-  return v?.note || "No gateway default voice is set, so the speech engine decides.";
-}
-
 /** "Create a voice" in his voice picker: the gateway's voice library (`voice/design`, `voice/clones`).
  * The new voice is selected and saved as his own, like any picked voice. */
 export function entityVoiceCreation(baseUrl: string, token: string | null): VoiceCreation {
@@ -242,90 +213,4 @@ export function entityVoiceCreation(baseUrl: string, token: string | null): Voic
     design: (request) => designVoice(baseUrl, request, token),
     clone: (file, request) => cloneVoice(baseUrl, file, request, token),
   };
-}
-
-export function EntityVoicePicker({ baseUrl, entity, token }: { baseUrl: string; entity: string; token: string | null }): React.ReactElement {
-  const [current, setCurrent] = useState<EntityVoiceChoice | null>(null);
-  const [value, setValue] = useState<VoicePreferences>({});
-  const [status, setStatus] = useState<{ text: string; tone: "ok" | "error" | "" } | null>(null);
-  const { access, error: accessError } = useEntityAccess(baseUrl, entity);
-  const refused = accessRefusal(access) || accessError;
-  const createVoice = useMemo(() => entityVoiceCreation(baseUrl, token), [baseUrl, token]);
-
-  useEffect(() => {
-    let alive = true;
-    getEntityVoice(baseUrl, entity)
-      .then((v) => {
-        if (!alive) return;
-        setCurrent(v);
-        setValue(voiceValueOf(v));
-      })
-      .catch((e: Error) => alive && setStatus({ text: `The voice could not be read: ${e.message}`, tone: "error" }));
-    return () => {
-      alive = false;
-    };
-  }, [baseUrl, entity]);
-
-  const change = useCallback(
-    async (next: VoicePreferences) => {
-      setValue(next);
-      let body = voiceSaveBody(next, Boolean(current?.provider));
-      if (!body) return;
-      if ("needsModel" in body) {
-        const catalog = await getVoiceCatalog(baseUrl, body.needsModel).catch(() => null);
-        const model = catalog?.tts_models_by_provider?.[body.needsModel]?.[0] || "";
-        if (!model) {
-          setStatus({ text: `Not saved: ${body.needsModel} lists no speech model for this voice.`, tone: "error" });
-          return;
-        }
-        body = { provider: body.needsModel, model, voice: body.voice };
-      }
-      const sent = body;
-      setStatus({ text: "Saving…", tone: "" });
-      putEntityVoice(baseUrl, entity, sent, token)
-        .then((v) => {
-          setCurrent(v);
-          setValue(voiceValueOf(v));
-          setStatus({ text: "clear" in sent ? "Saved: it uses the Gateway default voice." : "Saved", tone: "ok" });
-        })
-        .catch((e: Error & { status?: number }) =>
-          setStatus({
-            text: `Not saved: ${e.status === 401 || e.status === 403 ? authRefusedMsg(e.status, e.message) : e.message}`,
-            tone: "error",
-          }),
-        );
-    },
-    [baseUrl, entity, token, current],
-  );
-
-  return (
-    <div className="wsp_picker" data-testid="entity-voice-picker">
-      {refused ? (
-        <>
-          {/* Someone who may not change it reads its voice as text (the console's rule). */}
-          <p className="wsp_status" data-testid="entity-voice-current">
-            {current?.provider ? `Its own voice: ${current.provider} · ${current.voice || "?"}.` : voiceDefaultHint(current)}
-          </p>
-          <RefusalLine text={refused} />
-        </>
-      ) : (
-      <VoiceSettings
-        value={value}
-        onChange={(next) => void change(next)}
-        fetchCatalog={(provider, model) => getVoiceCatalog(baseUrl, provider, model)}
-        intro={null}
-        delivery={false}
-        showReset={false}
-        defaultHint={voiceDefaultHint(current)}
-        voiceDefaultLabel="Gateway default voice"
-        createVoice={createVoice}
-      />
-      )}
-      {status ? (
-        <p className={`wsp_status${status.tone ? ` wsp_status_${status.tone}` : ""}`} role="status" aria-live="polite">
-          {status.text}
-        </p>
-      ) : null}
-    </div>
-  );
 }

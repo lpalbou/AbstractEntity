@@ -18,8 +18,6 @@ import {
   mindSaveBody,
   mindValueOf,
   substrateChoiceOf,
-  voiceDefaultHint,
-  voiceSaveBody,
   voiceValueOf,
 } from "./mind_voice_settings";
 import type { EntitySubstrate, EntityVoiceChoice } from "./stream_source";
@@ -102,39 +100,11 @@ describe("Mind: Gateway default is the default, its own choice the override", ()
   });
 });
 
-describe("Voice: the kit's voice picker, Gateway default voice first", () => {
-  const unset: EntityVoiceChoice = { provider: null, model: null, voice: null, source: "unset", effective: { provider: "supertonic", model: "supertonic-3", voice: "F1" } };
-  const own: EntityVoiceChoice = { provider: "supertonic", model: "supertonic-3", voice: "M2", source: "entity" };
-
-  it("shows the gateway default as the current value; its own voice as the override", () => {
-    expect(voiceValueOf(unset)).toEqual({});
-    expect(voiceDefaultHint(unset)).toBe("Gateway default · supertonic / supertonic-3 · F1");
+describe("Voice: the picker value of a recorded voice", () => {
+  it("an entity's voice fills the kit's picker; no voice leaves it empty", () => {
+    const own: EntityVoiceChoice = { provider: "supertonic", model: "supertonic-3", voice: "M2", source: "identity" };
     expect(voiceValueOf(own)).toEqual({ provider: "supertonic", model: "supertonic-3", voice: "M2" });
-    expect(voiceDefaultHint(own)).toBeUndefined();
-    const html = renderToStaticMarkup(
-      <VoiceSettings
-        value={voiceValueOf(unset)}
-        onChange={() => {}}
-        fetchCatalog={async () => ({})}
-        intro={null}
-        delivery={false}
-        showReset={false}
-        defaultHint={voiceDefaultHint(unset)}
-        voiceDefaultLabel="Gateway default voice"
-      />,
-    );
-    expect(html).toContain("Gateway default · supertonic / supertonic-3 · F1");
-    expect(html).toContain("Gateway default voice");
-    expect(html).not.toContain("Speaking speed");
-    expect(html).not.toContain("Speech is generated");
-  });
-
-  it("saves provider + model + voice together, asks for a model when the voice has none, clears to the default", () => {
-    expect(voiceSaveBody({ provider: "supertonic", model: "supertonic-3", voice: "M1" }, false)).toEqual({ provider: "supertonic", model: "supertonic-3", voice: "M1" });
-    expect(voiceSaveBody({ provider: "supertonic", model: "", voice: "", profile: "F2" }, false)).toEqual({ needsModel: "supertonic", voice: "F2" });
-    expect(voiceSaveBody({}, true)).toEqual({ clear: true });
-    expect(voiceSaveBody({}, false)).toBeNull();
-    expect(voiceSaveBody({ provider: "supertonic", model: "", voice: "" }, true)).toBeNull();
+    expect(voiceValueOf({ provider: null, model: null, voice: null, source: "identity" })).toEqual({});
   });
 });
 
@@ -153,17 +123,15 @@ describe("Voice: create one in the gateway's voice library", () => {
     vi.unstubAllGlobals();
   });
 
-  it("his voice picker shows Create a voice; the settings page mounts it", () => {
+  it("his voice picker (Settings → identity) shows Create a voice", () => {
     const html = renderToStaticMarkup(
       <VoiceSettings value={{}} onChange={() => {}} fetchCatalog={async () => ({})} intro={null} delivery={false} showReset={false} createVoice={entityVoiceCreation("", null)} />,
     );
     expect(html).toContain("Create a voice");
     expect(html).toContain("From a description");
     expect(html).toContain("From a recording");
-    const src = fs.readFileSync(path.join(__dirname, "mind_voice_settings.tsx"), "utf8");
+    const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
     expect(src).toContain("createVoice={createVoice}");
-    // A created voice arrives as {provider: engine, model: "", voice: id}: saved with its engine's speech model.
-    expect(voiceSaveBody({ provider: "qwen3-tts", model: "", voice: "v-1" }, false)).toEqual({ needsModel: "qwen3-tts", voice: "v-1" });
   });
 
   it("designs a voice: POST voice/design with the description, name and language", async () => {
@@ -212,7 +180,9 @@ describe("the bespoke forms are gone", () => {
   it("Settings mounts the shared pickers, not the old provider…/choose…/set his voice form", () => {
     const panel = fs.readFileSync(path.resolve(__dirname, "workspace_panel.tsx"), "utf8");
     expect(panel).toContain("<EntityMindPicker");
-    expect(panel).toContain("<EntityVoicePicker");
+    // Its voice is part of its identity: one picker, on the identity tab (framework ADR 0052).
+    expect(panel).toContain("<IdentitySettings");
+    expect(panel).not.toContain("EntityVoicePicker");
     for (const gone of ["SubstratePicker", "set his voice", "choose…", "maintainer ruling 2026-07-09", "ReasoningDial"]) {
       expect(panel).not.toContain(gone);
     }
@@ -232,10 +202,12 @@ describe("R16.5: the creator configures their entity (GET /entities/{name}/acces
   it("a gateway without the route keeps the controls live (its write refusal carries its own sentence)", () => {
     expect(accessRefusal(null)).toBeNull();
   });
-  it("the pickers follow the answer: mind disabled + the sentence, voice read as text + the sentence", () => {
+  it("the pickers follow the answer: mind disabled + the sentence, identity read as text + the sentence", () => {
     const src = fs.readFileSync(path.join(__dirname, "mind_voice_settings.tsx"), "utf8");
     expect(src).toContain("disabled={Boolean(refused)}");
-    expect(src.match(/<RefusalLine text=\{refused\} \/>/g)?.length).toBe(2);
-    expect(src).toContain('data-testid="entity-voice-current"');
+    expect(src.match(/<RefusalLine text=\{refused\} \/>/g)?.length).toBe(1);
+    const identity = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
+    expect(identity.match(/<RefusalLine text=\{refused\} \/>/g)?.length).toBe(1);
+    expect(identity).toContain('data-testid="identity-voice-current"');
   });
 });

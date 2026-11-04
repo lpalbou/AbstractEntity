@@ -2,11 +2,15 @@ import { useCallback, useMemo } from "react";
 import { ActivityAvatar, type AvatarPose } from "@abstractframework/ui-kit";
 import { WorkflowInteractionPanel, publicApprovalRequest, AvatarConversation, conversationState, type WorkflowInteraction, type AvatarConversationOptions, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
 import { screenDiaryFences } from "./flow_lane";
+import { IdentityAvatar, type IdentityLook } from "./identity_avatar";
 import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus } from "./avatar_visit";
 import type { VisitConversationState, VisitPublicWait } from "./stream_source";
 
 export function AvatarVisitView(props: {
   entityName: string;
+  /** Its design and colour from the identity the visit names (framework ADR 0052); null = the visit
+   * names none, and the kit's own avatar is drawn as before. */
+  look: IdentityLook | null;
   messages: ChatMessage[];
   state: VisitConversationState | null;
   busy: string;
@@ -46,7 +50,7 @@ export function AvatarVisitView(props: {
   }, [wait, attention, props.onAnswer, props.onDecision]);
   return <>
     {publicVisitHistoryOmitted(props.state) ? <p className="cd_note cd_avatar_history_notice" role="status">Some earlier exchanges are not shown in this view.</p> : null}
-    <AvatarConversation {...props.options} avatar={<ActivityAvatar pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())}
+    <AvatarConversation {...props.options} avatar={props.look ? <IdentityAvatar look={props.look} pose={pose} size={320} label={`${props.entityName} — ${state}`} onError={onAvatarError} /> : <ActivityAvatar pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())}
     interactionId={interaction?.id || ""}
     interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} variant="conversation" onReviewTechnical={props.options.onTechnicalView} /> : null} />
   </>;

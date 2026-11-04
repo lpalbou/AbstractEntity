@@ -1331,6 +1331,8 @@ export interface VisitOpenResult {
    * asked to serve it so the operator sees the session's REAL toolkit).
    * Render-when-present. */
   allowlist_pruned?: { dropped?: string[]; reason?: string };
+  /** The identity this visit speaks with (framework ADR 0052 §3); absent when the home has none. */
+  identity_ref?: IdentityRef;
 }
 
 /** Turn/close/tick responses carry status IN THE BODY (HTTP 200 with
@@ -2249,4 +2251,185 @@ export function createEntity(
   const body: Record<string, unknown> = { name, framework: options.framework ?? true };
   if (options.spark_text?.trim()) body["spark_text"] = options.spark_text;
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities`), body, token, 60000);
+}
+
+// ------------------------------------------------------- digital identity
+// One record per entity (framework ADR 0052): its look (an AbstractAvatar design + a colour) and its
+// voice, kept in its home by AbstractRuntime and served by the gateway. Set through PUT (an admin or
+// its creator); a refusal is the gateway's sentence, shown as it is. The track record, the trust by
+// kind of task and the acquaintances are derived by the runtime from records the home already keeps.
+
+/** `{of, rev}`: which entity, at which revision of its identity (`entity:castor#3`). */
+export interface IdentityRef {
+  of: string;
+  rev: number;
+}
+
+export interface IdentityVoice {
+  provider: string;
+  model: string;
+  voice: string;
+  speed?: number | null;
+  quality_preset?: string | null;
+  source?: string;
+}
+
+export interface IdentityRecord {
+  rev: number;
+  avatar: { style: string; color: string; source?: string; watch_code?: string | null };
+  /** null = recorded absence (a default record on a gateway without a default voice). */
+  voice: IdentityVoice | null;
+  set_at: string;
+  set_by: string;
+}
+
+/** `GET /entities/{name}/identity[?rev=N]`. */
+export interface EntityIdentity {
+  entity_id: string;
+  identity: IdentityRecord;
+  identity_ref: IdentityRef;
+  fingerprint?: Record<string, unknown> | null;
+  age?: { born?: string | null; days?: number | null } | null;
+}
+
+export interface IdentitySave {
+  avatar: { style: string; color: string };
+  voice: { provider: string; model: string; voice: string; speed?: number; quality_preset?: string };
+}
+
+/** The gateway's download action on a refusal (409: the voice's model is not on this computer). */
+export interface DownloadAction {
+  method?: string;
+  path: string;
+  body?: Record<string, unknown>;
+  size_mb?: number | null;
+}
+
+/** A refused identity write: the gateway's sentence verbatim, and its download action when offered. */
+export class IdentityRefusal extends Error {
+  readonly status: number;
+  readonly download: DownloadAction | null;
+  constructor(status: number, sentence: string, download: DownloadAction | null) {
+    super(sentence);
+    this.status = status;
+    this.download = download;
+  }
+}
+
+/** The sentence and download action of a refusal body (`{detail}` or `{detail, error: {download}}`).
+ * The sentence is the gateway's, untouched; a body without one reads as its HTTP status. */
+export function identityRefusalOf(status: number, text: string): IdentityRefusal {
+  let sentence = "";
+  let download: DownloadAction | null = null;
+  try {
+    const body = JSON.parse(text) as { detail?: unknown; error?: { download?: unknown; size_mb?: unknown } };
+    const d = body?.detail;
+    sentence = typeof d === "string" ? d : d == null ? "" : JSON.stringify(d);
+    const dl = body?.error?.download as DownloadAction | undefined;
+    if (dl && typeof dl === "object" && typeof dl.path === "string" && dl.path) {
+      const size = body.error?.size_mb;
+      download = { method: dl.method, path: dl.path, body: dl.body, size_mb: typeof size === "number" ? size : null };
+    }
+  } catch {
+    sentence = text.trim();
+  }
+  return new IdentityRefusal(status, sentence || `HTTP ${status}`, download);
+}
+
+async function identityRequest<T>(url: string, init: RequestInit): Promise<T> {
+  const res = await fetch(url, { credentials: "include", ...init });
+  if (!res.ok) throw identityRefusalOf(res.status, await res.text().catch(() => ""));
+  return (await res.json()) as T;
+}
+
+function entityPath(entity: string, tail: string): string {
+  return `api/gateway/entities/${encodeURIComponent(entity)}/${tail}`;
+}
+
+export function getEntityIdentity(baseUrl: string, entity: string, rev?: number): Promise<EntityIdentity> {
+  const q = rev === undefined ? "" : `?rev=${encodeURIComponent(String(rev))}`;
+  return identityRequest(joinBaseUrl(baseUrl, entityPath(entity, `identity${q}`)), { headers: readHeaders({ Accept: "application/json" }) });
+}
+
+export function putEntityIdentity(baseUrl: string, entity: string, body: IdentitySave, token: string | null): Promise<EntityIdentity> {
+  return identityRequest(joinBaseUrl(baseUrl, entityPath(entity, "identity")), { method: "PUT", headers: authHeaders(token), body: JSON.stringify(body) });
+}
+
+/** Start the download a refusal offered (`POST /api/gateway/models/download`). */
+export function startOfferedDownload(baseUrl: string, action: DownloadAction, token: string | null): Promise<unknown> {
+  const path = action.path.startsWith("/") ? action.path.slice(1) : action.path;
+  return identityRequest(joinBaseUrl(baseUrl, path), { method: action.method || "POST", headers: authHeaders(token), body: JSON.stringify(action.body || {}) });
+}
+
+export interface TaskKindRecord {
+  runs: number;
+  successes: number;
+  failures: number;
+  cancelled: number;
+  tokens_total: number;
+  first_at: string | null;
+  last_at: string | null;
+  last_outcome_at?: string | null;
+}
+
+/** `GET /entities/{name}/track-record`. */
+export interface TrackRecord {
+  subject: string;
+  computed_at: string;
+  as_of: string | null;
+  sessions: number;
+  runs: number;
+  successes: number;
+  failures: number;
+  cancelled: number;
+  in_progress: number;
+  assessed: number;
+  tokens: { input: number; output: number; total: number };
+  by_task_kind: Record<string, TaskKindRecord>;
+  basis: string;
+}
+
+export interface TrustCell {
+  trust: number;
+  support: number;
+  successes: number;
+  failures: number;
+  last_outcome_at: string | null;
+}
+
+/** `GET /entities/{name}/reputation`. */
+export interface Reputation {
+  subject: string;
+  computed_at: string;
+  overall: TrustCell;
+  by_task_kind: Record<string, TrustCell>;
+  basis: string;
+}
+
+export interface Acquaintance {
+  id: string;
+  first_seen: string;
+  last_seen: string;
+  interactions: number;
+  kinds: Record<string, number>;
+}
+
+/** `GET /entities/{name}/acquaintances`. */
+export interface Acquaintances {
+  subject: string;
+  entities: Acquaintance[];
+  humans: Acquaintance[];
+  not_counted: Record<string, number>;
+}
+
+export function getEntityTrackRecord(baseUrl: string, entity: string): Promise<TrackRecord> {
+  return getJson(joinBaseUrl(baseUrl, entityPath(entity, "track-record")));
+}
+
+export function getEntityReputation(baseUrl: string, entity: string): Promise<Reputation> {
+  return getJson(joinBaseUrl(baseUrl, entityPath(entity, "reputation")));
+}
+
+export function getEntityAcquaintances(baseUrl: string, entity: string): Promise<Acquaintances> {
+  return getJson(joinBaseUrl(baseUrl, entityPath(entity, "acquaintances")));
 }
