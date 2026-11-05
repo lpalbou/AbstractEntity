@@ -4,9 +4,13 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
-Needs AbstractGateway 0.20.0 (the digital identity, with AbstractRuntime 0.18.0) for the two new
-Settings tabs and the visit's own look; with an older gateway those tabs say what could not be read
-and the visit keeps the kit's avatar.
+## [0.11.0] - 2026-11-04
+
+On AbstractUIC `@abstractframework/ui-kit` ^0.9.14 and `@abstractframework/panel-chat` ^0.8.1.
+Needs AbstractGateway 0.20.0 (with AbstractRuntime 0.18.0 and AbstractAgent 0.6.0) for the digital identity
+(the two new Settings tabs and the visit's own look) and for the Avatar view's live line and Findings panel.
+With an older gateway those tabs say what could not be read, the visit keeps the kit's avatar and every
+update is shown as progress. Chat works with any gateway.
 
 ### Added
 
@@ -28,18 +32,6 @@ and the visit keeps the kit's avatar.
 
 ### Changed
 
-- **Settings → voice** keeps your own speaker, microphone, language and Read aloud; the entity's
-  voice moved to Settings → identity (its "Gateway default voice" choice is gone: an identity always
-  names its voice).
-
-## [0.11.0] - 2026-11-03
-
-On AbstractUIC `@abstractframework/ui-kit` ^0.9.14 and `@abstractframework/panel-chat` ^0.8.1.
-The Avatar view's live line and Findings panel need AbstractGateway 0.20.0 (with AbstractAgent 0.6.0 and
-AbstractRuntime 0.17.0); with AbstractGateway 0.19.0 every update is shown as progress. Chat works with any gateway.
-
-### Changed
-
 - **Avatar view: one live line and a Findings panel.** Under the avatar, one line shows the latest
   thing the entity reports while it works, replaced as soon as something new arrives; click it to
   read it in full, then **Reply to this** or **Latest** (back to following). The findings it reports
@@ -53,6 +45,9 @@ AbstractRuntime 0.17.0); with AbstractGateway 0.19.0 every update is shown as pr
   Latest, then send your message again."
 - Each public update keeps the type the gateway serves (`update_kind`: `finding` or `progress`), so
   findings reach the Findings panel.
+- **Settings → voice** keeps your own speaker, microphone, language and Read aloud; the entity's
+  voice moved to Settings → identity (its "Gateway default voice" choice is gone: an identity always
+  names its voice).
 
 ## [0.10.0] - 2026-11-02
 
