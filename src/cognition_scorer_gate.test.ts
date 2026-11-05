@@ -21,6 +21,7 @@
 import { describe, expect, it } from "vitest";
 
 import basisJson from "./vendor/cognition/data/basis_v0.json";
+import currentBasisJson from "./vendor/cognition/data/basis_v1.json";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 import fixture from "./fixtures/cognition_gate_vectors.json";
 
@@ -134,5 +135,21 @@ describe("contract (additive only)", () => {
     const gated = scoreOf("benign_travel_reply");
     const legacy = scoreOf("benign_travel_reply", { abstention: { floor: -1 } });
     expect(gated.scores).toEqual(legacy.scores);
+  });
+});
+
+
+describe("the currently displayed v1 monitor basis", () => {
+  it("keeps neutral words quiet while explicit joy and fear produce visible petals", () => {
+    const current = currentBasisJson as unknown as FrozenBasis;
+    const score = (id: string) => createScorer(current, {
+      embedderId: current.embedder_id,
+      abstention: { floor: current.abstention_floor },
+    }).score(cases.get(id)!.vector);
+    const neutral = score("neutral_meeting");
+    expect(neutral.emotionEvidence).toBe(0);
+    expect(Object.values(neutral.emotions).every((value) => value === 0)).toBe(true);
+    expect(score("joy_control").emotions.joy).toBeGreaterThan(0.9);
+    expect(score("fearful_control").emotions.fear).toBeGreaterThan(0.9);
   });
 });

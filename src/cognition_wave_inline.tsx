@@ -27,10 +27,11 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
-import { BloomAxisOverlay, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
+import { ScoringReads } from "./cognition_reads";
 
 async function loadBasis(): Promise<FrozenBasis> {
   // v1 (2026-08-01): cut on HIS real utterances (74 door-read episode
@@ -120,13 +121,18 @@ export function EmbeddingsUnconfiguredNote({ baseUrl, message, className = "cm_e
   );
 }
 
-export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, focusAt, effort, effortKey, tools }: CognitionWaveInlineProps): React.ReactElement | null {
+export function CognitionWaveInline(props: CognitionWaveInlineProps): React.ReactElement {
+  // A gateway/entity switch must never inherit another home's score cache, pin or conduct baseline.
+  return <CognitionWaveSession key={JSON.stringify([props.baseUrl, props.entity])} {...props} />;
+}
+
+function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusAt, effort, effortKey, tools }: CognitionWaveInlineProps): React.ReactElement | null {
   const scorerRef = useRef<VendorScorer | null>(null);
   const embedderRef = useRef<string | null>(null);
   const setupRef = useRef<Promise<void> | null>(null);
   /** Per-text score cache (scroll-follow: each distinct reply embeds ONCE). */
-  const cacheRef = useRef<Map<string, ScoredText>>(new Map());
-  const inflightRef = useRef<Set<string>>(new Set());
+  const readsRef = useRef<ScoringReads<ScoredText> | null>(null);
+  if (!readsRef.current) readsRef.current = new ScoringReads<ScoredText>();
   /** Sticky: a KNOWN pin↔basis mismatch never retries. */
   const mismatchRef = useRef(false);
 
@@ -252,71 +258,42 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
   const shownText = (focusReply ?? latestReply ?? "").trim();
   const isLatest = shownText === (latestReply || "").trim();
   useEffect(() => {
-    if (!shownText || mismatchRef.current) return;
-    const cached = cacheRef.current.get(shownText);
-    if (cached) {
-      setCurrent(cached);
-      setStatus("live");
+    if (!shownText) { setCurrent(null); setStatus("idle"); setNote(null); return; }
+    if (mismatchRef.current) {
+      setCurrent(null); setStatus("unavailable");
+      setNote("This entity uses a different embedding model. Its words cannot be read by this monitor.");
       return;
     }
-    if (inflightRef.current.has(shownText)) return;
-    inflightRef.current.add(shownText);
-    let cancelled = false;
-    // Unconditional (adversary nit 2026-08-01): the old `idle`-only flip
-    // meant "reading…" never showed again after the first score — later
-    // texts scored silently behind a stale "live" header.
+    const reads = readsRef.current!;
+    const cached = reads.get(shownText);
+    if (cached) { setCurrent(cached); setStatus("live"); setNote(null); return; }
+    // Never leave the previous reply's bloom beneath a new reply's “reading” label.
+    setCurrent(null);
     setStatus("scoring");
-    (async () => {
-      try {
-        await ensureSetup();
-        const scorer = scorerRef.current!;
-        const res = await embedTexts(baseUrl, [shownText], embedderRef.current ?? undefined);
-        const vec = res.vectors[0];
-        if (!Array.isArray(vec) || vec.length === 0) {
-          if (!cancelled) {
-            setStatus("error");
-            setNote("no vector for the reply");
-          }
-          return;
-        }
-        if (embedderRef.current && res.model && res.model !== embedderRef.current) {
-          if (!cancelled) {
-            setStatus("error");
-            setNote(`embedder mismatch (${res.model} ≠ pin)`);
-          }
-          return;
-        }
-        const scored = scorer.score(vec);
-        const entry: ScoredText = {
-          scores: scored.scores,
-          emotions: scored.emotions,
-          novelty: scored.novelty,
-          emotionEvidence: scored.emotionEvidence,
-          emotionMaxSim: scored.emotionMaxSim,
-        };
-        cacheRef.current.set(shownText, entry);
-        if (cancelled) return;
-        setCurrent((prev) => ((focusReply ?? latestReply ?? "").trim() === shownText ? entry : prev));
-        setStatus("live");
-        setNote(null);
-      } catch (e) {
-        if (cancelled) return;
-        if ((e as { mismatch?: boolean }).mismatch) {
-          setStatus("unavailable");
-        } else if (isEmbeddingsUnconfigured(e)) {
-          setStatus("unconfigured");
-          setNote(e.message);
-        } else {
-          setStatus("error");
-          setNote((e as Error).message);
-        }
-      } finally {
-        inflightRef.current.delete(shownText);
+    setNote(null);
+    return reads.subscribe(shownText, async () => {
+      await ensureSetup();
+      const res = await embedTexts(baseUrl, [shownText], embedderRef.current ?? undefined);
+      const vec = res.vectors[0];
+      if (!Array.isArray(vec) || vec.length === 0) throw new Error("No embedding was returned for this reply.");
+      if (embedderRef.current && res.model && res.model !== embedderRef.current) {
+        throw new Error(`The reply's embedding model (${res.model}) differs from the entity's pinned model.`);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const scored = scorerRef.current!.score(vec);
+      return { scores: scored.scores, emotions: scored.emotions, novelty: scored.novelty,
+        emotionEvidence: scored.emotionEvidence, emotionMaxSim: scored.emotionMaxSim };
+    }, (entry) => {
+      setCurrent(entry); setStatus("live"); setNote(null);
+    }, (e) => {
+      if ((e as { mismatch?: boolean }).mismatch) {
+        setStatus("unavailable");
+        setNote("This entity uses a different embedding model. Its words cannot be read by this monitor.");
+      } else if (isEmbeddingsUnconfigured(e)) {
+        setStatus("unconfigured"); setNote(e.message);
+      } else {
+        setStatus("error"); setNote(e instanceof Error ? e.message : String(e));
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownText, baseUrl, entity]);
 
@@ -324,18 +301,17 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
   // absent keys keep their target (the kit's absent-not-zero rule), so an
   // 8-emotion v0 basis leaves the 9th (gravity) petal flat until the basis
   // ships it. Explicit 0 lowers a petal, so we send every known register.
-  const bloomScores = useMemo(() => current?.emotions ?? {}, [current]);
+  const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, current?.emotions?.[id] ?? 0])), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
   /** The honest quiet/faint caption (null when the bloom has real reach or
    * the diagnostics are absent — old cache entries predate them). */
   const quiet = evidenceNote(current?.emotionEvidence);
 
-  // Discreet: nothing until the first reply arrives; nothing at all for a
-  // home whose embedder space the basis can't score.
-  if (status === "idle" || status === "unavailable") return null;
+  // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
+  if (status === "idle") return null;
 
   return (
-    <div className={`cm_panel ${folded ? "cm_panel_folded" : ""}`}>
+    <div className={`cm_panel ${folded ? "cm_panel_folded" : ""}`} data-reading-state={status}>
       <div className="cm_head">
         <button className="cm_fold" onClick={toggleFolded} title={folded ? "Unfold the monitor" : "Fold the monitor (the chat keeps the room)"} aria-expanded={!folded}>
           {folded ? "▸" : "▾"}
@@ -356,7 +332,7 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
           </span>
         ) : null}
         {status === "scoring" ? <span className="cm_reading">reading…</span> : null}
-        {status === "error" ? <span className="cm_err">{note || "unavailable"}</span> : null}
+        {status === "error" || status === "unavailable" ? <span className="cm_err">{note || "unavailable"}</span> : null}
       </div>
       {/* Its own full-width line under the header (never squeezed into the title row). */}
       {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err cm_note_line" /> : null}
@@ -370,15 +346,19 @@ export function CognitionWaveInline({ baseUrl, entity, latestReply, focusReply, 
         // uic's kit component swaps in when it ships (commons#2469).
         <div className="cm_body" ref={bodyRef}>
           <div className="cm_canvas_box" style={{ width: pairSize }}>
-            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: true }} size={pairSize} />
-            <BloomAxisOverlay width={pairSize} height={pairSize} onAxis={(a) => setModalAxis(a)} />
+            {status === "live" && current ? <>
+              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: true }} size={pairSize} />
+              <BloomAxisOverlay width={pairSize} height={pairSize} onAxis={(a) => setModalAxis(a)} />
+            </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
+              {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
+            </div>}
             {/* The abstention gate, SAID (adversarial finding 2026-08-01):
               * a flat bloom was pixel-identical to a broken one. The scorer
               * ships evidence diagnostics for exactly this — hover explains
               * the gate with the live numbers. */}
-            {quiet ? (
-              <div className="cm_quiet" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim)}>
-                {quiet}
+            {status === "live" && quiet ? (
+              <div role="status" className="cm_quiet" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim)}>
+                {current?.emotionEvidence !== undefined && current.emotionEvidence <= 0.02 ? "Read complete · no clear emotional tone" : quiet}
               </div>
             ) : null}
           </div>
