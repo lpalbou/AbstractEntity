@@ -10,7 +10,9 @@ live memory graph, and read their diaries. It is published on npm as
 
 0.11.1 keeps the cognitive readings attached to the reply on screen: the emotional
 diagram shows that reply's measurements even when you move between replies while they
-load. See the [changelog](CHANGELOG.md#0111---2026-11-07).
+load. In the Avatar view the avatar speaks only while you can hear it, the live line
+and the answer each have their own read-aloud button, and completed answers no longer
+carry an accent border. See the [changelog](CHANGELOG.md#0111---2026-11-07).
 
 0.11.0 gives each entity its own identity and a track record. **Settings → identity**
 keeps its look (design and colour) and its voice in one record that you save once and
