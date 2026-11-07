@@ -5,35 +5,6 @@
 /* One line of Markdown (a title, a list row, a reason): the shared
  * renderer's blocks laid out inline at the surrounding size — the words
  * and their marks are never touched, only their layout. */
-.pc-md.md_line {
-  display: inline;
-  font-size: inherit;
-  line-height: inherit;
-  overflow-wrap: anywhere;
-}
-.pc-md.md_line > *,
-.pc-md.md_line :is(p, h1, h2, h3, h4, h5, h6, ul, ol, li, blockquote, figure) {
-  display: inline;
-  margin: 0;
-  padding: 0;
-  font-size: inherit;
-  line-height: inherit;
-  border: none;
-}
-.pc-md.md_line :is(h1, h2, h3, h4, h5, h6) {
-  font-weight: inherit;
-}
-.pc-md.md_line > * + *::before,
-.pc-md.md_line li + li::before {
-  content: " ";
-}
-.pc-md.md_line :is(ul, ol) {
-  list-style: none;
-}
-.pc-md.md_line pre {
-  display: inline;
-  white-space: pre-wrap;
-}
 
 /* What it is. */
 .rd_kind {

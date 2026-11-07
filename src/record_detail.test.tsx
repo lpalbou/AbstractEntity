@@ -128,7 +128,7 @@ describe("a record's card", () => {
     const html = body(node(), { phase: "ready", words: { text: "Open the **source** before quoting.", note: "born", turnId: null, born: true } });
     inOrder(html, ["<strong>not</strong>", "A lesson he drew", "Open the <strong>source</strong> before quoting.", "These words are the whole record", "<dt>born</dt>"]);
     expect(html).not.toContain("**not**");
-    expect(html).toContain("md_line");
+    expect(html).toContain("wl_inline");
     expect(html).not.toContain("The words as saved");
   });
 

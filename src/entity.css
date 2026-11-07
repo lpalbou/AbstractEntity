@@ -2462,6 +2462,11 @@ body {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim);
   overflow-wrap: break-word;
+  /* whole text, clamped: a click opens the full memory in Detail */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* The ledger's colour key and time column. */

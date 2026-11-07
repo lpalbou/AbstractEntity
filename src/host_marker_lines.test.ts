@@ -175,11 +175,11 @@ describe("malformed payloads never fabricate claims (adversary pins)", () => {
     expect(line.title).not.toContain("sleep");
   });
 
-  it("deposit_refused reason clips at 96 visibly (the door's sentence is the load-bearing content)", () => {
+  it("deposit_refused reason is kept whole (never truncated; the row clamps in CSS)", () => {
     const long = "x".repeat(200);
     const line = ledgerLine(hostEnv(15, { kind: "deposit_refused", effect_type: "MEMORY_FORM", reason: long }));
-    expect(line.detail).toContain("…");
-    expect(line.detail.length).toBeLessThan(160);
+    expect(line.detail).not.toContain("…");
+    expect(line.detail.length).toBeGreaterThan(160);
   });
 
   it("record_kind renders when present (contract completeness)", () => {

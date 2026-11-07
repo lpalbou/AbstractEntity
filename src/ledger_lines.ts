@@ -56,9 +56,11 @@ export interface LedgerLine {
   hint?: { entry_id: string; kind: string };
 }
 
-function clip(text: string, max = 96): string {
-  const t = String(text || "").trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+/** Whitespace-folded record text, whole (operator 2026-11-07: never truncate; the ledger row
+ * clamps to a few lines in CSS and a click opens the full memory in Detail). A cut here also
+ * broke Markdown pairs mid-line. */
+function tidy(text: string): string {
+  return String(text || "").trim().replace(/\s+/g, " ");
 }
 
 /** Derived rhythm lines (maintainer, 2026-07-08 16:31: "the ledger really
@@ -267,7 +269,7 @@ function displayTitle(env: ReplayEnvelope, fallback: string): string {
   if (d?.title) {
     const predicate = relationPredicate(d.title);
     if (predicate) return `the “${predicate}” link`;
-    return clip(cleanTitle(d.title), 64);
+    return tidy(cleanTitle(d.title));
   }
   return fallback;
 }
@@ -284,13 +286,13 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
   switch (env.family) {
     case "binding": {
       const p = env.payload as unknown as BindingPayload;
-      const name = displayTitle(env, clip(p.record_id, 40));
+      const name = displayTitle(env, tidy(p.record_id));
       if (p.source === "remember") {
         // Narrative per kind (maintainer 16:31: the ledger must SAY what
         // is happening during his own time, not catalog index states).
         const kind = env.display?.redacted === "diary" || env.display?.diary === true ? "diary" : String(env.display?.kind || "memory");
         const title = String(env.display?.title || "");
-        const gist = clip(cleanTitle(title).replace(/^exchange:\s*/i, ""), 110);
+        const gist = tidy(cleanTitle(title).replace(/^exchange:\s*/i, ""));
         if (kind === "diary") {
           // Operator surfaces show the entry's gist (maintainer ruling
           // 2026-07-08 21:39: "we must see the content and ideally a
@@ -305,7 +307,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
           return {
             ...base,
             title: "📖 He wrote in his book",
-            detail: summary ? clip(summary, 130) : `${name} — the words are his`,
+            detail: summary ? tidy(summary) : `${name} — the words are his`,
             subject_id: p.record_id,
             tone: "formation",
             ...(entryId ? { hint: { entry_id: entryId, kind: diaryType === "question" || diaryType === "problem" ? "question" : "diary" } } : {}),
@@ -356,7 +358,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
       return {
         ...base,
         title: "Visibility changed",
-        detail: `${name} — ${p.search_state}/${p.prompt_state} (${p.source}${p.reason ? `: ${clip(p.reason, 48)}` : ""})`,
+        detail: `${name} — ${p.search_state}/${p.prompt_state} (${p.source}${p.reason ? `: ${tidy(p.reason)}` : ""})`,
         subject_id: p.record_id,
         tone: "formation",
       };
@@ -364,7 +366,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
     case "event": {
       const p = env.payload as unknown as EventPayload;
       if (p.kind === "selected") {
-        const name = displayTitle(env, clip(p.record_id ?? "", 40));
+        const name = displayTitle(env, tidy(p.record_id ?? ""));
         return {
           ...base,
           title: "Used",
@@ -381,7 +383,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
           if (d.redacted === "diary") return "a diary entry";
           const predicate = relationPredicate(d.title ?? "");
           if (predicate) return `the “${predicate}” link`;
-          return clip(cleanTitle(d.title ?? ""), 36);
+          return tidy(cleanTitle(d.title ?? ""));
         });
         const label = names.filter(Boolean).join("  +  ") || `${p.pair_ids?.[0]?.slice(0, 10)}… + ${p.pair_ids?.[1]?.slice(0, 10)}…`;
         return {
@@ -398,7 +400,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         return {
           ...base,
           title: p.kind === "pinned" ? "Pinned" : "Silenced",
-          detail: `${displayTitle(env, clip(p.record_id ?? "", 40))}${p.reason ? ` — ${clip(p.reason, 60)}` : ""}`,
+          detail: `${displayTitle(env, tidy(p.record_id ?? ""))}${p.reason ? ` — ${tidy(p.reason)}` : ""}`,
           subject_id: p.record_id,
           tone: "usage",
         };
@@ -407,7 +409,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         return {
           ...base,
           title: "Refocused",
-          detail: p.reason ? clip(p.reason, 80) : "attention refocused",
+          detail: p.reason ? tidy(p.reason) : "attention refocused",
           subject_id: null,
           tone: "quiet",
         };
@@ -416,7 +418,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
       return {
         ...base,
         title: p.kind === "listed" ? "Considered" : p.kind,
-        detail: displayTitle(env, clip(p.record_id ?? "", 40)),
+        detail: displayTitle(env, tidy(p.record_id ?? "")),
         subject_id: p.record_id,
         tone: "quiet",
       };
@@ -440,7 +442,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
       // candidates list while the true pools ran wider.
       return {
         ...base,
-        title: cue ? `Recall — “${clip(cue, 56)}”` : "Recall (no cue: the self read)",
+        title: cue ? `Recall — “${tidy(cue)}”` : "Recall (no cue: the self read)",
         detail: `${consideredCount(p) ?? 0} considered, ${p.selected?.length ?? 0} on the shelf${parts.length ? ` (${parts.join(", ")})` : ""}${(p.dropped?.length ?? 0) > 0 ? `; ${p.dropped.length} dropped` : ""}`,
         subject_id: null,
         tone: "recall",
@@ -461,7 +463,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
       const p = env.payload as unknown as ValencePayload;
       const sign = Number(p.sign) >= 0 ? "+" : "−";
       const mag = Number(p.magnitude ?? 0);
-      const reason = p.reason ? ` — ${clip(p.reason, 72)}` : "";
+      const reason = p.reason ? ` — ${tidy(p.reason)}` : "";
       // Record-targeted feelings: the display block names the memory
       // ("a summary", "a diary entry") — raw graph ids stay for
       // unenriched targets only. Free identity strings pass through.
@@ -470,12 +472,12 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
       // and the chat drawer's live activity mid-visit — the fold already
       // guards this field, the ledger must too.
       const targetId = String(p.target_id || "");
-      const target = targetId.startsWith("ex:") ? displayTitle(env, clip(targetId, 28)) : targetId;
+      const target = targetId.startsWith("ex:") ? displayTitle(env, tidy(targetId)) : targetId;
       if (p.kind === "appraisal") {
         return {
           ...base,
           title: `Felt ${sign}${mag} about ${target}`,
-          detail: clip(p.reason ?? "", 96),
+          detail: tidy(p.reason ?? ""),
           subject_id: p.target_id,
           tone: "feeling",
         };
@@ -487,17 +489,17 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         return { ...base, title: `A bond formed — ${target}`, detail: `magnitude ${mag}${reason}`, subject_id: p.target_id, tone: "feeling" };
       }
       if (p.kind === "healing") {
-        return { ...base, title: `A scar healed — ${target}`, detail: clip(p.reason ?? "", 96), subject_id: p.target_id, tone: "feeling" };
+        return { ...base, title: `A scar healed — ${target}`, detail: tidy(p.reason ?? ""), subject_id: p.target_id, tone: "feeling" };
       }
-      return { ...base, title: `A bond broke — ${target}`, detail: clip(p.reason ?? "", 96), subject_id: p.target_id, tone: "feeling" };
+      return { ...base, title: `A bond broke — ${target}`, detail: tidy(p.reason ?? ""), subject_id: p.target_id, tone: "feeling" };
     }
     case "closure": {
       const p = env.payload as unknown as ClosurePayload;
-      const name = displayTitle(env, clip(p.assertion_id, 40));
+      const name = displayTitle(env, tidy(p.assertion_id));
       return {
         ...base,
         title: p.kind === "supersede" ? "Belief revised" : "Belief retracted",
-        detail: `${name} — ${clip(p.reason, 80)}`,
+        detail: `${name} — ${tidy(p.reason)}`,
         subject_id: p.assertion_id,
         tone: "revision",
       };
@@ -505,7 +507,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
     case "host": {
       const p = env.payload as unknown as HostPayload;
       const session = p.session_id ? ` (${p.session_id})` : "";
-      const reason = typeof p["reason"] === "string" && p["reason"] ? clip(String(p["reason"]), 80) : "";
+      const reason = typeof p["reason"] === "string" && p["reason"] ? tidy(String(p["reason"])) : "";
       if (p.kind === "summon") {
         return { ...base, title: "Summoned", detail: `a new session begins${session}`, subject_id: null, tone: "session" };
       }
@@ -519,7 +521,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         return {
           ...base,
           title: "Session closed",
-          detail: `the session ended${session}${why ? ` — ${clip(why, 96)}` : ""}`,
+          detail: `the session ended${session}${why ? ` — ${tidy(why)}` : ""}`,
           subject_id: null,
           tone: "session",
         };
@@ -621,7 +623,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         return {
           ...base,
           title: `🌙 The night's voice (${label})`,
-          detail: narration ? clip(narration, 220) : "a narration was spoken over the night's signals",
+          detail: narration ? tidy(narration) : "a narration was spoken over the night's signals",
           subject_id: dreamId,
           tone: "session",
         };
@@ -699,7 +701,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
           return PHASE_KEYS.has(w) ? w : `non-phase word: “${v}”`;
         };
         const cause = typeof p["cause"] === "string" && p["cause"] ? String(p["cause"]) : "";
-        const principal = typeof p["principal"] === "string" && p["principal"] ? clip(String(p["principal"]), 48) : "";
+        const principal = typeof p["principal"] === "string" && p["principal"] ? tidy(String(p["principal"])) : "";
         return {
           ...base,
           title: `⭢ Phase: ${phaseWord(p["old"])} → ${phaseWord(p["new"])}`,
@@ -723,7 +725,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
           }
           return "unset";
         };
-        const by = typeof p["by"] === "string" && p["by"] ? clip(String(p["by"]), 48) : "";
+        const by = typeof p["by"] === "string" && p["by"] ? tidy(String(p["by"])) : "";
         return {
           ...base,
           title: "🧠 His mind substrate changed",
@@ -740,9 +742,9 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         const layersRaw = p["layers"];
         const layers =
           layersRaw && typeof layersRaw === "object" && !Array.isArray(layersRaw)
-            ? Object.keys(layersRaw as Record<string, unknown>).map((k) => clip(k, 32))
+            ? Object.keys(layersRaw as Record<string, unknown>).map((k) => tidy(k))
             : [];
-        const reverted = Array.isArray(p["reverted"]) ? (p["reverted"] as unknown[]).map((v) => clip(String(v), 32)) : [];
+        const reverted = Array.isArray(p["reverted"]) ? (p["reverted"] as unknown[]).map((v) => tidy(String(v))) : [];
         const capped = (names: string[]) => (names.length > 6 ? `${names.slice(0, 6).join(", ")} and ${names.length - 6} more` : names.join(", "));
         const parts = [
           layers.length ? `rewrote: ${capped(layers)}` : "",
@@ -764,11 +766,11 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         // file's 96 default (visibly, with an ellipsis), never the tighter
         // 80 shared clip, because the refusal sentence is the load-bearing
         // content of this line.
-        const phase = clip(typeof p["phase"] === "string" ? String(p["phase"]) : "", 24);
-        const effectType = clip(typeof p["effect_type"] === "string" && p["effect_type"] ? String(p["effect_type"]) : "a deposit", 32);
-        const recordKind = clip(typeof p["record_kind"] === "string" ? String(p["record_kind"]) : "", 24);
-        const scope = clip(typeof p["scope"] === "string" ? String(p["scope"]) : "", 48);
-        const fullReason = typeof p["reason"] === "string" && p["reason"] ? clip(String(p["reason"]), 96) : "";
+        const phase = tidy(typeof p["phase"] === "string" ? String(p["phase"]) : "");
+        const effectType = tidy(typeof p["effect_type"] === "string" && p["effect_type"] ? String(p["effect_type"]) : "a deposit");
+        const recordKind = tidy(typeof p["record_kind"] === "string" ? String(p["record_kind"]) : "");
+        const scope = tidy(typeof p["scope"] === "string" ? String(p["scope"]) : "");
+        const fullReason = typeof p["reason"] === "string" && p["reason"] ? tidy(String(p["reason"])) : "";
         const phaseGate = p["refused_by"] === "phase_gate";
         // phase_gate WITHOUT a named phase must not claim the sleep class
         // (a future phase gate would misreport) — name the phase only when
@@ -801,8 +803,8 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         // (adversary find: aged exports missing `mode` would misreport a
         // timer grant as open-ended).
         const mode = typeof p["mode"] === "string" ? String(p["mode"]) : "";
-        const expires = clip(typeof p["expires_at"] === "string" ? String(p["expires_at"]) : "", 32);
-        const grantedBy = clip(typeof p["granted_by"] === "string" && p["granted_by"] ? String(p["granted_by"]) : "the operator", 48);
+        const expires = tidy(typeof p["expires_at"] === "string" ? String(p["expires_at"]) : "");
+        const grantedBy = tidy(typeof p["granted_by"] === "string" && p["granted_by"] ? String(p["granted_by"]) : "the operator");
         const until =
           mode === "timer" ? (expires ? `timer until ${expires}` : "timed") : mode === "until_revoked" ? "until revoked" : "mode unrecorded";
         return {
@@ -820,7 +822,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         // must not default to the calm claim: the loud case is the one a
         // silent default would suppress (adversary find).
         const enforcedBy = typeof p["enforced_by"] === "string" ? String(p["enforced_by"]) : "";
-        const at = typeof p["expired_at"] === "string" && p["expired_at"] ? ` at ${clip(String(p["expired_at"]), 32)}` : "";
+        const at = typeof p["expired_at"] === "string" && p["expired_at"] ? ` at ${tidy(String(p["expired_at"]))}` : "";
         if (enforcedBy === "wall_clock_backstop") {
           return {
             ...base,
@@ -839,7 +841,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         };
       }
       if (p.kind === "personal_grant_revoked") {
-        const revokedBy = clip(typeof p["revoked_by"] === "string" && p["revoked_by"] ? String(p["revoked_by"]) : "the operator", 48);
+        const revokedBy = tidy(typeof p["revoked_by"] === "string" && p["revoked_by"] ? String(p["revoked_by"]) : "the operator");
         return { ...base, title: "Personal-time grant revoked", detail: `${revokedBy} withdrew the grant${reason ? ` — ${reason}` : ""}`, subject_id: null, tone: "session" };
       }
       // Loop lifecycle — BOTH spellings render: own_time_* envelopes exist

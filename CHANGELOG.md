@@ -10,6 +10,19 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- **Every memory opens on what matters.** Clicking any memory — a diary entry, lesson, interest,
+  summary, dream, identity line, an engine act or a recall — shows its title, kind and full
+  summary first, then its facts, and keeps the words, feelings, used-together and night signals
+  one click away. A diary entry's words still open only on a click that says the read is
+  recorded.
+- **Every text renders its Markdown.** Ledger rows, the Now line, the Book, Lessons and World,
+  the identity card, world-model cards and their sources, Health, the turn panel, the meet reader
+  and the entities list show bold, italics, code and links instead of raw markers; no image in
+  any text is ever loaded. Ledger rows no longer cut record text: they clamp to a few lines and a
+  click opens the whole memory.
+- **Graph hover cards say what a memory is**: its title, its full summary once known, then the
+  facts. Topic halos and labels keep their place and colour as his life grows; long labels wrap
+  and show every keyword on hover.
 - **When he recalls, the graph shows it.** The memories he brought to mind light up and the rest
   of the graph slowly dims; a ring says why each one came (present by right, from continuity,
   matched) and a line says how many. It clears when he answers, and scrubbing to a past recall

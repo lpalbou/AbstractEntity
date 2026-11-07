@@ -29,15 +29,13 @@ import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { readRecordWords, VerbatimTurns, Words, type RecordWords } from "./verbatim_view";
 import { DreamDetail } from "./dream_detail";
 import { dreamLine, kindWords, standingLine, wordsReadOnOpen } from "./record_detail_parts";
+import { WordsLine as SharedWordsLine } from "./words_line";
 import "./record_detail.css";
 
 // ------------------------------------------------------------ shared parts
 
-/** One line of his words (a title, a list row, a reason): the shared
- * Markdown renderer, laid out inline. */
-export function WordsLine({ text, className = "" }: { text: string; className?: string }): React.ReactElement {
-  return <Words text={text} className={`ev_markdown md_line${className ? ` ${className}` : ""}`} />;
-}
+/** One line of his words: the app's one inline renderer (words_line.tsx). */
+export const WordsLine = ({ text, className = "" }: { text: string; className?: string }): React.ReactElement => <SharedWordsLine text={text} inline className={className} />;
 
 /** A folded section: its head says what is inside; one click opens it. */
 export function Disclosure({ title, summary, defaultOpen = false, children }: { title: string; summary?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode }): React.ReactElement {
