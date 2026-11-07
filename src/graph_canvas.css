@@ -220,17 +220,102 @@
 }
 
 /* A summary is shown whole: the card holds at most 60% of the screen and
- * scrolls inside (on a touch screen it takes the finger for that; with a
- * mouse it stays pointer-transparent so the canvas hover never flickers). */
+ * scrolls inside. It takes the pointer — its actions are buttons; the
+ * canvas holds it while the pointer crosses in (graph_canvas CARD_GRACE_MS)
+ * and pins it after a tap on a touch screen. */
 .gc_hovercard.gc_card_box {
   max-height: 60vh;
   overflow-y: auto;
   overscroll-behavior: contain;
+  pointer-events: auto;
+}
+
+/* What it is, in plain words (Detail's opening line). */
+.gc_hovercard .gc_hc_kindline {
+  margin: -2px 0 6px;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+/* A world model's card: its floor (name, how much lived evidence, its
+ * threads, the standing feeling). */
+.gc_hovercard .gc_hc_floor_name {
+  font-weight: 600;
+}
+
+.gc_hovercard .gc_hc_threads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.gc_hovercard .gc_hc_thread {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+}
+
+.gc_hovercard .gc_hc_feeling {
+  margin-top: 4px;
+  color: var(--text-dim);
+}
+
+.gc_topic_leading {
+  margin: 1px 0;
+}
+
+/* THE ACTION ROW: what to do with it — real buttons, the first the
+ * default (what a click on the memory does). 32 px tall on touch. */
+.gc_card_actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* A long summary scrolls inside the card; the actions stay in reach,
+ * pinned to its bottom edge (the card's own 10 px padding included). */
+.gc_hovercard.gc_card_box .gc_card_actions {
+  position: sticky;
+  bottom: -10px;
+  margin-bottom: -10px;
+  padding-bottom: 10px;
+  background: var(--bg-panel);
+}
+
+.gc_card_action {
+  background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 3px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  cursor: pointer;
+}
+
+.gc_card_action:hover,
+.gc_card_action:focus-visible {
+  border-color: var(--ea-accent);
+}
+
+.gc_card_action:focus-visible {
+  outline: 2px solid var(--ea-accent);
+  outline-offset: 1px;
+}
+
+.gc_card_action_main {
+  border-color: color-mix(in srgb, var(--ea-accent) 60%, var(--line));
 }
 
 @media (hover: none) {
-  .gc_hovercard.gc_card_box {
-    pointer-events: auto;
+  .gc_card_action {
+    min-height: 32px;
   }
 }
 
@@ -248,4 +333,12 @@
   text-overflow: clip;
   text-align: left;
   line-height: 1.3;
+}
+
+/* A card's neutral note (a diary entry's line, "reading his words…", no
+ * words kept) — quiet, never the red of a closed belief. */
+.gc_hovercard .gc_hc_quiet {
+  margin: 2px 0 8px;
+  color: var(--text-dim);
+  font-style: italic;
 }

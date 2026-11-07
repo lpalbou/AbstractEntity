@@ -20,13 +20,26 @@
  * owns truth: everything drawn derives from the fold at the scrub seq.
  */
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { FoldState, NodeState, StandingState } from "./stream_fold";
 import { ADMISSION_LABELS } from "./stream_types";
 import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, resolveSelection, type RecallClass } from "./recall_emphasis";
 import "./graph_canvas.css";
-import { canvasLabel, nodeCardText, placeCard, topicExemplarText } from "./hover_card";
+import {
+  canvasLabel,
+  cardKindLine,
+  cardSummary,
+  nodeActions,
+  nodeCardText,
+  partnerCount,
+  topicActions,
+  topicExemplarText,
+  type CardActionId,
+} from "./hover_card";
+import { CardActions, CardSummaryBlock, HoverCardBox, useHoverWords } from "./graph_hover_card";
+import { recordTitle } from "./record_detail";
+import { writeSectionOpen } from "./section_disclosure";
 import { Words } from "./verbatim_view";
 import { nodeLabel, summaryLabel } from "./node_label";
 import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
@@ -70,16 +83,20 @@ export interface GraphCanvasProps {
   /** Stable key for layout persistence (entity slug or source label). */
   layoutKey: string | null;
   onSelect(id: string | null): void;
-  /** Where the topic communities come from (gateway lives; null for
-   * file/demo sources). Topics shape the layout whenever they exist —
-   * each topic's memories settle together (topic_layout.ts). */
-  topicSource: TopicSource | null;
+  /** The gateway life this graph reads from (null for file/demo sources):
+   * the topic communities (topics shape the layout whenever they exist —
+   * topic_layout.ts) and the words a hover card shows when the fold holds
+   * no summary (graph_hover_card.useHoverWords; never a diary record's). */
+  gatewaySource: TopicSource | null;
   /** The "topics" toggle: soft halos + labels over the grouped layout
    * (never a different graph). */
   showTopics: boolean;
   /** A click on a topic label lights that topic's memories (the topic
    * filter: every member present, diary and identity included). */
   onPickTopic(rowIds: Set<string>, label: string): void;
+  /** A diary entry's card action: open the Book at that entry (its words
+   * are read there, on their own click — never from the graph). */
+  onShowInBook(graphId: string): void;
   height?: number;
 }
 
@@ -407,24 +424,14 @@ function readStoredLayout(key: string): string | null {
   return localStorage.getItem(`abstractobserver_entity_layout_v2:${key}`);
 }
 
-/** A hover card beside the cursor, measured and kept inside the viewport
- * (hover_card.placeCard). Pointer-transparent like before. */
-function HoverCardBox({ x, y, className, children }: { x: number; y: number; className: string; children: React.ReactNode }): React.ReactElement {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ left: number; top: number }>({ left: x + 16, top: y + 12 });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const next = placeCard(x, y, r.width, r.height, window.innerWidth, window.innerHeight);
-    setPos((p) => (p.left === next.left && p.top === next.top ? p : next));
-  });
-  return (
-    <div ref={ref} className={`${className} gc_card_box`} style={{ left: pos.left, top: pos.top }}>
-      {children}
-    </div>
-  );
-}
+/** The one card on screen: a memory's (node id) or a topic label's. */
+type CardAt =
+  | { kind: "node"; id: string; x: number; y: number; pinned: boolean }
+  | { kind: "topic"; topic: number; x: number; y: number; pinned: boolean };
+
+/** How long a card holds after the pointer leaves its memory — the time to
+ * cross into the card and reach its actions. */
+const CARD_GRACE_MS = 320;
 
 export function GraphCanvas({
   fold,
@@ -435,9 +442,10 @@ export function GraphCanvas({
   focusToken,
   layoutKey,
   onSelect,
-  topicSource,
+  gatewaySource,
   showTopics,
   onPickTopic,
+  onShowInBook,
   height,
 }: GraphCanvasProps): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -460,7 +468,7 @@ export function GraphCanvas({
   // (topic_layout.ts); the force sim pulls each memory to its seat with
   // the same anchor strength the global seats use. Homes depend on the
   // payload only (stable under scrub); seats per fold change.
-  const { state: topicsState, retry: retryTopics } = useCommunities(topicSource, fold.nodes.size);
+  const { state: topicsState, retry: retryTopics } = useCommunities(gatewaySource, fold.nodes.size);
   const topicsData = topicsState.phase === "ready" ? topicsState.data : null;
   // Homes are STABLE: planned against the slots remembered from the last
   // fetch (and from storage after a reload) — a persisting topic keeps
@@ -528,11 +536,41 @@ export function GraphCanvas({
   const mouseRef = useRef<{ x: number; y: number } | null>(null);
   /** The small memory card beside the cursor (maintainer ask, 2026-07-08):
    * set when the hovered node CHANGES (never per mousemove — no jitter). */
-  const [hoverCard, setHoverCard] = useState<{ id: string; x: number; y: number } | null>(null);
-  /** The topic label under the cursor (its full words in a card). */
-  const [topicCard, setTopicCard] = useState<{ topic: number; x: number; y: number } | null>(null);
-  const topicHoverRef = useRef<number | null>(null);
-  const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  // THE CARD (one at a time): a memory's or a topic label's. It follows
+  // the pointer, holds while the pointer crosses into it (CARD_GRACE_MS)
+  // so its actions can be clicked, and is PINNED after a tap on a touch
+  // screen (it stays until a tap elsewhere, an action, or Escape).
+  const [card, setCardState] = useState<CardAt | null>(null);
+  const cardRef = useRef<CardAt | null>(null);
+  const cardElRef = useRef<HTMLDivElement | null>(null);
+  const graceRef = useRef<number | null>(null);
+  const pointerTypeRef = useRef<string>("mouse");
+  const cardCtl = useRef({
+    set(next: CardAt | null) {
+      cardRef.current = next;
+      setCardState(next);
+    },
+    cancelGrace() {
+      if (graceRef.current !== null) window.clearTimeout(graceRef.current);
+      graceRef.current = null;
+    },
+    close() {
+      this.cancelGrace();
+      hoverRef.current = null;
+      this.set(null);
+    },
+    closeSoon() {
+      if (graceRef.current !== null) return;
+      graceRef.current = window.setTimeout(() => {
+        graceRef.current = null;
+        if (!cardRef.current?.pinned) {
+          hoverRef.current = null;
+          cardCtl.set(null);
+        }
+      }, CARD_GRACE_MS);
+    },
+  }).current;
+  const dragRef = useRef<{ x: number; y: number; moved: boolean; card: CardAt | null } | null>(null);
   const onSelectRef = useRef(onSelect);
   // Cooling state (P0-2/3): alpha decays toward freeze; arrivals reheat.
   const simRef = useRef({ alpha: 1, frozen: false, lastSaveAt: 0, autoFitDone: false, lastCount: 0, stableFrames: 0 });
@@ -1324,7 +1362,8 @@ export function GraphCanvas({
         // "you can still show the label above the node when we mouse over
         // it — simplify"). Content is the record's SUMMARY only (dm#46);
         // type stand-ins render NOTHING (summaryLabel → null).
-        const labelBase = summaryLabel(node.title, node.redacted);
+        // A dream is named the way Detail and its card name it.
+        const labelBase = node.kind === "dream" ? recordTitle(node) : summaryLabel(node.title, node.redacted);
         const labelInBand = overlayBand(p.x, p.y - r - 6);
         if (dim === 1 && labelBase && !labelInBand) {
           const alpha = isHover ? 0.95 : influenceAlpha(p.x, p.y);
@@ -1436,9 +1475,13 @@ export function GraphCanvas({
       cam.x += before.x - after.x;
       cam.y += before.y - after.y;
     };
+    const onPointerDown = (ev: PointerEvent) => {
+      pointerTypeRef.current = ev.pointerType || "mouse";
+    };
     const onDown = (ev: MouseEvent) => {
-      dragRef.current = { x: ev.clientX, y: ev.clientY, moved: false };
-      setHoverCard(null);
+      // The card at the press: a second tap on a pinned memory opens it.
+      dragRef.current = { x: ev.clientX, y: ev.clientY, moved: false, card: cardRef.current };
+      if (pointerTypeRef.current === "mouse") cardCtl.close();
     };
     // Drag pans ride the WINDOW (a pan must keep following the cursor after
     // it leaves the canvas mid-drag); hover hit-testing rides the CANVAS
@@ -1464,31 +1507,43 @@ export function GraphCanvas({
       mouseRef.current = { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
       if (dragRef.current) return; // mid-drag: no hover churn
       const hit = hitTest(ev.clientX, ev.clientY);
-      if (hit !== hoverRef.current) {
-        hoverRef.current = hit;
-        setHoverCard(hit ? { id: hit, x: ev.clientX, y: ev.clientY } : null);
-      }
       // A topic label under the cursor (and no node): its card shows the
       // topic's full words — the canvas label never hides any for good.
       const label = hit ? null : topicLabelAt(ev.clientX, ev.clientY);
-      const topic = label ? label.topic : null;
-      if (topic !== topicHoverRef.current) {
-        topicHoverRef.current = topic;
-        setTopicCard(topic !== null ? { topic, x: ev.clientX, y: ev.clientY } : null);
-      }
-      canvas.style.cursor = hoverRef.current || label ? "pointer" : "grab";
-    };
-    const onCanvasLeave = () => {
-      mouseRef.current = null;
-      if (hoverRef.current !== null) {
+      canvas.style.cursor = hit || label ? "pointer" : "grab";
+      const c = cardRef.current;
+      if (c?.pinned) return; // a pinned card holds until a tap elsewhere
+      if (hit) {
+        cardCtl.cancelGrace();
+        if (hit !== hoverRef.current || c?.kind !== "node") {
+          hoverRef.current = hit;
+          cardCtl.set({ kind: "node", id: hit, x: ev.clientX, y: ev.clientY, pinned: false });
+        }
+      } else if (label) {
+        cardCtl.cancelGrace();
         hoverRef.current = null;
-        setHoverCard(null);
+        if (!(c?.kind === "topic" && c.topic === label.topic)) cardCtl.set({ kind: "topic", topic: label.topic, x: ev.clientX, y: ev.clientY, pinned: false });
+      } else if (c) {
+        // Off every memory: the card holds briefly so the pointer can
+        // cross into it (its actions), then goes.
+        cardCtl.closeSoon();
       }
-      if (topicHoverRef.current !== null) {
-        topicHoverRef.current = null;
-        setTopicCard(null);
-      }
+    };
+    const onCanvasLeave = (ev: MouseEvent) => {
+      mouseRef.current = null;
       canvas.style.cursor = "grab";
+      const to = ev.relatedTarget as Node | null;
+      if (to && cardElRef.current?.contains(to)) {
+        cardCtl.cancelGrace(); // into the card: it stays
+        return;
+      }
+      if (!cardRef.current?.pinned) cardCtl.close();
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      // One Escape = one layer (consumed-event convention).
+      if (ev.key !== "Escape" || ev.defaultPrevented || !cardRef.current) return;
+      ev.preventDefault();
+      cardCtl.close();
     };
     const topicLabelAt = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
@@ -1499,19 +1554,45 @@ export function GraphCanvas({
     const onUp = (ev: MouseEvent) => {
       const drag = dragRef.current;
       dragRef.current = null;
-      if (drag && !drag.moved) {
-        // A topic label is a door: it lights that topic's memories.
-        const label = ev.target === canvas ? topicLabelAt(ev.clientX, ev.clientY) : null;
-        const plan = stateRef.current.topicPlan;
-        if (label && plan) {
-          onPickTopicRef.current(plan.allRowsOf.get(label.topic) ?? new Set(), label.label);
+      if (!drag || drag.moved) return;
+      const label = ev.target === canvas ? topicLabelAt(ev.clientX, ev.clientY) : null;
+      const plan = stateRef.current.topicPlan;
+      if (pointerTypeRef.current !== "mouse" && ev.target === canvas) {
+        // TOUCH: a tap shows the card and PINS it (its actions are taps);
+        // a second tap on the same memory does its default action; a tap
+        // on nothing closes it.
+        const hit = hitTest(ev.clientX, ev.clientY);
+        const prev = drag.card;
+        if (hit) {
+          if (prev?.kind === "node" && prev.id === hit && prev.pinned) {
+            cardActionRef.current("default");
+            return;
+          }
+          hoverRef.current = hit;
+          cardCtl.cancelGrace();
+          cardCtl.set({ kind: "node", id: hit, x: ev.clientX, y: ev.clientY, pinned: true });
           return;
         }
-        onSelectRef.current(hitTest(ev.clientX, ev.clientY));
+        if (label && plan) {
+          cardCtl.cancelGrace();
+          cardCtl.set({ kind: "topic", topic: label.topic, x: ev.clientX, y: ev.clientY, pinned: true });
+          return;
+        }
+        cardCtl.close();
+        onSelectRef.current(null);
+        return;
       }
+      // A topic label is a door: it lights that topic's memories.
+      if (label && plan) {
+        onPickTopicRef.current(plan.allRowsOf.get(label.topic) ?? new Set(), label.label);
+        return;
+      }
+      onSelectRef.current(hitTest(ev.clientX, ev.clientY));
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
     canvas.addEventListener("mousemove", onCanvasHover);
     canvas.addEventListener("mouseleave", onCanvasLeave);
     window.addEventListener("mousemove", onWindowDragMove);
@@ -1523,7 +1604,10 @@ export function GraphCanvas({
       observer.disconnect();
       themeObserver.disconnect();
       canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+      cardCtl.cancelGrace();
       canvas.removeEventListener("mousemove", onCanvasHover);
       canvas.removeEventListener("mouseleave", onCanvasLeave);
       window.removeEventListener("mousemove", onWindowDragMove);
@@ -1531,19 +1615,110 @@ export function GraphCanvas({
     };
   }, []);
 
-  const hoverNode = hoverCard ? fold.nodes.get(hoverCard.id) ?? null : null;
+  const cardNodeId = card?.kind === "node" ? card.id : null;
+  const hoverNode = cardNodeId ? fold.nodes.get(cardNodeId) ?? null : null;
   const hoverText = hoverNode ? nodeCardText(hoverNode) : null;
+  // The words the card shows when the fold holds no summary (read after a
+  // short rest on the memory; never a diary record's).
+  const hoverWords = useHoverWords(gatewaySource, hoverNode);
+  const hoverSummary = hoverNode ? cardSummary(hoverNode, hoverWords, gatewaySource?.entity ?? "") : null;
+  // Which topic a memory belongs to — any member, diary and identity too
+  // (they keep their lanes but share the topic).
+  const topicOfAny = useMemo(() => {
+    const out = new Map<string, number>();
+    if (!topicPlan) return out;
+    for (const [topic, rows] of topicPlan.allRowsOf) for (const r of rows) out.set(r, topic);
+    return out;
+  }, [topicPlan]);
+  const hoverTopic = hoverNode ? topicOfAny.get(hoverNode.id) ?? null : null;
+  const hoverActions = hoverNode
+    ? nodeActions(hoverNode, { topic: hoverTopic !== null ? topicWords.get(hoverTopic)?.label ?? null : null, partners: partnerCount(fold, hoverNode.id) })
+    : cardNodeId?.startsWith("standing:")
+      ? [{ id: "open" as const, label: "Open in Detail" }]
+      : [];
   // The recall line shows while the recall is what the canvas lights (a
   // lens/search or a selection takes over — the Inspector's rule).
   const selectionIsNode = selectedRow !== null && (fold.nodes.has(selectedRow) || selectedRow.startsWith("standing:"));
-  const topicCardHome = topicCard && showTopics ? topicHomes?.find((h) => h.id === topicCard.topic) ?? null : null;
+  const topicCardHome = card?.kind === "topic" && showTopics ? topicHomes?.find((h) => h.id === card.topic) ?? null : null;
   const topicExemplar = topicCardHome ? topicExemplarText(fold, topicCardHome.exemplarId, topicCardHome.exemplarTitle) : null;
+  // A topic's leading memories: its most used disc members, by title.
+  const topicLeading = useMemo(() => {
+    if (!topicCardHome || !topicPlan) return [];
+    const ids = topicPlan.membersOf.get(topicCardHome.id) ?? [];
+    return ids
+      .map((id) => fold.nodes.get(id))
+      .filter((n): n is NodeState => Boolean(n) && !n!.redacted && !n!.diary)
+      .sort((x, y) => y.selected_count - x.selected_count || x.first_seq - y.first_seq)
+      .slice(0, 3)
+      .map((n) => ({ id: n.id, title: nodeCardText(n).title }));
+  }, [topicCardHome, topicPlan, fold]);
   const recallShown = recall !== null && searchIds === null && !selectionIsNode;
   const recallLabelOf = (id: string): string | null => (recall ? recall.labels.get(id) ?? null : null);
   const recallLegend = recallShown && recall ? recallLegendParts(recall) : null;
-  const hoverStanding = hoverCard && !hoverNode && hoverCard.id.startsWith("standing:")
-    ? fold.standings.get(hoverCard.id.slice("standing:".length)) ?? null
+  const hoverStanding = cardNodeId && !hoverNode && cardNodeId.startsWith("standing:")
+    ? fold.standings.get(cardNodeId.slice("standing:".length)) ?? null
     : null;
+
+  /** Frame the camera on these memories (world positions untouched). */
+  const frameIds = (ids: Iterable<string>) => {
+    const layout = layoutRef.current;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, found = 0;
+    for (const id of ids) {
+      const ln = layout.get(id);
+      if (!ln) continue;
+      found += 1;
+      minX = Math.min(minX, ln.x); maxX = Math.max(maxX, ln.x);
+      minY = Math.min(minY, ln.y); maxY = Math.max(maxY, ln.y);
+    }
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!found || !rect || rect.width < 10) return;
+    const cam = cameraRef.current;
+    cam.x = (minX + maxX) / 2;
+    cam.y = (minY + maxY) / 2;
+    cam.zoom = Math.min(4, Math.max(0.12, Math.min(rect.width / Math.max(140, maxX - minX + 180), rect.height / Math.max(140, maxY - minY + 180))));
+  };
+
+  /** A card action (or a pinned card's second tap: "default"). */
+  const runCardAction = (id: CardActionId | "default") => {
+    const c = cardRef.current;
+    if (!c) return;
+    const plan = topicPlan;
+    if (c.kind === "node") {
+      const node = fold.nodes.get(c.id) ?? null;
+      const actions = node ? nodeActions(node, { topic: topicOfAny.has(c.id) ? "topic" : null, partners: partnerCount(fold, c.id) }) : [{ id: "open" as const, label: "" }];
+      const act = id === "default" ? actions[0]?.id ?? "open" : id;
+      cardCtl.close();
+      if (act === "book" && node) onShowInBook(node.graph_id ?? node.id);
+      else if (act === "open") onSelect(c.id);
+      else if (act === "topic" && plan) {
+        const t = topicOfAny.get(c.id);
+        if (t !== undefined) onPickTopic(plan.allRowsOf.get(t) ?? new Set(), topicWords.get(t)?.label ?? "");
+      } else if (act === "partners") {
+        // Detail at its "Used together with" list: unfolded, scrolled to.
+        writeSectionOpen("partners", true);
+        onSelect(c.id);
+        requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("ei-section-partners")?.scrollIntoView({ block: "start", behavior: "smooth" })));
+      }
+      return;
+    }
+    cardCtl.close();
+    if (!plan) return;
+    const rows = plan.allRowsOf.get(c.topic) ?? new Set<string>();
+    const label = topicWords.get(c.topic)?.label ?? "";
+    if (id === "light" || id === "default") onPickTopic(rows, label);
+    else if (id === "members") {
+      onPickTopic(rows, label);
+      frameIds(rows);
+    }
+  };
+  const cardActionRef = useRef(runCardAction);
+  cardActionRef.current = runCardAction;
+  const onCardEnter = () => cardCtl.cancelGrace();
+  const onCardLeave = (ev: React.MouseEvent) => {
+    if (cardRef.current?.pinned) return;
+    if (ev.relatedTarget === canvasRef.current) cardCtl.closeSoon();
+    else cardCtl.close();
+  };
 
   return (
     <>
@@ -1552,8 +1727,8 @@ export function GraphCanvas({
         className="entity_graph_canvas"
         style={{ width: "100%", height: height ? `${height}px` : "100%", display: "block" }}
       />
-      {hoverCard && (hoverNode || hoverStanding) ? (
-        <HoverCardBox x={hoverCard.x} y={hoverCard.y} className="gc_hovercard">
+      {card?.kind === "node" && (hoverNode || hoverStanding) ? (
+        <HoverCardBox ref={cardElRef} x={card.x} y={card.y} className="gc_hovercard" onEnter={onCardEnter} onLeave={onCardLeave}>
           {hoverNode ? (
             <>
               {/* The card carries the memory-type COLOR (laurent 12:23,
@@ -1570,17 +1745,16 @@ export function GraphCanvas({
                   {hoverNode.diary ? "diary" : hoverNode.kind}
                 </span>
                 {/* The title as Markdown (bold, code, headings render —
-                  * never raw "##"/"**"), then the record's summary in full
-                  * when the fold holds it (hover_card.nodeCardText). */}
+                  * never raw "##"/"**"). */}
                 <Words text={hoverText?.title ?? ""} className="gc_hc_title gc_hc_md" />
               </div>
-              {hoverText?.summary ? (
-                hoverText.plain ? (
-                  // A dream's born digest is not Markdown (Detail shows it plain too).
-                  <div className="gc_hc_summary gc_hc_plain">{hoverText.summary}</div>
-                ) : (
-                  <Words text={hoverText.summary} className="gc_hc_summary" />
-                )
+              {/* What it is in plain words, then what it says (the summary
+                * for every kind — hover_card.cardSummary), then its facts,
+                * then what to do with it. */}
+              <div className="gc_hc_kindline">{cardKindLine(hoverNode)}</div>
+              <CardSummaryBlock summary={hoverSummary} />
+              {hoverNode.closed ? (
+                <div className="gc_hc_note">closed: {hoverNode.closed.kind} — {hoverNode.closed.reason}</div>
               ) : null}
               <div className="gc_hc_rows">
                 <span>used</span>
@@ -1612,10 +1786,6 @@ export function GraphCanvas({
                   {hoverNode.token_estimate ? ` · ~${hoverNode.token_estimate} tok` : ""}
                 </span>
               </div>
-              {hoverNode.closed ? (
-                <div className="gc_hc_note">closed: {hoverNode.closed.kind} — {hoverNode.closed.reason}</div>
-              ) : null}
-              <div className="gc_hc_hint">click to open in Detail</div>
             </>
           ) : hoverStanding ? (
             <>
@@ -1631,13 +1801,13 @@ export function GraphCanvas({
                   {hoverStanding.bonds.length} bond{hoverStanding.bonds.length === 1 ? "" : "s"} · {hoverStanding.scars.length} scar{hoverStanding.scars.length === 1 ? "" : "s"}
                 </span>
               </div>
-              <div className="gc_hc_hint">click to open in Detail</div>
             </>
           ) : null}
+          <CardActions actions={hoverActions} onAction={runCardAction} />
         </HoverCardBox>
       ) : null}
-      {topicCard && topicCardHome ? (
-        <HoverCardBox x={topicCard.x} y={topicCard.y} className="gc_hovercard gc_topic_card">
+      {card?.kind === "topic" && topicCardHome ? (
+        <HoverCardBox ref={cardElRef} x={card.x} y={card.y} className="gc_hovercard gc_topic_card" onEnter={onCardEnter} onLeave={onCardLeave}>
           <div className="gc_hc_head" style={{ borderLeft: `3px solid ${topicCardHome.color}`, paddingLeft: 8 }}>
             <span className="gc_hc_kind_dot" style={{ background: topicCardHome.color }} aria-hidden="true" />
             <span className="ei_kind">topic</span>
@@ -1655,13 +1825,23 @@ export function GraphCanvas({
               )}
             </div>
           ) : null}
+          {topicLeading.length ? (
+            <div className="gc_topic_exemplar">
+              <span className="gc_topic_exemplar_word">most used</span>
+              {topicLeading.map((m) => (
+                <div key={m.id} className="gc_topic_leading">
+                  <Words text={m.title} className="gc_hc_md" />
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="gc_hc_rows">
             <span>memories</span>
             <span>
               {topicCardHome.size} ({topicCardHome.free} on the disc; diary entries and identity stay in their places)
             </span>
           </div>
-          <div className="gc_hc_hint">click to light these {topicCardHome.size} on the graph</div>
+          <CardActions actions={topicActions(topicCardHome.size)} onAction={runCardAction} />
         </HoverCardBox>
       ) : null}
       {showTopics && topicsState.phase !== "ready" ? (

@@ -24,7 +24,11 @@ import type { FoldState, NodeState } from "./stream_fold";
 import { isDiaryGraphId } from "./stream_fold";
 import { shapeLabel, summaryLabel } from "./node_label";
 import { recordTitle } from "./record_detail";
+import { kindWords, wordsReadOnOpen } from "./record_detail_parts";
+import { isDiaryShaped } from "./episode_parse";
 import { Words } from "./verbatim_view";
+import { readCard } from "./world_model_view";
+import { sourceWords } from "./world_model_sources";
 
 export interface CardText {
   /** Markdown, inline (one line of prose; headings/bold render, never
@@ -40,8 +44,8 @@ export interface CardText {
 
 /** A diary record by any of the app's rules: the fold's diary flag, its
  * redaction, or a diary graph id (stream_fold.isDiaryGraphId). */
-export function isDiaryNode(node: Pick<NodeState, "diary" | "redacted" | "graph_id" | "id">): boolean {
-  return node.diary || node.redacted || isDiaryGraphId(node.graph_id ?? "") || isDiaryGraphId(node.id);
+export function isDiaryNode(node: Pick<NodeState, "diary" | "redacted" | "graph_id" | "id"> & { kind?: string }): boolean {
+  return node.diary || node.redacted || isDiaryGraphId(node.graph_id ?? "") || isDiaryGraphId(node.id) || isDiaryShaped(node);
 }
 
 /** A title as Markdown: the mechanical scaffolding of its FIRST line is
@@ -136,4 +140,124 @@ export function canvasLabel(raw: string): string {
   if (plainCache.size > 4000) plainCache.clear();
   plainCache.set(key, text);
   return text;
+}
+
+// ------------------------------------------------ the card's summary
+
+/** What a diary record's card says instead of its words: they are never
+ * read from a card (a read is recorded in his biography); the Book opens
+ * them on its own click. */
+export const DIARY_CARD_LINE = "a diary entry — opens in his Book";
+
+/** The record's summary as the fold holds it (a recall served its digest). */
+function digestOf(node: NodeState): string | null {
+  return typeof node.digest === "string" && node.digest.trim() ? node.digest.trim() : null;
+}
+
+/** Does the card need to read the record's words? Only when the fold holds
+ * no summary, the record is not diary-shaped (NEVER read from a card), and
+ * Detail itself would read it on open (record_detail_parts.wordsReadOnOpen:
+ * relation rows and engine acts carry no words). */
+export function needsWords(node: NodeState): boolean {
+  if (isDiaryNode(node)) return false;
+  if (!wordsReadOnOpen(node)) return false;
+  return digestOf(node) === null;
+}
+
+export type CardSummary =
+  | { kind: "diary"; text: string }
+  | { kind: "floor"; name: string; lines: string[]; threads: string[]; feeling: string | null }
+  | { kind: "words"; text: string; plain: boolean }
+  | { kind: "reading" }
+  | { kind: "none"; text: string };
+
+function dayOf(stamp: string | null): string {
+  return String(stamp ?? "").slice(0, 10);
+}
+
+/** What the card says first, per kind, from the fold's digest or the words
+ * just read (`words`; null while unread), through the parses Detail uses:
+ * - a diary record: DIARY_CARD_LINE, never its words;
+ * - a world model: its card (world_model_view.readCard) — the evidence
+ *   floor's name, count, days, threads and standing feeling, or its lead;
+ * - a lived moment: its digest, else his answer's lead
+ *   (world_model_sources.sourceWords, the exchange parse);
+ * - a dream: its summary as written (not Markdown);
+ * - everything else (lessons, interests, identity, summaries, …): the
+ *   whole words. */
+export function cardSummary(
+  node: NodeState,
+  words: { phase: "reading" } | { phase: "ready"; text: string } | { phase: "none"; message: string } | null,
+  entity: string,
+): CardSummary | null {
+  if (isDiaryNode(node)) return { kind: "diary", text: DIARY_CARD_LINE };
+  const digest = digestOf(node);
+  const read = words && words.phase === "ready" && words.text.trim() ? words.text.trim() : null;
+  const text = digest ?? read;
+  if (!text) {
+    if (words?.phase === "reading") return { kind: "reading" };
+    if (words?.phase === "none") return { kind: "none", text: words.message };
+    return null;
+  }
+  if (node.kind === "world_model") {
+    const shape = readCard(text);
+    if (shape.kind === "floor") {
+      const lines: string[] = [];
+      if (shape.count !== null) {
+        const days = shape.first ? (dayOf(shape.first) === dayOf(shape.last) ? `, ${dayOf(shape.first)}` : `, ${dayOf(shape.first)} to ${dayOf(shape.last)}`) : "";
+        lines.push(`${shape.count} lived ${shape.count === 1 ? "memory" : "memories"}${days}${shape.kinds ? ` (${shape.kinds})` : ""}`);
+      }
+      return { kind: "floor", name: shape.name, lines, threads: shape.threads, feeling: shape.feeling ? shape.feeling.replace(/^Standing feeling:\s*/, "") : null };
+    }
+    return { kind: "words", text: shape.lead || text, plain: false };
+  }
+  if (node.kind === "dream") return { kind: "words", text, plain: true };
+  if (node.kind === "episode" && !digest) {
+    const lead = sourceWords(text, entity);
+    return { kind: "words", text: lead.phase === "ready" && lead.lead ? lead.lead : text, plain: false };
+  }
+  return { kind: "words", text, plain: false };
+}
+
+/** The record's kind in plain words (the line Detail opens with). */
+export function cardKindLine(node: NodeState): string {
+  return kindWords(node);
+}
+
+// ------------------------------------------------ the card's actions
+
+export type CardActionId = "open" | "book" | "topic" | "partners" | "light" | "members";
+
+export interface CardAction {
+  id: CardActionId;
+  label: string;
+}
+
+/** What a memory's card offers, first the default (what a click does):
+ * a diary entry shows in the Book (never Detail: no read), a world model
+ * opens its card, anything else opens in Detail; then its topic, when it
+ * has one, and the memories it was used with, when there are any. */
+export function nodeActions(node: NodeState, ctx: { topic: string | null; partners: number }): CardAction[] {
+  const out: CardAction[] = [];
+  if (isDiaryNode(node)) out.push({ id: "book", label: "Show in Book" });
+  else if (node.kind === "world_model") out.push({ id: "open", label: "Open the card" });
+  else out.push({ id: "open", label: "Open in Detail" });
+  if (ctx.topic) out.push({ id: "topic", label: "Show its topic" });
+  if (ctx.partners > 0 && !isDiaryNode(node)) out.push({ id: "partners", label: `Used with ${ctx.partners} →` });
+  return out;
+}
+
+/** What a topic's card offers. */
+export function topicActions(size: number): CardAction[] {
+  return [
+    { id: "light", label: "Light this topic" },
+    { id: "members", label: `${size} ${size === 1 ? "memory" : "memories"} →` },
+  ];
+}
+
+/** How many memories this one was used with (its co-use trails). */
+export function partnerCount(fold: FoldState, id: string): number {
+  let n = 0;
+  for (const e of fold.edges.values()) if (e.a === id || e.b === id) n += 1;
+  return n;
 }

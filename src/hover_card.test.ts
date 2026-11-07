@@ -9,7 +9,21 @@ import { describe, expect, it } from "vitest";
 
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
-import { canvasLabel, isDiaryNode, markdownTitle, nodeCardText, placeCard, topicExemplarText } from "./hover_card";
+import {
+  canvasLabel,
+  cardKindLine,
+  cardSummary,
+  DIARY_CARD_LINE,
+  isDiaryNode,
+  markdownTitle,
+  nodeActions,
+  nodeCardText,
+  needsWords,
+  partnerCount,
+  placeCard,
+  topicActions,
+  topicExemplarText,
+} from "./hover_card";
 import { Words } from "./verbatim_view";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, display?: Record<string, unknown>): ReplayEnvelope {
@@ -210,5 +224,126 @@ describe("dreams and diaries", () => {
     expect(nodeCardText(disguised).summary).toBeNull();
     expect(isDiaryNode({ ...disguised, graph_id: null, id: "ex:diary-y" })).toBe(true);
     expect(isDiaryNode({ ...disguised, graph_id: "ex:memory-b", id: "row-x" })).toBe(false);
+  });
+});
+
+describe("cardSummary — the summary every card leads with, per kind", () => {
+  const kinds = foldEnvelopes([
+    binding(1, "ex:world_model-w", "world_model", "World model: housing"),
+    binding(2, "ex:episode-e", "episode", "exchange: what did you find?"),
+    binding(3, "ex:lesson-l", "lesson", "lesson: check the date first"),
+    binding(4, "ex:dream-d", "dream", "Diary entry (note) — night"),
+    binding(5, "ex:summary-s", "summary", "session reflection: owntime"),
+    binding(6, "ex:value-v", "value", "honesty"),
+    binding(7, "ex:diary-x", "diary", "the bridges were real", { diary: true }),
+    binding(8, "ex:interest-i", "interest", "interest: maps"),
+  ]);
+  const node = (id: string) => kinds.nodes.get(id)!;
+  const ready = (text: string) => ({ phase: "ready" as const, text });
+  const FLOOR =
+    "What I know of housing:\n- 2026-11-01: the HUD count rose…\nStanding feeling: warm toward the work\n(from 12 lived record(s), 2026-10-01T10:00:00 to 2026-11-01T09:00:00, 9 episodes, 3 summaries. Threads: housing, refugees. This card is orientation, never authority.)";
+  const EXCHANGE = "person:admin:\nwhat did you find?\n\nnerin:\nI found the **UNHCR** portal and its 2026 tables.";
+
+  it("a world model: its card's floor (name, evidence, threads, feeling), through Detail's readCard", () => {
+    expect(cardSummary(node("ex:world_model-w"), ready(FLOOR), "nerin")).toEqual({
+      kind: "floor",
+      name: "housing",
+      lines: ["12 lived memories, 2026-10-01 to 2026-11-01 (9 episodes, 3 summaries)"],
+      threads: ["housing", "refugees"],
+      feeling: "warm toward the work",
+    });
+    // An authored card: its lead.
+    expect(cardSummary(node("ex:world_model-w"), ready("He sees housing as a slow emergency.\n\nSince then two counts rose."), "nerin")).toEqual({
+      kind: "words",
+      text: "He sees housing as a slow emergency.",
+      plain: false,
+    });
+  });
+
+  it("a lived moment: its digest when the fold holds one, else his answer's lead", () => {
+    expect(cardSummary(node("ex:episode-e"), ready(EXCHANGE), "nerin")).toEqual({ kind: "words", text: "I found the **UNHCR** portal and its 2026 tables.", plain: false });
+    const withDigest = { ...node("ex:episode-e"), digest: "person:admin: what did you find? nerin: the portal." };
+    expect(cardSummary(withDigest, ready(EXCHANGE), "nerin")).toEqual({ kind: "words", text: "person:admin: what did you find? nerin: the portal.", plain: false });
+  });
+
+  it("a dream: its summary as written (not Markdown)", () => {
+    expect(cardSummary(node("ex:dream-d"), ready("Dream: revised `card A"), "nerin")).toEqual({ kind: "words", text: "Dream: revised `card A", plain: true });
+  });
+
+  it("lessons, interests, identity and summaries: the whole words", () => {
+    for (const id of ["ex:lesson-l", "ex:interest-i", "ex:value-v", "ex:summary-s"]) {
+      expect(cardSummary(node(id), ready("All of **its** words."), "nerin")).toEqual({ kind: "words", text: "All of **its** words.", plain: false });
+    }
+  });
+
+  it("while reading, when nothing is kept, and before any read", () => {
+    expect(cardSummary(node("ex:lesson-l"), { phase: "reading" }, "nerin")).toEqual({ kind: "reading" });
+    expect(cardSummary(node("ex:lesson-l"), { phase: "none", message: "no words are kept for this memory" }, "nerin")).toEqual({ kind: "none", text: "no words are kept for this memory" });
+    expect(cardSummary(node("ex:lesson-l"), null, "nerin")).toBeNull();
+  });
+
+  it("THE DIARY GUARD: a diary record never needs a read and never shows words, whatever is passed", () => {
+    const diary = node("ex:diary-x");
+    expect(needsWords(diary)).toBe(false);
+    expect(cardSummary(diary, ready("private words"), "nerin")).toEqual({ kind: "diary", text: DIARY_CARD_LINE });
+    expect(cardSummary({ ...diary, digest: "private words" }, null, "nerin")).toEqual({ kind: "diary", text: DIARY_CARD_LINE });
+    // By its graph id alone (the /(^|:)diary-/ rule), and by kind alone.
+    const byId = { ...node("ex:lesson-l"), id: "row-q", graph_id: "ex:diary-q", diary: false, redacted: false };
+    expect(needsWords(byId)).toBe(false);
+    expect(cardSummary(byId, ready("private words"), "nerin")!.kind).toBe("diary");
+    const byKind = { ...node("ex:lesson-l"), kind: "diary", diary: false };
+    expect(needsWords(byKind)).toBe(false);
+    expect(cardSummary(byKind, ready("private words"), "nerin")!.kind).toBe("diary");
+    // A diary-shaped ROW id or a redaction alone is enough for the card,
+    // even where Detail's read rule looks at the graph id only.
+    expect(needsWords({ ...node("ex:lesson-l"), id: "ex:diary-z", graph_id: "ex:memory-z" })).toBe(false);
+    expect(needsWords({ ...node("ex:lesson-l"), redacted: true })).toBe(false);
+  });
+
+  it("reads only what the fold does not hold, and nothing Detail would not read", () => {
+    expect(needsWords(node("ex:world_model-w"))).toBe(true);
+    expect(needsWords({ ...node("ex:episode-e"), digest: "held" })).toBe(false);
+    expect(needsWords({ ...node("ex:lesson-l"), kind: "relation" })).toBe(false);
+    expect(needsWords({ ...node("ex:lesson-l"), bookkeeping: true })).toBe(false);
+  });
+
+  it("names the kind the way Detail opens", () => {
+    expect(cardKindLine(node("ex:world_model-w"))).toBe("His working model of someone or something");
+    expect(cardKindLine(node("ex:episode-e"))).toBe("A lived moment");
+  });
+});
+
+describe("card actions", () => {
+  const fold = foldEnvelopes([
+    binding(1, "ex:episode-e", "episode", "exchange: hi"),
+    binding(2, "ex:world_model-w", "world_model", "World model: x"),
+    binding(3, "ex:diary-x", "diary", "an entry", { diary: true }),
+    env(4, "event", { kind: "co_selected", scope: "life", owner_id: "entity:test", record_id: "ex:episode-e", pair_ids: ["ex:episode-e", "ex:world_model-w"], weight: 1, matched: true, event_id: "e4", seq: 4 }),
+  ]);
+  it("the default first: Detail, a world model's card, a diary entry's Book", () => {
+    expect(nodeActions(fold.nodes.get("ex:episode-e")!, { topic: null, partners: 0 })).toEqual([{ id: "open", label: "Open in Detail" }]);
+    expect(nodeActions(fold.nodes.get("ex:world_model-w")!, { topic: null, partners: 0 })[0]).toEqual({ id: "open", label: "Open the card" });
+    expect(nodeActions(fold.nodes.get("ex:diary-x")!, { topic: null, partners: 0 })[0]).toEqual({ id: "book", label: "Show in Book" });
+  });
+
+  it("its topic and the memories it was used with, when there are any", () => {
+    expect(partnerCount(fold, "ex:episode-e")).toBe(1);
+    expect(partnerCount(fold, "ex:world_model-w")).toBe(1); // either end of the trail
+    expect(partnerCount(fold, "ex:diary-x")).toBe(0);
+    expect(nodeActions(fold.nodes.get("ex:episode-e")!, { topic: "housing, refugees", partners: partnerCount(fold, "ex:episode-e") })).toEqual([
+      { id: "open", label: "Open in Detail" },
+      { id: "topic", label: "Show its topic" },
+      { id: "partners", label: "Used with 1 →" },
+    ]);
+    // A diary entry never opens Detail from its card.
+    expect(nodeActions(fold.nodes.get("ex:diary-x")!, { topic: "t", partners: 3 }).map((a) => a.id)).toEqual(["book", "topic"]);
+  });
+
+  it("a topic: light it, or show its memories", () => {
+    expect(topicActions(12)).toEqual([
+      { id: "light", label: "Light this topic" },
+      { id: "members", label: "12 memories →" },
+    ]);
+    expect(topicActions(1)[1].label).toBe("1 memory →");
   });
 });

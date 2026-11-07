@@ -2369,7 +2369,14 @@ export function EntityView(): React.ReactElement {
               // selection by design (recenter is the 🎯 button's act).
               if (id) setRequestedTab({ tab: "detail", nonce: Date.now() });
             }}
-            topicSource={verbatimSource}
+            gatewaySource={verbatimSource}
+            onShowInBook={(graphId) => {
+              // A diary entry's card opens the Book at it (no read: its
+              // words are the Book's own click, like the ledger's rule).
+              const nonce = Date.now();
+              setBookFocus({ id: graphId, nonce });
+              setRequestedTab({ tab: "book", nonce });
+            }}
             showTopics={showTopics}
             onPickTopic={(rowIds, label) => setTopicFilter(rowIds.size > 0 ? { ids: rowIds, label } : null)}
           />
