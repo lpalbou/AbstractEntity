@@ -166,10 +166,10 @@ function DiaryWords({ node, source }: { node: NodeState; source: VerbatimSource 
     }
   };
   if (state.phase === "ready") return <VerbatimTurns text={state.words.text} entity={source.entity} />;
-  if (state.phase === "loading") return <p className="ei_note">reading his words…</p>;
+  if (state.phase === "loading") return <div className="ei_note wl_p"><SharedWordsLine text={"reading his words…"} /></div>;
   return (
     <>
-      {state.phase === "none" ? <p className="ei_note">{state.message}</p> : null}
+      {state.phase === "none" ? <div className="ei_note wl_p"><SharedWordsLine text={state.message} /></div> : null}
       <button type="button" className="tp_more" onClick={() => void open()} title="Opening a diary entry is recorded in his biography, like the Book">
         {cached ? "(…) the entry again — already opened in this browser, no new read is recorded" : "(…) open the entry — opening it is recorded in his biography"}
       </button>
@@ -253,15 +253,15 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
       {dream && source ? <DreamDetail fold={fold} dream={node} source={source} onSelect={onSelect} /> : null}
       {diary ? (
         <Disclosure title="His words in the book" summary="not read until you open them">
-          {source ? <DiaryWords node={node} source={source} /> : <p className="ei_note">His book can be read when the app is connected to his gateway (this is an exported file).</p>}
+          {source ? <DiaryWords node={node} source={source} /> : <div className="ei_note wl_p"><SharedWordsLine text={"His book can be read when the app is connected to his gateway (this is an exported file)."} /></div>}
         </Disclosure>
       ) : null}
       {!diary && wordsReadOnOpen(node) && (!born || dream) ? (
         <Disclosure title={dream ? "The sleep pass's own summary" : "The words as saved"} summary={state.phase === "loading" ? "reading…" : state.phase === "none" ? "none kept" : undefined}>
-          {!source ? <p className="ei_note">His words can be read when the app is connected to his gateway (this is an exported file).</p> : null}
-          {state.phase === "loading" ? <p className="ei_note">reading his words…</p> : null}
-          {state.phase === "none" ? <p className="ei_note">{state.message}</p> : null}
-          {dream && words ? <p className="ei_note">A mechanical summary that quotes titles cut short — what the night touched is listed above in full.</p> : null}
+          {!source ? <div className="ei_note wl_p"><SharedWordsLine text={"His words can be read when the app is connected to his gateway (this is an exported file)."} /></div> : null}
+          {state.phase === "loading" ? <div className="ei_note wl_p"><SharedWordsLine text={"reading his words…"} /></div> : null}
+          {state.phase === "none" ? <div className="ei_note wl_p"><SharedWordsLine text={state.message} /></div> : null}
+          {dream && words ? <div className="ei_note wl_p"><SharedWordsLine text={"A mechanical summary that quotes titles cut short — what the night touched is listed above in full."} /></div> : null}
           {words ? <VerbatimTurns text={words.text} entity={source?.entity ?? ""} onSpeakers={onSpeakers} plain={dream} /> : null}
         </Disclosure>
       ) : null}

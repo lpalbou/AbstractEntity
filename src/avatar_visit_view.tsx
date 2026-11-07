@@ -5,6 +5,7 @@ import { screenDiaryFences } from "./flow_lane";
 import { IdentityAvatar, type IdentityLook } from "./identity_avatar";
 import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus } from "./avatar_visit";
 import type { VisitConversationState, VisitPublicWait } from "./stream_source";
+import { NO_IMAGE_PROPS, WordsLine } from "./words_line";
 
 export function AvatarVisitView(props: {
   entityName: string;
@@ -48,12 +49,17 @@ export function AvatarVisitView(props: {
       return { id, label: screenDiaryFences(String(p?.label ?? p?.text ?? id)).display };
     });
     const deadline = attention.deadline && Number.isFinite(Date.parse(attention.deadline)) ? new Date(attention.deadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : attention.deadline;
-    return { id: attention.id, kind: "ask-user", title: attention.importance === "essential" ? "Your answer is required" : "A question for you", prompt, choices, allowFreeText: wait.allow_free_text !== false, description: attention.importance === "essential" ? "I will keep waiting for your answer." : attention.importance === "clarification" ? `${deadline ? `Answer by ${deadline}. ` : ""}Without an answer: ${attention.fallback || ""}` : undefined, onSubmit: (answer) => props.onAnswer(wait, answer) };
+    const description = attention.importance === "essential" ? "I will keep waiting for your answer." : attention.importance === "clarification" ? `${deadline ? `Answer by ${deadline}. ` : ""}Without an answer: ${attention.fallback || ""}` : null;
+    return { id: attention.id, kind: "ask-user", title: attention.importance === "essential" ? "Your answer is required" : "A question for you", prompt: <WordsLine text={prompt} />, choices, allowFreeText: wait.allow_free_text !== false, description: description === null ? undefined : <WordsLine text={description} />, onSubmit: (answer) => props.onAnswer(wait, answer) };
   }, [wait, attention, props.onAnswer, props.onDecision]);
   return <>
-    {publicVisitHistoryOmitted(props.state) ? <p className="cd_note cd_avatar_history_notice" role="status">Some earlier exchanges are not shown in this view.</p> : null}
+    {publicVisitHistoryOmitted(props.state) ? (
+      <div className="cd_note cd_avatar_history_notice" role="status">
+        <WordsLine text="Some earlier exchanges are not shown in this view." />
+      </div>
+    ) : null}
     <AvatarConversation {...props.options} avatar={props.look ? <IdentityAvatar look={props.look} pose={pose} size={320} label={`${props.entityName} — ${state}`} onError={onAvatarError} /> : <ActivityAvatar design="watch-hover" pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())}
-    messageProps={props.messageProps}
+    messageProps={{ ...props.messageProps, ...NO_IMAGE_PROPS }}
     interactionId={interaction?.id || ""}
     interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} variant="conversation" onReviewTechnical={props.options.onTechnicalView} /> : null} />
   </>;

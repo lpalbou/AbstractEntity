@@ -9,12 +9,14 @@ import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { ChatMessageList } from "./chat_message_list";
 import { LedgerPanel } from "./ledger_panel";
 import { LessonsPanel, WorldPanel } from "./lessons_world_panels";
 import { NowLine } from "./now_line";
 import type { FoldState, NodeState } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
-import { fromLink, WordsLine } from "./words_line";
+import { NO_IMAGE } from "./verbatim_view";
+import { fromLink, NO_IMAGE_PROPS, WordsLine } from "./words_line";
 
 const BOLD = "I have **not yet opened** the reports";
 
@@ -57,13 +59,92 @@ describe("a click on a link inside a clickable row", () => {
   });
 });
 
-describe("only Words reaches panel-chat's Markdown", () => {
-  it("no other source file imports it (Words is where images are refused)", () => {
-    const dir = resolve(__dirname);
-    const offenders = readdirSync(dir)
-      .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== "verbatim_view.tsx")
-      .filter((f) => /import\s*\{[^}]*\bMarkdown\b[^}]*\}\s*from\s*["']@abstractframework\/panel-chat["']/.test(readFileSync(resolve(dir, f), "utf8")));
+const SRC = resolve(__dirname);
+const SOURCES = readdirSync(SRC)
+  .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
+  .map((f) => ({ file: f, text: readFileSync(resolve(SRC, f), "utf8") }));
+
+/** Every kit component that draws Markdown itself (panel-chat and its
+ * vendored copies): each use must carry the no-image rule. */
+const KIT_RENDERERS = ["Markdown", "ChatMessageCard", "ChatMessageContent", "ChatThread", "AvatarConversation", "WorkflowChat", "AssistantPanel", "DocsAssistantPanel", "DocsAssistantPanelContent", "AfFileViewer", "ArtifactPreviewModal", "AutomationPanelWithMarkdown"];
+/** Kit functions that build such components: never called by the app. */
+const KIT_BUILDERS = ["renderAutomationTurn", "renderAutomationText", "assistantDrawerPanel", "docsAssistantPanel"];
+
+/** The JSX opening tag starting at `at` (`<Name …>` or `<Name … />`). */
+function openingTag(text: string, at: number): string {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = at + 1; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'" || c === "`") quote = c;
+    else if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth === 0) return text.slice(at, i + 1);
+  }
+  return text.slice(at);
+}
+
+function usesOf(name: string): Array<{ file: string; tag: string }> {
+  const out: Array<{ file: string; tag: string }> = [];
+  for (const { file, text } of SOURCES) {
+    for (const m of text.matchAll(new RegExp(`<${name}\\b`, "g"))) out.push({ file, tag: openingTag(text, m.index ?? 0) });
+  }
+  return out;
+}
+
+describe("no image in any text is ever loaded", () => {
+  it("only Words imports panel-chat's Markdown", () => {
+    const offenders = SOURCES.filter(({ file, text }) => file !== "verbatim_view.tsx" && /import\s*\{[^}]*\bMarkdown\b[^}]*\}\s*from\s*["']@abstractframework\/panel-chat["']/.test(text)).map((s) => s.file);
     expect(offenders).toEqual([]);
+  });
+
+  it("every kit component that draws Markdown carries the rule", () => {
+    const missing: string[] = [];
+    let seen = 0;
+    for (const name of KIT_RENDERERS) {
+      for (const { file, tag } of usesOf(name)) {
+        seen++;
+        const ruled = name === "Markdown" ? /images="link"/.test(tag) && /inlineImage=\{NO_IMAGE\}/.test(tag) : /\.\.\.NO_IMAGE_PROPS\b/.test(tag);
+        if (!ruled) missing.push(`${file}: <${name}`);
+      }
+    }
+    expect(missing).toEqual([]);
+    // Words itself, the chat list and the avatar conversation at least.
+    expect(seen).toBeGreaterThanOrEqual(3);
+    for (const name of KIT_BUILDERS) expect(SOURCES.filter(({ text }) => new RegExp(`\\b${name}\\(`).test(text)).map((s) => s.file)).toEqual([]);
+  });
+
+  it("the rule is Words' rule", () => {
+    expect(NO_IMAGE_PROPS).toEqual({ images: "link", inlineImage: NO_IMAGE });
+  });
+
+  it("no image loads in the chat, his replies or a visitor's message", () => {
+    const html = renderToStaticMarkup(
+      <ChatMessageList
+        messages={[
+          { id: "a", role: "assistant", content: "here ![his](api/gateway/entities/nerin/records/ex:diary-1/verbatim)" },
+          { id: "u", role: "user", content: "look ![mine](https://example.com/a.png)" },
+          { id: "s", role: "system", content: "**Rejoined** the open visit" },
+        ]}
+        onDetail={() => undefined}
+      />,
+    );
+    expect(html).not.toContain("<img");
+    expect(html).toContain("image: his");
+    expect(html).toContain("image: mine");
+    expect(html).toContain("<strong>Rejoined</strong>");
+  });
+
+  it("the Docs assistant is the one known gap: its kit drawer takes no image rule (yet)", () => {
+    // The vendored DocsAssistantDrawer passes no images/messageProps to its
+    // cards, so a same-origin image in a docs answer loads (kit gap, raised
+    // for abstractuic). The day the kit accepts one, this fails: pass it.
+    const dts = readFileSync(resolve(SRC, "vendor/abstractdocs/docs_assistant.d.ts"), "utf8");
+    const props = dts.slice(dts.indexOf("export type DocsAssistantChatProps"), dts.indexOf("export declare function DocsAssistantDrawer"));
+    expect(props).not.toMatch(/\b(images|inlineImage|messageProps)\?:/);
+    expect(usesOf("DocsAssistantDrawer").map((u) => u.file)).toEqual(["entity_view.tsx"]);
   });
 });
 

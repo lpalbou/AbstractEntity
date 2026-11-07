@@ -21,6 +21,7 @@ import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import { applyEnvelope, createFoldState, type FoldState } from "./stream_fold";
 import { fetchReplay, listEntities, openLiveTail, type EntitySummary, type LiveTailHandle } from "./stream_source";
 import type { ReplayEnvelope } from "./stream_types";
+import { fromLink, WordsLine } from "./words_line";
 
 const RECENT_LINES = 3;
 
@@ -122,7 +123,9 @@ function FleetTile({ baseUrl, entity, onOpen }: { baseUrl: string; entity: Entit
           <span className="ft_name">{name}</span>
           <span className="ft_badge ft_badge_locked">🔒 not yours to watch</span>
         </div>
-        <p className="ft_detail">{tile.detail || "The door refused this tail — an observation grant is required."}</p>
+        <div className="ft_detail">
+          <WordsLine text={tile.detail || "The door refused this tail — an observation grant is required."} />
+        </div>
       </div>
     );
   }
@@ -133,7 +136,9 @@ function FleetTile({ baseUrl, entity, onOpen }: { baseUrl: string; entity: Entit
           <span className="ft_name">{name}</span>
           <span className="ft_badge ft_badge_error">unreachable</span>
         </div>
-        <p className="ft_detail">{tile.detail}</p>
+        <div className="ft_detail">
+          <WordsLine text={tile.detail} />
+        </div>
       </div>
     );
   }
@@ -141,7 +146,7 @@ function FleetTile({ baseUrl, entity, onOpen }: { baseUrl: string; entity: Entit
   const s = summarize(tile.fold);
   const ageS = tile.lastEnvelopeAt ? Math.floor((Date.now() - tile.lastEnvelopeAt) / 1000) : null;
   return (
-    <button className="ft_tile" onClick={() => onOpen(entity.slug)} title={`Open ${name}'s full view`}>
+    <button className="ft_tile" onClick={(e) => !fromLink(e) && onOpen(entity.slug)} title={`Open ${name}'s full view`}>
       <div className="ft_head">
         <span className="ft_name">{name}</span>
         {entity.handle ? <span className="ft_handle">{entity.handle}</span> : null}
@@ -165,12 +170,21 @@ function FleetTile({ baseUrl, entity, onOpen }: { baseUrl: string; entity: Entit
       </div>
       <div className="ft_lines">
         {tile.recent.length === 0 ? (
-          <span className="ft_line ft_line_empty">a quiet life — nothing recent</span>
+          <span className="ft_line ft_line_empty">
+            <WordsLine text="a quiet life — nothing recent" inline />
+          </span>
         ) : (
           tile.recent.map((l) => (
             <span key={`${l.seq}-${l.title}`} className="ft_line">
-              <strong>{l.title}</strong>
-              {l.detail ? ` — ${l.detail}` : ""}
+              <strong>
+                <WordsLine text={l.title} inline />
+              </strong>
+              {l.detail ? (
+                <>
+                  {" — "}
+                  <WordsLine text={l.detail} inline />
+                </>
+              ) : null}
             </span>
           ))
         )}

@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessageCard, type ChatMessage } from "@abstractframework/panel-chat";
 
 import type { ChatTurnResult } from "./stream_source";
+import { NO_IMAGE_PROPS, WordsLine } from "./words_line";
 
 /** A thread message, optionally carrying its turn's probe payload — the
  * discreet "system" badge under a reply opens it (maintainer, 2026-07-08:
@@ -172,11 +173,13 @@ export function ChatMessageList({
             * cards (operator 2026-07-15: "Rejoined the open visit" was much
             * too big). Warn/error levels keep a visible tint. */}
           {m.role === "system" ? (
-            <div className={`cd_syshint ${m.level === "warn" ? "cd_syshint_warn" : ""} ${m.level === "error" ? "cd_syshint_error" : ""}`}>{m.content}</div>
+            <div className={`cd_syshint ${m.level === "warn" ? "cd_syshint_warn" : ""} ${m.level === "error" ? "cd_syshint_error" : ""}`}>
+              <WordsLine text={m.content} />
+            </div>
           ) : (
             <>
               {m.context ? <ContextFoldCard context={m.context} /> : null}
-              <ChatMessageCard message={m} onSpeakToggle={onSpeakToggle} getSpeakState={getSpeakState} />
+              <ChatMessageCard message={m} onSpeakToggle={onSpeakToggle} getSpeakState={getSpeakState} {...NO_IMAGE_PROPS} />
             </>
           )}
           {m.detail ? (

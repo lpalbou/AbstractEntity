@@ -68,6 +68,7 @@ import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import type { SubstrateChoice } from "./mind_voice_settings";
 import type { ReplayEnvelope } from "./stream_types";
 import { TurnDetailModal } from "./turn_detail_modal";
+import { WordsLine } from "./words_line";
 import { VisitVoiceButtons, useEntityVoice, useVoiceDefaults, useVoicePreferences } from "./entity_voice";
 
 /** The reflection's visible acts in the live stream: every envelope past
@@ -1067,7 +1068,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         <button type="button" aria-pressed={!avatarMode} onClick={() => { stopTtsRef.current(); avatarPrefs.setMode("chat"); }}>Chat</button>
         <button type="button" aria-pressed={avatarMode} onClick={() => { stopTtsRef.current(); avatarPrefs.setMode("avatar"); }}>Avatar</button>
       </div>
-      {avatarPrefs.error ? <p role="status" className="cd_note">{avatarPrefs.error}</p> : null}
+      {avatarPrefs.error ? (
+        <div role="status" className="cd_note">
+          <WordsLine text={avatarPrefs.error} />
+        </div>
+      ) : null}
       {/* The Cognitive Monitor (operator 2026-07-15 pm): a proper foldable
         * panel — title + (i) modal, 3-letter axis codes on the bloom and
         * listed on the right, a human-readable interpretation line, and
@@ -1105,11 +1110,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           ) : null}
           {foreignVisit ? (
             <>
-              <p className="cd_note">
-                A visit is open
-                {typeof status?.turn_n === "number" && status.turn_n > 0 ? ` (${status.turn_n} turn${status.turn_n === 1 ? "" : "s"})` : ""}. If it's yours
-                — a reload can lose the drawer's memory of it — step back in; the whole conversation returns.
-              </p>
+              <div className="cd_note">
+                <WordsLine
+                  text={`A visit is open${typeof status?.turn_n === "number" && status.turn_n > 0 ? ` (${status.turn_n} turn${status.turn_n === 1 ? "" : "s"})` : ""}. If it's yours — a reload can lose the drawer's memory of it — step back in; the whole conversation returns.`}
+                />
+              </div>
               <button className="cd_open_btn" onClick={() => status?.run_id && rehydrate(status.run_id)} disabled={!status?.run_id}>
                 rejoin this visit
               </button>
@@ -1124,7 +1129,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
                   visiting as <strong>{participant}</strong>
                 </p>
               ) : (
-                <p className="cd_note">Sign in first (top right) — his memories record WHO he lived each moment with, so the door only admits authenticated visitors.</p>
+                <div className="cd_note">
+                  <WordsLine text="Sign in first (top right) — his memories record WHO he lived each moment with, so the door only admits authenticated visitors." />
+                </div>
               )}
               {/* ONE substrate per entity (2026-07-09 06:32): the visit uses
                 * the SAME stored mind as his own time — shown here, changed
@@ -1161,8 +1168,16 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               )}
             </>
           )}
-          {avatarMode && publicVisit.error ? <p className="cd_note" role="status">{publicVisit.error} <button type="button" onClick={publicVisit.refresh}>Retry</button></p> : null}
-          {note ? <p className="cd_note" role="status">{note}</p> : null}
+          {avatarMode && publicVisit.error ? (
+            <div className="cd_note" role="status">
+              <WordsLine text={publicVisit.error} inline /> <button type="button" onClick={publicVisit.refresh}>Retry</button>
+            </div>
+          ) : null}
+          {note ? (
+            <div className="cd_note" role="status">
+              <WordsLine text={note} />
+            </div>
+          ) : null}
           {seatBusy ? (
             <button
               className="cd_open_btn"
@@ -1176,7 +1191,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         </div>
       ) : (
         <>
-          {avatarMode && runId && publicState && !Array.isArray(publicState.public_updates) ? <p className="cd_note cd_avatar_hint">Begin a new conversation here to receive progress messages.</p> : null}
+          {avatarMode && runId && publicState && !Array.isArray(publicState.public_updates) ? (
+            <div className="cd_note cd_avatar_hint">
+              <WordsLine text="Begin a new conversation here to receive progress messages." />
+            </div>
+          ) : null}
           {avatarMode ? <AvatarVisitView
             entityName={entityName} look={visitLook} messages={avatarMessages} state={publicState} busy={busy} draft={draft}
             onAnswer={answerPublic} onDecision={decidePublic} onError={reportAvatarError}
@@ -1206,7 +1225,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           {detailTurn ? <TurnDetailModal turn={detailTurn} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (
             <div className="cd_queue_offer">
-              <span className="cd_note">His seat is taken — wait in line, or leave the message with him?</span>
+              <span className="cd_note">
+                <WordsLine text="His seat is taken — wait in line, or leave the message with him?" inline />
+              </span>
               <button
                 className="cd_open_btn"
                 onClick={() => acceptQueueOffer(false)}
@@ -1279,24 +1300,43 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             <div className="cd_closing" aria-live="polite">
               <div className="cd_closing_head">
                 <span className="cd_closing_spin" aria-hidden="true" />
-                <span>Closing — his reflection runs now (he looks back over the visit; feelings may move, a summary forms)…</span>
+                <span>
+                  <WordsLine text="Closing — his reflection runs now (he looks back over the visit; feelings may move, a summary forms)…" inline />
+                </span>
               </div>
               {closingActivity.length > 0 ? (
                 <ul className="cd_closing_lines">
                   {closingActivity.map((l) => (
                     <li key={l.seq}>
-                      <strong>{l.title}</strong>
-                      {l.detail ? <span className="cd_closing_detail"> — {l.detail}</span> : null}
+                      <strong>
+                        <WordsLine text={l.title} inline />
+                      </strong>
+                      {l.detail ? (
+                        <span className="cd_closing_detail">
+                          {" — "}
+                          <WordsLine text={l.detail} inline />
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <span className="cd_closing_hint">watching his stream for the reflection's acts… (the Ledger tab keeps the full record)</span>
+                <span className="cd_closing_hint">
+                  <WordsLine text="watching his stream for the reflection's acts… (the Ledger tab keeps the full record)" inline />
+                </span>
               )}
             </div>
           ) : null}
-          {avatarMode && publicVisit.error ? <p className="cd_note" role="status">{publicVisit.error} <button type="button" onClick={publicVisit.refresh}>Retry</button></p> : null}
-          {note ? <p className="cd_note" role="status">{note}</p> : null}
+          {avatarMode && publicVisit.error ? (
+            <div className="cd_note" role="status">
+              <WordsLine text={publicVisit.error} inline /> <button type="button" onClick={publicVisit.refresh}>Retry</button>
+            </div>
+          ) : null}
+          {note ? (
+            <div className="cd_note" role="status">
+              <WordsLine text={note} />
+            </div>
+          ) : null}
           {pendingFiles.length > 0 ? (
             <div className="cd_files">
               {pendingFiles.map((f, i) => (

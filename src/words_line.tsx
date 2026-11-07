@@ -15,8 +15,15 @@
 
 import React from "react";
 
-import { Words } from "./verbatim_view";
+import { NO_IMAGE, Words } from "./verbatim_view";
 import "./words_line.css";
+
+/** The same image rule as `Words`, for the kit components that draw
+ * Markdown themselves (ChatMessageCard, AvatarConversation's cards): every
+ * image is a link, none ever loads — a same-origin one would read a diary
+ * record through the app's proxy, recorded in his biography. Spread it on
+ * the component or into its message props. */
+export const NO_IMAGE_PROPS = { images: "link", inlineImage: NO_IMAGE } as const;
 
 /** A short text through the shared renderer, in its container's type,
  * colour and weight. Memoised: a live list re-renders its rows on every

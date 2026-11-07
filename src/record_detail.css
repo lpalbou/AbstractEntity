@@ -2,10 +2,6 @@
  * then folded sections. Every colour is a theme token, so the light and
  * dark themes both hold; nothing is wider than the panel on a phone. */
 
-/* One line of Markdown (a title, a list row, a reason): the shared
- * renderer's blocks laid out inline at the surrounding size — the words
- * and their marks are never touched, only their layout. */
-
 /* What it is. */
 .rd_kind {
   margin: -4px 0 8px;
