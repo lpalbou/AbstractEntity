@@ -121,6 +121,27 @@ function asText(item: unknown): string {
  * one biography marker per entry ever, the read-flood lesson). The G1
  * case live on the card (plan v7): the question exists, the words need
  * one hop — this component IS that hop until the engine serves a gist. */
+/** A card line's identity across re-reads: its diary entry, else its
+ * words. Keying by position let a live re-read that inserted a question
+ * show the previous question's fetched words on the wrong line. */
+export function itemKey(item: unknown, index: number): string {
+  const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+  if (typeof o["entry_id"] === "string" && o["entry_id"]) return `e:${o["entry_id"] as string}`;
+  const text = asText(item);
+  return text ? `t:${text}` : `i:${index}`;
+}
+
+/** Unique keys for one list (two identical questions stay two lines). */
+export function itemKeys(items: unknown[]): string[] {
+  const seen = new Map<string, number>();
+  return items.map((it, i) => {
+    const k = itemKey(it, i);
+    const n = seen.get(k) ?? 0;
+    seen.set(k, n + 1);
+    return n ? `${k}#${n}` : k;
+  });
+}
+
 function QuestionLine({ item, icon, baseUrl, entity }: { item: unknown; icon: string; baseUrl: string; entity: string }): React.ReactElement {
   const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
   const statement = asText(item);
@@ -128,6 +149,7 @@ function QuestionLine({ item, icon, baseUrl, entity }: { item: unknown; icon: st
   const entryId = typeof o["entry_id"] === "string" ? (o["entry_id"] as string) : null;
   const [words, setWords] = useState<string | null>(null);
   useEffect(() => {
+    setWords(null); // never another entry's words
     if (!contentFree || !entryId) return;
     let cancelled = false;
     (async () => {
@@ -278,7 +300,8 @@ export function IdentityCardContent({
   if (state.phase === "error") {
     return (
       <div className="ev_status ev_status_error">
-        Could not read the card: {state.message}. The card endpoint needs a gateway with the 0009 build.
+        Could not read the card: {state.message}.{" "}
+        {/HTTP 40[13]/.test(state.message) ? "Sign in to the gateway again, then reopen the card." : "The card endpoint needs a gateway with the 0009 build."}
       </div>
     );
   }
@@ -303,6 +326,8 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
     : problemsRaw && typeof problemsRaw === "object"
       ? ((problemsRaw as { open?: unknown[] }).open ?? [])
       : [];
+  const questionKeys = itemKeys(openQuestions);
+  const problemKeys = itemKeys(openProblems);
   const interests = Array.isArray(card.discoveries) ? card.discoveries : card.discoveries?.interests ?? [];
   const moments = card.key_moments?.moments ?? card.moments ?? [];
   const ctxCanonical = card.age_and_context;
@@ -471,7 +496,7 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
         * (questions), wrongness (tensions/problems), direction (interests). */}
       <Section title="Open questions">
         {openQuestions.length ? (
-          openQuestions.map((q, i) => <QuestionLine key={i} item={q} icon="❓" baseUrl={baseUrl} entity={entity} />)
+          openQuestions.map((q, i) => <QuestionLine key={questionKeys[i]} item={q} icon="❓" baseUrl={baseUrl} entity={entity} />)
         ) : (
           <p className="ic_window_note">none right now — open questions form when something he met stays unanswered (they are wake reasons: curiosity that can rouse his own time).</p>
         )}
@@ -485,7 +510,7 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
       ) : null}
       <Section title="Tensions (open problems)">
         {openProblems.length ? (
-          openProblems.map((p, i) => <QuestionLine key={i} item={p} icon="⚠️" baseUrl={baseUrl} entity={entity} />)
+          openProblems.map((p, i) => <QuestionLine key={problemKeys[i]} item={p} icon="⚠️" baseUrl={baseUrl} entity={entity} />)
         ) : (
           <p className="ic_window_note">none right now — a tension is something WRONG that needs fixing (distinct from a question); it forms when he names a problem and stands until repaired.</p>
         )}

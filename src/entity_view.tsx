@@ -1374,18 +1374,37 @@ export function EntityView(): React.ReactElement {
   // forms several memories) refreshes once. Surfaces that read the gateway
   // rather than the stream key on it.
   const lifeChange = useMemo(() => lastLifeChangeSeq(envelopes), [envelopes]);
-  const [lifeRevision, setLifeRevision] = useState<number | null>(null);
+  /** Counts the entity's changes seen LIVE: the first settled value after a
+   * load is the baseline (loading a life is not a change), and nothing
+   * counts while the history is still streaming in (not live yet). */
+  const [lifeTicks, setLifeTicks] = useState(0);
+  const lifeBaselineRef = useRef<number | null | undefined>(undefined);
+  useEffect(() => {
+    lifeBaselineRef.current = undefined;
+  }, [entityName, sourceKind]);
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (!live || lifeBaselineRef.current === undefined) {
+        lifeBaselineRef.current = lifeChange;
+        return;
+      }
+      if (lifeChange !== lifeBaselineRef.current) {
+        lifeBaselineRef.current = lifeChange;
+        setLifeTicks((n) => n + 1);
+      }
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [lifeChange, live]);
   /** The side tab on screen (null: none) — the card reads only while shown. */
   const [openTab, setOpenTab] = useState<string | null>(null);
+  // The header's state, loop and cognition follow the live stream at once
+  // instead of at the next 15 s poll — on a live change only (an entity
+  // switch refreshes through the poll effect, not here).
+  const refreshTruthRef = useRef(refreshEntityTruth);
+  refreshTruthRef.current = refreshEntityTruth;
   useEffect(() => {
-    const t = window.setTimeout(() => setLifeRevision(lifeChange), 2000);
-    return () => window.clearTimeout(t);
-  }, [lifeChange]);
-  useEffect(() => {
-    // The header's state, loop and cognition follow the live stream at
-    // once instead of at the next 15 s poll.
-    if (live && lifeRevision !== null) refreshEntityTruth();
-  }, [lifeRevision, live, refreshEntityTruth]);
+    if (lifeTicks > 0) refreshTruthRef.current();
+  }, [lifeTicks]);
   const scrubSeq = effectiveIndex >= 0 && envelopes[effectiveIndex] ? envelopes[effectiveIndex].seq : 0;
 
   // BACKWARD scrub is a full refold (state-at-T semantics) — debounce it
@@ -2432,7 +2451,7 @@ export function EntityView(): React.ReactElement {
                     id: "card",
                     icon: "🪪",
                     title: "Card",
-                    content: <IdentityCardContent baseUrl={gatewayUrl.trim().replace(/\/+$/, "")} entity={entityName} fold={fold} revision={lifeRevision} shown={openTab === "card"} />,
+                    content: <IdentityCardContent key={entityName} baseUrl={gatewayUrl.trim().replace(/\/+$/, "")} entity={entityName} fold={fold} revision={lifeTicks} shown={openTab === "card"} />,
                   },
                 ] as SideTab[])
               : []),

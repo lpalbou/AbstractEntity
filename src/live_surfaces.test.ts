@@ -42,3 +42,15 @@ describe("the card reads", () => {
     expect(cardNeedsRead({ key, revision: 10 }, "http://gw|castor", 10, true)).toBe(true);
   });
 });
+
+describe("card lines keep their identity across re-reads", () => {
+  it("a line is keyed by its diary entry, else its words, uniquely per list", async () => {
+    const { itemKey, itemKeys } = await import("./identity_card");
+    expect(itemKey({ entry_id: "diary_1", statement: "x" }, 0)).toBe("e:diary_1");
+    const before = itemKeys([{ entry_id: "diary_1" }, { entry_id: "diary_2" }]);
+    const after = itemKeys([{ entry_id: "diary_0" }, { entry_id: "diary_1" }, { entry_id: "diary_2" }]);
+    // an inserted question does not shift the others' identity
+    expect(after.slice(1)).toEqual(before);
+    expect(itemKeys(["same", "same"])).toEqual(["t:same", "t:same#1"]);
+  });
+});
