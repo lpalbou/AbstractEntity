@@ -17,11 +17,12 @@ const V1 = (basisV1 as unknown as { calibrated_on: Record<string, unknown> }).ca
 const NO_ONE_ENTITY = /his own|calibrated on \w+'s words|not on \w+'s|tuned to/i;
 
 describe("basisProvenanceNote (generic design, mixed-corpus normalization)", () => {
-  it("the shipped v1: generic prototypes; normalization and floor fitted on the mixed corpus it records", () => {
+  it("the shipped v1: generic prototypes; normalization fitted on the mixed corpus it records", () => {
     const note = basisProvenanceNote(V1);
     expect(note).toContain("generic");
     expect(note).toContain("the same for every entity");
-    expect(note).toContain("Its normalization (whitening, channel scales, emotion scale) and the emotion gate's floor were fitted on a mixed corpus");
+    expect(note).toContain("Its normalization (whitening, channel scales) was fitted on a mixed corpus");
+    expect(note).not.toMatch(/gate|floor/);
     // Exactly the record: castor_utterances 74 of entity:ephemeral, 2026-08-01; one parenthesis-free line.
     expect(note).toContain("20 curated texts, 125 anchor texts and 74 utterances of entity:ephemeral, recorded 2026-08-01.");
     expect(note).not.toContain("diary");

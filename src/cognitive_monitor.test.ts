@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import { EMOTION_REGISTERS } from "@abstractframework/ui-kit";
 
-import { CHANNEL_AXES, dominantEmotion, EMOTION_AXES, interpretWave, radarValue, readingTitle, simText } from "./cognitive_monitor";
+import { BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, dominantEmotion, EMOTION_AXES, interpretWave, radarValue, readingTitle, registerNow, roundSim, simText } from "./cognitive_monitor";
 import { CHANNELS } from "./vendor/cognition/core";
 
 describe("axis tables (drift pins against the kit contract)", () => {
@@ -133,27 +133,55 @@ describe("dominantEmotion", () => {
   });
 });
 
-describe("radarValue / readingTitle (one fixed scale, every value shown)", () => {
-  it("maps similarity linearly: −1 at the centre, 0 at half reach, +1 at the rim; never cut", () => {
-    expect(radarValue(-1)).toBe(0);
-    expect(radarValue(0)).toBe(0.5);
-    expect(radarValue(1)).toBe(1);
-    expect(radarValue(-0.02)).toBeCloseTo(0.49, 10);
+describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), every value shown", () => {
+  it("maps similarity linearly on the same scale for every reply", () => {
+    expect(radarValue(-0.25)).toBe(0);
+    expect(radarValue(0)).toBeCloseTo(0.25, 12);
+    expect(radarValue(0.75)).toBe(1);
+    expect(radarValue(-0.02)).toBeCloseTo(0.23, 12);
     expect(radarValue(0.02)).toBeGreaterThan(radarValue(0.01));
-    expect(radarValue(undefined)).toBe(0.5);
-    expect(radarValue(Number.NaN)).toBe(0.5);
+    // beyond the scale: on that edge (the number is still printed beside the petal)
+    expect(radarValue(0.9)).toBe(1);
+    expect(radarValue(-0.4)).toBe(0);
+    // not read: on the inner ring, label "—"
+    expect(radarValue(undefined)).toBe(0);
+    expect(radarValue(Number.NaN)).toBe(0);
   });
 
-  it("prints similarities with a true minus sign", () => {
+  it("the bloom always receives all nine registers explicitly", () => {
+    const b = bloomScoresOf({ joy: 0.69, fear: -0.1 });
+    expect(Object.keys(b).sort()).toEqual(EMOTION_AXES.map((a) => a.id).sort());
+    expect(b.joy).toBeCloseTo(0.94, 12);
+    expect(b.fear).toBeCloseTo(0.15, 12);
+    expect(b.calm).toBe(0);
+    expect(Object.values(bloomScoresOf(undefined)).every((v) => v === 0)).toBe(true);
+  });
+
+  it("prints with a true minus sign, never −0.00; the verb follows the printed number", () => {
     expect(simText(-0.02)).toBe("−0.02");
     expect(simText(0.5)).toBe("0.50");
+    expect(simText(-0.001)).toBe("0.00");
+    expect(roundSim(0.0996)).toBe(0.1);
+    expect(interpretWave({ emotions: { fear: 0.0996 }, scores: {} })).toContain("tilt mildly toward fear (FEA 0.10)");
+  });
+
+  it("every petal carries its number; a missing one reads —", async () => {
+    const React = (await import("react")).default;
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 200, height: 200, onAxis: () => undefined, emotions: { joy: -0.02, fear: 0.59 } }));
+    // the number SHOWN beside each code, not only in the hover text
+    expect(html).toContain('<span class="cm_overlay_num">−0.02</span>');
+    expect(html).toContain('<span class="cm_overlay_num">0.59</span>');
+    expect(html).toContain('<span class="cm_overlay_num">—</span>');
+    expect(html).toContain("calm, similarity —");
+    expect(registerNow(0.12)).toBe("This reply: similarity 0.12 (the radar runs from −0.25 on the inner ring to 0.75 at the outer edge).");
+    expect(registerNow(undefined)).toBe("This reply: not read.");
   });
 
   it("the title says the scale and carries the live number; no gate language", () => {
     const t = readingTitle(0.12);
-    expect(t).toContain("the centre is −1, half reach is 0, the rim is +1");
+    expect(t).toContain("the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out");
     expect(t).toContain("closest register here is at 0.12");
-    expect(t).toContain("Nothing is cut");
     expect(t.toLowerCase()).not.toMatch(/abstention|evidence|gate/);
     expect(readingTitle(undefined)).not.toMatch(/closest register here/);
   });

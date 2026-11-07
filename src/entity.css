@@ -521,6 +521,18 @@ body {
   opacity: 0.85;
   padding: 1px 2px;
 }
+.cm_overlay_num {
+  display: block;
+  margin-top: 1px;
+  padding: 0 2px;
+  border-radius: 3px;
+  /* readable even where a petal at the outer edge reaches its label */
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  font-size: max(calc(9px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.1;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
 .cm_overlay_code:hover {
   opacity: 1;
   text-shadow: 0 0 8px currentColor;

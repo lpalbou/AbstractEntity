@@ -82,18 +82,37 @@ export const CONDUCT_AXES: AxisInfo[] = [
   axis("rigor", "RIG", "rigor", "#c084dd", "The verification-SHAPED share of his calls (read/check/search/diary-class names, retry-after-failure) — act-shaped evidence of care, honestly labeled: it measures the shape of his acts, never verified truth. Each verify-shaped call rings its stroke tip violet in the figure."),
 ];
 
-/** Where a register's similarity sits on the radar: ONE fixed linear scale for every reply,
- * −1 at the centre, 0 at half reach, +1 at the rim (operator 2026-11-07: "a radar with continuous
- * values — we just represent the value, however small it is"). Nothing is cut, centred or rescaled
- * per reply; a non-number is drawn at the centre's zero, never invented. */
+/** The radar's ONE fixed scale, the same for every reply (operator 2026-11-07: "a radar with
+ * continuous values — we just represent the value, however small it is"; then chose this zoom over
+ * the full −1..+1, which left ordinary replies 2–3 px apart): the kit's inner ring is RADAR_MIN, the
+ * outer edge RADAR_MAX, linear in between; it spans every similarity measured on real replies. */
+export const RADAR_MIN = -0.25;
+export const RADAR_MAX = 0.75;
+
+/** Where a register's similarity sits on the radar (0 = inner ring, 1 = outer edge). Nothing is
+ * centred or rescaled per reply; a value beyond the scale sits on that edge (its number is still
+ * printed beside the petal); a non-number sits on the inner ring and its label reads "—". */
 export function radarValue(similarity: number | undefined): number {
-  if (typeof similarity !== "number" || !Number.isFinite(similarity)) return 0.5;
-  return Math.max(0, Math.min(1, (similarity + 1) / 2));
+  if (typeof similarity !== "number" || !Number.isFinite(similarity)) return 0;
+  return Math.max(0, Math.min(1, (similarity - RADAR_MIN) / (RADAR_MAX - RADAR_MIN)));
 }
 
-/** "0.12" / "−0.02": a similarity as the monitor prints it (true minus sign). */
+/** What both mounts hand the kit's bloom: every register, explicitly (a missing key would keep
+ * the previous reply's petal). */
+export function bloomScoresOf(emotions: Record<string, number> | undefined): Record<string, number> {
+  return Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, radarValue(emotions?.[id])]));
+}
+
+/** A similarity rounded as the monitor prints and words it. */
+export function roundSim(similarity: number): number {
+  const r = Math.round(similarity * 100) / 100;
+  return r === 0 ? 0 : r;
+}
+
+/** "0.12" / "−0.02" / "0.00": a similarity as the monitor prints it (true minus sign). */
 export function simText(similarity: number): string {
-  return (similarity < 0 ? "−" : "") + Math.abs(similarity).toFixed(2);
+  const r = roundSim(similarity);
+  return (r < 0 ? "−" : "") + Math.abs(r).toFixed(2);
 }
 
 /** What the frozen basis is, from its own metadata (operator ruling 2026-11-07: the design is
@@ -115,14 +134,14 @@ export function basisProvenanceNote(calibratedOn: Record<string, unknown> | null
   const generic = "The registers and tone channels are generic: their prototypes come from generic anchor texts, the same for every entity.";
   if (!parts.length) return generic;
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
-  return `${generic} Its normalization (whitening, channel scales, emotion scale) and the emotion gate's floor were fitted on a mixed corpus: ${list}${date}.`;
+  return `${generic} Its normalization (whitening, channel scales) was fitted on a mixed corpus: ${list}${date}.`;
 }
 
 /** The reading's hover text, shared by both mounts: what the petals mean, the closest register's
  * similarity, and the basis's provenance (`calibration` is basisProvenanceNote's sentence). */
 export function readingTitle(maxSim: number | undefined, calibration?: string | null): string {
   const near = typeof maxSim === "number" && Number.isFinite(maxSim) ? ` The closest register here is at ${simText(maxSim)}.` : "";
-  return `Each petal is the similarity of his words to that register, on one fixed scale for every reply: the centre is −1, half reach is 0, the rim is +1. Nothing is cut, centred or rescaled per reply.${near}${calibration ? ` ${calibration}` : ""}`;
+  return `Each petal is the similarity of his words to that register, on one fixed scale for every reply: the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out. Nothing is centred or rescaled per reply; each petal's number is printed beside it.${near}${calibration ? ` ${calibration}` : ""}`;
 }
 
 export interface WaveSampleLike {
@@ -260,7 +279,7 @@ export function interpretWave(sample: WaveSampleLike | null): string {
   const emotions = sample.emotions ?? {};
   const scores = sample.scores ?? {};
   const ranked = EMOTION_AXES.filter((axis) => typeof emotions[axis.id] === "number" && Number.isFinite(emotions[axis.id]))
-    .map((axis) => ({ axis, v: emotions[axis.id] as number }))
+    .map((axis) => ({ axis, v: roundSim(emotions[axis.id] as number) }))
     .sort((a, b) => b.v - a.v);
   const top = ranked[0];
   const second = ranked[1];
@@ -327,7 +346,7 @@ export function ReadingLine({ sample, title, className = "cm_reading_line" }: { 
 /** What the monitor IS — the (i) modal body, shared by the chat panel and
  * the Wave tab. Axis = null shows the general explanation; an axis shows
  * its detail. */
-export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null; /** The shown reply's channel scores: a channel axis states its current value and pole. */ scores?: Record<string, number> }): React.ReactElement {
+export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null; /** The shown reply's channel scores: a channel axis states its current value and pole. */ scores?: Record<string, number>; /** The shown reply's register similarities: a register states its own. */ emotions?: Record<string, number> }): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
@@ -360,9 +379,9 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis:
                 <strong>expressive character of his words</strong>, never his inner state (a text performing calm scores
                 calm). Each reply is embedded with the home's own pinned embedder and compared with a frozen basis of
                 expressive registers; each petal's reach is the <strong>similarity</strong> of his words to that register,
-                on one fixed scale for every reply — the centre is −1, half reach is 0, the rim +1. Nothing is cut,
-                centred or rescaled per reply, so an ordinary reply draws a small, even bloom and threat language
-                spikes toward FEA.
+                with its number printed beside it, on one fixed scale for every reply — the inner ring is −0.25, the
+                outer edge +0.75, zero a quarter of the way out. Nothing is centred or rescaled per reply, so an
+                ordinary reply draws a small bloom near the inner ring and threat language reaches out toward FEA.
               </p>
               <p>
                 <strong>Every value is shown, however small.</strong> The sentence names the register his words are
@@ -431,6 +450,7 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis:
             <div className="cm_modal_body">
               <p>{(axis as AxisInfo).description}</p>
               {(axis as AxisInfo).id in TONE_POLES ? <p className="cm_modal_now">{channelNow((axis as AxisInfo).id, scores?.[(axis as AxisInfo).id])}</p> : null}
+              {EMOTION_AXES.some((e) => e.id === (axis as AxisInfo).id) ? <p className="cm_modal_now">{registerNow(emotions?.[(axis as AxisInfo).id])}</p> : null}
               <p className="cm_modal_note">Read from his words only — a register of the text, not a window into inner state.</p>
             </div>
           </>
@@ -438,6 +458,12 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis:
       </div>
     </div>
   );
+}
+
+/** A register's value for the shown reply, as the axis window states it. */
+export function registerNow(similarity: number | undefined): string {
+  if (typeof similarity !== "number" || !Number.isFinite(similarity)) return "This reply: not read.";
+  return `This reply: similarity ${simText(similarity)} (the radar runs from ${simText(RADAR_MIN)} on the inner ring to ${simText(RADAR_MAX)} at the outer edge).`;
 }
 
 /** One channel's current reading, said in full (the touch path: no hover needed). */
@@ -474,7 +500,7 @@ export function AxisList({ emotions, onAxis }: { emotions: Record<string, number
 /** Petal-anchor overlay: the 3-letter codes AT their petal positions over
  * the canvas (DOM, not canvas — native tooltips + click-to-explain). The
  * geometry mirrors the vendored Bloom renderer's label anchors. */
-export function BloomAxisOverlay({ width, height, onAxis }: { width: number; height: number; onAxis(axis: AxisInfo): void }): React.ReactElement | null {
+export function BloomAxisOverlay({ width, height, onAxis, emotions }: { width: number; height: number; onAxis(axis: AxisInfo): void; /** The shown reply's similarities: each code carries its number. */ emotions?: Record<string, number> }): React.ReactElement | null {
   if (width < 40 || height < 40) return null;
   const cx = width / 2;
   const cy = height / 2;
@@ -487,15 +513,19 @@ export function BloomAxisOverlay({ width, height, onAxis }: { width: number; hei
         const ang = (i / m) * Math.PI * 2 - Math.PI / 2;
         const x = cx + Math.cos(ang) * lr;
         const y = cy + Math.sin(ang) * lr;
+        const sim = emotions?.[a.id];
+        const num = typeof sim === "number" && Number.isFinite(sim) ? simText(sim) : "—";
         return (
           <button
             key={a.id}
             className="cm_overlay_code"
             style={{ left: x, top: y, color: a.color }}
-            title={`${a.name} — ${a.description}`}
+            title={`${a.name}${emotions ? `, similarity ${num}` : ""} — ${a.description}`}
+            aria-label={`${a.name}${emotions ? `, similarity ${num}` : ""}`}
             onClick={() => onAxis(a)}
           >
             {a.code}
+            {emotions ? <span className="cm_overlay_num">{num}</span> : null}
           </button>
         );
       })}

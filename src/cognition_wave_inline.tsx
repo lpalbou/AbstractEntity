@@ -28,7 +28,7 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { isUsableVector, readingFromScore } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, MonitorInfoModal, radarValue, ReadingLine, readingTitle, simText, ToneRow, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, dominantEmotion, MonitorInfoModal, ReadingLine, readingTitle, simText, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -301,12 +301,9 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownText, baseUrl, entity]);
 
-  // The bloom's `scores` prop is keyed by REGISTER id (the emotion values);
-  // absent keys keep their target (the kit's absent-not-zero rule), so an
-  // 8-emotion v0 basis leaves the 9th (gravity) petal flat until the basis
-  // ships it. Explicit 0 lowers a petal, so we send every known register.
-  // Each register at its measured similarity on the radar's one fixed scale (radarValue).
-  const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, radarValue(current?.emotions?.[id])])), [current]);
+  // Every register at its measured similarity on the radar's one fixed scale (bloomScoresOf
+  // sends all nine explicitly; a register the basis lacks sits on the inner ring, its label "—").
+  const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
   const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
@@ -350,8 +347,10 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         <div className="cm_body" ref={bodyRef}>
           <div className="cm_canvas_box" style={{ width: pairSize }}>
             {status === "live" && current ? <>
-              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: true }} size={pairSize} />
-              <BloomAxisOverlay width={pairSize} height={pairSize} onAxis={(a) => setModalAxis(a)} />
+              {/* Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
+                * similarity scale is not. The breathing stays. */}
+              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={pairSize} />
+              <BloomAxisOverlay width={pairSize} height={pairSize} onAxis={(a) => setModalAxis(a)} emotions={current.emotions} />
             </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
@@ -396,7 +395,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </div>
       ) : null}
 
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} emotions={current?.emotions} /> : null}
     </div>
   );
 }

@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, MonitorInfoModal, radarValue, ReadingLine, readingTitle, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal, ReadingLine, readingTitle, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -185,7 +185,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
         {provenance ? <span className="cw_prov">{provenance}</span> : null}
       </div>
       <div className="cw_framing">{FRAMING}</div>
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} emotions={current?.emotions} /> : null}
 
       {/* THE ONE-PULL CONTROL (c1824 ruling, flood fix c2155): scoring is an
         * EXPLICIT operator act, never automatic — reading his words costs
@@ -226,7 +226,13 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
       {phase.name === "ready" ? (
         <>
           <div className="cw_bloom">
-            <AfCognitionBloom scores={Object.fromEntries(Object.entries(current?.emotions ?? {}).map(([id, sim]) => [id, radarValue(sim)]))} options={{ labels: true, vignette: true }} size={300} />
+            {/* Same input and labels as the chat monitor: every register, its number beside it;
+              * no edge tint (operator 2026-11-07). Before his first utterance every petal sits on
+              * the inner ring and every number reads "—". */}
+            <div style={{ position: "relative", width: 300, height: 300 }}>
+              <AfCognitionBloom scores={bloomScoresOf(current?.emotions)} options={{ labels: false, vignette: false }} size={300} />
+              <BloomAxisOverlay width={300} height={300} onAxis={(a) => setModalAxis(a)} emotions={current?.emotions ?? {}} />
+            </div>
           </div>
 
           {/* Replay controls (operator 2026-07-15): grouped RIGHT like the
