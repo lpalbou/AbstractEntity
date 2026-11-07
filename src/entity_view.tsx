@@ -16,7 +16,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { EntityMark } from "./brand_mark";
 import { ChatDrawer } from "./chat_drawer";
-import { TopicMap } from "./topic_map";
 import { SettingsPanel } from "./workspace_panel";
 import { SideTabs, type SideTab } from "./drawer";
 import { EntitiesIndex } from "./entities_index";
@@ -1582,13 +1581,14 @@ export function EntityView(): React.ReactElement {
   // Search text INTERSECTS the active lens ("questions about tolstoy");
   // either alone emphasizes on its own.
   const [lens, setLens] = useState<GraphLens>("all");
-  // TOPIC filter (2026-07-17): clicking a community bubble on the Topics
-  // map lights its members on the raw graph — same emphasis mechanism,
-  // one more intersecting source.
+  // TOPIC filter (2026-07-17): clicking a topic's label on the graph
+  // lights its members — same emphasis mechanism, one more intersecting
+  // source.
   const [topicFilter, setTopicFilter] = useState<{ ids: Set<string>; label: string } | null>(null);
-  // Main-area view: the raw graph or the topic map (operator: "keep both
-  // the current one, and the one you are gonna design").
-  const [mainView, setMainView] = useState<"graph" | "topics">("graph");
+  // Topics are the graph's NATURAL layout (operator 2026-11-07: "all the
+  // memory nodes should have been naturally grouped by topics"): the
+  // "topics" toggle only shows their halos + labels over the same graph.
+  const [showTopics, setShowTopics] = useState(false);
   const emphasisIds = useMemo(() => {
     const sources: Array<Set<string>> = [];
     const fromLens = lensIds(fold, temporal, lens);
@@ -2309,15 +2309,14 @@ export function EntityView(): React.ReactElement {
                 // Gateway sources only (adversary F10: the toggle rendered
                 // for file/demo sources but the view needs the door).
                 <button
-                  className={`lens_search_toggle ${mainView === "topics" ? "active" : ""}`}
-                  aria-pressed={mainView === "topics"}
-                  title="Topic map — his memories regrouped by community (louvain over the memory graph, computed at the runtime level). The raw graph stays one click away."
-                  onClick={() => {
-                    // Close the search bar with the map open — its pushed-down
-                    // lens row overprinted the map header (adversary F9).
-                    setSearchOpen(false);
-                    setMainView((v) => (v === "topics" ? "graph" : "topics"));
-                  }}
+                  className={`lens_search_toggle ${showTopics ? "active" : ""}`}
+                  aria-pressed={showTopics}
+                  title={
+                    showTopics
+                      ? "Hide the topic halos and labels (the memories stay grouped by topic)"
+                      : "Show the topics — a halo and a label around each group of memories (groups computed from his memory graph: engraved relations + shared digest keywords). Click a label to light that topic."
+                  }
+                  onClick={() => setShowTopics((v) => !v)}
                 >
                   🗺<span className="lens_search_label">topics</span>
                 </button>
@@ -2353,39 +2352,26 @@ export function EntityView(): React.ReactElement {
               </div>
             </div>
           </div>
-          {mainView === "topics" && verbatimSource ? (
-            <TopicMap
-              baseUrl={verbatimSource.baseUrl}
-              entity={verbatimSource.entity}
-              fold={fold}
-              onPickTopic={(rowIds, label) => {
-                if (rowIds && rowIds.size > 0 && label) {
-                  setTopicFilter({ ids: rowIds, label });
-                  setMainView("graph"); // see the community ON the graph
-                } else {
-                  setTopicFilter(null);
-                }
-              }}
-            />
-          ) : (
-            <GraphCanvas
-              fold={fold}
-              temporal={temporal}
-              scrubSeq={scrubSeq}
-              selectedId={selectedId}
-              searchIds={emphasisIds}
-              focusToken={focusToken}
-              layoutKey={sourceKind === "gateway" && entityName ? entityName : sourceLabel || null}
-              onSelect={(id) => {
-                setSelectedId(id);
-                // "click to open" must OPEN (laurent 12:23, c1405 ask 2c):
-                // selecting a memory opens the Detail inspector on it. No
-                // camera move rides a click — the canvas never recenters on
-                // selection by design (recenter is the 🎯 button's act).
-                if (id) setRequestedTab({ tab: "detail", nonce: Date.now() });
-              }}
-            />
-          )}
+          <GraphCanvas
+            fold={fold}
+            temporal={temporal}
+            scrubSeq={scrubSeq}
+            selectedId={selectedId}
+            searchIds={emphasisIds}
+            focusToken={focusToken}
+            layoutKey={sourceKind === "gateway" && entityName ? entityName : sourceLabel || null}
+            onSelect={(id) => {
+              setSelectedId(id);
+              // "click to open" must OPEN (laurent 12:23, c1405 ask 2c):
+              // selecting a memory opens the Detail inspector on it. No
+              // camera move rides a click — the canvas never recenters on
+              // selection by design (recenter is the 🎯 button's act).
+              if (id) setRequestedTab({ tab: "detail", nonce: Date.now() });
+            }}
+            topicSource={verbatimSource}
+            showTopics={showTopics}
+            onPickTopic={(rowIds, label) => setTopicFilter(rowIds.size > 0 ? { ids: rowIds, label } : null)}
+          />
           <div className="entity_legend">
             <span className="lg lg_identity">identity</span>
             <span className="lg lg_memory">memory</span>

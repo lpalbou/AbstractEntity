@@ -86,9 +86,49 @@
   }
 }
 
+/* TOPICS note (the toggle is on but the topics are not drawable yet:
+ * loading / unavailable / none). Under the motion buttons, top-right. */
+.gc_topic_note {
+  position: absolute;
+  top: 48px;
+  right: 10px;
+  max-width: min(360px, calc(100% - 32px));
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.gc_topic_note_error {
+  border-color: color-mix(in srgb, var(--scar) 55%, var(--line));
+}
+
+.gc_topic_retry {
+  margin-left: 8px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 7px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gc_topic_retry:hover {
+  border-color: var(--ea-accent);
+}
+
 /* Phone-width canvas: the lens row is a single strip at the top; the
  * recall line sits under it, full width. */
 @container entity-canvas (max-width: 859.98px) {
+  .gc_topic_note {
+    top: 84px;
+    right: 8px;
+    left: 8px;
+    max-width: none;
+  }
   .gc_recall_legend {
     top: 46px;
     left: 8px;

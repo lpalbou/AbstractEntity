@@ -1,0 +1,247 @@
+/**
+ * Topics as the natural layout — the geometry the canvas's force sim pulls
+ * toward: homes, seats, the unclustered rule, which usage trails pull,
+ * halos and label placement; plus when the communities are asked again.
+ * Seats are computed on the real fold (stream envelopes in), never on
+ * hand-made fold objects.
+ */
+import { describe, expect, it } from "vitest";
+
+import { foldEnvelopes } from "./stream_fold";
+import type { NodeState } from "./stream_fold";
+import type { ReplayEnvelope } from "./stream_types";
+import type { TopicCommunity } from "./topic_map";
+import { COMMUNITIES_REFRESH_MS, communitiesRefetchDelay } from "./topic_map";
+import {
+  freeCountOf,
+  HALO_HOME_REACH,
+  haloOf,
+  homesExtent,
+  IDENTITY_CLEAR,
+  placeTopicLabel,
+  planTopicHomes,
+  planTopicSeats,
+  TOPIC_GAP,
+  TOPIC_SPACING,
+  topicRadius,
+  topicSeatOffset,
+  trailPulls,
+} from "./topic_layout";
+
+function comm(id: number, size: number, kinds: Record<string, number> = { episode: size }, members?: string[]): TopicCommunity {
+  return {
+    id,
+    label: `topic ${id}`,
+    keywords: ["k"],
+    exemplar_id: `ex:e${id}`,
+    exemplar_title: `exemplar ${id}`,
+    size,
+    kinds,
+    member_ids: members ?? Array.from({ length: size }, (_, i) => `ex:m${id}-${i}`),
+  };
+}
+
+function binding(seq: number, id: string, kind: string, edges: Array<{ target_graph_id: string; relation: string }> = []): ReplayEnvelope {
+  return {
+    stream: "abstractmemory.replay",
+    stream_version: 1,
+    seq,
+    family: "binding",
+    observed_at: "2026-11-07T10:00:00+00:00",
+    scope: "life",
+    owner_id: "entity:test",
+    trace_id: null,
+    turn_id: null,
+    run_id: null,
+    payload: { record_id: id, scope: "life", owner_id: "entity:test", search_state: "indexed", prompt_state: "active", lifecycle: "none", source: "remember", reason: null, binding_id: `b${seq}`, seq },
+    display: { record_id: id, kind, title: id, edges } as ReplayEnvelope["display"],
+  } as ReplayEnvelope;
+}
+
+/** The canvas's lane rule, restated for the tests (identity kinds and
+ * diary entries keep their lanes). */
+const isFree = (n: NodeState) => !n.diary && !["value", "purpose", "trait", "claim"].includes(n.kind);
+
+describe("freeCountOf / topicRadius / topicSeatOffset", () => {
+  it("counts only the disc's memories (diary and identity keep their lanes)", () => {
+    expect(freeCountOf(comm(1, 20, { episode: 10, diary: 6, value: 2, claim: 1, summary: 1 }))).toBe(11);
+    expect(freeCountOf(comm(1, 4, { diary: 4 }))).toBe(0);
+  });
+
+  it("homes grow with their memories; seats spiral out from the centre", () => {
+    expect(topicRadius(40)).toBeGreaterThan(topicRadius(10));
+    const r = (k: number) => Math.hypot(topicSeatOffset(k).dx, topicSeatOffset(k).dy);
+    expect(r(0)).toBeLessThan(TOPIC_SPACING);
+    for (let k = 1; k < 50; k++) expect(r(k)).toBeGreaterThan(r(k - 1));
+    // The last seat of n members sits inside the home radius.
+    expect(r(39)).toBeLessThan(topicRadius(40));
+  });
+});
+
+describe("planTopicHomes", () => {
+  const cs = [comm(3, 12), comm(1, 40), comm(2, 7), comm(9, 3, { diary: 3 }), comm(4, 40)];
+
+  it("is deterministic and orders by free size, then id", () => {
+    const a = planTopicHomes(cs);
+    expect(a).toEqual(planTopicHomes(cs));
+    expect(a.map((h) => h.id)).toEqual([1, 4, 3, 2]); // the diary-only topic has no home
+  });
+
+  it("never overlaps two homes (a label-sized gap between) and keeps clear of the identity ring", () => {
+    const many = Array.from({ length: 24 }, (_, i) => comm(i, 2 + ((i * 11) % 60)));
+    const homes = planTopicHomes(many);
+    for (let i = 0; i < homes.length; i++) {
+      expect(Math.hypot(homes[i].x, homes[i].y)).toBeGreaterThanOrEqual(IDENTITY_CLEAR + homes[i].r - 1e-6);
+      for (let j = i + 1; j < homes.length; j++) {
+        const d = Math.hypot(homes[i].x - homes[j].x, homes[i].y - homes[j].y);
+        expect(d).toBeGreaterThanOrEqual(homes[i].r + homes[j].r + TOPIC_GAP - 1e-6);
+      }
+    }
+    expect(homesExtent(homes)).toBeGreaterThan(0);
+  });
+});
+
+describe("planTopicSeats", () => {
+  // Topic 1: three episodes + a diary entry + a value; topic 2: one memory.
+  // ex:memory-u is in no topic but related to topic 1; ex:memory-z is in no
+  // topic and related to nothing.
+  const envs = [
+    binding(1, "ex:episode-a", "episode"),
+    binding(2, "ex:episode-b", "episode"),
+    binding(3, "ex:episode-c", "episode"),
+    binding(4, "ex:diary-d", "diary"),
+    binding(5, "ex:value-v", "value"),
+    binding(6, "ex:memory-x", "memory"),
+    binding(7, "ex:memory-u", "memory", [
+      { target_graph_id: "ex:episode-a", relation: "mentions" },
+      { target_graph_id: "ex:episode-b", relation: "mentions" },
+    ]),
+    binding(8, "ex:memory-z", "memory"),
+  ];
+  const cs = [
+    comm(1, 5, { episode: 3, diary: 1, value: 1 }, ["ex:episode-c", "ex:episode-a", "ex:diary-d", "ex:value-v", "ex:episode-b"]),
+    comm(2, 1, { memory: 1 }, ["ex:memory-x"]),
+  ];
+  const fold = foldEnvelopes(envs);
+  const homes = planTopicHomes(cs);
+  const plan = planTopicSeats(fold, cs, homes, isFree);
+  const home1 = homes.find((h) => h.id === 1)!;
+
+  it("seats a topic's disc memories in its home, oldest at the centre", () => {
+    const d = (id: string) => Math.hypot(plan.anchorOf.get(id)!.x - home1.x, plan.anchorOf.get(id)!.y - home1.y);
+    expect(plan.membersOf.get(1)).toEqual(["ex:episode-a", "ex:episode-b", "ex:episode-c"]);
+    expect(d("ex:episode-a")).toBeLessThan(d("ex:episode-b"));
+    expect(d("ex:episode-b")).toBeLessThan(d("ex:episode-c"));
+    for (const id of ["ex:episode-a", "ex:episode-b", "ex:episode-c"]) expect(d(id)).toBeLessThan(home1.r);
+    expect(plan.topicOf.get("ex:episode-a")).toBe(1);
+  });
+
+  it("a newer memory never moves an older one's seat", () => {
+    const older = planTopicSeats(foldEnvelopes(envs, 2), cs, homes, isFree);
+    expect(older.anchorOf.get("ex:episode-a")).toEqual(plan.anchorOf.get("ex:episode-a"));
+    expect(older.anchorOf.get("ex:episode-b")).toEqual(plan.anchorOf.get("ex:episode-b"));
+    expect(older.anchorOf.has("ex:episode-c")).toBe(false);
+  });
+
+  it("lanes keep their places, but a topic click lights every member", () => {
+    expect(plan.anchorOf.has("ex:diary-d")).toBe(false);
+    expect(plan.anchorOf.has("ex:value-v")).toBe(false);
+    expect([...plan.allRowsOf.get(1)!].sort()).toEqual(["ex:diary-d", "ex:episode-a", "ex:episode-b", "ex:episode-c", "ex:value-v"]);
+  });
+
+  it("an unclustered memory sits among its relations; with none it gets no topic pull", () => {
+    const a = plan.anchorOf.get("ex:episode-a")!;
+    const b = plan.anchorOf.get("ex:episode-b")!;
+    const u = plan.anchorOf.get("ex:memory-u")!;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    expect(Math.hypot(u.x - mid.x, u.y - mid.y)).toBeCloseTo(TOPIC_SPACING, 6);
+    expect(plan.topicOf.has("ex:memory-u")).toBe(false);
+    expect(plan.anchorOf.has("ex:memory-z")).toBe(false);
+    expect(plan.loose.has("ex:memory-z")).toBe(true);
+  });
+
+  it("resolves members through graph_to_row (re-keyed nodes keep their seat)", () => {
+    const rekeyed = foldEnvelopes([
+      ...envs,
+      {
+        ...binding(9, "x", "memory"),
+        family: "event",
+        payload: { kind: "listed", scope: "life", owner_id: "entity:test", record_id: "row-a", pair_ids: null, weight: 0, matched: false, event_id: "e9", seq: 9 },
+        display: { record_id: "row-a", graph_id: "ex:episode-a", title: "ex:episode-a" } as ReplayEnvelope["display"],
+      } as ReplayEnvelope,
+    ]);
+    expect(rekeyed.nodes.has("row-a")).toBe(true);
+    const p = planTopicSeats(rekeyed, cs, homes, isFree);
+    expect(p.anchorOf.get("row-a")).toEqual(plan.anchorOf.get("ex:episode-a"));
+  });
+});
+
+describe("trailPulls", () => {
+  const plan = { topicOf: new Map([["a", 1], ["b", 1], ["c", 2]]) };
+  it("pulls inside a topic and to unclustered memories, never across two topics", () => {
+    expect(trailPulls(plan, "a", "b")).toBe(true);
+    expect(trailPulls(plan, "a", "c")).toBe(false);
+    expect(trailPulls(plan, "a", "loose")).toBe(true);
+    expect(trailPulls(null, "a", "c")).toBe(true); // no topics: today's layout
+  });
+});
+
+describe("haloOf", () => {
+  const home = { x: 0, y: 0, r: 100 };
+  it("circles the members settled at home, where they are now", () => {
+    const h = haloOf(home, [
+      { x: -20, y: 0, r: 4 },
+      { x: 20, y: 0, r: 6 },
+    ])!;
+    expect(h.cx).toBe(0);
+    expect(h.cy).toBe(0);
+    expect(h.r).toBe(26); // furthest centre + its own radius
+    expect(h.settled).toBe(2);
+  });
+
+  it("a member dragged off by its relations stays outside the halo", () => {
+    const far = { x: home.r * HALO_HOME_REACH + 1, y: 0, r: 4 };
+    const h = haloOf(home, [{ x: -20, y: 0, r: 4 }, { x: 20, y: 0, r: 4 }, far])!;
+    expect(h.settled).toBe(2);
+    expect(h.r).toBe(24);
+  });
+
+  it("a dispersed topic draws no halo", () => {
+    expect(haloOf(home, [{ x: 10, y: 0, r: 4 }, { x: 500, y: 0, r: 4 }])).toBeNull();
+    expect(haloOf(home, [])).toBeNull();
+  });
+});
+
+describe("placeTopicLabel", () => {
+  const base = { halo: { cx: 300, cy: 300, r: 50 }, w: 80, h: 18, placed: [], bounds: { w: 800, h: 800 } };
+  it("prefers just above the halo", () => {
+    expect(placeTopicLabel({ ...base, nodes: [] })).toEqual({ x: 260, y: 228, w: 80, h: 18 });
+  });
+
+  it("moves below, then beside, when a node sits there — never over a node", () => {
+    const below = placeTopicLabel({ ...base, nodes: [{ x: 300, y: 236, r: 5 }] })!;
+    expect(below.y).toBe(354);
+    const right = placeTopicLabel({ ...base, nodes: [{ x: 300, y: 236, r: 5 }, { x: 300, y: 362, r: 5 }] })!;
+    expect(right.x).toBe(356);
+    const left = placeTopicLabel({ ...base, nodes: [{ x: 300, y: 236, r: 5 }, { x: 300, y: 362, r: 5 }, { x: 390, y: 300, r: 5 }] })!;
+    expect(left.x).toBe(164);
+  });
+
+  it("never over another label, a blocked band or off the canvas; null when nowhere is free", () => {
+    const taken = placeTopicLabel({ ...base, nodes: [], placed: [{ x: 250, y: 220, w: 100, h: 30 }] })!;
+    expect(taken.y).toBe(354);
+    expect(placeTopicLabel({ ...base, nodes: [], blocked: (rc) => rc.y < 300 })!.y).toBe(354);
+    expect(placeTopicLabel({ ...base, halo: { cx: 30, cy: 30, r: 20 }, nodes: [] })!.x).toBeGreaterThanOrEqual(2);
+    expect(placeTopicLabel({ ...base, nodes: [], blocked: () => true })).toBeNull();
+  });
+});
+
+describe("communitiesRefetchDelay", () => {
+  it("asks again only when the life grew, never sooner than the refresh floor", () => {
+    const t = 1_000_000;
+    expect(communitiesRefetchDelay({ nodeCount: 100, countAtFetch: 100, lastFetchAt: t, now: t + 10 * COMMUNITIES_REFRESH_MS })).toBeNull();
+    expect(communitiesRefetchDelay({ nodeCount: 99, countAtFetch: 100, lastFetchAt: t, now: t })).toBeNull(); // scrubbed back
+    expect(communitiesRefetchDelay({ nodeCount: 101, countAtFetch: 100, lastFetchAt: t, now: t + COMMUNITIES_REFRESH_MS })).toBe(0);
+    expect(communitiesRefetchDelay({ nodeCount: 101, countAtFetch: 100, lastFetchAt: t, now: t + 30_000 })).toBe(COMMUNITIES_REFRESH_MS - 30_000);
+  });
+});
