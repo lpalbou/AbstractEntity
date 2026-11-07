@@ -87,6 +87,7 @@ import {
   type ServerLifeState,
 } from "./stream_source";
 import { openLifeStream } from "./replay_cache";
+import { createPlayhead, playFrame, startPlay } from "./replay_clock";
 import type { ReplayEnvelope } from "./stream_types";
 import {
   ConnectGatewayModal,
@@ -101,8 +102,6 @@ import { clipboardWrite } from "./lib/secure-context";
 
 // Relative: under the app base (`/` standalone, `/apps/entity/` behind the gateway).
 const DEMO_URL = "demo/castor.ndjson";
-/** Playback baseline: envelopes per second at 1x. */
-const BASE_EPS = 2.5;
 
 type SourceKind = "demo" | "file" | "gateway";
 
@@ -164,7 +163,6 @@ export function EntityView(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   const tailRef = useRef<LiveTailHandle | null>(null);
-  const playRef = useRef<{ acc: number; last: number } | null>(null);
   // Staleness truth for the live badge (adversarial UX review 1.2-1.4):
   // EventSource ignores keep-alive comments by design, so "connected" says
   // nothing — the honest signal is wall time since the last envelope.
@@ -1380,29 +1378,44 @@ export function EntityView(): React.ReactElement {
 
   // ------------------------------------------------------------- playback
 
+  // Two clocks (replay_clock.ts): the head advances every animation frame by
+  // elapsed time × speed and the time panel follows it frame by frame; the
+  // page (fold, graph, ledger, Detail, side panels) follows at a paced rate
+  // — never sooner than twice the main-thread time its commits take, and
+  // from 200x at most 10 times a second. A commit sets the fold index with
+  // the position (playback only moves forward, where the fold effect below
+  // would set it one render later): one page render per commit, not two.
+  // Speed is read live, so changing it never restarts the loop.
+  const playhead = useMemo(createPlayhead, []);
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
+  const scrubIndexRef = useRef(scrubIndex);
+  scrubIndexRef.current = scrubIndex;
   useEffect(() => {
     if (!playing || live) return;
+    const maxIndex = envelopes.length - 1;
+    let state = startPlay(scrubIndexRef.current, performance.now());
     let raf = 0;
-    playRef.current = { acc: 0, last: performance.now() };
     const step = (now: number) => {
-      const play = playRef.current;
-      if (!play) return;
-      play.acc += ((now - play.last) / 1000) * BASE_EPS * speed;
-      play.last = now;
-      const advance = Math.floor(play.acc);
-      if (advance > 0) {
-        play.acc -= advance;
-        setScrubIndex((i) => {
-          const next = Math.min(envelopes.length - 1, i + advance);
-          if (next >= envelopes.length - 1) setPlaying(false);
-          return next;
-        });
+      const frame = playFrame(state, now, speedRef.current, maxIndex);
+      state = frame.state;
+      playhead.set(frame.head);
+      if (frame.commit !== null) {
+        setScrubIndex(frame.commit);
+        setFoldIndex(frame.commit);
+      }
+      if (frame.done) {
+        setPlaying(false);
+        return;
       }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, live, speed, envelopes.length]);
+    return () => {
+      cancelAnimationFrame(raf);
+      playhead.set(null);
+    };
+  }, [playing, live, envelopes.length, playhead]);
 
   // ------------------------------------------------------------- the fold
 
@@ -2677,9 +2690,16 @@ export function EntityView(): React.ReactElement {
             setSelectedId(recordId);
             setRequestedTab({ tab: "detail", nonce: Date.now() });
           }}
-          onTogglePlay={() => setPlaying((v) => !v)}
+          onTogglePlay={() => {
+            // Pause where the panel shows the head (the page may trail it
+            // by one paced step).
+            const head = playhead.get();
+            if (playing && head !== null) setScrubIndex(head);
+            setPlaying((v) => !v);
+          }}
           onSpeed={setSpeed}
           onToggleLive={toggleLive}
+          playhead={playhead}
         />
       )}
     </div>

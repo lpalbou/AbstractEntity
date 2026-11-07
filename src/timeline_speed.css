@@ -1,0 +1,46 @@
+/* The time panel's speed picker (timeline.tsx): the kit's AfSelect, drawn
+ * like the transport buttons beside it. Three classes deep so it wins over
+ * the kit's own variant rule whatever order the stylesheets load in. The
+ * value keeps the width of "1000x" so changing speed never shifts the
+ * transport. On touch the app's 44 px target rule applies (#root button). */
+.et_right .et_speed_pick .af-select-trigger {
+  height: auto;
+  max-width: none;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.3;
+}
+
+.et_right .et_speed_pick .af-select-trigger:not(:disabled):hover {
+  background: var(--bg-raise);
+  border-color: var(--ea-accent);
+}
+
+.et_right .et_speed_pick .af-select-trigger:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.et_right .et_speed_pick .af-select-value {
+  min-width: 5ch;
+  text-align: right;
+}
+
+/* The list: ten short options fit without scrolling (the kit's list
+ * scrolls past 340 px and does not bring the highlighted option into view,
+ * so 1000x sat half hidden at the bottom). The kit portals the popover to
+ * <body>, outside the panel; its listbox carries the control's accessible
+ * name, which scopes this rule to this picker (timeline_playhead.test.tsx
+ * keeps the two in step). Touch keeps the kit's 44 px rows and scrolls. */
+.af-select-options[aria-label="Playback speed"] .af-select-option {
+  padding: 5px 10px;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}

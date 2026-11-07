@@ -13,14 +13,20 @@
  * entry, a lesson, a world-model revision, a dream — at the place it
  * formed; clicking it moves time there and opens it in Detail. Session
  * markers (summons) stay as ticks on the bar.
+ *
+ * While playing, the panel draws the play HEAD (replay_clock.ts), which
+ * moves every animation frame; the rest of the page follows at a paced
+ * rate, so `scrubIndex` may trail the head by one paced step.
  */
 
-import React, { useMemo, useRef } from "react";
-import { Icon } from "@abstractframework/ui-kit";
+import React, { useMemo, useRef, useSyncExternalStore } from "react";
+import { AfSelect, Icon } from "@abstractframework/ui-kit";
 
 import { KIND_COLORS } from "./graph_canvas";
 import { clockUtc, dayLabelUtc } from "./ledger_lines";
+import { SPEEDS, type Playhead } from "./replay_clock";
 import type { ReplayEnvelope } from "./stream_types";
+import "./timeline_speed.css";
 
 export interface TimelineProps {
   envelopes: ReplayEnvelope[];
@@ -38,9 +44,12 @@ export interface TimelineProps {
   onToggleLive(): void;
   /** A defining event was clicked: move time to it and open its memory. */
   onOpenEvent?(index: number, recordId: string): void;
+  /** The play head while playing (the panel follows it every frame). */
+  playhead?: Playhead;
 }
 
-const SPEEDS = [1, 2, 5, 10, 25, 50];
+const SPEED_OPTIONS = SPEEDS.map((s) => ({ value: String(s), label: `${s}x` }));
+const NO_PLAYHEAD: Playhead = { get: () => null, set: () => undefined, subscribe: () => () => undefined };
 
 export type LaneId = "moments" | "diary" | "lessons" | "world" | "dreams";
 
@@ -101,8 +110,12 @@ export function foldEvents(prev: EventFold | null, envelopes: ReplayEnvelope[]):
 }
 
 export function Timeline(props: TimelineProps): React.ReactElement {
-  const { envelopes, scrubIndex, playing, speed, live, liveAvailable } = props;
+  const { envelopes, playing, speed, live, liveAvailable } = props;
   const max = envelopes.length - 1;
+  // The position drawn: the play head while playing, else the committed one.
+  const store = props.playhead ?? NO_PLAYHEAD;
+  const head = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const scrubIndex = playing && !live && head !== null ? Math.min(head, max) : props.scrubIndex;
   const current = envelopes[scrubIndex];
   // Where the slider puts an event: its range runs from -1 to max and its
   // thumb (--et-thumb wide) travels the track minus one thumb width, so a
@@ -121,6 +134,9 @@ export function Timeline(props: TimelineProps): React.ReactElement {
     return out;
   }, [events]);
 
+  // The parent passes a new seqs array on every render: key the ticks on
+  // its content, or every page update rescans the whole life.
+  const sessionSeqKey = props.inferredSessionSeqs.join(",");
   const sessionTicks = useMemo(() => {
     // No full seq→index Map (code adversary F4: ~90k Map.set per envelope
     // arrival was the worst allocator on the page). Host ticks fold in one
@@ -151,7 +167,7 @@ export function Timeline(props: TimelineProps): React.ReactElement {
     }
     return ticks;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [envelopes, props.inferredSessionSeqs]);
+  }, [envelopes, sessionSeqKey]);
 
   // Effective position for stepping: live rides the head.
   const pos = live ? max : scrubIndex;
@@ -261,13 +277,18 @@ export function Timeline(props: TimelineProps): React.ReactElement {
             <Icon name="chevronRight" size={14} />
           </span>
         </button>
-        <select className="et_speed" value={speed} disabled={live} onChange={(e) => props.onSpeed(Number(e.target.value))} title="Playback speed" aria-label="Playback speed">
-          {SPEEDS.map((s) => (
-            <option key={s} value={s}>
-              {s}x
-            </option>
-          ))}
-        </select>
+        <span className="et_speed_pick" title="Playback speed">
+          <AfSelect
+            value={String(speed)}
+            options={SPEED_OPTIONS}
+            onChange={(v) => props.onSpeed(Number(v))}
+            disabled={live}
+            searchable={false}
+            variant="pin"
+            minPopoverWidth={112}
+            ariaLabel="Playback speed"
+          />
+        </span>
         <button
           className={`et_btn et_live ${live ? "et_live_on" : ""}`}
           onClick={props.onToggleLive}
