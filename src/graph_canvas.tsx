@@ -26,7 +26,7 @@ import type { FoldState, NodeState, StandingState } from "./stream_fold";
 import { ADMISSION_LABELS } from "./stream_types";
 import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, resolveSelection, type RecallClass } from "./recall_emphasis";
 import "./graph_canvas.css";
-import { nodeCardText, placeCard, plainLabel, topicExemplarText } from "./hover_card";
+import { canvasLabel, nodeCardText, placeCard, topicExemplarText } from "./hover_card";
 import { Words } from "./verbatim_view";
 import { nodeLabel, summaryLabel } from "./node_label";
 import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
@@ -420,7 +420,7 @@ function HoverCardBox({ x, y, className, children }: { x: number; y: number; cla
     setPos((p) => (p.left === next.left && p.top === next.top ? p : next));
   });
   return (
-    <div ref={ref} className={className} style={{ left: pos.left, top: pos.top }}>
+    <div ref={ref} className={`${className} gc_card_box`} style={{ left: pos.left, top: pos.top }}>
       {children}
     </div>
   );
@@ -1214,7 +1214,8 @@ export function GraphCanvas({
               ctx.fillStyle = rgbaOf(CANVAS_THEME.text, alpha);
               ctx.font = `${Math.max(10, 10 * cam.zoom * 0.7)}px Menlo, Monaco, monospace`;
               ctx.textAlign = "center";
-              ctx.fillText(nodeLabel(plainLabel(label), 34), p.x, p.y - r - 8);
+              // Cut at 34 on the canvas only: the hover card shows the whole title.
+              ctx.fillText(nodeLabel(canvasLabel(label), 34), p.x, p.y - r - 8);
             }
           }
         }
@@ -1331,7 +1332,9 @@ export function GraphCanvas({
             ctx.fillStyle = rgbaOf(CANVAS_THEME.text, alpha);
             ctx.font = `${Math.max(10, 10 * Math.min(1.2, cam.zoom * 0.6))}px Menlo, Monaco, monospace`;
             ctx.textAlign = "center";
-            ctx.fillText(nodeLabel(plainLabel(labelBase), 34), p.x, p.y - r - 6);
+            // The renderer's plain text of the title, cut at 34 on the canvas
+            // only — the hover card (and Detail) show the whole title.
+            ctx.fillText(nodeLabel(canvasLabel(labelBase), 34), p.x, p.y - r - 6);
           }
         }
         ctx.globalAlpha = 1;
@@ -1571,7 +1574,14 @@ export function GraphCanvas({
                   * when the fold holds it (hover_card.nodeCardText). */}
                 <Words text={hoverText?.title ?? ""} className="gc_hc_title gc_hc_md" />
               </div>
-              {hoverText?.summary ? <Words text={hoverText.summary} className="gc_hc_summary" /> : null}
+              {hoverText?.summary ? (
+                hoverText.plain ? (
+                  // A dream's born digest is not Markdown (Detail shows it plain too).
+                  <div className="gc_hc_summary gc_hc_plain">{hoverText.summary}</div>
+                ) : (
+                  <Words text={hoverText.summary} className="gc_hc_summary" />
+                )
+              ) : null}
               <div className="gc_hc_rows">
                 <span>used</span>
                 <span>
@@ -1594,7 +1604,7 @@ export function GraphCanvas({
                 <span>{hoverNode.scope}</span>
                 <span>born</span>
                 <span>
-                  {hoverNode.born_at ? hoverNode.born_at.slice(0, 16).replace("T", " ") : "?"} · seq {hoverNode.first_seq}
+                  {hoverNode.born_at ? hoverNode.born_at.slice(0, 16).replace("T", " ") : "—"} · seq {hoverNode.first_seq}
                 </span>
                 <span>state</span>
                 <span>
@@ -1638,7 +1648,11 @@ export function GraphCanvas({
           {topicExemplar ? (
             <div className="gc_topic_exemplar">
               <span className="gc_topic_exemplar_word">for example</span>
-              <Words text={topicExemplar} className="gc_hc_summary" />
+              {topicExemplar.plain ? (
+                <div className="gc_hc_summary gc_hc_plain">{topicExemplar.text}</div>
+              ) : (
+                <Words text={topicExemplar.text} className="gc_hc_summary" />
+              )}
             </div>
           ) : null}
           <div className="gc_hc_rows">

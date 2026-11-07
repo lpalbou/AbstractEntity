@@ -3,11 +3,14 @@
  * fold (bindings + a recall snapshot carrying digests, the way the stream
  * serves them), never on hand-made nodes.
  */
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
-import { markdownTitle, nodeCardText, placeCard, plainLabel, topicExemplarText } from "./hover_card";
+import { canvasLabel, isDiaryNode, markdownTitle, nodeCardText, placeCard, topicExemplarText } from "./hover_card";
+import { Words } from "./verbatim_view";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, display?: Record<string, unknown>): ReplayEnvelope {
   return {
@@ -63,7 +66,7 @@ describe("nodeCardText", () => {
   it("no summary before a recall served one (absent, never invented)", () => {
     const before = foldEnvelopes(life, 4);
     expect(nodeCardText(before.nodes.get("ex:episode-a")!).summary).toBeNull();
-    expect(nodeCardText(before.nodes.get("ex:memory-b")!)).toEqual({ title: "the media server", summary: null });
+    expect(nodeCardText(before.nodes.get("ex:memory-b")!)).toEqual({ title: "the media server", summary: null, plain: false });
   });
 
   it("a diary entry never shows its words; a private one reads 'a diary entry'", () => {
@@ -72,7 +75,7 @@ describe("nodeCardText", () => {
     expect(nodeCardText(diary).summary).toBeNull();
     const redacted = foldEnvelopes([binding(1, "ex:diary-z", "memory", "x")]).nodes.get("ex:diary-z")!;
     expect(redacted.redacted).toBe(true);
-    expect(nodeCardText(redacted)).toEqual({ title: "a diary entry", summary: null });
+    expect(nodeCardText(redacted)).toEqual({ title: "a diary entry", summary: null, plain: false });
   });
 
   it("the card keeps its own guard: a digest on a diary node (the fold never keeps one) is not shown", () => {
@@ -80,7 +83,7 @@ describe("nodeCardText", () => {
     const diary = foldEnvelopes(life, 4).nodes.get("ex:diary-c")!;
     expect(diary.diary && !diary.redacted).toBe(true);
     expect(diary.digest ?? null).toBeNull(); // the fold's rule
-    expect(nodeCardText({ ...diary, digest: "private words" })).toEqual({ title: "the bridges were real", summary: null });
+    expect(nodeCardText({ ...diary, digest: "private words" })).toEqual({ title: "the bridges were real", summary: null, plain: false });
   });
 
   it("a multi-line title keeps its lines: a heading stays a heading (never a raw '###' mid-line)", () => {
@@ -104,17 +107,28 @@ describe("nodeCardText", () => {
 describe("topicExemplarText", () => {
   const fold = foldEnvelopes(life);
   it("the exemplar by its summary when the fold holds it, else its title", () => {
-    expect(topicExemplarText(fold, "ex:episode-a", "ignored")).toBe(DIGEST);
-    expect(topicExemplarText(fold, "ex:memory-b", "ignored")).toBe("the media server");
+    expect(topicExemplarText(fold, "ex:episode-a", "ignored")).toEqual({ text: DIGEST, plain: false });
+    expect(topicExemplarText(fold, "ex:memory-b", "ignored")).toEqual({ text: "the media server", plain: false });
   });
 
   it("never a diary entry's words — in the fold or not", () => {
     expect(topicExemplarText(fold, "ex:diary-c", "the bridges were real")).toBeNull();
     expect(topicExemplarText(fold, "ex:diary-unseen", "private")).toBeNull();
+    // A diary record known by its ROW id (re-keyed by a usage event).
+    const rekeyed = foldEnvelopes([
+      ...life.slice(0, 4),
+      env(6, "event", { kind: "listed", scope: "life", owner_id: "entity:test", record_id: "row-dc", pair_ids: null, weight: 0, matched: false, event_id: "e6", seq: 6 }, {
+        record_id: "row-dc",
+        graph_id: "ex:diary-c",
+        title: "the bridges were real",
+      }),
+    ]);
+    expect(rekeyed.nodes.get("row-dc")?.graph_id).toBe("ex:diary-c");
+    expect(topicExemplarText(rekeyed, "row-dc", "the bridges were real")).toBeNull();
   });
 
   it("an exemplar not in the fold yet: the payload's title, scaffolding stripped", () => {
-    expect(topicExemplarText(fold, "ex:memory-later", "lesson: keep the record honest")).toBe("keep the record honest");
+    expect(topicExemplarText(fold, "ex:memory-later", "lesson: keep the record honest")).toEqual({ text: "keep the record honest", plain: false });
     expect(topicExemplarText(fold, "ex:memory-later", "")).toBeNull();
   });
 });
@@ -131,14 +145,70 @@ describe("placeCard", () => {
   });
 });
 
-describe("plainLabel", () => {
-  it("canvas text shows the words without Markdown markers", () => {
-    expect(plainLabel("**Lookup failure:** I searched for *Social Panorama* 2026…")).toBe("Lookup failure: I searched for Social Panorama 2026…");
-    expect(plainLabel("North America housing\n### United States\n- **HUD:** the `2026` count")).toBe("North America housing United States HUD: the 2026 count");
+/** The text the shared renderer shows for the FIRST block of `md` —
+ * from its real HTML (the test reads the renderer, never a guess). */
+function rendererFirstBlockText(md: string): string {
+  const html = renderToStaticMarkup(React.createElement(Words, { text: md, className: "" }));
+  const inner = html.replace(/^<div[^>]*>/, "").replace(/<\/div>$/, "");
+  const first = inner.match(/^<(\w+)[^>]*>([\s\S]*?)<\/\1>/);
+  const body = (first ? first[2] : inner).replace(/<br\s*\/?>/g, " ").replace(/<[^>]+>/g, "");
+  return body
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+describe("canvasLabel", () => {
+  it("is what the shared renderer shows — never raw markers, never changed content", () => {
+    for (const md of [
+      "**Lookup failure:** I searched for *Social Panorama* 2026…",
+      "`__init__` takes **kwargs",
+      "5**2 is 25",
+      "see [the UNHCR page](https://www.unhcr.org/data) for more",
+      "web_search continues, bridge_index",
+      "line one of a paragraph\nline two of it",
+      "```\nprint(1)\n```",
+    ]) {
+      expect(canvasLabel(md)).toBe(rendererFirstBlockText(md));
+    }
+    expect(canvasLabel("**Lookup failure:** I searched")).toBe("Lookup failure: I searched");
+    expect(canvasLabel("`__init__` and more")).toContain("__init__");
+    expect(canvasLabel("```\nprint(1)\n```")).toBe("print(1)");
   });
 
-  it("leaves snake_case words and arithmetic alone", () => {
-    expect(plainLabel("web_search continues, bridge_index")).toBe("web_search continues, bridge_index");
-    expect(plainLabel("2 * 3 = 6")).toBe("2 * 3 = 6");
+  it("strips the runtime's title prefix first, so a heading under it parses as a heading", () => {
+    expect(canvasLabel("exchange: ## Regional survey of housing")).toBe("Regional survey of housing");
+    expect(canvasLabel("exchange: North America housing pass\n### United States")).toBe("North America housing pass");
+  });
+
+  it("draws the first block only (the card carries the rest)", () => {
+    expect(canvasLabel("First line of a note\n\nSecond paragraph")).toBe("First line of a note");
+  });
+});
+
+describe("dreams and diaries", () => {
+  const dreamFold = foldEnvelopes([
+    binding(1, "ex:dream-n", "dream", "Diary entry (note) — `bridges` the night revised 3 cards"),
+    snapshot(5, [{ record_id: "ex:dream-n", title: "x", digest: "Dream: revised `card A, `card B`\n- touched 3" }]),
+  ]);
+  it("a dream is named as Detail names it and its born digest is plain text", () => {
+    const t = nodeCardText(dreamFold.nodes.get("ex:dream-n")!);
+    expect(t.title).toBe("A dream");
+    expect(t.plain).toBe(true);
+    expect(t.summary).toBe("Dream: revised `card A, `card B`\n- touched 3");
+    expect(topicExemplarText(dreamFold, "ex:dream-n", "")).toEqual({ text: "Dream: revised `card A, `card B`\n- touched 3", plain: true });
+  });
+
+  it("a diary record by its graph id is a diary record (no summary, no exemplar words)", () => {
+    const n = foldEnvelopes(life, 4).nodes.get("ex:memory-b")!;
+    const disguised = { ...n, diary: false, redacted: false, id: "row-x", graph_id: "ex:diary-x", digest: "private words" };
+    expect(isDiaryNode(disguised)).toBe(true);
+    expect(nodeCardText(disguised).summary).toBeNull();
+    expect(isDiaryNode({ ...disguised, graph_id: null, id: "ex:diary-y" })).toBe(true);
+    expect(isDiaryNode({ ...disguised, graph_id: "ex:memory-b", id: "row-x" })).toBe(false);
   });
 });

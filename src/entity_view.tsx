@@ -2323,11 +2323,12 @@ export function EntityView(): React.ReactElement {
               ) : null}
               {topicFilter !== null ? (
                 <button
-                  className="lens_chip active tm_filter_chip"
+                  className="lens_chip active tm_filter_chip gc_topic_chip_full"
                   title={`The graph is lit to the "${topicFilter.label}" topic (${topicFilter.ids.size} memories) — click to clear`}
                   onClick={() => setTopicFilter(null)}
                 >
-                  🗺 {topicFilter.label.length > 26 ? `${topicFilter.label.slice(0, 25)}…` : topicFilter.label} ✕
+                  {/* The whole label (it wraps; graph_canvas.css), never cut. */}
+                  🗺 {topicFilter.label} ✕
                 </button>
               ) : null}
               <div className="entity_lenses" role="group" aria-label="Graph lenses">

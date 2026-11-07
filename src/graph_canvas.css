@@ -218,3 +218,34 @@
   letter-spacing: 0.04em;
   margin-bottom: 1px;
 }
+
+/* A summary is shown whole: the card holds at most 60% of the screen and
+ * scrolls inside (on a touch screen it takes the finger for that; with a
+ * mouse it stays pointer-transparent so the canvas hover never flickers). */
+.gc_hovercard.gc_card_box {
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (hover: none) {
+  .gc_hovercard.gc_card_box {
+    pointer-events: auto;
+  }
+}
+
+/* A dream's born digest is not Markdown: as written, line breaks kept. */
+.gc_hovercard .gc_hc_plain {
+  white-space: pre-wrap;
+}
+
+/* The lit-topic chip on the lens row shows the whole topic label (it
+ * wraps onto a second line instead of being cut). */
+.lens_chip.tm_filter_chip.gc_topic_chip_full {
+  max-width: min(420px, 100%);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: left;
+  line-height: 1.3;
+}

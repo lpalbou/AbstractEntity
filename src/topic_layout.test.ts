@@ -18,8 +18,8 @@ import {
   haloOf,
   homesExtent,
   IDENTITY_CLEAR,
-  jaccard,
-  KEEP_JACCARD,
+  contained,
+  KEEP_CONTAINED,
   parseTopicSlots,
   placeTopicLabel,
   planTopicHomes,
@@ -255,7 +255,7 @@ describe("stable homes across refetches", () => {
     const extra = Array.from({ length: grow }, (_, k) => `ex:new${i}-${k}`);
     return comm(100 + ((i * 7) % 12), c.size + grow, { episode: c.size + grow }, [...c.member_ids, ...extra]);
   });
-  const byMembers = (homes: TopicHome[], c: TopicCommunity) => homes.find((h) => jaccard(new Set(h.members), new Set(c.member_ids)) >= KEEP_JACCARD)!;
+  const byMembers = (homes: TopicHome[], c: TopicCommunity) => homes.find((h) => contained(new Set(h.members), new Set(c.member_ids)) >= KEEP_CONTAINED)!;
 
   it("two fetches 18 new memories apart give the same home and colour to every persisting topic", () => {
     const h1 = planTopicHomes(fetch1);
@@ -281,11 +281,11 @@ describe("stable homes across refetches", () => {
     expect(moved.length).toBeGreaterThan(0);
   });
 
-  it("a regrouped topic (Jaccard < 0.6) is new: free room, a colour no kept topic wears", () => {
+  it("a regrouped topic (holding < 0.6 of every old one) is new: free room, a colour no kept topic wears", () => {
     const h1 = planTopicHomes([comm(1, 30), comm(2, 20)]);
-    // 20 of its 30 members were topic 1's: Jaccard 20/40 = 0.5 — regrouped.
-    const regrouped = comm(9, 30, { episode: 30 }, [...comm(1, 30).member_ids.slice(0, 20), ...Array.from({ length: 10 }, (_, k) => `ex:x${k}`)]);
-    expect(jaccard(new Set(regrouped.member_ids), new Set(comm(1, 30).member_ids))).toBe(0.5);
+    // Half of topic 1 split off on its own: it holds only half of topic 1.
+    const regrouped = comm(9, 15, { episode: 15 }, comm(1, 30).member_ids.slice(0, 15));
+    expect(contained(new Set(regrouped.member_ids), new Set(comm(1, 30).member_ids))).toBe(0.5);
     const h2 = planTopicHomes([regrouped, comm(2, 20)], topicSlotsOf(h1));
     const kept = h2.find((h) => h.id === 2)!;
     const fresh = h2.find((h) => h.id === 9)!;
@@ -309,18 +309,58 @@ describe("stable homes across refetches", () => {
     expect(Math.hypot(fresh.x - kept.x, fresh.y - kept.y)).toBeGreaterThanOrEqual(fresh.r + kept.r + TOPIC_GAP - 1e-6);
   });
 
-  it("jaccard is shared over all (not over the smaller set)", () => {
-    expect(jaccard(new Set(["a", "b", "c"]), new Set(["a", "b", "d", "e"]))).toBeCloseTo(2 / 5, 10);
-    expect(jaccard(new Set(), new Set())).toBe(0);
+  it("contained is the share of the OLD topic's members", () => {
+    expect(contained(new Set(["a", "b", "x", "y", "z"]), new Set(["a", "b", "c"]))).toBeCloseTo(2 / 3, 10);
+    expect(contained(new Set(["a"]), new Set())).toBe(0);
   });
 
-  it("best overlap first, each previous topic used once", () => {
+  it("a merge (two old topics folded into one) inherits the bigger contributor's home and colour", () => {
+    const a = comm(1, 20);
+    const b = comm(2, 18);
+    const other = comm(3, 12);
+    const h1 = planTopicHomes([a, b, other]);
+    const merged = comm(9, 40, { episode: 40 }, [...a.member_ids, ...b.member_ids, "ex:n1", "ex:n2"]);
+    // Each old topic is wholly inside the new one (by Jaccard neither
+    // would be the same group: 20/40, 18/40).
+    expect(contained(new Set(merged.member_ids), new Set(a.member_ids))).toBe(1);
+    const h2 = planTopicHomes([merged, comm(3, 12)], topicSlotsOf(h1));
+    const m = h2.find((h) => h.id === 9)!;
+    const oldA = h1.find((h) => h.id === 1)!;
+    expect(m.x).toBeCloseTo(oldA.x, 1);
+    expect(m.y).toBeCloseTo(oldA.y, 1);
+    expect(m.colorIndex).toBe(oldA.colorIndex);
+    expect(h2.find((h) => h.id === 3)!.colorIndex).toBe(h1.find((h) => h.id === 3)!.colorIndex);
+  });
+
+  it("a topic holding less than KEEP_CONTAINED of an old one inherits nothing", () => {
+    const a = comm(1, 20);
+    const h1 = planTopicHomes([a]);
+    // Half of a, plus 25 new: neither the same group nor a merge.
+    const half = comm(9, 35, { episode: 35 }, [...a.member_ids.slice(0, 10), ...Array.from({ length: 25 }, (_, k) => `ex:h${k}`)]);
+    expect(contained(new Set(half.member_ids), new Set(a.member_ids))).toBe(0.5);
+    expect(KEEP_CONTAINED).toBe(0.6);
+    const h2 = planTopicHomes([half], topicSlotsOf(h1));
+    expect(Math.hypot(h2[0].x - h1[0].x, h2[0].y - h1[0].y)).toBeGreaterThan(1);
+  });
+
+  it("a topic that grew by a small old one keeps the big one's home", () => {
+    const a = comm(1, 20);
+    const b = comm(2, 6);
+    const h1 = planTopicHomes([a, b]);
+    // a grew by b's six: Jaccard with a = 20/26 ≈ 0.77 — the same group.
+    const grown = comm(9, 26, { episode: 26 }, [...a.member_ids, ...b.member_ids]);
+    const h2 = planTopicHomes([grown], topicSlotsOf(h1));
+    expect(h2[0].x).toBeCloseTo(h1.find((h) => h.id === 1)!.x, 1);
+  });
+
+  it("the topic that brought the most members continues it, each old topic once", () => {
     const base = comm(1, 20);
     const h1 = planTopicHomes([base]);
-    // Two new topics both overlap the old one; the closer match keeps it.
+    // Two new topics both hold most of the old one (not a real partition —
+    // the guard for it): the one holding more continues it.
     const near = comm(5, 20, { episode: 20 }, [...base.member_ids.slice(0, 19), "ex:z1"]);
     const far = comm(6, 22, { episode: 22 }, [...base.member_ids.slice(0, 16), ...Array.from({ length: 6 }, (_, k) => `ex:y${k}`)]);
-    expect(jaccard(new Set(far.member_ids), new Set(base.member_ids))).toBeGreaterThanOrEqual(KEEP_JACCARD);
+    expect(contained(new Set(far.member_ids), new Set(base.member_ids))).toBeGreaterThanOrEqual(KEEP_CONTAINED);
     const h2 = planTopicHomes([far, near], topicSlotsOf(h1));
     expect(h2.find((h) => h.id === 5)!.x).toBeCloseTo(h1[0].x, 1);
     expect(Math.hypot(h2.find((h) => h.id === 6)!.x - h1[0].x, h2.find((h) => h.id === 6)!.y - h1[0].y)).toBeGreaterThan(1);

@@ -12,8 +12,9 @@
  * - every topic gets a HOME on the disc (deterministic spiral packing,
  *   outside the identity ring, sized by its free-memory count, a label-
  *   sized gap between homes) that it KEEPS, with its colour, across
- *   refetches and reloads while its members stay the same group (Jaccard
- *   ≥ 0.6); new topics take free room;
+ *   refetches and reloads while it continues (holds ≥ 0.6 of the old
+ *   topic's members; a merge keeps its biggest contributor's); new topics
+ *   take free room;
  * - a topic's memories hold SEATS inside their home (a small sunflower,
  *   oldest at the centre, newer at the rim — a newer memory never moves an
  *   older one); the canvas pulls each memory to its seat with the SAME
@@ -108,19 +109,26 @@ export interface TopicSlot {
   members: string[];
 }
 
-/** A refetched topic keeps a previous topic's home and colour when their
- * member sets overlap by Jaccard ≥ this — AbstractNote's communities rule
- * (abstractnote/recall/communities.py KEEP_JACCARD): best overlaps first,
- * each previous topic used once. The runtime's community ids are Louvain
- * labels, not identities (they renumber as the life grows). */
-export const KEEP_JACCARD = 0.6;
+/** A refetched topic CONTINUES an old one when it holds at least this
+ * share of the OLD topic's members; it then keeps that topic's home and
+ * colour — of the old topic that brought it the most members when it took
+ * in several (a merge: the runtime folded two old topics into one). For
+ * disjoint topics (the runtime's partitions) this includes AbstractNote's
+ * communities rule (abstractnote/recall/communities.py, Jaccard ≥ 0.6):
+ * a Jaccard ≥ 0.6 match always holds ≥ 0.6 of the old topic and is its
+ * biggest contributor, so one rule covers both. The runtime's community
+ * ids are Louvain labels, not identities (they renumber as the life
+ * grows). Measured on nerin's real refetch (20:29 → 21:45, 11 → 8
+ * topics): Jaccard alone kept 3 homes of 8, 143 of 207 surviving memories
+ * changed home; this rule keeps 6 of 8, 83 change. */
+export const KEEP_CONTAINED = 0.6;
 
-export function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 0;
+/** Share of `old`'s members that are in `next`. */
+export function contained(next: Set<string>, old: Set<string>): number {
+  if (old.size === 0) return 0;
   let inter = 0;
-  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
-  for (const x of small) if (large.has(x)) inter += 1;
-  return inter / (a.size + b.size - inter);
+  for (const x of old) if (next.has(x)) inter += 1;
+  return inter / old.size;
 }
 
 /** Free (disc) members a community counts — its size minus the lanes'
@@ -145,7 +153,7 @@ export function topicSeatOffset(rank: number): { dx: number; dy: number } {
 
 /** Homes STABLE across refetches (review 2026-11-07: rank-derived homes
  * moved a topic 839-1188 px and recoloured it whenever its size rank
- * changed). A topic matching a previous one (KEEP_JACCARD) keeps that
+ * changed). A topic continuing an old one (KEEP_CONTAINED) keeps that
  * home's centre and colour — only its radius follows its size. New topics
  * take free room: biggest first, each walking a golden spiral out from
  * the identity ring until it clears every home by TOPIC_GAP, coloured with
@@ -157,14 +165,19 @@ export function planTopicHomes(communities: TopicCommunity[], previous: TopicSlo
     .filter((x) => x.free > 0)
     .sort((a, b) => b.free - a.free || a.c.id - b.c.id);
   const prevSets = previous.map((p) => new Set(p.members));
-  const pairs: Array<{ j: number; i: number; k: number }> = [];
+  // Each topic continues the old one that brought it the most members among
+  // those it holds ≥ KEEP_CONTAINED of (ties: the bigger old topic, then
+  // the earlier). Each old topic is continued once.
+  const pairs: Array<{ brought: number; size: number; i: number; k: number }> = [];
   sized.forEach((x, i) => {
     prevSets.forEach((set, k) => {
-      const j = jaccard(x.members, set);
-      if (j >= KEEP_JACCARD) pairs.push({ j, i, k });
+      if (contained(x.members, set) < KEEP_CONTAINED) return;
+      let brought = 0;
+      for (const id of set) if (x.members.has(id)) brought += 1;
+      pairs.push({ brought, size: set.size, i, k });
     });
   });
-  pairs.sort((a, b) => b.j - a.j || a.i - b.i || a.k - b.k);
+  pairs.sort((a, b) => b.brought - a.brought || b.size - a.size || a.i - b.i || a.k - b.k);
   const slotOf = new Map<number, TopicSlot>();
   const usedPrev = new Set<number>();
   for (const { i, k } of pairs) {
