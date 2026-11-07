@@ -17,11 +17,16 @@ import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { parseExchange, parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./verbatim_parse";
 import type { VerbatimSource } from "./verbatim_modal";
 
-/** His words as Markdown. Images stay links (images="link", the chat's
- * rule): opening Detail must never make the browser fetch a remote URL a
- * model wrote. */
+/** No image in text a model or a page wrote is ever loaded — not even a
+ * same-origin one: the app's /api proxy carries the operator's session, so
+ * an image pointing at a diary record would read it and the gateway would
+ * mark that read in his biography (adversarial review 2026-11-07). Every
+ * image renders as a link. */
+export const NO_IMAGE = (): boolean => false;
+
+/** His words as Markdown; images are links, never loaded. */
 export function Words({ text, className }: { text: string; className: string }): React.ReactElement {
-  return <Markdown text={text} className={className} images="link" />;
+  return <Markdown text={text} className={className} images="link" inlineImage={NO_IMAGE} />;
 }
 
 /** One read per record at a time: the sources list and the card's words

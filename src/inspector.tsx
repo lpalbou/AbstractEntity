@@ -212,7 +212,7 @@ function NodeCard({
         ) : null}
         <dt>born</dt>
         <dd>
-          {bornDate ? `${bornDate} · ` : ""}seq {node.first_seq}
+          {bornDate ? `${bornDate} UTC · ` : ""}seq {node.first_seq}
         </dd>
         <dt>used</dt>
         <dd>

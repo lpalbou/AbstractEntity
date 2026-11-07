@@ -73,8 +73,7 @@ describe("his rest notes", () => {
 });
 
 describe("a world model, read as a model", () => {
-  it("its revisions, oldest first, by following refines", async () => {
-    const { revisionChain } = await import("./world_model_view");
+  const mk = () => {
     const f = createFoldState();
     const add = (id: string, born: string) => {
       f.nodes.set(id, { id, graph_id: id, born_at: born, title: "World model: admin" } as NodeState);
@@ -83,21 +82,56 @@ describe("a world model, read as a model", () => {
     add("ex:world_model-1", "2026-11-07T12:05:00+00:00");
     add("ex:world_model-2", "2026-11-07T14:37:00+00:00");
     add("ex:world_model-3", "2026-11-07T16:40:00+00:00");
-    const edge = (k: string, a: string, b: string) => f.structural_edges.set(k, { key: k, source_graph_id: a, target_graph_id: b, relation: "refines", first_seq: 1 });
+    const edge = (k: string, a: string, b: string, relation = "refines") => f.structural_edges.set(k, { key: k, source_graph_id: a, target_graph_id: b, relation, first_seq: 1 });
     edge("x", "ex:world_model-3", "ex:world_model-2");
     edge("y", "ex:world_model-2", "ex:world_model-1");
-    expect(revisionChain(f, f.nodes.get("ex:world_model-3")!).map((n) => n.id)).toEqual(["ex:world_model-1", "ex:world_model-2", "ex:world_model-3"]);
-    expect(revisionChain(f, f.nodes.get("ex:world_model-1")!).map((n) => n.id)).toEqual(["ex:world_model-1"]);
+    return { f, edge };
+  };
+
+  it("the whole chain, oldest first, wherever the reader stands in it", async () => {
+    const { revisionChain } = await import("./world_model_view");
+    const { f } = mk();
+    const fromLatest = revisionChain(f, f.nodes.get("ex:world_model-3")!);
+    expect(fromLatest.chain.map((n) => n.id)).toEqual(["ex:world_model-1", "ex:world_model-2", "ex:world_model-3"]);
+    expect(fromLatest.index).toBe(2);
+    const fromOld = revisionChain(f, f.nodes.get("ex:world_model-2")!);
+    expect(fromOld.chain.map((n) => n.id)).toEqual(["ex:world_model-1", "ex:world_model-2", "ex:world_model-3"]);
+    expect(fromOld.index).toBe(1);
+    expect(fromOld.broken).toBe(false);
   });
 
-  it("a mechanical revision is evidence only; any other text is his understanding", async () => {
-    const { readRevision } = await import("./world_model_view");
-    const mech = readRevision(CARD);
-    expect(mech.authored).toBeNull();
-    expect(mech.name).toBe("unresolved-tension");
-    expect(mech.threads).toContain("briefing-stand");
-    const authored = readRevision("Admin is the person who gave me my first personal time.\n\nSince then (2 new record(s), through 2026-11-07): a; b");
-    expect(authored.authored).toBe("Admin is the person who gave me my first personal time.");
-    expect(authored.since).toBe("Since then (2 new record(s), through 2026-11-07): a; b");
+  it("a chain that names a revision this view lacks says it is broken", async () => {
+    const { revisionChain } = await import("./world_model_view");
+    const { f, edge } = mk();
+    edge("z", "ex:world_model-1", "ex:world_model-0");
+    expect(revisionChain(f, f.nodes.get("ex:world_model-3")!).broken).toBe(true);
+  });
+
+  it("both sleep-pass shapes are evidence, never his understanding; counts come from the text", async () => {
+    const { readCard } = await import("./world_model_view");
+    const v2 = readCard(CARD);
+    expect(v2).toMatchObject({ kind: "floor", format: "v2", name: "unresolved-tension", count: 5, first: "2026-11-07" });
+    // abstractmemory af5d2c6 (the earlier floor), as stored in hypnos' home
+    const v1 = readCard(
+      "Refined understanding of memory-agent, distilled from 4 lived record(s) between 2026-07-12 and 2026-07-12 (3 episode, 1 summary). Recurring themes: memory, migration, schema. This card is orientation, never authority: the sources remain the evidence, and a live encounter always overrides it.",
+    );
+    expect(v1).toMatchObject({ kind: "floor", format: "v1", name: "memory-agent", count: 4, kinds: "3 episode, 1 summary", threads: ["memory", "migration", "schema"] });
+    const prose = readCard("Admin gave me my first personal time.\n\nSince then (2 new record(s), through 2026-11-07): a; b");
+    expect(prose).toEqual({ kind: "prose", lead: "Admin gave me my first personal time.", since: "Since then (2 new record(s), through 2026-11-07): a; b" });
+  });
+
+  it("its memories are every revision's links, once each", async () => {
+    const { chainSources, revisionChain } = await import("./world_model_view");
+    const { f, edge } = mk();
+    for (const [i, id] of ["ex:episode-a", "ex:episode-b", "ex:episode-c"].entries()) {
+      f.nodes.set(id, { id, graph_id: id, born_at: `2026-11-07T1${i}:00:00+00:00`, title: id } as NodeState);
+      f.graph_to_row.set(id, id);
+    }
+    edge("d1", "ex:world_model-1", "ex:episode-a", "derived_from");
+    edge("d2", "ex:world_model-3", "ex:episode-a", "derived_from");
+    edge("d3", "ex:world_model-3", "ex:episode-c", "derived_from");
+    edge("d4", "ex:world_model-2", "ex:episode-b", "derived_from");
+    const { chain } = revisionChain(f, f.nodes.get("ex:world_model-3")!);
+    expect(chainSources(f, chain).map((s) => s.graphId)).toEqual(["ex:episode-a", "ex:episode-b", "ex:episode-c"]);
   });
 });

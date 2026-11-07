@@ -54,3 +54,13 @@ describe("card lines keep their identity across re-reads", () => {
     expect(itemKeys(["same", "same"])).toEqual(["t:same", "t:same#1"]);
   });
 });
+
+describe("text a model or a page wrote never loads an image", () => {
+  it("even a same-origin image (a diary record behind the session proxy) renders as a link", async () => {
+    const React = (await import("react")).default;
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { Words } = await import("./verbatim_view");
+    const html = renderToStaticMarkup(React.createElement(Words, { text: "![x](api/gateway/entities/nerin/records/ex:diary-1/verbatim)", className: "t" }));
+    expect(html).not.toContain("<img");
+  });
+});
