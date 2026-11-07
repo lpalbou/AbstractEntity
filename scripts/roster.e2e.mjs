@@ -6,7 +6,7 @@
 // Checks: every tile is drawn from the roster before any slow card answers; the quick cards fill in
 // while the slow one still holds quiet placeholders; at most three cards are read at once; the slow
 // tile keeps its height when its card lands; a refresh reads the roster again but no card; a failed
-// card says so in a few words; no horizontal scroll.
+// card says so in a few words (and waits a minute before it is read again); no horizontal scroll.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFileSync, mkdirSync } from "node:fs";
@@ -95,12 +95,12 @@ try {
     assert.equal(seen.maxInFlight, 3, "the three lanes are used");
     console.log(`  ${viewport.name}: tiles drawn ${drawnAfter} ms after the roster; ephemeral body ${pendingHeight.toFixed(0)} px pending → ${loadedHeight.toFixed(0)} px loaded`);
     if (shots) await page.screenshot({ path: `${shots}/roster-loaded-${viewport.name}.png`, fullPage: true });
-    // A refresh reads the roster and the live reads again, but no card that is fresh (nyx's failed one is retried).
+    // A refresh reads the roster and the live reads again, but no card (nyx's failed one waits a minute).
     const cardsBefore = seen.card.length, rosterBefore = seen.roster;
     await page.locator(".eix_refresh").click();
     await page.waitForTimeout(600);
     assert.equal(seen.roster, rosterBefore + 1, "the refresh read the roster");
-    assert.deepEqual(seen.card.slice(cardsBefore), ["nyx"], "no fresh card read again; the failed one is retried");
+    assert.deepEqual(seen.card.slice(cardsBefore), [], "no card read again (a failed one waits a minute)");
     assert.ok((await tile("castor").locator(".eix_interest").count()) > 0, "nothing blanked on the refresh");
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(width <= viewport.width + 1, `${viewport.name}: no horizontal scroll (${width}px)`);

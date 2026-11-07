@@ -11,12 +11,14 @@
  *   (5 minutes) or when the item's `version` changed (an entity's `state.changed_at`).
  * - An item is never queued twice nor read while its read is in flight.
  * - A failed read keeps the older value (if any) and its read time, records the error, and is
- *   retried at the next `want`.
+ *   read again only after `retryMs` (1 minute): a card that fails slowly does not hold one of the
+ *   three lanes on every refresh.
  * - `onSettled(key)` is called when a read finished, good or failed: the host redraws that item only.
  */
 
 export const CARD_READ_CONCURRENCY = 3;
 export const CARD_READ_TTL_MS = 5 * 60_000;
+export const CARD_READ_RETRY_MS = 60_000;
 
 export type CardReadStatus = "pending" | "loaded" | "failed";
 
@@ -45,11 +47,14 @@ export function createCardReads<V>(opts: {
   onSettled?(key: string): void;
   concurrency?: number;
   ttlMs?: number;
+  retryMs?: number;
   now?(): number;
 }): CardReads<V> {
   const concurrency = Math.max(1, opts.concurrency ?? CARD_READ_CONCURRENCY);
   const ttl = opts.ttlMs ?? CARD_READ_TTL_MS;
   const now = opts.now ?? (() => Date.now());
+  const retry = opts.retryMs ?? CARD_READ_RETRY_MS;
+  const failedAt = new Map<string, number>();
   const values = new Map<string, { value: V; at: number; version: string }>();
   const errors = new Map<string, string>();
   const queue: Array<{ key: string; version: string }> = [];
@@ -74,10 +79,12 @@ export function createCardReads<V>(opts: {
             if (stopped) return;
             values.set(key, { value, at: now(), version });
             errors.delete(key);
+            failedAt.delete(key);
           },
           (e: unknown) => {
             if (stopped) return;
             errors.set(key, String((e as Error)?.message || e || "the read failed"));
+            failedAt.set(key, now());
           },
         )
         .finally(() => {
@@ -90,6 +97,8 @@ export function createCardReads<V>(opts: {
   };
 
   const stale = (key: string, version: string): boolean => {
+    const failed = failedAt.get(key);
+    if (failed !== undefined && now() - failed < retry) return false;
     const known = values.get(key);
     if (!known) return true;
     if (now() - known.at >= ttl) return true;
@@ -114,6 +123,7 @@ export function createCardReads<V>(opts: {
       const keep = new Set(keys);
       for (const k of [...values.keys()]) if (!keep.has(k)) values.delete(k);
       for (const k of [...errors.keys()]) if (!keep.has(k)) errors.delete(k);
+      for (const k of [...failedAt.keys()]) if (!keep.has(k)) failedAt.delete(k);
       for (let i = queue.length - 1; i >= 0; i--) {
         if (!keep.has(queue[i].key)) {
           queued.delete(queue[i].key);

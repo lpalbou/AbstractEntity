@@ -48,7 +48,8 @@ const SAMPLE_STREAM = [JSON.stringify({ type: "start" }), JSON.stringify({ type:
 const CATALOG = {
   "": { providers: ["openai", "qwen3-tts"], tts_providers: ["openai", "qwen3-tts"] },
   openai: { tts_providers: ["openai"], tts_models_by_provider: { openai: ["tts-1"] }, items: ["alloy", "nova"].map((id) => ({ id, provider: "openai", model: "tts-1", label: id[0].toUpperCase() + id.slice(1) })) },
-  "qwen3-tts": { tts_providers: ["qwen3-tts"], tts_models_by_provider: { "qwen3-tts": ["Qwen-CustomVoice"] }, items: [{ id: "vivian", provider: "qwen3-tts", label: "Vivian", language: "en" }] },
+  // Real repository ids (the labels read by their last part); a designed voice is a clone bound to Base.
+  "qwen3-tts": { tts_providers: ["qwen3-tts"], tts_models_by_provider: { "qwen3-tts": ["Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "Qwen/Qwen3-TTS-12Hz-1.7B-Base"] }, items: [{ id: "vivian", provider: "qwen3-tts", model: "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", label: "Vivian", language: "en" }] },
 };
 const view = (r) => ({ entity_id: "entity:castor", identity: r, identity_ref: { of: "entity:castor", rev: r.rev }, age: { born: "2026-11-01T10:00:00+00:00", days: 3 } });
 const TRACK = { subject: "entity:castor", computed_at: "2026-11-04T10:00:00+00:00", as_of: "2026-11-04T09:00:00+00:00", sessions: 4, runs: 7, successes: 5, failures: 1, cancelled: 1, in_progress: 0, assessed: 0, tokens: { input: 31000, output: 9420, total: 40420 }, by_task_kind: { "visit/entity-visit@1": { runs: 6, successes: 5, failures: 1, cancelled: 0, tokens_total: 40000, first_at: null, last_at: null }, "work/task_inbox": { runs: 0, successes: 0, failures: 0, cancelled: 0, tokens_total: 0, first_at: null, last_at: null } }, recent_outcomes: [], basis: "completion-rate only" };
@@ -101,7 +102,7 @@ try {
         if (p === "/api/gateway/voice/voices") {
           const provider = url.searchParams.get("provider") || "";
           const answer = structuredClone(CATALOG[provider] || {});
-          if (provider === "qwen3-tts" && designed) answer.items.push({ id: "v-new", provider: "qwen3-tts", label: "Narrator", tags: { designed: true, description: "A calm, low narrator" } });
+          if (provider === "qwen3-tts" && designed) answer.items.push({ id: "v-new", provider: "qwen3-tts", model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base", kind: "clone", label: "Narrator", tags: { designed: true, description: "A calm, low narrator", model_id: "Qwen/Qwen3-TTS-12Hz-1.7B-Base" } });
           return json(answer);
         }
         if (p.endsWith("/castor/voice/tts/stream")) { seen.samples.push(request.postDataJSON()); return route.fulfill({ contentType: "application/x-ndjson", body: SAMPLE_STREAM }); }
@@ -189,9 +190,11 @@ try {
         await status.filter({ hasText: "New voice ready and selected" }).waitFor();
         assert.equal(seen.designs.length, 1, "one voice created");
         await page.waitForFunction(() => /Narrator/.test(document.querySelector('[aria-label="Voice"]')?.textContent || ""));
+        await page.waitForFunction(() => !document.querySelector('[data-action="identity-save"]')?.disabled);
+        assert.equal(await page.getByText("it always speaks with the model that made it").count(), 1, "a cloned voice says it keeps its own model, without the model's id");
         await save.click();
         await page.waitForFunction(() => document.querySelectorAll("[data-identity-status]").length && !/Saving/.test(document.querySelector("[data-identity-status]").textContent));
-        assert.deepEqual(seen.put[1]?.voice, { provider: "qwen3-tts", model: "Qwen-CustomVoice", voice: "v-new" }, "the new voice is saved with its engine's model");
+        assert.deepEqual(seen.put[1]?.voice, { provider: "qwen3-tts", model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base", voice: "v-new" }, "the new voice is saved with the model it was made with");
         // Track record: counts, trust with its support, "No experience yet", plain basis, who it met.
         await page.locator(".wsp_tab", { hasText: "track record" }).click();
         await page.getByTestId("trust-by-task").waitFor();

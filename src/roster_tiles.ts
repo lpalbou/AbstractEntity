@@ -11,7 +11,8 @@
  *     ephemeral): read through `createCardReads` (card_reads.ts): three at a time, kept between
  *     refreshes, read again after 5 minutes or when the row's `state.changed_at` moves.
  * Nothing blanks on a refresh: a tile keeps what the previous tick knew until a newer answer
- * replaces it. The gateway-side fix (a light roster card) is gateway backlog 1012.
+ * replaces it (a live read that fails keeps the previous answer; an answer from a tick that a newer
+ * one superseded is dropped). The gateway-side fix (a light roster card) is gateway backlog 1012.
  */
 
 import { createCardReads, type CardReadStatus, type CardReads } from "./card_reads";
@@ -72,6 +73,7 @@ export function createRosterLoader(opts: {
   schedule?: (fn: () => void) => void;
   now?: () => number;
   cardTtlMs?: number;
+  cardRetryMs?: number;
   cardConcurrency?: number;
 }): RosterLoader {
   const { gateway, sink } = opts;
@@ -80,6 +82,8 @@ export function createRosterLoader(opts: {
   let tiles = new Map<string, RosterTile>();
   let order: string[] = [];
   let flushPending = false;
+  /** The current tick: answers of an older one (refreshes overlap after an action) are dropped. */
+  let generation = 0;
 
   const emitNow = () => {
     flushPending = false;
@@ -103,6 +107,7 @@ export function createRosterLoader(opts: {
     onSettled: (slug) => patch(slug, cardPart(slug)),
     concurrency: opts.cardConcurrency,
     ttlMs: opts.cardTtlMs,
+    retryMs: opts.cardRetryMs,
     now: opts.now,
   });
   const cardPart = (slug: string): Pick<RosterTile, "card" | "cardStatus" | "cardError"> => {
@@ -113,14 +118,15 @@ export function createRosterLoader(opts: {
   return {
     async refresh() {
       if (stopped) return;
+      const tick = ++generation;
       let roster: EntitySummary[];
       try {
         roster = await gateway.list();
       } catch (e) {
-        if (!stopped) sink.error(e as Error & { status?: number });
+        if (!stopped && tick === generation) sink.error(e as Error & { status?: number });
         return;
       }
-      if (stopped) return;
+      if (stopped || tick !== generation) return;
       const next = new Map<string, RosterTile>();
       for (const summary of roster) {
         const prev = tiles.get(summary.slug);
@@ -141,10 +147,17 @@ export function createRosterLoader(opts: {
       sink.tiles(order.map((slug) => tiles.get(slug)!));
 
       // Live reads first (cheap): all issued before any card so the browser serves them first.
+      // A read that fails keeps the previous answer (undefined = not answered).
       const live = roster.map((s) =>
-        Promise.all([gateway.loop(s.slug).catch(() => null), gateway.life(s.slug).catch(() => null)]).then(([loop, serverLife]) =>
-          patch(s.slug, { loop, serverLife, livePending: false }),
-        ),
+        Promise.all([gateway.loop(s.slug).catch(() => undefined), gateway.life(s.slug).catch(() => undefined)]).then(([loop, serverLife]) => {
+          if (tick !== generation) return;
+          const prev = tiles.get(s.slug);
+          patch(s.slug, {
+            loop: loop === undefined ? (prev?.loop ?? null) : loop,
+            serverLife: serverLife === undefined ? (prev?.serverLife ?? null) : serverLife,
+            livePending: false,
+          });
+        }),
       );
       for (const s of roster) cards.want(s.slug, String(s.state?.changed_at ?? ""));
       await Promise.all(live);

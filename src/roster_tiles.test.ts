@@ -7,8 +7,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CARD_READ_CONCURRENCY, CARD_READ_TTL_MS, createCardReads } from "./card_reads";
-import { CARD_FAILED_NOTE, RosterCardBody } from "./entities_index";
+import { CARD_READ_CONCURRENCY, CARD_READ_RETRY_MS, CARD_READ_TTL_MS, createCardReads } from "./card_reads";
+import { CARD_FAILED_NOTE, RosterCardBody, tilePhase } from "./entities_index";
 import { createRosterLoader, type RosterCard, type RosterGateway, type RosterTile } from "./roster_tiles";
 import type { EntitySummary } from "./stream_source";
 
@@ -159,7 +159,7 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     loader.stop();
   });
 
-  it("a failed card leaves the roster facts and a short note; the next tick retries", async () => {
+  it("a failed card leaves the roster facts and a short note; it is read again after a minute, not on every tick", async () => {
     const m = mockGateway(rows("castor", "pollux"), {}, new Set(["castor"]));
     const r = recorder();
     const loader = createRosterLoader({ gateway: m.gw, sink: r.sink, schedule: sync });
@@ -171,8 +171,50 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     expect(r.tile("pollux")?.cardStatus).toBe("loaded");
     void loader.refresh();
     await vi.advanceTimersByTimeAsync(100);
+    expect(m.calls.card.filter((s) => s === "castor")).toHaveLength(1); // 20 s later: not yet
+    vi.setSystemTime(Date.now() + CARD_READ_RETRY_MS);
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(100);
     expect(m.calls.card.filter((s) => s === "castor")).toHaveLength(2);
     expect(m.calls.card.filter((s) => s === "pollux")).toHaveLength(1);
+    loader.stop();
+  });
+
+  it("a live read that fails keeps the previous answer (no blanking, no phase from half the truth)", async () => {
+    const m = mockGateway(rows("castor"));
+    const r = recorder();
+    const loader = createRosterLoader({ gateway: m.gw, sink: r.sink, schedule: sync });
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(100);
+    m.gw.loop = () => Promise.reject(new Error("HTTP 502"));
+    m.gw.life = () => Promise.reject(new Error("HTTP 502"));
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(r.tile("castor")?.loop).toEqual({ running: false });
+    expect(r.tile("castor")?.serverLife?.phase).toBe("sleep");
+    loader.stop();
+  });
+
+  it("overlapping refreshes: the answers of a superseded tick are dropped", async () => {
+    const m = mockGateway(rows("castor"));
+    let n = 0;
+    const list = m.gw.list.bind(m.gw);
+    // The first roster answers late (after the second) and carries an older state.
+    m.gw.list = async () => {
+      n += 1;
+      if (n === 1) {
+        await delay(200);
+        return [{ name: "castor", slug: "castor", state: { state: "awake", changed_at: "old" } }];
+      }
+      return list();
+    };
+    const r = recorder();
+    const loader = createRosterLoader({ gateway: m.gw, sink: r.sink, schedule: sync });
+    void loader.refresh();
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(r.tile("castor")?.state?.state).toBe("asleep");
+    expect(r.emissions.every((e) => e.tiles[0].state?.state !== "awake")).toBe(true);
     loader.stop();
   });
 
@@ -219,6 +261,25 @@ describe("card reads (card_reads.ts, app-agnostic)", () => {
     await new Promise((r) => setTimeout(r, 0));
     reads.retain(["b"]);
     expect(reads.entry("a").status).toBe("pending");
+  });
+});
+
+describe("the phase radio while a tile's live reads are on their way (tilePhase)", () => {
+  const state = { state: "asleep", changed_at: "x" };
+  it("claims no phase, shows no badge and keeps its controls waiting", () => {
+    expect(tilePhase({ state, loop: null, serverLife: null, livePending: true })).toMatchObject({ activePhase: null, showBadge: false, locked: true });
+  });
+  it("once answered: the served phase, controls live", () => {
+    const t = tilePhase({ state, loop: { running: false } as never, serverLife: { phase: "sleep", state: "asleep", own_time_running: false }, livePending: false });
+    expect(t.activePhase).toBe("sleep");
+    expect(t.locked).toBe(false);
+  });
+  it("the grid uses it for the badge and both controls", () => {
+    const src = fs.readFileSync(path.join(__dirname, "entities_index.tsx"), "utf8");
+    expect(src).toContain("const { life, activePhase, showBadge, locked } = tilePhase(tile);");
+    expect(src).toContain("busy: busy || locked,");
+    expect(src).toContain("disabled: busy || life.visiting || locked,");
+    expect(src).toContain("{showBadge ? (");
   });
 });
 

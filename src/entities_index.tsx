@@ -134,6 +134,26 @@ export function RosterStatus({ mode, showCreate, onCreate }: { mode: RosterMode;
   return null;
 }
 
+/**
+ * A tile's phase as its radio shows it. The roster CONDUCTS no chat (dm#94 wiring pin): the visit
+ * axis is honestly absent here, but the served composite's own chat_open is consumed by the derive,
+ * so a tile can never say "personal" over a server-asserted open conversation. Until its first live
+ * answers (`/loop`, `/life_state`) the tile claims no phase, shows no state badge and its controls
+ * wait: the roster's state alone is half the truth (whether personal time runs is not in it).
+ */
+export function tilePhase(tile: Pick<RosterTile, "state" | "loop" | "serverLife" | "livePending">): {
+  life: ReturnType<typeof deriveLifeState>;
+  activePhase: ReturnType<typeof activeRuledPhase> | null;
+  showBadge: boolean;
+  locked: boolean;
+} {
+  const rosterHoldsNoChat = null;
+  const life = deriveLifeState(tile.state, tile.loop, rosterHoldsNoChat, tile.serverLife);
+  if (tile.livePending) return { life, activePhase: null, showBadge: false, locked: true };
+  const activePhase = activeRuledPhase(life);
+  return { life, activePhase, showBadge: activePhase === null, locked: false };
+}
+
 /** What a read card says on its tile: age and mind, what it is into lately, its sleeps and key moments. */
 export function RosterCardBody({ card }: { card: RosterCard | null }): React.ReactElement {
   const interests = interestsOf(card);
@@ -423,7 +443,8 @@ export function EntitiesIndex({
       <RosterStatus mode={mode} showCreate={showCreate} onCreate={openCreate} />
 
       <div className="eix_grid">
-        {(rows ?? []).map(({ summary, state, loop, serverLife, livePending, card, cardStatus, cardError }) => {
+        {(rows ?? []).map((tile) => {
+          const { summary, card, cardStatus, cardError } = tile;
           // ONE derived state per card (maintainer 2026-07-09): the same
           // mutually-exclusive machine as the focus view — no card shows
           // "visiting" beside a lit own-time badge. Server phase wins.
@@ -431,14 +452,10 @@ export function EntitiesIndex({
           // axis is honestly absent here — but the served composite's own
           // chat_open is consumed by the derive, so a card can never say
           // "personal" over a server-asserted open conversation.
-          const rosterHoldsNoChat = null;
-          // Until its first live answers the tile claims no phase (the roster's state alone is
-          // half the truth: whether personal time runs comes from /loop and /life_state).
-          const life = deriveLifeState(state, loop, rosterHoldsNoChat, serverLife);
-          const livePhase = livePending ? null : activeRuledPhase(life);
           // The radio position + process axis — same ONE machine as the
           // entity page (no roster-vs-page axis split, adversary G2).
-          const activePhase = livePhase;
+          const { life, activePhase, showBadge, locked } = tilePhase(tile);
+          const loop = tile.loop;
           const ownTimeOn = life.ownTimeOn;
           const stopping = life.stopping;
           const busy = busySlug === summary.slug;
@@ -457,7 +474,7 @@ export function EntitiesIndex({
                   * settling/unknown, where no phase is current and the radio
                   * pushes nothing. A gold pushed "visit" 40px under a badge
                   * saying "visiting" said it twice (IA review P2). */}
-                {activePhase === null && !livePending ? (
+                {showBadge ? (
                   <span className={`eix_badge eix_life_${life.accent}`} title={life.detail}>
                     {life.label}
                   </span>
@@ -535,7 +552,7 @@ export function EntitiesIndex({
                       // busy renders as the slot's disabled styling only.
                       label: <>⏻ personal</>,
                       // Until the tile's live reads answered, nothing is known to toggle.
-                      busy: busy || livePending,
+                      busy: busy || locked,
                       variant: activePhase === "personal" ? (life.ownTimeActive ? "active" : "resting") : ownTimeOn ? "suppressed" : undefined,
                       onSelect: () => void toggleOwnTime(summary.slug),
                       title: stopping
@@ -550,7 +567,7 @@ export function EntitiesIndex({
                     },
                     sleep: {
                       label: <>🌙 sleep</>,
-                      disabled: busy || life.visiting || livePending,
+                      disabled: busy || life.visiting || locked,
                       onSelect: () => void toggleSleep(summary.slug),
                       title: life.visiting
                         ? "In a visit — cannot sleep with a visitor in the room"
