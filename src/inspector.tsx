@@ -16,9 +16,8 @@ import { shapeLabel } from "./node_label";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
 import { SectionDisclosure } from "./section_disclosure";
-import { CardWords } from "./card_words";
 import { DreamDetail } from "./dream_detail";
-import { WorldModelSources } from "./world_model_sources";
+import { WorldModelView } from "./world_model_view";
 import { readRecordWords, VerbatimTurns } from "./verbatim_view";
 
 /** Rows listed before "(…) N more" — every one stays one click away. */
@@ -197,31 +196,7 @@ function NodeCard({
 
   const bornDate = node.born_at ? node.born_at.slice(0, 16).replace("T", " ") : null;
 
-  return (
-    <div className="ei_card">
-      <div className="ei_kind_row">
-        {/* Bookkeeping markers are kind="claim" but NOT identity — the chip
-         * must not wear identity gold (engine excludes them from the self). */}
-        <span className={`ei_kind ei_kind_${node.diary ? "diary" : node.bookkeeping ? "bookkeeping" : node.kind}`}>
-          {node.diary ? "diary" : node.bookkeeping ? `engine act${node.maintenance ? ` · ${node.maintenance}` : ""}` : node.kind}
-        </span>
-        {admissionBadge(node.last_admission)}
-      </div>
-      {/* The kind badge sits directly above — a "lesson:" prefix here said
-        * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
-      <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
-      {node.digest_method ? (
-        <p
-          className="ei_digest_method"
-          title="Digest provenance — who wrote this record's words: mechanical-v1/v2 = the driver's floor (never marker-only), mechanical-flow-v1 = the flow brain's mechanical digest; entity prose carries no method. Mechanical digests are repairable debt (the consent set governs re-digestion)."
-        >
-          digest: <code>{node.digest_method}</code>{node.digest_method.startsWith("mechanical") ? " — mechanical, repairable" : ""}
-        </p>
-      ) : null}
-      {/* METADATA PANEL FIRST (dm#54 pt6: "clear metadata panel, clear
-        * verbatim, links") — every fact in one labeled grid, the date
-        * beside the seq (pt5: "it should have a clear date"), the
-        * interlocutor as a field once the verbatim reports it. */}
+  const recordFacts = (
       <dl className="ei_facts">
         {speakers.length > 0 ? (
           <>
@@ -279,10 +254,43 @@ function NodeCard({
           </>
         ) : null}
       </dl>
+  );
+
+  return (
+    <div className="ei_card">
+      <div className="ei_kind_row">
+        {/* Bookkeeping markers are kind="claim" but NOT identity — the chip
+         * must not wear identity gold (engine excludes them from the self). */}
+        <span className={`ei_kind ei_kind_${node.diary ? "diary" : node.bookkeeping ? "bookkeeping" : node.kind}`}>
+          {node.diary ? "diary" : node.bookkeeping ? `engine act${node.maintenance ? ` · ${node.maintenance}` : ""}` : node.kind}
+        </span>
+        {admissionBadge(node.last_admission)}
+      </div>
+      {/* The kind badge sits directly above — a "lesson:" prefix here said
+        * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
+      <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
+      {node.digest_method ? (
+        <p
+          className="ei_digest_method"
+          title="Digest provenance — who wrote this record's words: mechanical-v1/v2 = the driver's floor (never marker-only), mechanical-flow-v1 = the flow brain's mechanical digest; entity prose carries no method. Mechanical digests are repairable debt (the consent set governs re-digestion)."
+        >
+          digest: <code>{node.digest_method}</code>{node.digest_method.startsWith("mechanical") ? " — mechanical, repairable" : ""}
+        </p>
+      ) : null}
+      {/* METADATA PANEL FIRST (dm#54 pt6: "clear metadata panel, clear
+        * verbatim, links") — every fact in one labeled grid, the date
+        * beside the seq (pt5: "it should have a clear date"), the
+        * interlocutor as a field once the verbatim reports it. */}
+      {node.kind === "world_model" ? null : recordFacts}
       {/* THE WORDS (operator dm#28): no button between the click and the
         * verbatim — the Detail tab IS the reading surface. Only relation
         * rows and engine bookkeeping carry no words to show. */}
-      {node.kind === "world_model" && verbatimSource ? <WorldModelSources fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
+      {node.kind === "world_model" && verbatimSource ? <WorldModelView fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
+      {node.kind === "world_model" ? (
+        <SectionDisclosure id="wm_record" title="Record details">
+          {recordFacts}
+        </SectionDisclosure>
+      ) : null}
       {node.kind === "dream" && verbatimSource ? <DreamDetail fold={fold} dream={node} source={verbatimSource} onSelect={onSelect} /> : null}
       {node.kind !== "relation" && !node.bookkeeping ? (
         verbatimSource ? (
@@ -291,11 +299,7 @@ function NodeCard({
               <p className="ei_note">A mechanical summary that quotes titles cut short — what the night touched is listed above in full.</p>
               <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} plain />
             </SectionDisclosure>
-          ) : node.kind === "world_model" ? (
-            <SectionDisclosure id="wm_card_text" title="The card's own words">
-              <CardWords foldState={fold} card={node} source={verbatimSource} onSelect={onSelect} />
-            </SectionDisclosure>
-          ) : (
+          ) : node.kind === "world_model" ? null : (
             <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
           )
         ) : (

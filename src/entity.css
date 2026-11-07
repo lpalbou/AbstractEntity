@@ -493,11 +493,9 @@ body {
 .ei_turn_md pre,
 .ei_verbatim_md pre,
 .wm_source_text pre,
-.wmc_text pre,
 .ei_turn_md pre code,
 .ei_verbatim_md pre code,
-.wm_source_text pre code,
-.wmc_text pre code {
+.wm_source_text pre code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1844,84 +1842,88 @@ body {
   cursor: default;
   color: var(--text-dim, #8b98ad);
 }
-/* A world-model card's own words, structured. */
-.wmc_card {
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  line-height: 1.55;
+/* A world model, read as a model: facts, his understanding, its
+   evolution, then references. */
+.wmv {
+  margin: 4px 0 12px;
 }
 
-.wmc_head,
-.wmc_feeling {
-  display: block;
-  margin: 0 0 8px;
+.wmv_facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0 0 12px;
 }
 
-.wmc_cue {
-  display: block;
-  color: var(--text-dim);
-  font-style: italic;
-  margin: 2px 0;
-}
-
-.dr_signal_note {
-  margin: 2px 12px 6px;
-}
-
-.dr_fragment {
-  color: var(--text);
-}
-
-.dr_cut {
-  color: var(--text-dim);
-  font-style: italic;
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-
-.wmc_quotes {
-  margin: 0 0 8px;
-  padding-left: 1.2em;
-  list-style: disc;
-}
-
-.wmc_quote {
-  margin-bottom: 10px;
-}
-
-.wmc_date {
-  display: block;
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+.wmv_facts dt {
   color: var(--text-dim);
 }
 
-.wmc_text {
+.wmv_facts dd {
+  margin: 0;
   overflow-wrap: anywhere;
 }
 
-.wmc_cut {
-  color: var(--text-dim);
-  font-style: italic;
+.wmv_thread {
+  display: inline-block;
+  margin: 0 4px 3px 0;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-.wmc_footer {
-  margin: 0;
+.wmv_section {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-bottom: 14px;
+}
+
+.wmv_head {
+  margin: 0 0 6px;
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.wmv_as_of,
+.wmv_note,
+.wmv_since {
+  margin: 0 0 6px;
   color: var(--text-dim);
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-.wmc_thread {
-  display: inline-block;
-  margin: 2px 4px 0 0;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+.wmv_understanding {
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.6;
 }
 
-.wmc_reminder {
+.wmv_empty {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.wmv_timeline {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.wmv_step {
+  margin-bottom: 8px;
+}
+
+.wmv_when {
   display: block;
-  margin-top: 4px;
-  font-style: italic;
+  color: var(--text-dim);
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.wm_ref_title {
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 /* A dream, told by what it touched. */
@@ -1970,22 +1972,6 @@ body {
 }
 
 /* A world-model card's sources, read like the Book (full words). */
-.wm_sources {
-  margin: 12px 0;
-  border-top: 1px solid var(--line);
-}
-
-.wm_sources_head {
-  padding: 10px 12px 2px;
-  font-weight: 600;
-}
-
-.wm_sources_count {
-  font-weight: 400;
-  color: var(--text-dim);
-  margin-left: 6px;
-}
-
 .wm_source {
   display: flex;
   align-items: baseline;

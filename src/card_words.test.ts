@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { matchQuote, parseMechanicalCard } from "./card_words";
+import { parseMechanicalCard } from "./card_words";
 import { cardChange } from "./dream_detail";
 import { createFoldState, type NodeState } from "./stream_fold";
 
@@ -36,36 +36,6 @@ describe("the card's own words", () => {
     expect(parseMechanicalCard("What I know of x:\nsome free line")).toBeNull();
   });
 
-  it("each cut quote finds the one source it starts, on the same date", () => {
-    const sources = [
-      { graphId: "ex:episode-1", full: "", answer: "The briefing can stand for now. I’ll rest rather than create another task from its echoes.", date: "2026-11-07" },
-      { graphId: "ex:episode-2", full: "", answer: "The survey remains complete, and the dream links are still candidates rather than evidence.", date: "2026-11-07" },
-    ];
-    const c = parseMechanicalCard(CARD)!;
-    expect(matchQuote(c.quotes[0], "nerin", sources)).toBe("ex:episode-2");
-    expect(matchQuote(c.quotes[1], "nerin", sources)).toBe("ex:episode-1");
-    expect(matchQuote({ ...c.quotes[0], date: "2026-11-06" }, "nerin", sources)).toBeNull(); // dates must agree
-    expect(matchQuote({ date: "2026-11-07", text: "nerin: words no source starts with at all", cut: true }, "nerin", sources)).toBeNull();
-  });
-
-  it("a quote too short to identify one memory, or fitting two, matches none", () => {
-    const sources = [
-      { graphId: "a", full: "", answer: "I examined the dream.", date: "2026-11-07" },
-      { graphId: "b", full: "", answer: "I rested.", date: "2026-11-07" },
-      { graphId: "c", full: "", answer: "The same long opening sentence of an answer, then more.", date: "2026-11-07" },
-      { graphId: "d", full: "", answer: "The same long opening sentence of an answer, then other words.", date: "2026-11-07" },
-    ];
-    expect(matchQuote({ date: "2026-11-07", text: "entity:nerin: cue nerin: I", cut: true }, "nerin", sources)).toBeNull();
-    // short but fitting only one memory: still too little to be sure
-    expect(matchQuote({ date: "2026-11-07", text: "entity:nerin: cue nerin: I exa", cut: true }, "nerin", sources)).toBeNull();
-    expect(matchQuote({ date: "2026-11-07", text: "nerin: The same long opening sentence of an answer", cut: true }, "nerin", sources)).toBeNull();
-  });
-
-  it("the part the card quoted from what was said to him is kept", async () => {
-    const { quoteCue } = await import("./card_words");
-    expect(quoteCue("entity:nerin: None of this is owed - the day is yours. nerin: The survey…", "nerin")).toBe("entity:nerin: None of this is owed - the day is yours.");
-    expect(quoteCue("nerin: The survey…", "nerin")).toBe("");
-  });
 });
 
 describe("a dream's changed understanding", () => {
@@ -99,5 +69,35 @@ describe("his rest notes", () => {
     );
     expect(restBlocksAsText("```python\nprint(1)\n```")).toBe("```python\nprint(1)\n```");
     expect(restBlocksAsText("inline ```rest marks``` stay")).toBe("inline ```rest marks``` stay");
+  });
+});
+
+describe("a world model, read as a model", () => {
+  it("its revisions, oldest first, by following refines", async () => {
+    const { revisionChain } = await import("./world_model_view");
+    const f = createFoldState();
+    const add = (id: string, born: string) => {
+      f.nodes.set(id, { id, graph_id: id, born_at: born, title: "World model: admin" } as NodeState);
+      f.graph_to_row.set(id, id);
+    };
+    add("ex:world_model-1", "2026-11-07T12:05:00+00:00");
+    add("ex:world_model-2", "2026-11-07T14:37:00+00:00");
+    add("ex:world_model-3", "2026-11-07T16:40:00+00:00");
+    const edge = (k: string, a: string, b: string) => f.structural_edges.set(k, { key: k, source_graph_id: a, target_graph_id: b, relation: "refines", first_seq: 1 });
+    edge("x", "ex:world_model-3", "ex:world_model-2");
+    edge("y", "ex:world_model-2", "ex:world_model-1");
+    expect(revisionChain(f, f.nodes.get("ex:world_model-3")!).map((n) => n.id)).toEqual(["ex:world_model-1", "ex:world_model-2", "ex:world_model-3"]);
+    expect(revisionChain(f, f.nodes.get("ex:world_model-1")!).map((n) => n.id)).toEqual(["ex:world_model-1"]);
+  });
+
+  it("a mechanical revision is evidence only; any other text is his understanding", async () => {
+    const { readRevision } = await import("./world_model_view");
+    const mech = readRevision(CARD);
+    expect(mech.authored).toBeNull();
+    expect(mech.name).toBe("unresolved-tension");
+    expect(mech.threads).toContain("briefing-stand");
+    const authored = readRevision("Admin is the person who gave me my first personal time.\n\nSince then (2 new record(s), through 2026-11-07): a; b");
+    expect(authored.authored).toBe("Admin is the person who gave me my first personal time.");
+    expect(authored.since).toBe("Since then (2 new record(s), through 2026-11-07): a; b");
   });
 });

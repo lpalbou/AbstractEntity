@@ -32,13 +32,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
-- **A world-model card shows what it was built from, in full.** The card's own text is the
-  sleep pass's briefing, which quotes each memory cut short. The Detail tab now lists the card's
-  source memories, laid out like the Book (date, time, his complete answer), with "(…)" for the
-  whole exchange (what was said to him, his thinking and lookups, his answer) and a link to each
-  memory. The card's own words follow as a list: each quote that can be traced to exactly one of
-  those memories shows his full answer; any other quote is shown as the card wrote it, pointing to
-  the memories above.
+- **A world model reads as his understanding of something.** The Detail tab now opens a world
+  model with what it is about: when it first formed, how many times it was revised and by whom
+  (him, or the sleep pass gathering evidence), when it was last updated, the evidence behind it and
+  its threads. Then comes his understanding in his own words, as of when he wrote it (or a plain
+  statement that he has not written it yet), how his view evolved from revision to revision, and
+  finally the memories it comes from, one line each, his words one click away.
 - **A dream shows what it touched.** Instead of the sleep pass's run-on summary, the Detail tab
   shows how his understanding changed (the card revised, and the memories new in it) and what the
   night set side by side, each with the night's own note and how it felt, and the memories

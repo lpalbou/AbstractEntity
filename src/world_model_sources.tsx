@@ -60,7 +60,7 @@ export function sourcesFromIds(fold: FoldState, ids: string[]): CardSource[] {
 }
 
 /** Memories laid out like the Book: a date line, then time + full words. */
-export function MemoryRows({ items, source, onSelect }: { items: CardSource[]; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
+export function MemoryRows({ items, source, onSelect, collapsed = false }: { items: CardSource[]; source: VerbatimSource; onSelect(id: string): void; collapsed?: boolean }): React.ReactElement {
   const byDay = useMemo(() => {
     const groups: Array<{ day: string; rows: CardSource[] }> = [];
     for (const s of items) {
@@ -77,24 +77,11 @@ export function MemoryRows({ items, source, onSelect }: { items: CardSource[]; s
         <div key={`${group.day}-${gi}`} className="book_day_group">
           <div className="book_day">{group.day}</div>
           {group.rows.map((s) => (
-            <SourceRow key={s.graphId} item={s} source={source} onSelect={onSelect} />
+            collapsed ? <ReferenceRow key={s.graphId} item={s} source={source} onSelect={onSelect} /> : <SourceRow key={s.graphId} item={s} source={source} onSelect={onSelect} />
           ))}
         </div>
       ))}
     </>
-  );
-}
-
-export function WorldModelSources({ fold, card, source, onSelect }: { fold: FoldState; card: NodeState; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement | null {
-  const sources = useMemo(() => selectCardSources(fold, card), [fold, card]);
-  if (sources.length === 0) return null;
-  return (
-    <div className="wm_sources">
-      <div className="wm_sources_head">
-        What he drew on <span className="wm_sources_count">{sources.length} {sources.length === 1 ? "memory" : "memories"}, in full</span>
-      </div>
-      <MemoryRows items={sources} source={source} onSelect={onSelect} />
-    </div>
   );
 }
 
@@ -206,6 +193,31 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
         ) : null}
         {item.node ? (
           <button className="wm_open" onClick={() => onSelect(item.node!.id)} title="Open this memory in the Detail tab">
+            open this memory →
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** A reference: one line naming the memory; his words load only when
+ * opened (a reference list is not a reading of every memory). */
+function ReferenceRow({ item, source, onSelect }: { item: CardSource; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const { time } = bookDate(item.bornAt);
+  const title = item.node?.title || (isDiarySource(item) ? "a diary entry" : "a memory");
+  if (open) return <SourceRow item={item} source={source} onSelect={onSelect} />;
+  return (
+    <div className="wm_source wm_reference">
+      {time ? <span className="book_time">{time}</span> : null}
+      <div className="wm_source_body">
+        <span className="wm_ref_title">{title}</span>{" "}
+        <button className="wm_more" onClick={() => setOpen(true)} title={isDiarySource(item) ? "Show the entry (opening it is recorded in his stream)" : "Show his words"}>
+          (…) {isDiarySource(item) ? "the entry" : "his words"}
+        </button>
+        {item.node ? (
+          <button className="wm_open" onClick={() => onSelect(item.node!.id)}>
             open this memory →
           </button>
         ) : null}
