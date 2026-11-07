@@ -17,6 +17,13 @@ live memory graph, and read their diaries. It is published on npm as
 
 ## What's new
 
+0.11.2 shows every entity on the home page at once: each tile appears as soon as the
+list arrives and fills in on its own, and a slow entity no longer holds the others on
+"reading his card…". **Settings → identity** is now one clear page from the shared kit:
+the look, then the voice (choosing a voice plays a short sample; **Create a new voice**
+when none fits), the history, and one **Save** at the bottom. See the
+[changelog](CHANGELOG.md#0112---2026-11-07).
+
 0.11.1 keeps the cognitive readings attached to the reply on screen: the emotional
 diagram shows that reply's measurements even when you move between replies while they
 load. In the Avatar view the avatar speaks only while you can hear it, the live line
@@ -479,13 +486,13 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 | Area | Modules |
 | --- | --- |
 | Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css` (layout, including the responsive rules; see [Responsive layout](../README.md#responsive-layout)), `drawer.tsx` + `side_tabs_state.ts` (the side panel: docked at 1024 px and wider, a drawer below), `entity_assistant.ts` (top-bar assistant over the gateway docs corpus; the drawer is AbstractUIC's shared Docs assistant, vendored in `vendor/abstractdocs/` by `npm run sync:docs`), `app_about.ts` (About dialog: app version and gateway versions) |
-| Entities list | `entities_index.tsx`, `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
+| Entities list | `entities_index.tsx`, `roster_tiles.ts` + `card_reads.ts` (tiles from the roster at once; live reads per tile; cards three at a time, kept 5 minutes or until the state changes), `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (topic communities), `node_label.ts` |
 | Panels | `inspector.tsx`, `identity_card.tsx`, `timeline.tsx`, `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts` |
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx`, `cognitive_monitor.tsx` |
 | Cognition wave | `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `cognition_wave_panel.tsx`, `cognition_wave_inline.tsx`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
-| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: design, colour, voice, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
+| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: the kit's `IdentityPanel` wired to the gateway: design, colour, voice with a sample, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
 | Optional Avatar conversation | `avatar_visit.ts` (explicit public projection and privacy boundary), `use_avatar_visit.ts` (public visit state), `avatar_visit_view.tsx` (avatar, questions and permissions), `vendor/abstractchat/` (canonical AbstractUIC presenter). Shares the chat's composer and execution paths; does not read private life envelopes for public text. |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`, `entity_handle.ts` (`name@host` handles that offer a meet) |
 | Blueprint | `blueprint_panel.tsx`, `blueprint_tunables.tsx`, `phase_map.tsx`, `phase_editor.tsx`, `edge_ops.ts`, `spec_sync.ts` |
@@ -648,7 +655,7 @@ of invented data.
 | Life stream | `GET /entities/{name}/replay` (NDJSON), `GET /entities/{name}/replay/stream` (SSE) |
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
-| Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
+| Card and metrics | `/entities/{name}/card` (the home grid draws each tile from `GET /entities`, whose rows carry `state`, then reads cards three at a time, kept until 5 minutes pass or the row's `state.changed_at` moves), `/footprint`, `/cognition`, `/communities`, `/embedding` |
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
 | Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
@@ -698,9 +705,14 @@ baselines.
 
 ### Identity and track record
 
-Settings → identity reads `GET /entities/{name}/identity` and saves the whole record with one
-`PUT` (`{avatar: {style, color}, voice: {provider, model, voice}}`; the record's speed and quality
-ride along while the voice is unchanged). The design list is the AbstractAvatar catalog bundled in
+Settings → identity is the ui-kit's `IdentityPanel` (look, voice, history, one Save at the bottom),
+wired to this gateway in `identity_settings.tsx`. It reads `GET /entities/{name}/identity` and
+saves the whole record with one `PUT` (`{avatar: {style, color}, voice: {provider, model, voice}}`;
+the record's speed and quality ride along while the voice is unchanged; a voice chosen without its
+speech model takes the model a cloned voice is bound to, else the engine's first listed model). The
+voices come from `GET voice/voices`; choosing one plays a short sample on the entity's own lane
+(`POST /entities/{name}/voice/tts/stream` with the chosen voice fields: nothing is saved); **Create a
+new voice** uses `POST voice/design` or `POST voice/clones`. The design list is the AbstractAvatar catalog bundled in
 the ui-kit, limited to designs with a Watch code (the gateway refuses the others). The avatar draws
 the design in the entity's colour: the colour replaces the theme's `--warning` token around the
 canvas, the body colour of the kit's palette. A refusal is shown word for word and nothing is

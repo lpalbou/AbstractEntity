@@ -4,6 +4,36 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-11-07
+
+On the next AbstractUIC `@abstractframework/ui-kit` release (the one that adds `IdentityPanel`) and
+`@abstractframework/panel-chat` ^0.8.2. Works with the same gateways as 0.11.1.
+
+### Fixed
+
+- **The home page shows every entity at once.** The "Summoned entities" grid used to wait for every
+  entity's details before drawing anything, then read their cards one at a time, so a long life
+  (such as one whose card takes seconds to compose) left most tiles on "reading his card…". Now
+  each entity's tile appears as soon as the list arrives, with its name and its sleep or wake
+  state, and fills in on its own: its phase buttons as soon as its state is read, its age, mind,
+  interests and key moments when its card arrives. Cards are read three at a time, kept, and read
+  again only after five minutes or when the entity's state changes. A tile still waiting shows
+  quiet placeholder lines at the size of the finished tile, so nothing jumps, and a refresh never
+  empties a tile. A card that cannot be read says "details unavailable right now" (the reason is
+  on hover).
+
+### Changed
+
+- **Settings → identity is one clear page.** It is now the shared identity panel from the kit
+  (`IdentityPanel`): first the **Look** (the avatar as it will be drawn, its design and colour),
+  then the **Voice** (the engine, then a voice it offers; choosing a voice plays a short sample in
+  that voice; **Create a new voice** from a description or a recording opens only when you ask),
+  then the **History**, and at the bottom one line saying what happened and one **Save**. The
+  "Gateway default / Custom" switch, "Speech provider" and "Voice / profile" are gone, and the
+  speech model is offered only when an engine has several ("Automatic" by default). As before,
+  the gateway's refusal is shown as it is, with a **Download** button when it offers one, and a
+  viewer who may not change the identity sees it in words with the reason.
+
 ## [0.11.1] - 2026-11-07
 
 On AbstractUIC `@abstractframework/ui-kit` ^0.9.15 and `@abstractframework/panel-chat` ^0.8.2.
