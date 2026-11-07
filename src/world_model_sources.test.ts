@@ -31,7 +31,7 @@ describe("a card's sources", () => {
     expect(got[0].node?.id).toBe("ex:episode-b");
   });
 
-  it("a source missing from this view is still listed (read by its id)", () => {
+  it("a source missing from this view is still listed", () => {
     const fold = createFoldState();
     const card = node("ex:world_model-1", "");
     fold.structural_edges.set("k", { key: "k", source_graph_id: card.id, target_graph_id: "ex:episode-gone", relation: "derived_from", first_seq: 1 });
@@ -82,14 +82,46 @@ describe("his words, formatted", () => {
     expect(w.full).toContain("[read_memory]");
   });
 
-  it("a fenced block becomes a labelled note, every word kept", async () => {
-    const { splitFences } = await import("./world_model_sources");
-    const parts = splitFences("I will rest now.\n\n```rest\nResting after the first survey.\n```\nThen more.");
-    expect(parts).toEqual([
-      { kind: "text", text: "I will rest now.\n\n" },
-      { kind: "fence", label: "rest", text: "Resting after the first survey." },
-      { kind: "text", text: "\nThen more." },
-    ]);
-    expect(splitFences("no fences")).toEqual([{ kind: "text", text: "no fences" }]);
+  it("a diary source is never read on its own, even when this view lacks it", async () => {
+    const { isDiarySource } = await import("./world_model_sources");
+    expect(isDiarySource({ graphId: "ex:diary-3cc682fd66", node: null, bornAt: "" })).toBe(true);
+    expect(isDiarySource({ graphId: "ex:episode-1", node: { diary: true } as NodeState, bornAt: "" })).toBe(true);
+    expect(isDiarySource({ graphId: "ex:episode-1", node: null, bornAt: "" })).toBe(false);
+  });
+
+  it("an empty last answer falls back to the whole spoken text", async () => {
+    const { sourceWords } = await import("./world_model_sources");
+    const w = sourceWords("entity:nerin:\ncue\n\nnerin:\nfirst answer\n\nnerin:\n", "nerin");
+    if (w.phase !== "ready") throw new Error(w.phase);
+    expect(w.lead).toBe("first answer");
+  });
+});
+
+describe("an exchange, in the runtime's order", () => {
+  it("cue, one thinking-and-lookups block, then his last answer — quoted heads stay inside", async () => {
+    const { parseExchange } = await import("./verbatim_parse");
+    const raw = [
+      "entity:nerin:", "your own time continues", "",
+      "nerin (thinking, unspoken):", "[used tool: read_memory]", "",
+      "(what the tools returned:)", "[read_memory]", "Full words of memory #1:", "",
+      "entity:nerin:", "an older cue", "", "nerin:", "an older answer", "",
+      "nerin:", "My answer **today**.",
+    ].join("\n");
+    const x = parseExchange(raw, "nerin");
+    expect(x).not.toBeNull();
+    expect(x!.cueSpeaker).toBe("entity:nerin");
+    expect(x!.cue).toBe("your own time continues");
+    expect(x!.between).toContain("an older answer");
+    expect(x!.between!.startsWith("nerin (thinking, unspoken):")).toBe(true);
+    expect(x!.answer).toBe("My answer **today**.");
+  });
+
+  it("a visit exchange has no middle; text not shaped that way is not an exchange", async () => {
+    const { parseExchange } = await import("./verbatim_parse");
+    expect(parseExchange("person:admin:\nhello\n\nnerin:\nhi there", "nerin")).toEqual({
+      cueSpeaker: "person:admin", cue: "hello", between: null, answerSpeaker: "nerin", answer: "hi there",
+    });
+    expect(parseExchange("What I know of x:\n- a line", "nerin")).toBeNull();
+    expect(parseExchange("person:admin:\nhello, no answer", "nerin")).toBeNull();
   });
 });

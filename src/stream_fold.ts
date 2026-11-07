@@ -435,7 +435,7 @@ function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
 
 /** Bindings name records by graph id ("ex:diary-…" / "ex:memory-…"), which
  * also reveals diary-ness when the display block is redacted or absent. */
-function isDiaryGraphId(id: string): boolean {
+export function isDiaryGraphId(id: string): boolean {
   return /(^|:)diary-/.test(id);
 }
 

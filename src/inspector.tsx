@@ -6,20 +6,20 @@
  * scars and bonds, and belief revisions.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type { BeatState, FeelingEvent, FoldState, NodeState, StandingState } from "./stream_fold";
 import type { TemporalActivation } from "./temporal_activation";
 import { ADMISSION_LABELS } from "./stream_types";
-import { fetchDiaryEntry, fetchRecordVerbatim } from "./stream_source";
+import { fetchDiaryEntry } from "./stream_source";
 import { shapeLabel } from "./node_label";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
 import { SectionDisclosure } from "./section_disclosure";
-import { parseVerbatimTurns, splitUnspokenThinking } from "./verbatim_parse";
 import { WorldModelSources } from "./world_model_sources";
+import { readRecordWords, VerbatimTurns } from "./verbatim_view";
 
-/** Partners listed before "(…) N more" — every one stays one click away. */
+/** Rows listed before "(…) N more" — every one stays one click away. */
 const PARTNERS_SHOWN = 8;
 
 export interface InspectorProps {
@@ -96,12 +96,9 @@ function InlineVerbatim({
   const [state, setState] = useState<{ phase: "loading" } | { phase: "ready"; text: string; note: string | null } | { phase: "none"; message: string }>({
     phase: "loading",
   });
-  const reportedRef = useRef(false);
-
   useEffect(() => {
     let cancelled = false;
     setState({ phase: "loading" });
-    reportedRef.current = false; // a new node's speakers report fresh
     (async () => {
       try {
         if (node.diary && node.entry_id) {
@@ -121,22 +118,8 @@ function InlineVerbatim({
           }
           return;
         }
-        const vk = textCacheKey(source.baseUrl, source.entity, `verbatim:${node.graph_id ?? node.id}`);
-        let cached = await getCachedText(vk);
-        let note: string | null = cached?.note ?? null;
-        if (!cached) {
-          const v = await fetchRecordVerbatim(source.baseUrl, source.entity, node.graph_id ?? node.id);
-          note = v.born_digest
-            ? node.kind === "world_model"
-              ? "His working model — born as words by the sleep pass (mechanical distillation for now; it becomes his own prose only through his revisions)."
-              : "Born as words — never a compression; these are all the words there are."
-            : null;
-          cached = { text: String(v.text ?? ""), note: note ?? "" };
-          if (cached.text) void putCachedText(vk, cached);
-        } else {
-          note = cached.note || null;
-        }
-        if (!cancelled) setState({ phase: "ready", text: cached.text || "", note });
+        const words = await readRecordWords(source, node.graph_id ?? node.id, node.kind);
+        if (!cancelled) setState({ phase: "ready", text: words.text, note: words.note });
       } catch (e) {
         if (cancelled) return;
         const err = e as Error & { status?: number };
@@ -157,55 +140,12 @@ function InlineVerbatim({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id, node.graph_id, node.entry_id, node.diary, node.kind, source.baseUrl, source.entity]);
 
-  // Speaker-labeled rendering (dm#54 pt6: "clear verbatim"): exchanges
-  // split into turns with the speaker as a small header chip; anything
-  // that isn't exchange-shaped renders as plain words. The interlocutor
-  // list flows UP into the metadata panel (pt5).
-  // Separate his unspoken reasoning (if the verbatim carries it) BEFORE
-  // parsing turns — the spoken half parses as the exchange, the thinking
-  // half renders as its own muted block, never as a turn he spoke.
-  const { spoken, thinking } = useMemo(
-    () => (state.phase === "ready" ? splitUnspokenThinking(state.text) : { spoken: "", thinking: null }),
-    [state],
-  );
-  const turns = useMemo(
-    () => (state.phase === "ready" ? parseVerbatimTurns(spoken, source.entity) : null),
-    [state.phase, spoken, source.entity],
-  );
-  useEffect(() => {
-    if (turns && onSpeakers && !reportedRef.current) {
-      reportedRef.current = true;
-      const name = source.entity.trim().toLowerCase();
-      const others = [...new Set(turns.map((t) => t.speaker.replace(/ \(while looking things up\)$/, "")))].filter(
-        (s) => s.toLowerCase() !== name && s !== "(the door)",
-      );
-      onSpeakers(others);
-    }
-  }, [turns, onSpeakers, source.entity]);
-
   if (state.phase === "loading") return <p className="ei_note">reading his words…</p>;
   if (state.phase === "none") return <p className="ei_note">{state.message}</p>;
   return (
     <div className="ei_verbatim_inline">
       {state.note ? <p className="ei_verbatim_note">{state.note}</p> : null}
-      {turns ? (
-        <div className="ei_turns">
-          {turns.map((t, i) => (
-            <div key={i} className={`ei_turn ${t.speaker.toLowerCase().startsWith(source.entity.trim().toLowerCase()) ? "ei_turn_self" : ""}`}>
-              <span className="ei_turn_speaker">{t.speaker}</span>
-              <pre className="ei_turn_text">{t.text}</pre>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <pre className="ei_verbatim_text">{spoken || state.text}</pre>
-      )}
-      {thinking ? (
-        <div className="ei_unspoken">
-          <span className="ei_unspoken_head">thinking · unspoken</span>
-          <pre className="ei_unspoken_text">{thinking}</pre>
-        </div>
-      ) : null}
+      <VerbatimTurns text={state.text} entity={source.entity} onSpeakers={onSpeakers} />
     </div>
   );
 }
@@ -342,9 +282,7 @@ function NodeCard({
         verbatimSource ? (
           node.kind === "world_model" ? (
             <SectionDisclosure id="wm_card_text" title="The card's own words">
-              {node.digest_method?.startsWith("mechanical") ? (
-                <p className="ei_note">The sleep pass wrote this briefing and quotes each memory above cut short; the memories above are complete.</p>
-              ) : null}
+              <p className="ei_note">Where a quote here ends in “…”, the sleep pass cut it short — the memories above are complete.</p>
               <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
             </SectionDisclosure>
           ) : (
@@ -437,7 +375,7 @@ function NodeCard({
           ))}
           {partners.length > PARTNERS_SHOWN ? (
             <button className="wm_more" onClick={() => setAllPartners((v) => !v)}>
-              {allPartners ? "show the first 8" : `(…) ${partners.length - PARTNERS_SHOWN} more`}
+              {allPartners ? `show the first ${PARTNERS_SHOWN}` : `(…) ${partners.length - PARTNERS_SHOWN} more`}
             </button>
           ) : null}
         </SectionDisclosure>
@@ -501,6 +439,8 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
     return byLabel;
   }, [beat]);
 
+  const [allDropped, setAllDropped] = useState(false);
+  useEffect(() => setAllDropped(false), [beat]);
   const order = ["self", "stm", "both", "stimulus"];
   return (
     <div className="ei_card">
@@ -535,7 +475,7 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
       })}
       {beat.dropped.length > 0 ? (
         <SectionDisclosure id="dropped" title="Considered but dropped">
-          {beat.dropped.slice(0, 10).map((d, i) => {
+          {(allDropped ? beat.dropped : beat.dropped.slice(0, PARTNERS_SHOWN)).map((d, i) => {
             const node = fold.nodes.get(d.record_id);
             return (
               <div key={`${d.record_id}-${i}`} className="ei_dropped">
@@ -544,6 +484,11 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
               </div>
             );
           })}
+          {beat.dropped.length > PARTNERS_SHOWN ? (
+            <button className="wm_more" onClick={() => setAllDropped((v) => !v)}>
+              {allDropped ? `show the first ${PARTNERS_SHOWN}` : `(…) ${beat.dropped.length - PARTNERS_SHOWN} more`}
+            </button>
+          ) : null}
         </SectionDisclosure>
       ) : null}
     </div>

@@ -467,8 +467,21 @@ body {
   font-family: inherit;
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   line-height: 1.55;
-  max-height: 40vh;
-  overflow-y: auto;
+}
+
+/* A record's words as Markdown, framed like the verbatim box; never a
+   scroll box inside the scrolling panel (operator: always the full text). */
+.ei_verbatim_md {
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.ei_turn_md,
+.wm_source_text.ev_markdown {
+  overflow-wrap: anywhere;
 }
 .cm_overlay {
   position: absolute;
@@ -1846,28 +1859,6 @@ body {
 .wm_source_text {
   overflow-wrap: anywhere;
   color: var(--text);
-}
-
-.wm_para {
-  margin: 0 0 6px;
-  white-space: pre-wrap;
-}
-
-.wm_fence {
-  margin: 0 0 6px;
-  padding: 4px 8px;
-  border-left: 2px solid var(--line);
-  color: var(--text-dim);
-  font-style: italic;
-  white-space: pre-wrap;
-}
-
-.wm_fence_label {
-  font-style: normal;
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-right: 6px;
 }
 
 .wm_source_note {

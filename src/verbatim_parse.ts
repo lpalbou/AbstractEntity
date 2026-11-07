@@ -70,3 +70,49 @@ export function parseVerbatimTurns(raw: string, entityName: string): VerbatimTur
   if (current) turns.push({ ...current, text: current.text.trim() });
   return turns.length > 0 ? turns : null;
 }
+
+/** One exchange as the runtime writes it (abstractruntime identity/chat.py,
+ * turn formation): what was said to him, then his thinking rounds ("<name>
+ * (thinking, unspoken):", each optionally followed by "(what the tools
+ * returned:)"), then his answer under "<name>:" — always last. Tool results
+ * can quote older exchanges with the same heads, so only the order is
+ * trusted: the first head opens the cue, the LAST "<name>:" head at a
+ * paragraph boundary opens the answer, and everything between is one block
+ * of thinking and lookups. Null when the text is not shaped that way. */
+export interface Exchange {
+  cueSpeaker: string;
+  cue: string;
+  between: string | null;
+  answerSpeaker: string;
+  answer: string;
+}
+
+export function parseExchange(raw: string, entityName: string): Exchange | null {
+  const lines = String(raw || "").split("\n");
+  const name = entityName.trim().toLowerCase();
+  const first = lines[0]?.match(/^(\S+):\s*$/);
+  if (!first || first[1].toLowerCase() === name) return null;
+  let answerAt = -1;
+  for (let i = lines.length - 1; i > 0; i--) {
+    if (lines[i].trim().toLowerCase() === `${name}:` && lines[i - 1].trim() === "") {
+      answerAt = i;
+      break;
+    }
+  }
+  if (answerAt < 0) return null;
+  let betweenAt = -1;
+  for (let i = 1; i < answerAt; i++) {
+    if (lines[i].trim().toLowerCase() === `${name} (thinking, unspoken):` && lines[i - 1].trim() === "") {
+      betweenAt = i;
+      break;
+    }
+  }
+  const cueEnd = betweenAt >= 0 ? betweenAt : answerAt;
+  return {
+    cueSpeaker: first[1],
+    cue: lines.slice(1, cueEnd).join("\n").trim(),
+    between: betweenAt >= 0 ? lines.slice(betweenAt, answerAt).join("\n").trim() : null,
+    answerSpeaker: lines[answerAt].trim().replace(/:$/, ""),
+    answer: lines.slice(answerAt + 1).join("\n").trim(),
+  };
+}

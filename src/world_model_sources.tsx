@@ -9,18 +9,21 @@
  * up front, "(…)" for the whole exchange (what was said to him, his
  * unspoken thinking, what his tools returned).
  *
- * Reads are the pure verbatim read (no access recorded). A diary source is
- * never read automatically — opening it is the operator's recorded read,
- * one click, like the Book.
+ * Reads are the pure verbatim read (no access recorded). A diary source —
+ * known as one by the view or by its id — is never read automatically:
+ * opening it is the operator's recorded read, one click, like the Book.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { bookDate } from "./book_reader";
-import { parseVerbatimTurns, splitUnspokenThinking } from "./verbatim_parse";
-import { fetchDiaryEntry, fetchRecordVerbatim } from "./stream_source";
-import type { FoldState, NodeState } from "./stream_fold";
+import { Markdown } from "@abstractframework/panel-chat";
+
+import { fetchDiaryEntry } from "./stream_source";
+import { isDiaryGraphId, type FoldState, type NodeState } from "./stream_fold";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
+import { parseExchange, parseVerbatimTurns, splitUnspokenThinking } from "./verbatim_parse";
+import { readRecordWords, VerbatimTurns } from "./verbatim_view";
 import type { VerbatimSource } from "./verbatim_modal";
 
 export interface CardSource {
@@ -76,72 +79,93 @@ export function WorldModelSources({ fold, card, source, onSelect }: { fold: Fold
 
 type Words = { phase: "loading" } | { phase: "ready"; lead: string; full: string } | { phase: "none"; message: string } | { phase: "diary" };
 
+/** A diary record, whether or not this view holds it: its words are only
+ * read on a click (the read is recorded in his biography). */
+export function isDiarySource(item: CardSource): boolean {
+  return Boolean(item.node?.diary) || isDiaryGraphId(item.graphId);
+}
+
 function SourceRow({ item, source, onSelect }: { item: CardSource; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
   const { time } = bookDate(item.bornAt);
-  const diary = Boolean(item.node?.diary);
+  const diary = isDiarySource(item);
   const [words, setWords] = useState<Words>(diary ? { phase: "diary" } : { phase: "loading" });
   const [expanded, setExpanded] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (diary) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const key = textCacheKey(source.baseUrl, source.entity, `verbatim:${item.graphId}`);
-        let cached = await getCachedText(key);
-        if (!cached) {
-          const v = await fetchRecordVerbatim(source.baseUrl, source.entity, item.graphId);
-          cached = { text: String(v.text ?? ""), note: "" };
-          if (cached.text) void putCachedText(key, cached);
-        }
-        if (!cancelled) setWords(sourceWords(cached.text, source.entity));
-      } catch (e) {
-        if (!cancelled) setWords({ phase: "none", message: `his words could not be read (${(e as Error).message})` });
-      }
-    })();
+    setWords({ phase: "loading" });
+    readRecordWords(source, item.graphId, item.node?.kind)
+      .then((w) => !cancelled && setWords(sourceWords(w.text, source.entity)))
+      .catch((e) => !cancelled && setWords({ phase: "none", message: `his words could not be read (${(e as Error).message})` }));
     return () => {
       cancelled = true;
     };
-  }, [diary, item.graphId, source.baseUrl, source.entity]);
+    // Field deps, never the source OBJECT (an inline parent literal would
+    // re-fire the read on every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diary, item.graphId, item.node?.kind, source.baseUrl, source.entity, attempt]);
 
-  const openDiary = async () => {
-    const entryId = item.node?.entry_id;
-    if (!entryId) return;
+  const openDiary = useCallback(async () => {
     try {
-      const key = textCacheKey(source.baseUrl, source.entity, `diary:${entryId}`);
-      let cached = await getCachedText(key);
-      if (!cached) {
-        const entry = await fetchDiaryEntry(source.baseUrl, source.entity, entryId, "operator review (world model source)");
-        cached = { text: String(entry.text ?? entry.gist ?? "") };
-        if (cached.text) void putCachedText(key, cached);
+      const entryId = item.node?.entry_id;
+      let text: string;
+      if (entryId) {
+        const key = textCacheKey(source.baseUrl, source.entity, `diary:${entryId}`);
+        let cached = await getCachedText(key);
+        if (!cached) {
+          const entry = await fetchDiaryEntry(source.baseUrl, source.entity, entryId, "operator review (world model source)");
+          cached = { text: String(entry.text ?? entry.gist ?? "") };
+          if (cached.text) void putCachedText(key, cached);
+        }
+        text = cached.text;
+      } else {
+        // No entry id in this view: the record read serves the entry (and
+        // the gateway records it as a read, like the diary door).
+        text = (await readRecordWords(source, item.graphId, "diary")).text;
       }
-      setWords({ phase: "ready", lead: cached.text, full: cached.text });
+      setWords({ phase: "ready", lead: text, full: text });
     } catch (e) {
       setWords({ phase: "none", message: `the entry could not be opened (${(e as Error).message})` });
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.graphId, item.node?.entry_id, source.baseUrl, source.entity]);
 
-  const title = item.node?.title || item.graphId;
+  const title = item.node?.title || "a diary entry";
   return (
     <div className="wm_source">
       {time ? <span className="book_time">{time}</span> : null}
       <div className="wm_source_body">
         {words.phase === "loading" ? <span className="wm_source_note">reading his words…</span> : null}
-        {words.phase === "none" ? <span className="wm_source_note">{words.message}</span> : null}
+        {words.phase === "none" ? (
+          <span className="wm_source_note">
+            {words.message}{" "}
+            <button className="wm_more" onClick={() => (diary ? void openDiary() : setAttempt((n) => n + 1))}>
+              try again
+            </button>
+          </span>
+        ) : null}
         {words.phase === "diary" ? (
           <>
             <span className="wm_source_text">{title}</span>{" "}
-            <button className="wm_more" onClick={openDiary} title="Open this diary entry (recorded as a visible read in his stream, like the Book)">
+            <button className="wm_more" onClick={() => void openDiary()} title="Open this diary entry — recorded as a visible read in his stream, like the Book">
               (…) open the entry
             </button>
           </>
         ) : null}
         {words.phase === "ready" ? (
           <>
-            <SourceText text={expanded ? words.full : words.lead} />
+            {expanded ? (
+              <div className="ei_verbatim_inline">
+                <VerbatimTurns text={words.full} entity={source.entity} />
+              </div>
+            ) : (
+              <Markdown text={words.lead} className="ev_markdown wm_source_text" />
+            )}
             {words.full !== words.lead ? (
               <button className="wm_more" onClick={() => setExpanded((v) => !v)}>
-                {expanded ? "show less" : "(…) the whole exchange"}
+                {expanded ? "show his answer only" : "(…) the whole exchange"}
               </button>
             ) : null}
           </>
@@ -156,52 +180,19 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
   );
 }
 
-/** Text with its fenced blocks (```rest …```) set apart as labelled notes;
- * every character is shown, only the fence marks become the label. */
-export function splitFences(text: string): Array<{ kind: "text"; text: string } | { kind: "fence"; label: string; text: string }> {
-  const out: Array<{ kind: "text"; text: string } | { kind: "fence"; label: string; text: string }> = [];
-  const re = /```([A-Za-z_-]*)[ \t]*\n?([\s\S]*?)```/g;
-  let at = 0;
-  for (let m = re.exec(text); m; m = re.exec(text)) {
-    if (m.index > at) out.push({ kind: "text", text: text.slice(at, m.index) });
-    out.push({ kind: "fence", label: m[1] || "", text: m[2].trim() });
-    at = m.index + m[0].length;
-  }
-  if (at < text.length) out.push({ kind: "text", text: text.slice(at) });
-  return out.filter((p) => p.text.trim() !== "" || p.kind === "fence");
-}
-
-function SourceText({ text }: { text: string }): React.ReactElement {
-  return (
-    <div className="wm_source_text">
-      {splitFences(text).map((p, i) =>
-        p.kind === "text" ? (
-          <p key={i} className="wm_para">
-            {p.text.trim()}
-          </p>
-        ) : (
-          <p key={i} className="wm_fence">
-            {p.label ? <span className="wm_fence_label">{p.label}</span> : null}
-            {p.text}
-          </p>
-        ),
-      )}
-    </div>
-  );
-}
-
-/** His own words up front, the whole exchange behind "(…)". Never cut:
- * `lead` is a complete part of the text, `full` is all of it. */
+/** His answer up front, the whole exchange behind "(…)". Never cut: `lead`
+ * is a complete part of the text, `full` is all of it. */
 export function sourceWords(text: string, entity: string): Words {
-  const { spoken, thinking } = splitUnspokenThinking(text);
+  const { spoken } = splitUnspokenThinking(text);
+  const exchange = parseExchange(spoken, entity);
+  if (exchange && exchange.answer) return { phase: "ready", lead: exchange.answer, full: text.trim() };
   const turns = parseVerbatimTurns(spoken, entity);
   const name = entity.trim().toLowerCase();
   // An episode is one exchange: his answer is his LAST turn. Earlier
   // "nerin:" heads can be memories his tools quoted back to him (read_memory
   // returns past exchanges whole), and "nerin (while looking things up)"
   // is tool output — both stay behind "(…)" with the rest of the exchange.
-  const mine = turns ? turns.filter((t) => t.speaker.trim().toLowerCase() === name) : [];
+  const mine = turns ? turns.filter((t) => t.speaker.trim().toLowerCase() === name && t.text.trim() !== "") : [];
   const lead = mine.length > 0 ? mine[mine.length - 1].text.trim() : (spoken || text).trim();
-  const full = thinking ? `${spoken.trim()}\n\n(thinking, unspoken)\n${thinking.trim()}` : text.trim();
-  return { phase: "ready", lead, full };
+  return { phase: "ready", lead, full: text.trim() };
 }
