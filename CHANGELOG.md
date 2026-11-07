@@ -10,6 +10,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- **When he recalls, the graph shows it.** The memories he brought to mind light up and the rest
+  of the graph slowly dims; a ring says why each one came (present by right, from continuity,
+  matched) and a line says how many. It clears when he answers, and scrubbing to a past recall
+  shows that one.
+- **Memories settle into their topics on the normal graph.** The "topics" button now shows or
+  hides a soft halo and label per topic instead of switching to a separate map; click a label to
+  light that topic.
+- **Replay goes up to 1000x** (100x, 200x, 500x and 1000x added), and fast replays stay smooth:
+  the time bar follows the play position every frame while the rest of the page catches up a few
+  times a second, and pausing stops exactly where the bar shows.
+- **Cognitive Monitor: the numbers speak.** No sentence under the bloom; each tone channel prints
+  its signed score (Wave tab too); "—" marks a value that does not exist; the three-letter codes
+  are labels, and resting on one for a moment (or a long press on a phone) opens a small card
+  explaining it with this reply's value; failed tool calls reach the gauge.
 - **A lived moment reads facts and summary first.** Clicking an episode now shows what kind of
   moment it was (his own time with its tick, a conversation or a visit with its turn, and with
   whom), how many lookups he made and of what kind, the record's facts, then its summary (the
