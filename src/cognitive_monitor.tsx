@@ -3,7 +3,10 @@
  * useful, readable — a proper panel with a title, axis codes people can
  * understand, an (i) that explains it"). No sentence comments on the values
  * (operator 2026-11-07): every register, tone channel and conduct read shows
- * its number; words (a tone pole, a reason) live on hover and click.
+ * its number, or "—" when there is none. The codes are not clickable: a
+ * 300 ms hover (keyboard focus, a long-press on touch) opens a small card
+ * that says what the code measures and this reply's value or reason
+ * (code_explainer.tsx).
  *
  * Honesty contract (uic's, unchanged): everything here reads the
  * EXPRESSIVE CHARACTER OF THE ENTITY'S WORDS — never inner state; the pole
@@ -18,6 +21,7 @@ import React, { useEffect } from "react";
 import { EMOTION_REGISTERS, type ConductAxis, type ConductFacts, type ConductToolCall } from "@abstractframework/ui-kit";
 
 import { CHANNELS } from "./vendor/cognition/core";
+import { ExplainedCode, type ExplainerContent } from "./code_explainer";
 import "./cognitive_monitor.css";
 
 export interface AxisInfo {
@@ -26,14 +30,16 @@ export interface AxisInfo {
   code: string;
   name: string;
   color: string;
-  /** What this axis reads IN HIS WORDS (never inner state). */
+  /** What this axis reads IN HIS WORDS (never inner state) — the (i) window's prose. */
   description: string;
+  /** One plain sentence of what it measures — the code's hover card. */
+  summary: string;
 }
 
 const channelColor = new Map(CHANNELS.map((c) => [c.id, c.color] as const));
 
-function axis(id: string, code: string, name: string, color: string, description: string): AxisInfo {
-  return { id, code, name, color, description };
+function axis(id: string, code: string, name: string, color: string, description: string, summary: string): AxisInfo {
+  return { id, code, name, color, description, summary };
 }
 
 /** Honest per-register descriptions (keyed by id). The CODES, COLORS, and
@@ -52,12 +58,25 @@ const EMOTION_DESCRIPTIONS: Record<string, string> = {
   tenderness: "Gentle, caring phrasing — warmth toward someone or something, softness in how things are named.",
 };
 
+/** One plain sentence per register for the hover card (what the petal's number measures). */
+const EMOTION_SUMMARIES: Record<string, string> = {
+  joy: "How close his words are to bright, pleased phrasing.",
+  discovery: "How close his words are to the language of finding something out.",
+  surprise: "How close his words are to phrasing that registers the unexpected.",
+  anxiety: "How close his words are to worried phrasing, hedging under pressure.",
+  fear: "How close his words are to threat language: danger, loss, being overwhelmed.",
+  sadness: "How close his words are to low, heavy phrasing of loss or resignation.",
+  gravity: "How close his words are to solemn, serious phrasing (grave, not sad).",
+  calm: "How close his words are to settled, even phrasing.",
+  tenderness: "How close his words are to gentle, caring phrasing.",
+};
+
 /** The bloom registers, DERIVED from the kit's EMOTION_REGISTERS (codes +
  * colors + circumplex order ship there — one contract source, c2242); we
  * add only the honest prose. Order matches the kit, so the diagram's petal
  * positions and this list stay the same geometry key. */
 export const EMOTION_AXES: AxisInfo[] = EMOTION_REGISTERS.map((r) =>
-  axis(r.id, r.code, r.label, r.color, EMOTION_DESCRIPTIONS[r.id] ?? r.label),
+  axis(r.id, r.code, r.label, r.color, EMOTION_DESCRIPTIONS[r.id] ?? r.label, EMOTION_SUMMARIES[r.id] ?? `How close his words are to ${r.label}.`),
 );
 
 
@@ -65,22 +84,22 @@ export const EMOTION_AXES: AxisInfo[] = EMOTION_REGISTERS.map((r) =>
  * with its signed score; each description names BOTH poles in the meaning of the generic anchor
  * texts that build the axis. CUR belongs to the Wave tab. */
 export const CHANNEL_AXES: AxisInfo[] = [
-  axis("warmth", "WAR", "warmth", channelColor.get("warmth") ?? "#8a94a6", "Warm (glad, grateful, at ease with the work) against discouraged (drained, stung, bitter) phrasing."),
-  axis("tension", "TSN", "tension", channelColor.get("tension") ?? "#8a94a6", "Urgent (pressed for time, attention jumping) against unhurried (no rush, at leisure) phrasing."),
-  axis("reflection", "REF", "reflection", channelColor.get("reflection") ?? "#8a94a6", "Reflective (looking back at its own thinking, weighing) against matter-of-fact (the answer, the step, moving on) phrasing."),
-  axis("structure", "STR", "structure", channelColor.get("structure") ?? "#8a94a6", "Structured (premises, steps, cases) against loosely associative (images drifting into each other) phrasing."),
-  axis("certainty", "CER", "certainty", channelColor.get("certainty") ?? "#8a94a6", "Assured ('I am sure, I have verified it') against hedging ('I might be wrong, it is hazy') phrasing."),
-  axis("current", "CUR", "current", channelColor.get("current") ?? "#8a94a6", "The conversation's own main axis (its principal component) — how strongly this utterance rides the session's dominant direction."),
+  axis("warmth", "WAR", "warmth", channelColor.get("warmth") ?? "#8a94a6", "Warm (glad, grateful, at ease with the work) against discouraged (drained, stung, bitter) phrasing.", "Warm against discouraged phrasing, from −1 to +1."),
+  axis("tension", "TSN", "tension", channelColor.get("tension") ?? "#8a94a6", "Urgent (pressed for time, attention jumping) against unhurried (no rush, at leisure) phrasing.", "Urgent against unhurried phrasing, from −1 to +1."),
+  axis("reflection", "REF", "reflection", channelColor.get("reflection") ?? "#8a94a6", "Reflective (looking back at its own thinking, weighing) against matter-of-fact (the answer, the step, moving on) phrasing.", "Reflective against matter-of-fact phrasing, from −1 to +1."),
+  axis("structure", "STR", "structure", channelColor.get("structure") ?? "#8a94a6", "Structured (premises, steps, cases) against loosely associative (images drifting into each other) phrasing.", "Structured against loosely associative phrasing, from −1 to +1."),
+  axis("certainty", "CER", "certainty", channelColor.get("certainty") ?? "#8a94a6", "Assured ('I am sure, I have verified it') against hedging ('I might be wrong, it is hazy') phrasing.", "Assured against hedging phrasing, from −1 to +1."),
+  axis("current", "CUR", "current", channelColor.get("current") ?? "#8a94a6", "The conversation's own main axis (its principal component) — how strongly this utterance rides the session's dominant direction.", "How strongly this reply rides the conversation's main direction."),
 ];
 
 /** The conduct gauge's four reads (slot (b), uic's AfConductGauge c2474) —
  * codes/colors mirror the kit's conductAxes output exactly; we add the
- * honest prose the operator asked to reach by hover + click (dm#22 (a)). */
+ * honest prose (the (i) window) and one sentence each (the hover card). */
 export const CONDUCT_AXES: AxisInfo[] = [
-  axis("effort", "EFF", "effort", "#e7b45a", "How much work this turn cost — thinking wall time and output volume, relative to this visit's own median turn. Wall time is client-measured (send to reply, network included)."),
-  axis("action", "ACT", "action", "#5eead4", "What he DID before answering — tool rounds this turn (lookups, searches, acts), relative to the visit's median. Red ticks mark failed calls."),
-  axis("attention", "ATT", "attention", "#6ea8d8", "How much of his life he brought to bear — memories recalled into this turn's context, relative to the visit's median; +N marks memories formed from the turn."),
-  axis("rigor", "RIG", "rigor", "#c084dd", "The verification-SHAPED share of his calls (read/check/search/diary-class names, retry-after-failure) — act-shaped evidence of care, honestly labeled: it measures the shape of his acts, never verified truth. Each verify-shaped call rings its stroke tip violet in the figure."),
+  axis("effort", "EFF", "effort", "#e7b45a", "How much work this turn cost — thinking wall time and output volume, relative to this visit's own median turn. Wall time is client-measured (send to reply, network included).", "How long this turn took, send to reply as this app measured it, against this visit's usual turn."),
+  axis("action", "ACT", "action", "#5eead4", "What he DID before answering — tool rounds this turn (lookups, searches, acts), relative to the visit's median. Red ticks mark failed calls.", "How many tool calls he made before answering; ✕ counts the failed ones."),
+  axis("attention", "ATT", "attention", "#6ea8d8", "How much of his life he brought to bear — memories recalled into this turn's context, relative to the visit's median; +N marks memories formed from the turn.", "How many memories were recalled into this turn; +N counts the memories formed from it."),
+  axis("rigor", "RIG", "rigor", "#c084dd", "The verification-SHAPED share of his calls (read/check/search/diary-class names, retry-after-failure) — act-shaped evidence of care, honestly labeled: it measures the shape of his acts, never verified truth. Each verify-shaped call rings its stroke tip violet in the figure.", "The share of his tool calls that are verification-shaped (read, check, search), by their names."),
 ];
 
 /** The radar's ONE fixed scale, the same for every reply (operator 2026-11-07: "a radar with
@@ -220,57 +239,90 @@ export function dominantEmotion(emotions: Record<string, number> | undefined): {
 
 /** The five tone channels as a row under the bloom (the conduct gauge's code-and-value
  * pattern): each code prints its score in [−1, 1] as the registers print theirs ("—" when the
- * channel was not read). The pole word stays on the button's name and hover, and a click opens
- * the axis window, which states value and pole without hover. */
-export function ToneRow({ scores, onAxis }: { scores: Record<string, number> | undefined; onAxis(axis: AxisInfo): void }): React.ReactElement {
+ * channel was not read). The pole word is on the code's hover card. */
+export function ToneRow({ scores }: { scores: Record<string, number> | undefined }): React.ReactElement {
   return (
     <div className="cm_gauge_codes cm_tone_codes cm_tone_nums" role="group" aria-label="Tone of the phrasing">
       {CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => {
         const v = scores?.[a.id];
-        const finite = typeof v === "number" && Number.isFinite(v);
-        const word = toneWord(a.id, v);
-        const said = finite ? `${a.code} ${a.name} ${simText(v)}, ${word ?? "typical"}` : `${a.code} ${a.name}, not read`;
         return (
-          <button key={a.id} type="button" className="cm_gauge_code" style={{ color: a.color }} aria-label={said} title={`${said}. ${a.description}`} onClick={() => onAxis(a)}>
+          <ExplainedCode key={a.id} className="cm_gauge_code" style={{ color: a.color }} explain={toneExplainer(a, v)}>
             {a.code}
-            <span className="cm_gauge_val cm_tone_val" aria-hidden="true">{finite ? simText(v) : "—"}</span>
-          </button>
+            <span className="cm_gauge_val cm_tone_val">{typeof v === "number" && Number.isFinite(v) ? simText(v) : "—"}</span>
+          </ExplainedCode>
         );
       })}
     </div>
   );
 }
 
-/** What one conduct code shows ("short") and says ("now", on hover and in the axis window).
- * The kit's reads pass through, with one correction: its rigor read prints "—" and says "zero
- * calls this turn" both when the turn made no calls and when no tool fact was served at all. The
- * app knows which: a served tool_rounds of 0 is a turn without calls, where rigor does not apply
- * ("n/a"); no tool fact is unknown ("—"). Every "—" says why. null before the gauge reports. */
+/** A register's hover card: what it measures and this reply's similarity. */
+export function registerExplainer(a: AxisInfo, similarity: number | undefined): ExplainerContent {
+  const read = typeof similarity === "number" && Number.isFinite(similarity);
+  return {
+    code: a.code,
+    name: a.name,
+    color: a.color,
+    summary: a.summary,
+    facts: [{ label: "This reply", value: read ? simText(similarity) : "—" }],
+    note: read ? `Similarity, on one scale for every reply: ${simText(RADAR_MIN)} at the inner ring, +${simText(RADAR_MAX)} at the outer edge.` : "No similarity was read for this reply.",
+  };
+}
+
+/** A tone channel's hover card: what it measures, this reply's score and its pole word. */
+export function toneExplainer(a: AxisInfo, value: number | undefined): ExplainerContent {
+  const tier = toneTier(a.id, value);
+  return {
+    code: a.code,
+    name: a.name,
+    color: a.color,
+    summary: a.summary,
+    facts: [{ label: "This reply", value: tier === null ? "—" : `${simText(value as number)} · ${toneWord(a.id, value) ?? "typical"}` }],
+    note: tier === null ? "No score was read for this reply." : "A pole word is given only in the outer 3% of this home's texts on that side (the strong word in the outer 1%); otherwise typical.",
+  };
+}
+
+/** What one conduct code shows (`short`: the kit's compact value, "—" when there is none) and
+ * what its hover card says (`value`, and the `reason` behind a "—" or a bare figure). The kit's
+ * reads pass through, with one correction to a reason: its rigor read says "zero calls this
+ * turn" both when the turn made no calls and when no tool fact was served at all. The app knows
+ * which (a served tool_rounds of 0 is a turn without calls). null before the gauge reports. */
 export interface ConductCell {
   short: string;
-  now: string;
+  value: string;
+  reason?: string;
 }
+const sentence = (t: string) => (t ? `${t.charAt(0).toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? "" : "."}` : t);
 export function conductCell(axis: ConductAxis | undefined, facts: ConductFacts | null | undefined, tools: ConductToolCall[] | null | undefined): ConductCell | null {
   if (!axis) return null;
   if (axis.id === "rigor" && !tools?.length) {
     const rounds = facts?.tool_rounds;
-    if (rounds === 0) return { short: "n/a", now: "n/a, this turn made no tool calls (rigor reads the names of its calls)" };
-    if (typeof rounds === "number") return { short: "—", now: `not read, ${rounds} tool round${rounds === 1 ? "" : "s"} counted but no call names were served` };
-    return { short: "—", now: "not read, no tool facts were served for this turn" };
+    const reason =
+      rounds === 0
+        ? "This turn made no tool calls; rigor reads the names of its calls."
+        : typeof rounds === "number"
+          ? `${rounds} tool round${rounds === 1 ? "" : "s"} counted, but no call names were served.`
+          : "No tool facts were served for this turn.";
+    return { short: "—", value: "—", reason };
   }
-  const value = axis.text && axis.text !== "—" ? axis.text : "not read";
-  return { short: axis.short, now: axis.reason ? `${value} (${axis.reason})` : value };
+  return { short: axis.short, value: axis.text || "—", ...(axis.reason ? { reason: sentence(axis.reason) } : {}) };
 }
 
-/** A conduct read for the shown turn, said in full (the touch path: no hover needed). */
-export function conductNow(cell: ConductCell | null | undefined): string {
-  return cell ? `This turn: ${cell.now}.` : "This turn: not read yet.";
+/** A conduct code's hover card: what it measures and this turn's read or reason. */
+export function conductExplainer(a: AxisInfo, cell: ConductCell | null | undefined): ExplainerContent {
+  return {
+    code: a.code,
+    name: a.name,
+    color: a.color,
+    summary: a.summary,
+    facts: [{ label: "This turn", value: cell?.value ?? "—" }],
+    ...(cell ? (cell.reason ? { note: cell.reason } : {}) : { note: "Not read yet." }),
+  };
 }
 
-/** What the monitor IS — the (i) modal body, shared by the chat panel and
- * the Wave tab. Axis = null shows the general explanation; an axis shows
- * its detail. */
-export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions, conduct }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null; /** The shown reply's channel scores: a channel axis states its current value and pole. */ scores?: Record<string, number>; /** The shown reply's register similarities: a register states its own. */ emotions?: Record<string, number>; /** The shown turn's conduct cells by axis id (chat monitor only): a conduct axis states its read. */ conduct?: Partial<Record<string, ConductCell | null>> }): React.ReactElement {
+/** What the monitor IS — the (i) window, shared by the chat panel and the Wave tab. (The codes
+ * explain themselves on hover; there is no per-axis window.) */
+export function MonitorInfoModal({ onClose, calibration }: { onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
@@ -282,7 +334,6 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions,
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const isAbout = axis === "about" || axis === null;
   return (
     <div
       className="ev_backdrop"
@@ -290,9 +341,7 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions,
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="cm_modal" role="dialog" aria-label={isAbout ? "About the Cognitive Monitor" : `Axis: ${(axis as AxisInfo).name}`}>
-        {isAbout ? (
-          <>
+      <div className="cm_modal" role="dialog" aria-label="About the Cognitive Monitor">
             <div className="cm_modal_head">
               <span className="cm_modal_title">🧠 Cognitive Monitor</span>
               <button className="cm_modal_close" onClick={onClose} title="Close">✕</button>
@@ -312,7 +361,8 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions,
                 summarised in words. The tone reads too: the five channels under the bloom (WAR warmth, TSN tension,
                 REF reflection, STR structure, CER certainty) print their signed score in [−1, 1], so both poles show
                 (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
-                associative, assured or hedging). Hover or tap a channel for its pole word: it is given only when the
+                associative, assured or hedging). Hover a code (long-press on a touch screen) for what it measures
+                and its value; a channel's card gives its pole word only when the
                 reply sits in the outer 3% of a reference set on that side (the strong word for the outer 1%);
                 otherwise the channel is typical. The reference set is {TONE_CUTOFFS.reference.label}: what this home
                 embedded, not a general corpus.
@@ -323,9 +373,9 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions,
                 call, violet ring = verify-shaped call — the RIG count made visible), attention is one root filament
                 per memory recalled (green buds = memories formed), rigor is the spine's alignment. Reads are relative
                 to this visit's own median turn, never an invented absolute; a dashed stub means the fact is absent
-                (never zero-faked), and the code row under the figure always carries the live numbers: "—" is a fact
-                not served for this turn, "n/a" a read that does not apply (rigor on a turn without tool calls); hover
-                or tap a code for the reason.
+                (never zero-faked), and the code row under the figure always carries the live numbers; "—" means
+                there is no value for this turn (a fact not served, or rigor on a turn without tool calls), and the
+                code's card says why.
               </p>
               <p>
                 <strong>How they help together:</strong> the bloom shows how the words FEEL; the gauge shows what the
@@ -363,48 +413,10 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions,
                 words through the gateway; nothing here writes to his memory.
               </p>
             </div>
-          </>
-        ) : (
-          <>
-            <div className="cm_modal_head">
-              <span className="cm_modal_title">
-                <span className="cm_axis_code" style={{ color: (axis as AxisInfo).color }}>{(axis as AxisInfo).code}</span> {(axis as AxisInfo).name}
-              </span>
-              <button className="cm_modal_close" onClick={onClose} title="Close">✕</button>
-            </div>
-            <div className="cm_modal_body">
-              <p>{(axis as AxisInfo).description}</p>
-              {(axis as AxisInfo).id in TONE_POLES ? <p className="cm_modal_now">{channelNow((axis as AxisInfo).id, scores?.[(axis as AxisInfo).id])}</p> : null}
-              {EMOTION_AXES.some((e) => e.id === (axis as AxisInfo).id) ? <p className="cm_modal_now">{registerNow(emotions?.[(axis as AxisInfo).id])}</p> : null}
-              {conduct && CONDUCT_AXES.some((c) => c.id === (axis as AxisInfo).id) ? <p className="cm_modal_now">{conductNow(conduct[(axis as AxisInfo).id])}</p> : null}
-              <p className="cm_modal_note">
-                {CONDUCT_AXES.some((c) => c.id === (axis as AxisInfo).id)
-                  ? "Read from the turn's report (what ran, what was recalled, how long it took) — mechanical facts, not his words."
-                  : "Read from his words only — a register of the text, not a window into inner state."}
-              </p>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
 }
-
-/** A register's value for the shown reply, as the axis window states it. */
-export function registerNow(similarity: number | undefined): string {
-  if (typeof similarity !== "number" || !Number.isFinite(similarity)) return "This reply: not read.";
-  return `This reply: similarity ${simText(similarity)} (the radar runs from ${simText(RADAR_MIN)} on the inner ring to ${simText(RADAR_MAX)} at the outer edge).`;
-}
-
-/** One channel's current reading, said in full (the touch path: no hover needed). */
-export function channelNow(channel: string, value: number | undefined): string {
-  const tier = toneTier(channel, value);
-  if (tier === null) return "This reply: not read.";
-  const word = toneWord(channel, value);
-  const where = tier === 0 ? "typical (inside the middle 94% of the reference set)" : `${word} (beyond ${Math.abs(tier) === 2 ? "99%" : "97%"} of the reference set on this side)`;
-  return `This reply: ${simText(value as number)}, ${where}.`;
-}
-
 
 /** How far a petal label keeps from the bloom's vertical centre line (px). */
 const LABEL_AXIS_GAP = 3;
@@ -427,10 +439,10 @@ export function petalLabelTransform(x: number, width: number): string {
 }
 
 /** Petal-anchor overlay: the 3-letter codes AT their petal positions over
- * the canvas (DOM, not canvas — native tooltips + click-to-explain). The
+ * the canvas (DOM, not canvas — each code's hover card explains it). The
  * anchors mirror the vendored Bloom renderer's label anchors; no label
  * crosses the vertical centre line (petalLabelTransform). */
-export function BloomAxisOverlay({ width, height, onAxis, emotions }: { width: number; height: number; onAxis(axis: AxisInfo): void; /** The shown reply's similarities: each code carries its number. */ emotions?: Record<string, number> }): React.ReactElement | null {
+export function BloomAxisOverlay({ width, height, emotions }: { width: number; height: number; /** The shown reply's similarities: each code carries its number. */ emotions?: Record<string, number> }): React.ReactElement | null {
   if (width < 40 || height < 40) return null;
   const cx = width / 2;
   const cy = height / 2;
@@ -446,17 +458,10 @@ export function BloomAxisOverlay({ width, height, onAxis, emotions }: { width: n
         const sim = emotions?.[a.id];
         const num = typeof sim === "number" && Number.isFinite(sim) ? simText(sim) : "—";
         return (
-          <button
-            key={a.id}
-            className="cm_overlay_code"
-            style={{ left: x, top: y, color: a.color, transform: petalLabelTransform(x, width) }}
-            title={`${a.name}${emotions ? `, similarity ${num}` : ""} — ${a.description}`}
-            aria-label={`${a.name}${emotions ? `, similarity ${num}` : ""}`}
-            onClick={() => onAxis(a)}
-          >
+          <ExplainedCode key={a.id} className="cm_overlay_code" style={{ left: x, top: y, color: a.color, transform: petalLabelTransform(x, width) }} explain={registerExplainer(a, sim)}>
             {a.code}
             {emotions ? <span className="cm_overlay_num">{num}</span> : null}
-          </button>
+          </ExplainedCode>
         );
       })}
     </div>

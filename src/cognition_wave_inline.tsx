@@ -29,7 +29,8 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { isUsableVector, readingFromScore } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, conductCell, conductNow, dominantEmotion, MonitorInfoModal, simText, ToneRow, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, conductCell, conductExplainer, dominantEmotion, MonitorInfoModal, simText, ToneRow } from "./cognitive_monitor";
+import { ExplainedCode } from "./code_explainer";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -170,7 +171,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
     }
     return initialMonitorFolded(stored, phone);
   });
-  const [modalAxis, setModalAxis] = useState<AxisInfo | "about" | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   /** Live axis readings from the gauge (values/reasons for the code-row
    * tooltips — the kit reports them via onAxes). */
   const [gaugeAxes, setGaugeAxes] = useState<ConductAxis[]>([]);
@@ -316,7 +317,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // sends all nine explicitly; a register the basis lacks sits on the inner ring, its label "—").
   const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
-  /** Each conduct code's value and reason, shared by the code row and the axis window. */
+  /** Each conduct code's value and reason: the row prints `short`, the hover card the rest. */
   const conduct = useMemo(() => Object.fromEntries(CONDUCT_AXES.map((a) => [a.id, conductCell(gaugeAxes.find((g) => g.id === a.id), effort, tools)])), [gaugeAxes, effort, tools]);
   const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
@@ -333,7 +334,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
           🧠 Cognitive Monitor
           {mood ? <span className="cm_mood_dot" style={{ background: mood.axis.color }} title={`closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})`} /> : <span className="cm_mood_dot cm_mood_neutral" title="not read" />}
         </span>
-        <button className="cm_info" onClick={() => setModalAxis("about")} title="What is this? How to read it">
+        <button className="cm_info" onClick={() => setAboutOpen(true)} title="What is this? How to read it">
           ⓘ
         </button>
         <span className="cm_subtitle" title="The monitor reads the expressive character of his words, not his inner state — a text performing calm scores calm. Full explanation behind the ⓘ.">
@@ -361,20 +362,20 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
               {/* Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
                 * similarity scale is not. The breathing stays. */}
               <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={pairSize} />
-              <BloomAxisOverlay width={pairSize} height={pairSize} onAxis={(a) => setModalAxis(a)} emotions={current.emotions} />
+              <BloomAxisOverlay width={pairSize} height={pairSize} emotions={current.emotions} />
             </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
             {/* The five tone channels, each with its signed score (both poles show). */}
-            {status === "live" && current ? <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} /> : null}
+            {status === "live" && current ? <ToneRow scores={current.scores} /> : null}
           </div>
           {/* Slot (b): uic's AfConductGauge v2.1 "THE STANCE" (posture
             * figure — breath+head size=effort, strokes=tools with violet
             * verify rings, root filaments=memories recalled, spine
             * alignment=rigor; idle breath keeps quiet turns alive). The
             * code row is OURS (operator dm#22 (a)-(c)): interactive
-            * EFF/ACT/ATT/RIG spread across the full width, click = the
-            * axis modal; the canvas draws no labels (labels:false — bloom
+            * EFF/ACT/ATT/RIG spread across the full width, a 300 ms hover
+            * opens each code's card; the canvas draws no labels (labels:false — bloom
             * parity). Since 2026-08-01 each code carries its LIVE compact
             * value (the kit's `short`) — the operator's finding: EFF/RIG
             * encoded as motion/alignment alone were never perceived, so
@@ -385,16 +386,10 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
               {CONDUCT_AXES.map((a) => {
                 const cell = conduct[a.id];
                 return (
-                  <button
-                    key={a.id}
-                    className="cm_gauge_code"
-                    style={{ color: a.color }}
-                    title={`${a.name}. ${conductNow(cell)} ${a.description}`}
-                    onClick={() => setModalAxis(a)}
-                  >
+                  <ExplainedCode key={a.id} className="cm_gauge_code" style={{ color: a.color }} explain={conductExplainer(a, cell)}>
                     {a.code}
                     <span className="cm_gauge_val">{cell?.short ?? ""}</span>
-                  </button>
+                  </ExplainedCode>
                 );
               })}
             </div>
@@ -402,7 +397,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </div>
       ) : null}
 
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} emotions={current?.emotions} conduct={conduct} /> : null}
+      {aboutOpen ? <MonitorInfoModal onClose={() => setAboutOpen(false)} calibration={calibration} /> : null}
     </div>
   );
 }

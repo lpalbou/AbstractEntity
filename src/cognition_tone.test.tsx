@@ -7,9 +7,9 @@
  *   fixture's "hedging" is pinned as a known limitation. Scores only: no text is ever matched.
  * - BOTH POLES: every channel has a plain and a strong word on each side, in the meaning of the
  *   generic anchor texts (WAR- = discouraged, not "cool").
- * - UI: the row (role=group, five buttons, each PRINTING its signed score and named with channel,
- *   value and pole word) is what the chat monitor and the Wave tab mount; no sentence comments on
- *   the values (operator 2026-11-07).
+ * - UI: the row (role=group, five focusable codes, each PRINTING its signed score; the pole word
+ *   on the code's hover card) is what the chat monitor and the Wave tab mount; no sentence
+ *   comments on the values and no clickable codes (operator 2026-11-07).
  */
 import React from "react";
 import { createHash } from "node:crypto";
@@ -17,7 +17,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { CHANNEL_AXES, channelNow, MonitorInfoModal, simText, TONE_CUTOFFS, TONE_POLES, toneTier, toneWord, ToneRow } from "./cognitive_monitor";
+import { CHANNEL_AXES, simText, TONE_CUTOFFS, TONE_POLES, toneExplainer, toneTier, toneWord, ToneRow } from "./cognitive_monitor";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 import basisV1 from "./vendor/cognition/data/basis_v1.json";
 import fixture from "./fixtures/cognition_gate_vectors.json";
@@ -131,10 +131,10 @@ describe("tone words: both poles, two strengths, anchor meanings", () => {
       expect(toneWord(c, k.low + 0.001)).toBeNull();
       expect(toneWord(c, undefined)).toBeNull();
       expect(toneWord(c, Number.NaN)).toBeNull();
-      // the row's button names either pole beside the printed score
+      // the code's card names either pole beside the printed score
       const axis = CHANNEL_AXES.find((a) => a.id === c)!;
-      expect(renderToStaticMarkup(<ToneRow scores={{ [c]: k.lowStrong }} onAxis={() => undefined} />)).toContain(`aria-label="${axis.code} ${c} ${simText(k.lowStrong)}, ${minusStrong}"`);
-      expect(renderToStaticMarkup(<ToneRow scores={{ [c]: k.high }} onAxis={() => undefined} />)).toContain(`aria-label="${axis.code} ${c} ${simText(k.high)}, ${plus}"`);
+      expect(toneExplainer(axis, k.lowStrong).facts).toEqual([{ label: "This reply", value: `${simText(k.lowStrong)} · ${minusStrong}` }]);
+      expect(toneExplainer(axis, k.high).facts).toEqual([{ label: "This reply", value: `${simText(k.high)} · ${plus}` }]);
     });
   }
 
@@ -150,45 +150,45 @@ describe("tone words: both poles, two strengths, anchor meanings", () => {
 describe("the tone row (what both mounts show under the bloom)", () => {
   const castorScores = { warmth: -0.9361, tension: -0.0714, reflection: -0.2463, structure: 0.6719, certainty: -0.848 };
 
-  it("the row is a named group of five buttons, each named with channel, exact value and pole word", () => {
-    const html = renderToStaticMarkup(<ToneRow scores={castorScores} onAxis={() => undefined} />);
+  it("the row is a named group of five focusable codes, never buttons, no click action, no native tooltip", () => {
+    const html = renderToStaticMarkup(<ToneRow scores={castorScores} />);
     expect(html).toContain('role="group"');
     expect(html).toContain('aria-label="Tone of the phrasing"');
-    expect(html.match(/<button/g)?.length).toBe(5);
-    // The visible code starts each name (label in name, WCAG 2.5.3); the number is the printed one.
-    expect(html).toContain('aria-label="WAR warmth −0.94, discouraged"');
-    expect(html).toContain('aria-label="CER certainty −0.85, typical"');
-    expect(html).toContain('aria-label="STR structure 0.67, typical"');
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("title=");
+    expect(html.match(/<span class="cm_gauge_code cm_explained" style="color:[^"]+" tabindex="0">/g)?.length).toBe(5);
     expect(html).not.toContain("NaN");
   });
 
   it("each code PRINTS its score under it, as the registers print theirs (no tier marks)", () => {
-    const html = renderToStaticMarkup(<ToneRow scores={castorScores} onAxis={() => undefined} />);
-    const shown = [...html.matchAll(/<span class="cm_gauge_val cm_tone_val" aria-hidden="true">([^<]*)<\/span>/g)].map((m) => m[1]);
+    const html = renderToStaticMarkup(<ToneRow scores={castorScores} />);
+    const shown = [...html.matchAll(/<span class="cm_gauge_val cm_tone_val">([^<]*)<\/span>/g)].map((m) => m[1]);
     expect(shown).toEqual(["−0.94", "−0.07", "−0.25", "0.67", "−0.85"]);
-    // the pole word stays on hover, after the printed number
-    expect(html).toContain('title="WAR warmth −0.94, discouraged. Warm (glad');
     // never −0.00, never a tier mark
-    const tiny = renderToStaticMarkup(<ToneRow scores={{ warmth: -0.001, tension: 0.999, reflection: -0.999, structure: 0, certainty: 0.004 }} onAxis={() => undefined} />);
-    expect([...tiny.matchAll(/cm_tone_val" aria-hidden="true">([^<]*)</g)].map((m) => m[1])).toEqual(["0.00", "1.00", "−1.00", "0.00", "0.00"]);
+    const tiny = renderToStaticMarkup(<ToneRow scores={{ warmth: -0.001, tension: 0.999, reflection: -0.999, structure: 0, certainty: 0.004 }} />);
+    expect([...tiny.matchAll(/cm_tone_val">([^<]*)</g)].map((m) => m[1])).toEqual(["0.00", "1.00", "−1.00", "0.00", "0.00"]);
   });
 
-  it("an unread channel is named as not read and shows —, never a number", () => {
-    const html = renderToStaticMarkup(<ToneRow scores={{ warmth: Number.NaN }} onAxis={() => undefined} />);
-    expect(html).toContain('aria-label="WAR warmth, not read"');
-    expect(html).toContain('<span class="cm_gauge_val cm_tone_val" aria-hidden="true">—</span>');
+  it("an unread channel shows —, never a number", () => {
+    const html = renderToStaticMarkup(<ToneRow scores={{ warmth: Number.NaN }} />);
+    expect(html).toContain('<span class="cm_gauge_val cm_tone_val">—</span>');
     expect(html).not.toContain("NaN");
   });
 
-  it("a channel's axis panel states the printed value and pole without hover", () => {
-    expect(channelNow("warmth", -0.9361)).toBe("This reply: −0.94, discouraged (beyond 97% of the reference set on this side).");
-    expect(channelNow("certainty", 0.1)).toBe("This reply: 0.10, typical (inside the middle 94% of the reference set).");
-    expect(channelNow("certainty", -0.001)).toBe("This reply: 0.00, typical (inside the middle 94% of the reference set).");
-    expect(channelNow("certainty", undefined)).toBe("This reply: not read.");
+  it("a channel's card: what it measures, the printed value with its pole word, how the word is given", () => {
     const warmth = CHANNEL_AXES.find((a) => a.id === "warmth")!;
-    const html = renderToStaticMarkup(<MonitorInfoModal axis={warmth} onClose={() => undefined} scores={castorScores} />);
-    expect(html).toContain("This reply: −0.94, discouraged");
-    expect(html).toContain("against discouraged");
+    expect(toneExplainer(warmth, -0.9361)).toEqual({
+      code: "WAR",
+      name: "warmth",
+      color: warmth.color,
+      summary: "Warm against discouraged phrasing, from −1 to +1.",
+      facts: [{ label: "This reply", value: "−0.94 · discouraged" }],
+      note: "A pole word is given only in the outer 3% of this home's texts on that side (the strong word in the outer 1%); otherwise typical.",
+    });
+    const certainty = CHANNEL_AXES.find((a) => a.id === "certainty")!;
+    expect(toneExplainer(certainty, 0.1).facts[0].value).toBe("0.10 · typical");
+    expect(toneExplainer(certainty, -0.001).facts[0].value).toBe("0.00 · typical");
+    expect(toneExplainer(certainty, undefined)).toMatchObject({ facts: [{ label: "This reply", value: "—" }], note: "No score was read for this reply." });
   });
 
   it("both mounts render the row and neither renders a sentence about the values (the browser check covers the live mount)", () => {
@@ -199,6 +199,8 @@ describe("the tone row (what both mounts show under the bloom)", () => {
     for (const src of [inline, wave]) {
       expect(src).not.toMatch(/ReadingLine|interpretWave|readingTitle/);
       expect(src).not.toContain("cm_reading_line");
+      // no per-axis window: the codes explain themselves on hover
+      expect(src).not.toMatch(/onAxis|setModalAxis|MonitorInfoModal axis=/);
     }
   });
 });

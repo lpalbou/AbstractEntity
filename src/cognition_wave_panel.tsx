@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal, ToneRow, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal, ToneRow } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -71,7 +71,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
    * through the samples), or "manual" (prev/next stepping). */
   const [mode, setMode] = useState<"timeline" | "play" | "manual">("timeline");
   const [basis, setBasis] = useState<FrozenBasis | null>(null);
-  const [modalAxis, setModalAxis] = useState<AxisInfo | "about" | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const scoringRef = useRef(false);
 
   // The fold is read AT PULL TIME from a ref — NEVER a scoring-effect
@@ -181,13 +181,13 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
     <div className="cw_panel">
       <div className="cw_head">
         <span className="cw_title">🧠 Cognitive Monitor</span>
-        <button className="cm_info" onClick={() => setModalAxis("about")} title="What is this? How to read it">
+        <button className="cm_info" onClick={() => setAboutOpen(true)} title="What is this? How to read it">
           ⓘ
         </button>
         {provenance ? <span className="cw_prov">{provenance}</span> : null}
       </div>
       <div className="cw_framing">{FRAMING}</div>
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} emotions={current?.emotions} /> : null}
+      {aboutOpen ? <MonitorInfoModal onClose={() => setAboutOpen(false)} calibration={calibration} /> : null}
 
       {/* THE ONE-PULL CONTROL (c1824 ruling, flood fix c2155): scoring is an
         * EXPLICIT operator act, never automatic — reading his words costs
@@ -235,9 +235,9 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
             <div className="cw_bloom_col" style={{ width: 300 }}>
               <div style={{ position: "relative", width: 300, height: 300 }}>
                 <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={300} />
-                <BloomAxisOverlay width={300} height={300} onAxis={(a) => setModalAxis(a)} emotions={current?.emotions ?? {}} />
+                <BloomAxisOverlay width={300} height={300} emotions={current?.emotions ?? {}} />
               </div>
-              {current ? <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} /> : null}
+              {current ? <ToneRow scores={current.scores} /> : null}
             </div>
           </div>
 

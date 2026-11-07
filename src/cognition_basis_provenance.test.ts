@@ -40,11 +40,15 @@ describe("basisProvenanceNote (generic design, mixed-corpus normalization)", () 
 
 describe("the (i) modal carries the generic provenance", () => {
   it("the (i) modal states the generic provenance, explains the signed tone channels, and drops the stale sentences", () => {
-    const html = renderToStaticMarkup(React.createElement(MonitorInfoModal, { axis: "about", onClose: () => undefined, calibration: basisProvenanceNote(V1) }));
+    const html = renderToStaticMarkup(React.createElement(MonitorInfoModal, { onClose: () => undefined, calibration: basisProvenanceNote(V1) }));
     expect(html).toContain("the same for every entity");
     expect(html).toContain("print their signed score in [−1, 1], so both poles show");
     // no sentence comments on the values any more (operator 2026-11-07)
     expect(html).not.toMatch(/The sentence|are closest to calm/);
+    // no "n/a" any more, and the codes are hovered (long-pressed on touch), never tapped or clicked
+    expect(html).not.toContain("n/a");
+    expect(html).toContain("Hover a code (long-press on a touch screen)");
+    expect(html).not.toMatch(/\btap\b|click/i);
     expect(html).not.toMatch(NO_ONE_ENTITY);
     expect(html).not.toContain("calibrated on his real utterances");
     expect(html).not.toContain("curated-only v0 basis");

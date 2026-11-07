@@ -33,11 +33,57 @@
   flex-direction: column;
   gap: 4px;
 }
-/* Touch: four 44 px conduct codes need 176 px and the gauge box is 132–190 px; centre the row so
- * any overflow splits into the 14 px gap and the panel padding instead of past the panel edge. */
-@media (pointer: coarse) {
-  .cm_gauge_box > .cm_gauge_codes {
-    justify-content: center;
-    padding: 0;
-  }
+/* The codes are labels, not buttons (operator 2026-11-07): no pointer cursor, no underline; the
+ * help cursor says a card is behind them; focusable for keyboard users (the card opens on focus).
+ * A long-press opens the card on touch, so the page must not select text or open a callout. */
+.cm_explained {
+  cursor: help;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  border-radius: 3px;
+}
+.cm_gauge_code.cm_explained:hover {
+  text-decoration: none;
+}
+.cm_explained:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 1px;
+}
+/* The code's card: the kit's structured tooltip (theme.css .af-tooltip) with the code as its
+ * title: a colour swatch (the code's colour is too light for text on a light surface), the code
+ * in the monospace face, and its full name. Never hoverable (it closes when the code is left). */
+.cm_explainer {
+  pointer-events: none;
+}
+.cm_explainer_title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.cm_explainer_swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.cm_explainer_code {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  letter-spacing: 0.04em;
+}
+.cm_explainer_name {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+/* A label is a span now: centre the code over its number as the button did. */
+.cm_overlay_code.cm_explained {
+  text-align: center;
+}
+/* The conduct row spans the whole gauge box (no side padding) so four values such as
+ * "1m35s 1 120+12 1/1" fit a 147 px box at the 14 px touch type floor. */
+.cm_gauge_box > .cm_gauge_codes {
+  padding: 0;
+}
+.cm_gauge_box .cm_gauge_code.cm_explained {
+  padding: 0 1px;
 }

@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { EMOTION_REGISTERS } from "@abstractframework/ui-kit";
 
 import * as monitor from "./cognitive_monitor";
-import { BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, dominantEmotion, EMOTION_AXES, petalLabelTransform, radarValue, registerNow, roundSim, simText } from "./cognitive_monitor";
+import { BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, CONDUCT_AXES, dominantEmotion, EMOTION_AXES, petalLabelTransform, radarValue, registerExplainer, roundSim, simText } from "./cognitive_monitor";
 import { CHANNELS } from "./vendor/cognition/core";
 
 describe("axis tables (drift pins against the kit contract)", () => {
@@ -55,6 +55,15 @@ describe("axis tables (drift pins against the kit contract)", () => {
     for (const a of [...EMOTION_AXES, ...CHANNEL_AXES]) {
       expect(a.color).toMatch(/^#|^rgb/);
       expect(a.description.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("every code's hover card has ONE plain sentence of what it measures, its own (not the long prose)", () => {
+    for (const a of [...EMOTION_AXES, ...CHANNEL_AXES, ...CONDUCT_AXES]) {
+      expect(a.summary, a.id).toMatch(/^[A-Z][^]*\.$/);
+      expect(a.summary, a.id).not.toMatch(/\. /);
+      expect(a.summary.length, a.id).toBeLessThan(110);
+      expect(a.summary, a.id).not.toBe(a.description);
     }
   });
 });
@@ -107,17 +116,32 @@ describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), 
     expect(simText(0.0996)).toBe("0.10");
   });
 
-  it("every petal carries its number; a missing one reads —", async () => {
+  it("every petal carries its number; a missing one reads —; the codes are labels, not buttons", async () => {
     const React = (await import("react")).default;
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 200, height: 200, onAxis: () => undefined, emotions: { joy: -0.02, fear: 0.59 } }));
-    // the number SHOWN beside each code, not only in the hover text
+    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 200, height: 200, emotions: { joy: -0.02, fear: 0.59 } }));
+    // the number SHOWN beside each code
     expect(html).toContain('<span class="cm_overlay_num">−0.02</span>');
     expect(html).toContain('<span class="cm_overlay_num">0.59</span>');
     expect(html).toContain('<span class="cm_overlay_num">—</span>');
-    expect(html).toContain("calm, similarity —");
-    expect(registerNow(0.12)).toBe("This reply: similarity 0.12 (the radar runs from −0.25 on the inner ring to 0.75 at the outer edge).");
-    expect(registerNow(undefined)).toBe("This reply: not read.");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("title=");
+    expect(html.match(/tabindex="0"/g)?.length).toBe(9);
+  });
+
+  it("a register's card: what it measures, this reply's similarity and the scale; — when not read", () => {
+    const fear = EMOTION_AXES.find((a) => a.id === "fear")!;
+    expect(registerExplainer(fear, 0.0612)).toEqual({
+      code: "FEA",
+      name: fear.name,
+      color: fear.color,
+      summary: "How close his words are to threat language: danger, loss, being overwhelmed.",
+      facts: [{ label: "This reply", value: "0.06" }],
+      note: "Similarity, on one scale for every reply: −0.25 at the inner ring, +0.75 at the outer edge.",
+    });
+    expect(registerExplainer(fear, -0.001).facts[0].value).toBe("0.00");
+    expect(registerExplainer(fear, undefined)).toMatchObject({ facts: [{ label: "This reply", value: "—" }], note: "No similarity was read for this reply." });
+    expect(registerExplainer(fear, Number.NaN).facts[0].value).toBe("—");
   });
 
   it("petal labels stay centred on their anchor but never cross the centre line nor leave the box", async () => {
@@ -130,7 +154,7 @@ describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), 
     // every label gets its bounds; exactly one (the top petal) is plainly centred
     const React = (await import("react")).default;
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 163, height: 163, onAxis: () => undefined, emotions: {} }));
+    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 163, height: 163, emotions: {} }));
     expect(html.match(/transform:translate\(-50%, -50%\)/g)?.length).toBe(1);
     expect(html.match(/transform:translate\(max\(/g)?.length).toBe(4);
     expect(html.match(/transform:translate\(min\(calc/g)?.length).toBe(4);
