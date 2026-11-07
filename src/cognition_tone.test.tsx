@@ -202,5 +202,9 @@ describe("the tone row (what both mounts show under the bloom)", () => {
       // no per-axis window: the codes explain themselves on hover
       expect(src).not.toMatch(/onAxis|setModalAxis|MonitorInfoModal axis=/);
     }
+    // the Wave tab's request and answer go through the shared renderer, never raw
+    expect(wave).toMatch(/<WordsLine text=\{current\.request\} \/>/);
+    expect(wave).toMatch(/<WordsLine text=\{current\.text\} \/>/);
+    expect(wave).not.toMatch(/>\{current\.(request|text)\}</);
   });
 });

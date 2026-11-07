@@ -91,3 +91,16 @@
 .cm_gauge_box .cm_gauge_code.cm_explained {
   padding: 0 1px;
 }
+/* The Wave tab's request and answer, now through the shared renderer (WordsLine, a <div>, which
+ * cannot sit in the old <p>): the old paragraph's type, colour and height, on its wrapper. */
+.cw_turn_block .cw_turn_text {
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.55;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.cw_turn_request .cw_turn_text {
+  color: var(--text-dim);
+}

@@ -29,6 +29,7 @@ import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal,
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
+import { WordsLine } from "./words_line";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
 // The frozen basis is ~190 KB of numbers; lazy-load it so opening the Wave
@@ -298,13 +299,19 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
               {current.request ? (
                 <div className="cw_turn_block cw_turn_request">
                   <span className="cw_turn_role">request</span>
-                  <p>{current.request}</p>
+                  <div className="cw_turn_text">
+                    <WordsLine text={current.request} />
+                  </div>
                 </div>
               ) : null}
               {current.text ? (
                 <div className="cw_turn_block cw_turn_answer">
                   <span className="cw_turn_role">{current.source === "diary" ? "his entry" : current.source === "summary" ? "his reflection" : "his answer"}</span>
-                  <p>{current.text}</p>
+                  {/* The shared renderer (Markdown, images never load), block mode: a reply's
+                    * paragraphs stay paragraphs. */}
+                  <div className="cw_turn_text">
+                    <WordsLine text={current.text} />
+                  </div>
                 </div>
               ) : null}
             </div>
