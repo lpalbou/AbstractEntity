@@ -63,42 +63,136 @@ function clip(text: string, max = 96): string {
 
 /** Derived rhythm lines (maintainer, 2026-07-08 16:31: "the ledger really
  * doesn't say anything about what's happening during own time"): the
- * stream has no explicit day/tick markers, but every envelope carries
- * run_id/turn_id — boundaries BETWEEN consecutive envelopes are the
- * day and tick structure of his own time, derived, never invented.
- * Pure per (prev, env): the ledger cache stays incremental. */
-export function boundaryLines(env: ReplayEnvelope, prev: ReplayEnvelope | null): LedgerLine[] {
-  const run = String(env.run_id || "");
-  const turn = String(env.turn_id || "");
-  if (!run && !turn) return [];
-  const prevRun = String(prev?.run_id || "");
-  const prevTurn = String(prev?.turn_id || "");
-  const out: LedgerLine[] = [];
+ * stream has no explicit day/tick markers, but its envelopes carry the
+ * run and the turn they belong to. The day and tick structure of his own
+ * time is derived from those stamps, never invented.
+ *
+ * Own time is read from two structured stamps, latest wins: a run-stamped
+ * envelope (the runtime's rule: an own-time run is `chat-owntime-…` /
+ * `owntime-…`) and a recall's participants (the entity alone is his own
+ * time, anyone with him is a visit). A tick starts at the first
+ * envelope of a new turn — the recall trace that opens it carries the
+ * turn in `need.turn_id`. Turns restart at 1 each day (one session per
+ * day), so turn 1 opens a day — only on an envelope that itself shows
+ * own time; the first reflection turn (`t-reflect…`, the runtime writes
+ * several) closes it, once, and nothing ticks again until a day opens. Operator report
+ * 2026-11-07: the old run-change rule repeated "a day of his own begins"
+ * before every tick and put each tick marker mid-tick. */
+export interface RhythmState {
+  ownTime: boolean;
+  /** Last own-time turn a boundary was derived for. */
+  turn: string | null;
+  /** The day's close was already announced. */
+  closed: boolean;
+}
+
+export const RHYTHM_START: RhythmState = { ownTime: false, turn: null, closed: false };
+
+const OWN_TIME_RUN = /^(chat-)?owntime-/;
+
+function envelopeTurn(env: ReplayEnvelope): string {
+  if (env.turn_id) return String(env.turn_id);
+  if (env.family === "trace") return String((env.payload as unknown as TracePayload).need?.turn_id || "");
+  return "";
+}
+
+/** Whether this envelope says he is (true) or is not (false) in his own
+ * time; null when it says nothing. */
+function ownTimeStamp(env: ReplayEnvelope): boolean | null {
+  if (env.run_id) return OWN_TIME_RUN.test(String(env.run_id));
+  if (env.family === "trace") {
+    const who = (env.payload as unknown as TracePayload).need?.participants;
+    if (!Array.isArray(who) || who.length === 0) return null;
+    return who.length === 1 && String(who[0]).startsWith("entity:");
+  }
+  return null;
+}
+
+export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: LedgerLine[]; state: RhythmState } {
+  const stamp = ownTimeStamp(env);
+  const ownTime = stamp ?? state.ownTime;
+  if (!ownTime) {
+    return { lines: [], state: state === RHYTHM_START ? state : RHYTHM_START };
+  }
+  const turn = envelopeTurn(env);
+  const n = turn.match(/^t-0*(\d+)$/)?.[1];
+  // A day opens only on direct evidence (an own-time run or a recall
+  // made alone), and after the day closed nothing ticks until one does:
+  // lives that journal few recalls carried own time past the reflection
+  // into the next visit's turn-1 events (Castor, adversarial review).
+  const needsEvidence = n === "1" || (state.closed && !turn.startsWith("t-reflect"));
+  if (!turn || turn === state.turn || (n && needsEvidence && stamp !== true)) {
+    return { lines: [], state: state.ownTime ? state : { ...state, ownTime: true } };
+  }
   const base = {
     seq: env.seq,
     family: "boundary",
     observed_at: env.observed_at,
     trace_id: null,
-    turn_id: env.turn_id ?? null,
+    turn_id: turn,
     subject_id: null,
     tone: "boundary",
   };
-  const isOwnTime = run.includes("owntime");
-  if (run && run !== prevRun && isOwnTime) {
-    const at = String(env.observed_at || "").slice(11, 16);
-    out.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
-  }
-  if (turn && turn !== prevTurn && (run === prevRun || isOwnTime)) {
-    if (turn === "t-reflect") {
-      out.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
-    } else {
-      const n = turn.match(/^t-0*(\d+)$/)?.[1];
-      if (n && isOwnTime) {
-        out.push({ ...base, title: `— tick ${n} —`, detail: "" });
-      }
+  const lines: LedgerLine[] = [];
+  let closed = state.closed;
+  if (turn.startsWith("t-reflect")) {
+    if (!closed) lines.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
+    closed = true;
+  } else if (n) {
+    if (n === "1") {
+      const at = String(env.observed_at || "").slice(11, 16);
+      lines.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
+      closed = false;
     }
+    lines.push({ ...base, title: `— tick ${n} —`, detail: "" });
   }
-  return out;
+  return { lines, state: { ownTime: true, turn, closed } };
+}
+
+/** One ledger line and the envelope index it belongs to (boundary lines
+ * share their envelope's index). */
+export interface IndexedLine {
+  line: LedgerLine;
+  index: number;
+}
+
+/** The ledger's incremental fold over the envelope array. */
+export interface LedgerLineFold {
+  lines: IndexedLine[];
+  /** Envelopes covered, and the envelope OBJECTS at both ends of that
+   * prefix: a live append keeps them, a new source (another entity, a
+   * dropped file with the same seq layout) does not. */
+  count: number;
+  first: ReplayEnvelope | null;
+  tail: ReplayEnvelope | null;
+  rhythm: RhythmState;
+}
+
+/** Extend `prev` with the envelopes it has not covered yet, or rebuild
+ * when the covered prefix changed (a retrograde host marker inserted
+ * mid-array, a new source). Every change returns a NEW `lines` array: the
+ * panel's filters are memoized on its identity, and appending in place
+ * left the live ledger frozen at its first load while the timeline kept
+ * counting (operator report 2026-11-07). An unchanged input returns `prev`. */
+export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEnvelope[]): LedgerLineFold {
+  const first = envelopes.length > 0 ? envelopes[0] : null;
+  const intact =
+    prev !== null &&
+    prev.first === first &&
+    prev.count <= envelopes.length &&
+    (prev.count === 0 || envelopes[prev.count - 1] === prev.tail);
+  if (intact && prev.count === envelopes.length) return prev;
+  const from = intact ? prev.count : 0;
+  const lines = intact ? prev.lines.slice() : [];
+  let rhythm = intact ? prev.rhythm : RHYTHM_START;
+  for (let i = from; i < envelopes.length; i++) {
+    const env = envelopes[i];
+    const step = rhythmStep(rhythm, env);
+    rhythm = step.state;
+    for (const b of step.lines) lines.push({ line: b, index: i });
+    lines.push({ line: ledgerLine(env), index: i });
+  }
+  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm };
 }
 
 function displayTitle(env: ReplayEnvelope, fallback: string): string {

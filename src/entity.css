@@ -747,6 +747,10 @@ body {
   position: sticky;
   bottom: 4px;
   z-index: 2;
+  /* It floats over the rows: opaque, or its words overprint theirs. */
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
 
 .el_quiet_note:hover {
@@ -2181,6 +2185,7 @@ body {
 
 .el_row_meta {
   flex: 0 0 52px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -2196,6 +2201,11 @@ body {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim);
   opacity: 0.8;
+  /* Reflection turn ids run ~50 characters; one clipped line, the full id
+     on hover (they wrapped into six lines and pushed the entry aside). */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .el_row_body {
