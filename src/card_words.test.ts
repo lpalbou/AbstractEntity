@@ -36,15 +36,35 @@ describe("the card's own words", () => {
     expect(parseMechanicalCard("What I know of x:\nsome free line")).toBeNull();
   });
 
-  it("each cut quote finds the source it starts, by exact prefix", () => {
+  it("each cut quote finds the one source it starts, on the same date", () => {
     const sources = [
-      { graphId: "ex:episode-1", full: "", answer: "The briefing can stand for now. I’ll rest rather than create another task from its echoes." },
-      { graphId: "ex:episode-2", full: "", answer: "The survey remains complete, and the dream links are still candidates rather than evidence." },
+      { graphId: "ex:episode-1", full: "", answer: "The briefing can stand for now. I’ll rest rather than create another task from its echoes.", date: "2026-11-07" },
+      { graphId: "ex:episode-2", full: "", answer: "The survey remains complete, and the dream links are still candidates rather than evidence.", date: "2026-11-07" },
     ];
     const c = parseMechanicalCard(CARD)!;
-    expect(matchQuote(c.quotes[0].text, "nerin", sources)).toBe("ex:episode-2");
-    expect(matchQuote(c.quotes[1].text, "nerin", sources)).toBe("ex:episode-1");
-    expect(matchQuote("nerin: words no source starts with", "nerin", sources)).toBeNull();
+    expect(matchQuote(c.quotes[0], "nerin", sources)).toBe("ex:episode-2");
+    expect(matchQuote(c.quotes[1], "nerin", sources)).toBe("ex:episode-1");
+    expect(matchQuote({ ...c.quotes[0], date: "2026-11-06" }, "nerin", sources)).toBeNull(); // dates must agree
+    expect(matchQuote({ date: "2026-11-07", text: "nerin: words no source starts with at all", cut: true }, "nerin", sources)).toBeNull();
+  });
+
+  it("a quote too short to identify one memory, or fitting two, matches none", () => {
+    const sources = [
+      { graphId: "a", full: "", answer: "I examined the dream.", date: "2026-11-07" },
+      { graphId: "b", full: "", answer: "I rested.", date: "2026-11-07" },
+      { graphId: "c", full: "", answer: "The same long opening sentence of an answer, then more.", date: "2026-11-07" },
+      { graphId: "d", full: "", answer: "The same long opening sentence of an answer, then other words.", date: "2026-11-07" },
+    ];
+    expect(matchQuote({ date: "2026-11-07", text: "entity:nerin: cue nerin: I", cut: true }, "nerin", sources)).toBeNull();
+    // short but fitting only one memory: still too little to be sure
+    expect(matchQuote({ date: "2026-11-07", text: "entity:nerin: cue nerin: I exa", cut: true }, "nerin", sources)).toBeNull();
+    expect(matchQuote({ date: "2026-11-07", text: "nerin: The same long opening sentence of an answer", cut: true }, "nerin", sources)).toBeNull();
+  });
+
+  it("the part the card quoted from what was said to him is kept", async () => {
+    const { quoteCue } = await import("./card_words");
+    expect(quoteCue("entity:nerin: None of this is owed - the day is yours. nerin: The survey…", "nerin")).toBe("entity:nerin: None of this is owed - the day is yours.");
+    expect(quoteCue("nerin: The survey…", "nerin")).toBe("");
   });
 });
 

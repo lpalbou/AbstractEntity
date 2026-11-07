@@ -17,7 +17,27 @@ import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { parseExchange, parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./verbatim_parse";
 import type { VerbatimSource } from "./verbatim_modal";
 
-export async function readRecordWords(source: VerbatimSource, graphId: string, kind: string | undefined): Promise<{ text: string; note: string | null }> {
+/** His words as Markdown. Images stay links (images="link", the chat's
+ * rule): opening Detail must never make the browser fetch a remote URL a
+ * model wrote. */
+export function Words({ text, className }: { text: string; className: string }): React.ReactElement {
+  return <Markdown text={text} className={className} images="link" />;
+}
+
+/** One read per record at a time: the sources list and the card's words
+ * ask for the same records together (the cache fills only after a read). */
+const inFlight = new Map<string, Promise<{ text: string; note: string | null }>>();
+
+export function readRecordWords(source: VerbatimSource, graphId: string, kind: string | undefined): Promise<{ text: string; note: string | null }> {
+  const key = `${source.baseUrl}|${source.entity}|${graphId}`;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const p = readRecordWordsOnce(source, graphId, kind).finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+
+async function readRecordWordsOnce(source: VerbatimSource, graphId: string, kind: string | undefined): Promise<{ text: string; note: string | null }> {
   const key = textCacheKey(source.baseUrl, source.entity, `verbatim:${graphId}`);
   const cached = await getCachedText(key);
   if (cached) return { text: cached.text || "", note: cached.note || null };
@@ -65,7 +85,7 @@ export function VerbatimTurns({ text, entity, onSpeakers, plain = false }: { tex
         <div className="ei_turns">
           <div className="ei_turn">
             <span className="ei_turn_speaker">{exchange.cueSpeaker}</span>
-            <Markdown text={restBlocksAsText(exchange.cue)} className="ev_markdown ei_turn_md" />
+            <Words text={restBlocksAsText(exchange.cue)} className="ev_markdown ei_turn_md" />
           </div>
           {exchange.between ? (
             <div className="ei_unspoken">
@@ -75,7 +95,7 @@ export function VerbatimTurns({ text, entity, onSpeakers, plain = false }: { tex
           ) : null}
           <div className="ei_turn ei_turn_self">
             <span className="ei_turn_speaker">{exchange.answerSpeaker}</span>
-            <Markdown text={restBlocksAsText(exchange.answer)} className="ev_markdown ei_turn_md" />
+            <Words text={restBlocksAsText(exchange.answer)} className="ev_markdown ei_turn_md" />
           </div>
         </div>
         {thinking ? (
@@ -94,7 +114,7 @@ export function VerbatimTurns({ text, entity, onSpeakers, plain = false }: { tex
           {turns.map((t, i) => (
             <div key={i} className={`ei_turn ${t.speaker.toLowerCase().startsWith(self) ? "ei_turn_self" : ""}`}>
               <span className="ei_turn_speaker">{t.speaker}</span>
-              {isToolTurn(t.speaker) ? <pre className="ei_turn_text">{t.text}</pre> : <Markdown text={restBlocksAsText(t.text)} className="ev_markdown ei_turn_md" />}
+              {isToolTurn(t.speaker) ? <pre className="ei_turn_text">{t.text}</pre> : <Words text={restBlocksAsText(t.text)} className="ev_markdown ei_turn_md" />}
             </div>
           ))}
         </div>
@@ -102,7 +122,7 @@ export function VerbatimTurns({ text, entity, onSpeakers, plain = false }: { tex
         plain ? (
           <div className="ei_verbatim_md ei_verbatim_plain">{spoken || text}</div>
         ) : (
-          <Markdown text={restBlocksAsText(spoken || text)} className="ev_markdown ei_verbatim_md" />
+          <Words text={restBlocksAsText(spoken || text)} className="ev_markdown ei_verbatim_md" />
         )
       )}
       {thinking ? (

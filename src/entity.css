@@ -488,14 +488,18 @@ body {
   white-space: pre-wrap;
 }
 
-/* Never hide words sideways: code blocks in these panels wrap. */
+/* Never hide words sideways: code blocks in these panels wrap (the code
+   element inside carries panel-chat's white-space: pre, so set both). */
 .ei_turn_md pre,
 .ei_verbatim_md pre,
 .wm_source_text pre,
-.cw_text pre {
+.wmc_text pre,
+.ei_turn_md pre code,
+.ei_verbatim_md pre code,
+.wm_source_text pre code,
+.wmc_text pre code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow-x: visible;
 }
 .cm_overlay {
   position: absolute;
@@ -1841,50 +1845,72 @@ body {
   color: var(--text-dim, #8b98ad);
 }
 /* A world-model card's own words, structured. */
-.cw_card {
+.wmc_card {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   line-height: 1.55;
 }
 
-.cw_head,
-.cw_feeling {
+.wmc_head,
+.wmc_feeling {
+  display: block;
   margin: 0 0 8px;
 }
 
-.cw_quotes {
+.wmc_cue {
+  display: block;
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 2px 0;
+}
+
+.dr_signal_note {
+  margin: 2px 12px 6px;
+}
+
+.dr_fragment {
+  color: var(--text);
+}
+
+.dr_cut {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.wmc_quotes {
   margin: 0 0 8px;
   padding-left: 1.2em;
   list-style: disc;
 }
 
-.cw_quote {
+.wmc_quote {
   margin-bottom: 10px;
 }
 
-.cw_date {
+.wmc_date {
   display: block;
   font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim);
 }
 
-.cw_text {
+.wmc_text {
   overflow-wrap: anywhere;
 }
 
-.cw_cut {
+.wmc_cut {
   color: var(--text-dim);
   font-style: italic;
 }
 
-.cw_footer {
+.wmc_footer {
   margin: 0;
   color: var(--text-dim);
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-.cw_thread {
+.wmc_thread {
   display: inline-block;
   margin: 2px 4px 0 0;
   padding: 0 6px;
@@ -1892,7 +1918,7 @@ body {
   border-radius: 999px;
 }
 
-.cw_reminder {
+.wmc_reminder {
   display: block;
   margin-top: 4px;
   font-style: italic;

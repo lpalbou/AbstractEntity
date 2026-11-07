@@ -16,13 +16,13 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Markdown } from "@abstractframework/panel-chat";
 
 import { bookDate } from "./book_reader";
+import { dayUtc } from "./ledger_lines";
 import type { FoldState, NodeState } from "./stream_fold";
 import type { VerbatimSource } from "./verbatim_modal";
 import { restBlocksAsText } from "./verbatim_parse";
-import { readRecordWords } from "./verbatim_view";
+import { readRecordWords, Words } from "./verbatim_view";
 import { isDiarySource, selectCardSources, sourceWords } from "./world_model_sources";
 
 export interface MechanicalCard {
@@ -67,25 +67,42 @@ export function parseMechanicalCard(text: string): MechanicalCard | null {
 
 const fold = (s: string) => s.replace(/\s+/g, " ").trim();
 
-/** The source whose words a quote starts: the quote (or its part after the
- * last "<name>: " head) must be the exact start of the source's folded
- * words or of its answer. */
-export function matchQuote(quote: string, entity: string, sources: Array<{ graphId: string; full: string; answer: string }>): string | null {
-  const q = fold(quote);
+/** The source a quote cites. The card writes "<date>: <gist>", the gist
+ * being the start of the source's words; a quote matches a source when the
+ * dates agree and the quote's words after the last "<name>: " head are the
+ * exact start of the source's answer (or the whole quote the start of its
+ * words). The matched text must say enough to identify one memory (at
+ * least MIN_MATCH characters, or the whole uncut quote), and a quote that
+ * fits two sources matches none — a wrong match would show words the card
+ * never meant. */
+export const MIN_MATCH = 24;
+
+export function matchQuote(
+  quote: { date: string; text: string; cut: boolean },
+  entity: string,
+  sources: Array<{ graphId: string; full: string; answer: string; date: string }>,
+): string | null {
+  const q = fold(quote.text);
   const head = `${entity.trim().toLowerCase()}: `;
-  const cut = q.toLowerCase().lastIndexOf(head);
-  const tail = cut >= 0 ? q.slice(cut + head.length) : q;
-  if (!tail) return null;
-  for (const s of sources) {
-    if (fold(s.answer).startsWith(tail) || fold(s.full).startsWith(q)) return s.graphId;
-  }
-  return null;
+  const at = q.toLowerCase().lastIndexOf(head);
+  const tail = at >= 0 ? q.slice(at + head.length) : q;
+  if (!tail || (tail.length < MIN_MATCH && quote.cut)) return null;
+  const hits = sources.filter((s) => s.date === quote.date && (fold(s.answer).startsWith(tail) || fold(s.full).startsWith(q)));
+  return hits.length === 1 ? hits[0].graphId : null;
+}
+
+/** The part of a quote before his answer (what was said to him), if any. */
+export function quoteCue(quoteText: string, entity: string): string {
+  const q = fold(quoteText);
+  const head = `${entity.trim().toLowerCase()}: `;
+  const at = q.toLowerCase().lastIndexOf(head);
+  return at > 0 ? q.slice(0, at).trim() : "";
 }
 
 export function CardWords({ foldState, card, source, onSelect }: { foldState: FoldState; card: NodeState; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<Array<{ graphId: string; full: string; answer: string; node: NodeState | null }>>([]);
+  const [answers, setAnswers] = useState<Array<{ graphId: string; full: string; answer: string; date: string; node: NodeState | null }>>([]);
   const sources = useMemo(() => selectCardSources(foldState, card), [foldState, card]);
   const sourceKey = sources.map((s) => s.graphId).join(",");
 
@@ -110,7 +127,7 @@ export function CardWords({ foldState, card, source, onSelect }: { foldState: Fo
         readRecordWords(source, s.graphId, s.node?.kind)
           .then((w) => {
             const words = sourceWords(w.text, source.entity);
-            return { graphId: s.graphId, full: w.text, answer: words.phase === "ready" ? words.lead : "", node: s.node };
+            return { graphId: s.graphId, full: w.text, answer: words.phase === "ready" ? words.lead : "", date: dayUtc(s.bornAt), node: s.node };
           })
           .catch(() => null),
       ),
@@ -124,24 +141,26 @@ export function CardWords({ foldState, card, source, onSelect }: { foldState: Fo
   if (error) return <p className="ei_note">The card's words could not be read ({error}).</p>;
   if (text === null) return <p className="ei_note">reading the card…</p>;
   const parsed = parseMechanicalCard(text);
-  if (!parsed) return <Markdown text={text} className="ev_markdown ei_verbatim_md" />;
+  if (!parsed) return <Words text={text} className="ev_markdown ei_verbatim_md" />;
   return (
-    <div className="cw_card">
-      <p className="cw_head">
+    <div className="wmc_card">
+      <p className="wmc_head">
         What I know of <strong>{parsed.name}</strong>
       </p>
-      {parsed.feeling ? <p className="cw_feeling">{parsed.feeling}</p> : null}
-      <ul className="cw_quotes">
+      {parsed.feeling ? <p className="wmc_feeling">{parsed.feeling}</p> : null}
+      <ul className="wmc_quotes">
         {parsed.quotes.map((q, i) => {
-          const gid = matchQuote(q.text, source.entity, answers);
+          const gid = matchQuote(q, source.entity, answers);
+          const cue = quoteCue(q.text, source.entity);
           const hit = gid ? answers.find((a) => a.graphId === gid) : null;
           const when = hit?.node?.born_at ? bookDate(hit.node.born_at) : null;
           return (
-            <li key={i} className="cw_quote">
-              <span className="cw_date">{when ? `${when.day}, ${when.time}` : q.date}</span>
+            <li key={i} className="wmc_quote">
+              <span className="wmc_date">{when ? `${when.day}, ${when.time}` : q.date}</span>
               {hit ? (
                 <>
-                  <Markdown text={restBlocksAsText(hit.answer)} className="ev_markdown cw_text" />
+                  {cue ? <span className="wmc_cue">{cue}</span> : null}
+                  <Words text={restBlocksAsText(hit.answer)} className="ev_markdown wmc_text" />
                   {hit.node ? (
                     <button className="wm_open" onClick={() => onSelect(hit.node!.id)}>
                       open this memory →
@@ -149,9 +168,9 @@ export function CardWords({ foldState, card, source, onSelect }: { foldState: Fo
                   ) : null}
                 </>
               ) : (
-                <span className="cw_text">
+                <span className="wmc_text">
                   {q.text}
-                  {q.cut ? <span className="cw_cut"> (…) the full words are in “What he drew on” above</span> : null}
+                  {q.cut ? <span className="wmc_cut"> (…) the full words are in “What he drew on” above</span> : null}
                 </span>
               )}
             </li>
@@ -159,23 +178,23 @@ export function CardWords({ foldState, card, source, onSelect }: { foldState: Fo
         })}
       </ul>
       {parsed.footer ? (
-        <p className="cw_footer">
+        <p className="wmc_footer">
           From {parsed.footer.count} lived {parsed.footer.count === 1 ? "memory" : "memories"} ({parsed.footer.kinds}),{" "}
           {parsed.footer.first === parsed.footer.last ? bookDate(parsed.footer.first).day : `${bookDate(parsed.footer.first).day} to ${bookDate(parsed.footer.last).day}`}
           {parsed.footer.threads.length > 0 ? (
             <>
               {" · threads: "}
               {parsed.footer.threads.map((t) => (
-                <span key={t} className="cw_thread">
+                <span key={t} className="wmc_thread">
                   {t}
                 </span>
               ))}
             </>
           ) : null}
-          <span className="cw_reminder">{parsed.footer.reminder}</span>
+          <span className="wmc_reminder">{parsed.footer.reminder}</span>
         </p>
       ) : parsed.footerRaw ? (
-        <p className="cw_footer">{parsed.footerRaw}</p>
+        <p className="wmc_footer">{parsed.footerRaw}</p>
       ) : null}
     </div>
   );

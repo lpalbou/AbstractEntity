@@ -47,9 +47,13 @@ const TONE_WORDS: Record<string, string> = { warm: "felt warm", sore: "felt sore
 
 export function DreamDetail({ fold, dream, source, onSelect }: { fold: FoldState; dream: NodeState; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement | null {
   const signals = dream.signals ?? [];
-  const changes = signals.filter((s) => s.kind === "changed_understanding");
+  // Only a card formed or revised is a change of understanding with a card
+  // behind it; memory also tags groupings and minted candidates with this
+  // kind (abstractmemory dream_signals) — those are shown as what they did.
+  const isCardChange = (s: DreamSignal) => s.kind === "changed_understanding" && (s.act === "card_formed" || s.act === "card_revised");
+  const changes = signals.filter(isCardChange);
   const tensions = signals.filter((s) => s.kind === "unresolved_tension");
-  const others = signals.filter((s) => s.kind !== "changed_understanding" && s.kind !== "unresolved_tension");
+  const others = signals.filter((s) => !isCardChange(s) && s.kind !== "unresolved_tension");
   if (signals.length === 0) return null;
   return (
     <div className="dr_detail">
@@ -97,6 +101,7 @@ function CardChangeBlock({ fold, cardGraphId, signal, source, onSelect }: { fold
           </button>
         ) : null}
       </div>
+      <SignalNote signal={signal} />
       {change.card ? (
         <>
           <p className="dr_note">{formed ? "Formed from:" : change.added.length > 0 ? "New since his last understanding:" : "No new memory; the evidence was revised."}</p>
@@ -111,14 +116,37 @@ function CardChangeBlock({ fold, cardGraphId, signal, source, onSelect }: { fold
 
 function SignalBlock({ fold, signal, label, source, onSelect }: { fold: FoldState; signal: DreamSignal; label: string; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
   const items = useMemo(() => sourcesFromIds(fold, signal.touched ?? []), [fold, signal]);
-  const tone = signal.felt?.tone ? TONE_WORDS[String(signal.felt.tone)] ?? `felt ${signal.felt.tone}` : null;
   return (
     <div className="dr_block">
       <div className="dr_block_head">
         <span className="dr_label">{label}</span>
-        {tone ? <span className="dr_tone">{tone}</span> : null}
       </div>
-      {items.length > 0 ? <MemoryRows items={items} source={source} onSelect={onSelect} /> : <p className="dr_note">{signal.fragment || "nothing named"}</p>}
+      <SignalNote signal={signal} />
+      {items.length > 0 ? <MemoryRows items={items} source={source} onSelect={onSelect} /> : null}
     </div>
+  );
+}
+
+/** What the night said about this signal, and how it felt — as memory
+ * wrote it (its note is cut at 200 characters by the sleep pass; when it
+ * was, that is said, and the memories below carry the full words). */
+function SignalNote({ signal }: { signal: DreamSignal }): React.ReactElement | null {
+  const felt = signal.felt;
+  const tone = felt?.tone ? TONE_WORDS[String(felt.tone)] ?? `felt ${felt.tone}` : null;
+  const marks = [typeof felt?.weight === "number" ? `weight ${felt.weight}` : null, felt?.scarred ? "a scar stands" : null, felt?.bonded ? "a bond stands" : null].filter(Boolean);
+  const cut = (signal as DreamSignal & { fragment_truncation?: { kept?: number; of?: number } }).fragment_truncation;
+  if (!signal.fragment && !tone) return null;
+  return (
+    <p className="dr_signal_note">
+      {signal.fragment ? <span className="dr_fragment">{signal.fragment}</span> : null}
+      {cut ? <span className="dr_cut"> (the sleep pass cut this note at {cut.kept} of {cut.of} characters; the memories below are complete)</span> : null}
+      {tone ? (
+        <span className="dr_tone">
+          {" "}
+          · {tone}
+          {marks.length ? ` (${marks.join(", ")})` : ""}
+        </span>
+      ) : null}
+    </p>
   );
 }

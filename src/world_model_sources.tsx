@@ -17,13 +17,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { bookDate } from "./book_reader";
-import { Markdown } from "@abstractframework/panel-chat";
 
 import { fetchDiaryEntry } from "./stream_source";
 import { isDiaryGraphId, type FoldState, type NodeState } from "./stream_fold";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { parseExchange, parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./verbatim_parse";
-import { readRecordWords, VerbatimTurns } from "./verbatim_view";
+import { readRecordWords, VerbatimTurns, Words } from "./verbatim_view";
 import type { VerbatimSource } from "./verbatim_modal";
 
 export interface CardSource {
@@ -99,7 +98,7 @@ export function WorldModelSources({ fold, card, source, onSelect }: { fold: Fold
   );
 }
 
-type Words = { phase: "loading" } | { phase: "ready"; lead: string; full: string } | { phase: "none"; message: string } | { phase: "diary" };
+type SourceState = { phase: "loading" } | { phase: "ready"; lead: string; full: string; titleOnly?: boolean } | { phase: "none"; message: string; retry?: boolean } | { phase: "diary" };
 
 /** A diary record, whether or not this view holds it: its words are only
  * read on a click (the read is recorded in his biography). */
@@ -110,7 +109,7 @@ export function isDiarySource(item: CardSource): boolean {
 function SourceRow({ item, source, onSelect }: { item: CardSource; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
   const { time } = bookDate(item.bornAt);
   const diary = isDiarySource(item);
-  const [words, setWords] = useState<Words>(diary ? { phase: "diary" } : { phase: "loading" });
+  const [words, setWords] = useState<SourceState>(diary ? { phase: "diary" } : { phase: "loading" });
   const [expanded, setExpanded] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -120,7 +119,15 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
     setWords({ phase: "loading" });
     readRecordWords(source, item.graphId, item.node?.kind)
       .then((w) => !cancelled && setWords(sourceWords(w.text, source.entity)))
-      .catch((e) => !cancelled && setWords({ phase: "none", message: `his words could not be read (${(e as Error).message})` }));
+      .catch((e) => {
+        if (cancelled) return;
+        // A memory that keeps no words beyond its title (a summary, a
+        // marker) answers 404: its title IS its words.
+        const status = (e as Error & { status?: number }).status;
+        const title = item.node?.title?.trim();
+        if (status === 404 && title) setWords({ phase: "ready", lead: title, full: title, titleOnly: true });
+        else setWords(status === 404 ? { phase: "none", message: "this memory keeps no words to show" } : { phase: "none", message: "his words could not be read just now", retry: true });
+      });
     return () => {
       cancelled = true;
     };
@@ -163,9 +170,11 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
         {words.phase === "none" ? (
           <span className="wm_source_note">
             {words.message}{" "}
-            <button className="wm_more" onClick={() => (diary ? void openDiary() : setAttempt((n) => n + 1))}>
-              try again
-            </button>
+            {words.retry || diary ? (
+              <button className="wm_more" onClick={() => (diary ? void openDiary() : setAttempt((n) => n + 1))}>
+                try again
+              </button>
+            ) : null}
           </span>
         ) : null}
         {words.phase === "diary" ? (
@@ -183,7 +192,10 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
                 <VerbatimTurns text={words.full} entity={source.entity} />
               </div>
             ) : (
-              <Markdown text={restBlocksAsText(words.lead)} className="ev_markdown wm_source_text" />
+              <>
+                <Words text={restBlocksAsText(words.lead)} className="ev_markdown wm_source_text" />
+                {words.titleOnly ? <span className="wm_source_note">this memory keeps only these words</span> : null}
+              </>
             )}
             {words.full !== words.lead ? (
               <button className="wm_more" onClick={() => setExpanded((v) => !v)}>
@@ -204,7 +216,7 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
 
 /** His answer up front, the whole exchange behind "(…)". Never cut: `lead`
  * is a complete part of the text, `full` is all of it. */
-export function sourceWords(text: string, entity: string): Words {
+export function sourceWords(text: string, entity: string): SourceState {
   const { spoken } = splitUnspokenThinking(text);
   const exchange = parseExchange(spoken, entity);
   if (exchange && exchange.answer) return { phase: "ready", lead: exchange.answer, full: text.trim() };

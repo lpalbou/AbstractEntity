@@ -36,14 +36,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
   sleep pass's briefing, which quotes each memory cut short. The Detail tab now lists the card's
   source memories, laid out like the Book (date, time, his complete answer), with "(…)" for the
   whole exchange (what was said to him, his thinking and lookups, his answer) and a link to each
-  memory. The card's own words follow as a list in which every quote is shown in full.
+  memory. The card's own words follow as a list: each quote that can be traced to exactly one of
+  those memories shows his full answer; any other quote is shown as the card wrote it, pointing to
+  the memories above.
 - **A dream shows what it touched.** Instead of the sleep pass's run-on summary, the Detail tab
-  shows how his understanding changed (the card, and the memories new in it) and the memories the
-  night set side by side, each in full; the summary stays below.
-- **His words are formatted.** Answers render as Markdown, his choice to rest reads as a line
-  ("Chose to rest: …") instead of a code block, and nothing is hidden in a sideways-scrolling or
-  inner scroll box. "Used together with" and a recall's "considered but dropped" list every memory
-  behind "(…)".
+  shows how his understanding changed (the card revised, and the memories new in it) and what the
+  night set side by side, each with the night's own note and how it felt, and the memories
+  themselves in full; the summary stays below.
+- **His words are formatted.** Answers render as Markdown (images stay links), his choice to
+  rest reads as a line ("Chose to rest: …"), and code blocks wrap instead of scrolling sideways.
+  "Used together with" and a recall's "considered but dropped" list every memory behind "(…)".
 
 ## [0.11.2] - 2026-11-07
 
