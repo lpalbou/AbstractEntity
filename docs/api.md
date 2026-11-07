@@ -88,7 +88,7 @@ of invented data.
 | Life stream | `GET /entities/{name}/replay` (NDJSON), `GET /entities/{name}/replay/stream` (SSE) |
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
 | State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
-| Card and metrics | `/entities/{name}/card`, `/footprint`, `/cognition`, `/communities`, `/embedding` |
+| Card and metrics | `/entities/{name}/card` (the home grid draws each tile from `GET /entities`, whose rows carry `state`, then reads cards three at a time, kept until 5 minutes pass or the row's `state.changed_at` moves), `/footprint`, `/cognition`, `/communities`, `/embedding` |
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
 | Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
 | Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
@@ -138,9 +138,14 @@ baselines.
 
 ### Identity and track record
 
-Settings → identity reads `GET /entities/{name}/identity` and saves the whole record with one
-`PUT` (`{avatar: {style, color}, voice: {provider, model, voice}}`; the record's speed and quality
-ride along while the voice is unchanged). The design list is the AbstractAvatar catalog bundled in
+Settings → identity is the ui-kit's `IdentityPanel` (look, voice, history, one Save at the bottom),
+wired to this gateway in `identity_settings.tsx`. It reads `GET /entities/{name}/identity` and
+saves the whole record with one `PUT` (`{avatar: {style, color}, voice: {provider, model, voice}}`;
+the record's speed and quality ride along while the voice is unchanged; a voice chosen without its
+speech model takes the model a cloned voice is bound to, else the engine's first listed model). The
+voices come from `GET voice/voices`; choosing one plays a short sample on the entity's own lane
+(`POST /entities/{name}/voice/tts/stream` with the chosen voice fields: nothing is saved); **Create a
+new voice** uses `POST voice/design` or `POST voice/clones`. The design list is the AbstractAvatar catalog bundled in
 the ui-kit, limited to designs with a Watch code (the gateway refuses the others). The avatar draws
 the design in the entity's colour: the colour replaces the theme's `--warning` token around the
 canvas, the body colour of the kit's palette. A refusal is shown word for word and nothing is

@@ -27,17 +27,18 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
-import { BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceTitle, MonitorInfoModal, ReadingLine, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
 import { ScoringReads } from "./cognition_reads";
 
 async function loadBasis(): Promise<FrozenBasis> {
-  // v1 (2026-08-01): cut on HIS real utterances (74 door-read episode
-  // replies + diary entries + the curated arc) — the v0 provenance's
-  // promised re-cut. Ships GRV (nine registers) and a corpus-calibrated
-  // abstention floor; v0 stays beside it (the gate tests pin it).
+  // v1 (2026-08-01): the generic registers and channels (anchor-text
+  // prototypes, the same for every entity) with whitening statistics and
+  // the abstention floor re-fitted on a mixed corpus (curated arc + anchor
+  // texts + 74 real replies). Ships GRV (nine registers); v0 stays beside
+  // it (the gate tests pin it).
   const mod = await import("./vendor/cognition/data/basis_v1.json");
   return (mod.default ?? mod) as unknown as FrozenBasis;
 }
@@ -139,6 +140,9 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   const [status, setStatus] = useState<"idle" | "scoring" | "live" | "error" | "unavailable" | "unconfigured">("idle");
   const [note, setNote] = useState<string | null>(null);
   const [current, setCurrent] = useState<ScoredText | null>(null);
+  /** The loaded basis's provenance (whose words calibrated it) — the
+   * tooltip and the (i) modal say it for THIS entity, never "his own". */
+  const [calibratedOn, setCalibratedOn] = useState<Record<string, unknown> | null>(null);
   const [folded, setFolded] = useState<boolean>(() => {
     let stored: string | null = null;
     try {
@@ -226,6 +230,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
     if (setupRef.current) return setupRef.current;
     const p = (async () => {
       const basis = await loadBasis();
+      setCalibratedOn(basis.calibrated_on ?? {});
       let embedderId = basis.embedder_id;
       try {
         const emb = await fetchEntityEmbedding(baseUrl, entity);
@@ -237,9 +242,9 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         throw Object.assign(new Error(`home embedder ${embedderId} ≠ basis ${basis.embedder_id}`), { mismatch: true });
       }
       embedderRef.current = embedderId;
-      // The gate floor rides the basis when calibrated (v1: p20 of his own
-      // corpus's nearest-register sims — mild leans fade in, noise stays
-      // dark); a floor-less basis keeps the scorer's default.
+      // The gate floor rides the basis when calibrated (v1: 0.0798); a
+      // floor-less basis keeps the scorer's default. A factual reply often
+      // sits below it (no clear emotion); its tone channels still read.
       scorerRef.current = createScorer(basis, {
         embedderId,
         ...(typeof basis.abstention_floor === "number" ? { abstention: { floor: basis.abstention_floor } } : {}),
@@ -303,9 +308,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // ships it. Explicit 0 lowers a petal, so we send every known register.
   const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, current?.emotions?.[id] ?? 0])), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
-  /** The honest quiet/faint caption (null when the bloom has real reach or
-   * the diagnostics are absent — old cache entries predate them). */
-  const quiet = evidenceNote(current?.emotionEvidence);
+  const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
   // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
   if (status === "idle") return null;
@@ -352,15 +355,12 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
-            {/* The abstention gate, SAID (adversarial finding 2026-08-01):
-              * a flat bloom was pixel-identical to a broken one. The scorer
-              * ships evidence diagnostics for exactly this — hover explains
-              * the gate with the live numbers. */}
-            {status === "live" && quiet ? (
-              <div role="status" className="cm_quiet" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim)}>
-                {current?.emotionEvidence !== undefined && current.emotionEvidence <= 0.02 ? "Read complete · no clear emotional tone" : quiet}
-              </div>
-            ) : null}
+            {/* The five tone channels, signed (both poles speak), and the reading sentence: the
+              * tone always, the emotion when it clears the gate. Hover keeps the gate's numbers. */}
+            {status === "live" && current ? <>
+              <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} />
+              <ReadingLine sample={current} title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)} />
+            </> : null}
           </div>
           {/* Slot (b): uic's AfConductGauge v2.1 "THE STANCE" (posture
             * figure — breath+head size=effort, strokes=tools with violet
@@ -396,7 +396,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </div>
       ) : null}
 
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} /> : null}
     </div>
   );
 }

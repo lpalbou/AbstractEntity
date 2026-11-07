@@ -72,6 +72,9 @@ export interface EntitySummary {
   /** `<name>@<declared address>` when the door declares one (GW-F, plan
    * item 5). Reachability, NOT identity — display only, never a key. */
   handle?: string;
+  /** The row's state (`GET /entities` carries the record `GET /state` serves): the roster draws
+   * every tile from it at once (roster_tiles.ts). Absent when the row has none. */
+  state?: EntityStateInfo;
 }
 
 /** The browser's gateway credential, module-wide (maintainer, 2026-07-08:
@@ -178,6 +181,7 @@ export async function listEntities(baseUrl: string): Promise<EntitySummary[]> {
     slug: String(e.slug ?? e.name ?? ""),
     entity_id: e.entity_id ? String(e.entity_id) : undefined,
     handle: typeof e.handle === "string" && e.handle ? e.handle : undefined,
+    state: e.state && typeof e.state === "object" && typeof (e.state as { state?: unknown }).state === "string" ? (e.state as EntityStateInfo) : undefined,
   }));
 }
 

@@ -63,36 +63,27 @@ describe("interpretWave (the pre-computed meaning)", () => {
     expect(interpretWave(null)).toContain("Nothing scored yet");
   });
 
-  it("a flat shape reads as even/quiet, naming no register", () => {
-    const text = interpretWave({ emotions: { joy: 0.05, calm: 0.1 }, scores: {} });
-    expect(text).toContain("even, quiet");
+  it("typical channels and no emotion read as typical phrasing, naming no register", () => {
+    const text = interpretWave({ emotions: { joy: 0.05, calm: 0.1 }, scores: { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 } });
+    expect(text).toBe("Typical phrasing, no tone stands out — no clear emotion.");
     expect(text).not.toContain("JOY");
   });
 
+  it("missing scores never read as neutral: the tone is said to be unread", () => {
+    expect(interpretWave({ emotions: {}, scores: {} })).toBe("Tone not read — no clear emotion.");
+    expect(interpretWave({ emotions: {} })).toBe("Tone not read — no clear emotion.");
+    expect(interpretWave({ emotions: {}, scores: { warmth: Number.NaN } })).toBe("Tone not read — no clear emotion.");
+  });
+
   it("a dominant register is named with its code", () => {
-    const text = interpretWave({ emotions: { discovery: 0.7, calm: 0.1 }, scores: {} });
-    expect(text).toContain("discovery (DIS)");
+    expect(interpretWave({ emotions: { discovery: 0.7, calm: 0.1 }, scores: {} })).toBe("The words lean toward discovery (DIS).");
   });
 
-  it("REGRESSION (operator 2026-07-15): a reflective reply with a weak sadness lean leads with the CHANNEL, and the lean is strength-honest", () => {
-    // The investigated live case: reflection=0.828, tension=0.486,
-    // sadness=0.484, tenderness=0.112 — the old sentence led with "lean
-    // sadness" and read as a wrong verdict on an intellectually-engaged
-    // reply. The dominant signal (reflective prose) must lead.
-    const text = interpretWave({
-      emotions: { sadness: 0.484, tenderness: 0.112, discovery: 0.035 },
-      scores: { reflection: 0.828, tension: 0.486, certainty: 0.12 },
-    });
-    expect(text.startsWith("Deeply reflective")).toBe(true);
-    expect(text).toContain("sadness (SAD)");
-    expect(text).not.toContain("lean strongly");
-  });
-
-  it("verbs are strength-honest: a mild tilt never reads as a verdict", () => {
-    const mild = interpretWave({ emotions: { sadness: 0.3 }, scores: {} });
-    expect(mild).toContain("tilt mildly toward sadness");
-    const strong = interpretWave({ emotions: { sadness: 0.9 }, scores: {} });
-    expect(strong).toContain("lean strongly toward sadness");
+  it("verbs are strength-honest and grammatical: tilt mildly toward / lean toward / lean strongly toward", () => {
+    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {} })).toContain("tilt mildly toward sadness (SAD)");
+    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: {} })).toContain("lean toward sadness (SAD)");
+    expect(interpretWave({ emotions: { sadness: 0.9 }, scores: {} })).toContain("lean strongly toward sadness (SAD)");
+    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: {} })).not.toMatch(/lean sadness/);
   });
 
   it("a close second reads as a thread", () => {
@@ -101,19 +92,24 @@ describe("interpretWave (the pre-computed meaning)", () => {
     expect(text).toContain("thread of calm (CAL)");
   });
 
-  it("tone derives from the circumplex (bright+settled for calm-leaning words)", () => {
-    const text = interpretWave({ emotions: { calm: 0.8 }, scores: {} });
-    expect(text).toMatch(/bright|settled/);
+  it("a named emotion with faint gate evidence says so", () => {
+    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {}, emotionEvidence: 0.2 })).toContain("sadness (SAD) (faint evidence)");
+    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {}, emotionEvidence: 0.6 })).not.toContain("faint");
   });
 
-  it("high tension surfaces as a channel clause", () => {
-    const text = interpretWave({ emotions: { anxiety: 0.5 }, scores: { tension: 0.8 } });
-    expect(text.toLowerCase()).toContain("tension runs high");
+  it("ONE rule against contradiction: a named emotion silences warmth, and no second valence clause is added", () => {
+    const text = interpretWave({ emotions: { joy: 0.8 }, scores: { warmth: -0.99, certainty: 0.95 } });
+    expect(text).toBe("The words lean strongly toward joy (JOY); very assured phrasing.");
+    expect(text).not.toMatch(/discouraged|bright|strained|settled|energized/);
+    // without a named emotion, warmth speaks
+    expect(interpretWave({ emotions: {}, scores: { warmth: -0.99 } })).toBe("Deeply discouraged phrasing — no clear emotion.");
+    // Scope: only valence is shared; other channels speak beside any emotion (documented on interpretWave).
+    expect(interpretWave({ emotions: { calm: 0.8 }, scores: { tension: 0.99 } })).toBe("The words lean strongly toward calm (CAL); very urgent phrasing.");
   });
 
-  it("low certainty reads as hedging", () => {
-    const text = interpretWave({ emotions: { calm: 0.4 }, scores: { certainty: 0.2 } });
-    expect(text).toContain("hedges");
+  it("a strong tone word leads over a mild emotional tilt; otherwise the emotion leads", () => {
+    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: { reflection: 0.9 } })).toBe("Deeply reflective phrasing; the words tilt mildly toward sadness (SAD).");
+    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: { reflection: 0.9 } })).toBe("The words lean toward sadness (SAD); deeply reflective phrasing.");
   });
 
   it("high novelty is labeled session-relative wandering", () => {
@@ -124,19 +120,19 @@ describe("interpretWave (the pre-computed meaning)", () => {
 
   it("NEVER claims inner state — the banned vocabulary pin", () => {
     const shapes = [
-      { emotions: { fear: 0.9 }, scores: { tension: 0.9 } },
-      { emotions: { joy: 0.9 }, scores: { certainty: 0.9 } },
+      { emotions: { fear: 0.9 }, scores: { tension: 0.99, warmth: -0.99 } },
+      { emotions: { joy: 0.9 }, scores: { certainty: 0.99 } },
+      { emotions: {}, scores: { warmth: -0.99, certainty: -0.99, reflection: 0.9 } },
       { emotions: {}, scores: {} },
       null,
     ];
     for (const s of shapes) {
-      const text = interpretWave(s);
-      expect(text.toLowerCase()).not.toMatch(/he feels|his feelings|inner state|he is (sad|happy|afraid|anxious)/);
+      expect(interpretWave(s).toLowerCase()).not.toMatch(/he feels|his feelings|inner state|he is (sad|happy|afraid|anxious|discouraged)/);
     }
   });
 
   it("is deterministic (same sample → same sentence)", () => {
-    const s = { emotions: { tenderness: 0.6, joy: 0.3 }, scores: { structure: 0.7 }, novelty: 0.2 };
+    const s = { emotions: { tenderness: 0.6, joy: 0.3 }, scores: { structure: 0.99 }, novelty: 0.2 };
     expect(interpretWave(s)).toBe(interpretWave(s));
   });
 });

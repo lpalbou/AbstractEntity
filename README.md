@@ -8,6 +8,13 @@ live memory graph, and read their diaries. It is published on npm as
 
 ## What's new
 
+0.11.2 shows every entity on the home page at once: each tile appears as soon as the
+list arrives and fills in on its own, and a slow entity no longer holds the others on
+"reading his card…". **Settings → identity** is now one clear page from the shared kit:
+the look, then the voice (choosing a voice plays a short sample; **Create a new voice**
+when none fits), the history, and one **Save** at the bottom. See the
+[changelog](CHANGELOG.md#0112---2026-11-07).
+
 0.11.1 keeps the cognitive readings attached to the reply on screen: the emotional
 diagram shows that reply's measurements even when you move between replies while they
 load. In the Avatar view the avatar speaks only while you can hear it, the live line

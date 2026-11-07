@@ -4,6 +4,59 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-11-07
+
+On `@abstractframework/ui-kit` ^0.9.16 (AbstractUIC 0.10.3, with `IdentityPanel` and the avatar frame-rate fix) and
+`@abstractframework/panel-chat` ^0.8.2. Works with the same gateways as 0.11.1.
+
+### Fixed
+
+- **The home page shows every entity at once.** The "Summoned entities" grid used to wait for every
+  entity's details before drawing anything, then read their cards one at a time, so a long life
+  (such as one whose card takes seconds to compose) left most tiles on "reading his card…". Now
+  each entity's tile appears as soon as the list arrives, with its name and its sleep or wake
+  state, and fills in on its own: its phase buttons as soon as its state is read, its age, mind,
+  interests and key moments when its card arrives. Cards are read three at a time, kept, and read
+  again only after five minutes or when the entity's state changes. A tile still waiting shows
+  quiet placeholder lines at the size of the finished tile, so nothing jumps, and a refresh never
+  empties a tile. A card that cannot be read says "details unavailable right now" (the reason is
+  on hover) and is tried again a minute later.
+- **The Cognitive Monitor always reads the tone of a reply.** When no emotion cleared the evidence
+  gate (common for factual replies), the monitor said only "Read complete · no clear emotional tone".
+  It now says the tone of the phrasing from the five tone channels it already scores, on both sides:
+  warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
+  associative, assured or hedging. A channel speaks only when the reply is more extreme than 97% of
+  a reference set on that side ("very …" beyond 99%); otherwise the reading says the phrasing is
+  typical. The reference set is this home's embedding cache (1,599 texts, 2026-11-07), committed as
+  channel scores only (`src/fixtures/tone_reference_scores.json`); the cutoffs are re-derived from it
+  in a test. Known limitation: a short hazard warning ("The forecast mentions a storm…") reads
+  "hedging". For Castor's reply to "what are the last things you remember?" it reads "Discouraged
+  phrasing — no clear emotion."; a plain "The meeting is at 3pm." reads "Typical phrasing, no tone
+  stands out — no clear emotion.". When an emotion clears the gate it is named first ("faint
+  evidence" when the gate is weak) and warmth is left to the emotion, so the two never contradict.
+  A row of the five channels under the bloom (WAR, TSN, REF, STR, CER) shows the same reading as
+  marks (· typical, + or − beyond 97%, ++ or −− beyond 99%); each mark is a button named with the
+  exact value and its word, and opens the channel's explanation with the current value. The Wave
+  tab shows the same sentence. No scoring change and no text matching: only the existing embedding
+  scores. `scripts/derive_tone_cutoffs.mjs` re-derives the cutoffs, or re-cuts them from new vectors.
+- **The monitor describes its basis correctly.** The tooltip and the information panel said the basis
+  was calibrated on the entity's own words. The registers and channels are generic (the same for
+  every entity); the basis's normalization and emotion-gate floor were fitted on a mixed corpus
+  (20 curated texts, 125 anchor texts and 74 utterances of entity:ephemeral, recorded 2026-08-01).
+  The panel no longer mentions the retired v0 calibration.
+
+### Changed
+
+- **Settings → identity is one clear page.** It is now the shared identity panel from the kit
+  (`IdentityPanel`): first the **Look** (the avatar as it will be drawn, its design and colour),
+  then the **Voice** (the engine, then a voice it offers; choosing a voice plays a short sample in
+  that voice; **Create a new voice** from a description or a recording opens only when you ask),
+  then the **History**, and at the bottom one line saying what happened and one **Save**. The
+  "Gateway default / Custom" switch, "Speech provider" and "Voice / profile" are gone, and the
+  speech model is offered only when an engine has several ("Automatic" by default). As before,
+  the gateway's refusal is shown as it is, with a **Download** button when it offers one, and a
+  viewer who may not change the identity sees it in words with the reason.
+
 ## [0.11.1] - 2026-11-07
 
 On AbstractUIC `@abstractframework/ui-kit` ^0.9.15 and `@abstractframework/panel-chat` ^0.8.2.

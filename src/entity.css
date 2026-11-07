@@ -410,6 +410,41 @@ body {
   min-height: calc(9px * var(--font-scale, 1));
 }
 
+/* The five signed tone channels under the bloom: the gauge's code row, kept inside the bloom's
+ * box. The code keeps its light channel colour; the tier mark (· + ++ − −−) carries the sign in
+ * the secondary text colour (readable contrast); the exact value is in the button's name. */
+.cm_tone_codes {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0;
+  row-gap: 2px;
+}
+.cm_tone_codes .cm_gauge_code {
+  padding: 0;
+  letter-spacing: 0;
+}
+.cm_tone_val {
+  color: var(--text-secondary, #a6adc8);
+  font-weight: 600;
+}
+/* Touch: 44 px targets do not fit five across the bloom column; a 3 + 2 grid, never a lone code. */
+@media (pointer: coarse) {
+  .cm_tone_codes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-items: center;
+  }
+}
+/* The reading sentence under the row (and in the Wave tab's turn header). */
+.cm_reading_line {
+  margin-top: 2px;
+  text-align: center;
+  font-size: max(calc(9.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-style: italic;
+  color: var(--text-secondary, #a6adc8);
+  cursor: help;
+}
+
 /* Inline verbatim in the Detail tab (dm#28: the words, no button). */
 .ei_verbatim_inline {
   margin: 6px 0 8px;
@@ -4726,6 +4761,31 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A drawn tile whose card has not answered yet (roster_tiles.ts): three quiet lines hold the
+ * loaded lines' place (the meta line at 11 px, the interest chips at 11 px + padding + border),
+ * so nothing moves when the card lands. Still under reduced motion. */
+.eix_sk {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--line, #24304a) 0%, color-mix(in srgb, var(--line, #24304a) 45%, transparent) 50%, var(--line, #24304a) 100%);
+  background-size: 200% 100%;
+  opacity: 0.55;
+  animation: cd_shimmer_slide 1.6s ease-in-out infinite;
+}
+.eix_sk_meta {
+  width: 46%;
+  height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4);
+}
+.eix_sk_last {
+  width: 34%;
+}
+.eix_sk_upto {
+  width: 78%;
+  height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4 + 6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .eix_sk { animation: none; }
+}
 .eix_card_actions {
   display: flex;
   gap: 8px;
@@ -6539,8 +6599,9 @@ body {
 @media (pointer: coarse) { .cd_view_modes button { min-height: 44px; } }
 
 /* ------------------------------------------- identity + track record (ADR 0052) */
-/* Settings → identity: the look (avatar, design, colour), the voice, the history, one Save at the
- * bottom. Settings → track record: counts, trust by task, whom it has met. */
+/* Settings → identity is the kit's IdentityPanel (its styles are the kit's); `.idn` bounds its width
+ * and `.idn_avatar` frames the identity avatar elsewhere. Settings → track record: counts, trust by
+ * task, whom it has met. */
 .idn,
 .trk {
   display: flex;
@@ -6549,65 +6610,17 @@ body {
   min-width: 0;
   max-width: 640px;
 }
-.idn_look {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-}
 .idn_avatar {
   display: inline-flex;
   flex: none;
   border-radius: 12px;
   background: var(--bg-raise);
 }
-.idn_fields {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex: 1 1 220px;
-  min-width: 0;
-}
-.idn_field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--text-dim);
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.idn_field select {
-  max-width: 100%;
-}
-.idn_field input[type="color"] {
-  width: 64px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-}
 .idn_head {
   margin: 4px 0 0;
   font-size: max(calc(14px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   font-weight: 600;
 }
-.idn_history {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-}
-.idn_history > summary {
-  cursor: pointer;
-  color: var(--text-dim);
-}
-.idn_history_list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.idn_history_row,
 .trk_row {
   display: flex;
   flex-direction: column;
@@ -6615,22 +6628,10 @@ body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.idn_history_detail,
 .trk_value,
 .trk_detail {
   color: var(--text-dim);
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.idn_swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 6px;
-  border-radius: 50%;
-  vertical-align: baseline;
-}
-.idn_actions .wsp_note {
-  color: var(--text-dim);
 }
 .trk_section {
   display: flex;
@@ -6676,12 +6677,8 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.trk_gloss,
-.idn_scope {
+.trk_gloss {
   color: var(--text-dim);
-}
-.idn_scope {
-  margin: 4px 0 0;
 }
 .trk_basis {
   margin: 0;
