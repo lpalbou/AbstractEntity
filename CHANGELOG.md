@@ -20,7 +20,7 @@ On the next AbstractUIC `@abstractframework/ui-kit` release (the one that adds `
   again only after five minutes or when the entity's state changes. A tile still waiting shows
   quiet placeholder lines at the size of the finished tile, so nothing jumps, and a refresh never
   empties a tile. A card that cannot be read says "details unavailable right now" (the reason is
-  on hover).
+  on hover) and is tried again a minute later.
 
 ### Changed
 
