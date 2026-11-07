@@ -11,13 +11,16 @@ import { foldEnvelopes } from "./stream_fold";
 import type { NodeState } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import type { TopicCommunity } from "./topic_map";
-import { COMMUNITIES_REFRESH_MS, communitiesRefetchDelay } from "./topic_map";
 import {
+  entryTitleOf,
   freeCountOf,
   HALO_HOME_REACH,
   haloOf,
   homesExtent,
   IDENTITY_CLEAR,
+  jaccard,
+  KEEP_JACCARD,
+  parseTopicSlots,
   placeTopicLabel,
   planTopicHomes,
   planTopicSeats,
@@ -25,7 +28,12 @@ import {
   TOPIC_SPACING,
   topicRadius,
   topicSeatOffset,
+  topicSlotsOf,
   trailPulls,
+  wrapTopicLabel,
+  readableKeyword,
+  readableTopicLabel,
+  type TopicHome,
 } from "./topic_layout";
 
 function comm(id: number, size: number, kinds: Record<string, number> = { episode: size }, members?: string[]): TopicCommunity {
@@ -236,12 +244,146 @@ describe("placeTopicLabel", () => {
   });
 });
 
-describe("communitiesRefetchDelay", () => {
-  it("asks again only when the life grew, never sooner than the refresh floor", () => {
-    const t = 1_000_000;
-    expect(communitiesRefetchDelay({ nodeCount: 100, countAtFetch: 100, lastFetchAt: t, now: t + 10 * COMMUNITIES_REFRESH_MS })).toBeNull();
-    expect(communitiesRefetchDelay({ nodeCount: 99, countAtFetch: 100, lastFetchAt: t, now: t })).toBeNull(); // scrubbed back
-    expect(communitiesRefetchDelay({ nodeCount: 101, countAtFetch: 100, lastFetchAt: t, now: t + COMMUNITIES_REFRESH_MS })).toBe(0);
-    expect(communitiesRefetchDelay({ nodeCount: 101, countAtFetch: 100, lastFetchAt: t, now: t + 30_000 })).toBe(COMMUNITIES_REFRESH_MS - 30_000);
+describe("stable homes across refetches", () => {
+  /** A life of 12 topics, sizes 20..31. */
+  const fetch1 = Array.from({ length: 12 }, (_, i) => comm(i, 20 + i));
+  /** The same life 18 memories later: the runtime renumbered every
+   * community (Louvain labels are not identities), the six smallest
+   * topics grew (+3 each: 18 new memories) and overtook others in rank. */
+  const fetch2 = fetch1.map((c, i) => {
+    const grow = i < 6 ? 3 : 0;
+    const extra = Array.from({ length: grow }, (_, k) => `ex:new${i}-${k}`);
+    return comm(100 + ((i * 7) % 12), c.size + grow, { episode: c.size + grow }, [...c.member_ids, ...extra]);
+  });
+  const byMembers = (homes: TopicHome[], c: TopicCommunity) => homes.find((h) => jaccard(new Set(h.members), new Set(c.member_ids)) >= KEEP_JACCARD)!;
+
+  it("two fetches 18 new memories apart give the same home and colour to every persisting topic", () => {
+    const h1 = planTopicHomes(fetch1);
+    const h2 = planTopicHomes(fetch2, topicSlotsOf(h1));
+    for (let i = 0; i < fetch1.length; i++) {
+      const a = byMembers(h1, fetch1[i]);
+      const b = byMembers(h2, fetch2[i]);
+      expect(Math.abs(a.x - b.x)).toBeLessThan(0.06);
+      expect(Math.abs(a.y - b.y)).toBeLessThan(0.06);
+      expect(b.colorIndex).toBe(a.colorIndex);
+      expect(b.color).toBe(a.color);
+    }
+  });
+
+  it("without the remembered slots the same refetch moves topics (what the slots prevent)", () => {
+    const h1 = planTopicHomes(fetch1);
+    const h2 = planTopicHomes(fetch2);
+    const moved = fetch1.filter((c, i) => {
+      const a = byMembers(h1, c);
+      const b = byMembers(h2, fetch2[i]);
+      return Math.hypot(a.x - b.x, a.y - b.y) > 1 || a.colorIndex !== b.colorIndex;
+    });
+    expect(moved.length).toBeGreaterThan(0);
+  });
+
+  it("a regrouped topic (Jaccard < 0.6) is new: free room, a colour no kept topic wears", () => {
+    const h1 = planTopicHomes([comm(1, 30), comm(2, 20)]);
+    // 20 of its 30 members were topic 1's: Jaccard 20/40 = 0.5 — regrouped.
+    const regrouped = comm(9, 30, { episode: 30 }, [...comm(1, 30).member_ids.slice(0, 20), ...Array.from({ length: 10 }, (_, k) => `ex:x${k}`)]);
+    expect(jaccard(new Set(regrouped.member_ids), new Set(comm(1, 30).member_ids))).toBe(0.5);
+    const h2 = planTopicHomes([regrouped, comm(2, 20)], topicSlotsOf(h1));
+    const kept = h2.find((h) => h.id === 2)!;
+    const fresh = h2.find((h) => h.id === 9)!;
+    expect(kept.x).toBeCloseTo(h1.find((h) => h.id === 2)!.x, 1);
+    expect(fresh.colorIndex).not.toBe(kept.colorIndex);
+    expect(Math.hypot(fresh.x - kept.x, fresh.y - kept.y)).toBeGreaterThanOrEqual(fresh.r + kept.r + TOPIC_GAP - 1e-6);
+    // It did not inherit topic 1's home: a regrouping is a new topic.
+    const old1 = h1.find((h) => h.id === 1)!;
+    expect(Math.hypot(fresh.x - old1.x, fresh.y - old1.y)).toBeGreaterThan(1);
+  });
+
+  it("a new topic bigger than every kept one never lands on a kept home nor wears its colour", () => {
+    const h1 = planTopicHomes([comm(1, 30)]);
+    const big = comm(7, 60, { episode: 60 }, Array.from({ length: 60 }, (_, k) => `ex:big${k}`));
+    const h2 = planTopicHomes([big, comm(1, 30)], topicSlotsOf(h1));
+    const kept = h2.find((h) => h.id === 1)!;
+    const fresh = h2.find((h) => h.id === 7)!;
+    expect(kept.x).toBeCloseTo(h1[0].x, 1);
+    expect(kept.colorIndex).toBe(h1[0].colorIndex);
+    expect(fresh.colorIndex).not.toBe(kept.colorIndex);
+    expect(Math.hypot(fresh.x - kept.x, fresh.y - kept.y)).toBeGreaterThanOrEqual(fresh.r + kept.r + TOPIC_GAP - 1e-6);
+  });
+
+  it("jaccard is shared over all (not over the smaller set)", () => {
+    expect(jaccard(new Set(["a", "b", "c"]), new Set(["a", "b", "d", "e"]))).toBeCloseTo(2 / 5, 10);
+    expect(jaccard(new Set(), new Set())).toBe(0);
+  });
+
+  it("best overlap first, each previous topic used once", () => {
+    const base = comm(1, 20);
+    const h1 = planTopicHomes([base]);
+    // Two new topics both overlap the old one; the closer match keeps it.
+    const near = comm(5, 20, { episode: 20 }, [...base.member_ids.slice(0, 19), "ex:z1"]);
+    const far = comm(6, 22, { episode: 22 }, [...base.member_ids.slice(0, 16), ...Array.from({ length: 6 }, (_, k) => `ex:y${k}`)]);
+    expect(jaccard(new Set(far.member_ids), new Set(base.member_ids))).toBeGreaterThanOrEqual(KEEP_JACCARD);
+    const h2 = planTopicHomes([far, near], topicSlotsOf(h1));
+    expect(h2.find((h) => h.id === 5)!.x).toBeCloseTo(h1[0].x, 1);
+    expect(Math.hypot(h2.find((h) => h.id === 6)!.x - h1[0].x, h2.find((h) => h.id === 6)!.y - h1[0].y)).toBeGreaterThan(1);
+  });
+
+  it("remembered slots read back safely (malformed storage is dropped)", () => {
+    const slots = topicSlotsOf(planTopicHomes([comm(1, 12)]));
+    expect(parseTopicSlots(JSON.stringify(slots))).toEqual(slots);
+    expect(parseTopicSlots(null)).toEqual([]);
+    expect(parseTopicSlots("{not json")).toEqual([]);
+    expect(parseTopicSlots(JSON.stringify([{ x: 1, y: "2", color: 0, members: [] }, { x: 1, y: 2, color: 1.5, members: [] }]))).toEqual([]);
+  });
+});
+
+describe("readable topic words", () => {
+  const titles = (id: string) => (id === "diary_3e3341cea4d59b5427e106f4" ? "the night I mapped the bridges" : null);
+  it("a raw diary entry id becomes the entry's title, else 'a diary entry'", () => {
+    expect(readableKeyword("diary_3e3341cea4d59b5427e106f4", titles)).toBe("the night I mapped the bridges");
+    expect(readableKeyword("diary_aaaaaaaaaaaaaaaaaaaaaaaa", titles)).toBe("a diary entry");
+    expect(readableTopicLabel("diary_3e3341cea4d59b5427e106f4, syntax, wake", () => null)).toBe("a diary entry, syntax, wake");
+  });
+
+  it("every other keyword stays as the runtime wrote it", () => {
+    expect(readableKeyword("diary_list", titles)).toBe("diary_list");
+    expect(readableKeyword("web_search", titles)).toBe("web_search");
+    expect(readableTopicLabel("climate, task, bridge", titles)).toBe("climate, task, bridge");
+  });
+
+  it("reads entry titles from the fold: the summary when served, never a redacted entry's", () => {
+    const diary = (seq: number, id: string, entry: string, display: Record<string, unknown>): ReplayEnvelope => ({
+      ...binding(seq, id, "diary"),
+      payload: { ...binding(seq, id, "diary").payload, provenance: { entry_id: entry } },
+      display: { record_id: id, ...display } as ReplayEnvelope["display"],
+    });
+    const fold = foldEnvelopes([
+      diary(1, "ex:diary-open", "diary_111111111111111111111111", { kind: "diary", diary: true, title: "the bridges were real" }),
+      diary(2, "ex:diary-shut", "diary_222222222222222222222222", { kind: "memory", title: "x" }),
+    ]);
+    const title = entryTitleOf(fold);
+    expect(title("diary_111111111111111111111111")).toBe("the bridges were real");
+    expect(title("diary_222222222222222222222222")).toBeNull();
+    expect(readableKeyword("diary_222222222222222222222222", title)).toBe("a diary entry");
+  });
+});
+
+describe("wrapTopicLabel", () => {
+  const m = (t: string) => t.length * 6; // 6 px per character
+  it("one line when it fits", () => {
+    expect(wrapTopicLabel("climate, task, bridge", 220, m)).toEqual({ lines: ["climate, task, bridge"], complete: true });
+  });
+
+  it("wraps after a comma onto a second line, nothing left out", () => {
+    const r = wrapTopicLabel("humanitarian-needs, east-africa, response-plan", 220, m);
+    expect(r.complete).toBe(true);
+    expect(r.lines).toEqual(["humanitarian-needs, east-africa,", "response-plan"]);
+    expect(r.lines.join(" ")).toBe("humanitarian-needs, east-africa, response-plan");
+  });
+
+  it("a label longer than two lines says so ('…'); the card shows the rest", () => {
+    const r = wrapTopicLabel("aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee", 72, m);
+    expect(r.lines).toHaveLength(2);
+    expect(r.complete).toBe(false);
+    expect(r.lines[1].endsWith("…")).toBe(true);
+    for (const l of r.lines) expect(m(l)).toBeLessThanOrEqual(72);
   });
 });

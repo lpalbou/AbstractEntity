@@ -90,6 +90,14 @@ export function recallEmphasis(fold: FoldState, scrubSeq: number): RecallEmphasi
   return beatEmphasis(fold, beat);
 }
 
+/** The selection as the canvas keys it: a memory opened by its GRAPH id
+ * (a ledger moment in Live) resolves to its row id — the Inspector's own
+ * rule (fold.graph_to_row); anything else passes through. */
+export function resolveSelection(fold: FoldState, selectedId: string | null): string | null {
+  if (selectedId === null || fold.nodes.has(selectedId)) return selectedId;
+  return fold.graph_to_row.get(selectedId) ?? selectedId;
+}
+
 /** What the canvas lights: a recall line picked in the ledger (selection
  * id `beat:<trace>`) is an explicit ask — that beat lights, answered or
  * not; otherwise the recall active at the scrub position. */

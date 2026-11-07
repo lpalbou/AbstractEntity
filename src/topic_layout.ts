@@ -11,7 +11,9 @@
  *
  * - every topic gets a HOME on the disc (deterministic spiral packing,
  *   outside the identity ring, sized by its free-memory count, a label-
- *   sized gap between homes) — the same payload always maps the same;
+ *   sized gap between homes) that it KEEPS, with its colour, across
+ *   refetches and reloads while its members stay the same group (Jaccard
+ *   ≥ 0.6); new topics take free room;
  * - a topic's memories hold SEATS inside their home (a small sunflower,
  *   oldest at the centre, newer at the rim — a newer memory never moves an
  *   older one); the canvas pulls each memory to its seat with the SAME
@@ -39,6 +41,7 @@
 import type { FoldState, NodeState } from "./stream_fold";
 import type { TopicCommunity } from "./topic_map";
 import { hash01 } from "./force_layout";
+import { summaryLabel } from "./node_label";
 
 const GOLDEN_ANGLE = 2.399963229728653;
 /** Seat spacing inside a home: nearest neighbours ≈ 1.77 × this (≈ 55 px)
@@ -76,13 +79,45 @@ export const TOPIC_COLORS = [
 export interface TopicHome {
   id: number;
   label: string;
+  /** Every keyword the runtime gave this topic (the label is the first 3). */
+  keywords: string[];
+  /** Members the payload counts (all lanes). */
+  size: number;
   color: string;
+  /** Index into TOPIC_COLORS — kept by a persisting topic. */
+  colorIndex: number;
   /** Home centre + radius (world px). */
   x: number;
   y: number;
   r: number;
   /** Free memories the payload counts for this topic (sizes the home). */
   free: number;
+  /** The members' GRAPH ids (the identity a later fetch is matched on). */
+  members: string[];
+}
+
+/** What the layout remembers of a topic between fetches (and reloads):
+ * where its home is, its colour, and who was in it. */
+export interface TopicSlot {
+  x: number;
+  y: number;
+  color: number;
+  members: string[];
+}
+
+/** A refetched topic keeps a previous topic's home and colour when their
+ * member sets overlap by Jaccard ≥ this — AbstractNote's communities rule
+ * (abstractnote/recall/communities.py KEEP_JACCARD): best overlaps first,
+ * each previous topic used once. The runtime's community ids are Louvain
+ * labels, not identities (they renumber as the life grows). */
+export const KEEP_JACCARD = 0.6;
+
+export function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 0;
+  let inter = 0;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const x of small) if (large.has(x)) inter += 1;
+  return inter / (a.size + b.size - inter);
 }
 
 /** Free (disc) members a community counts — its size minus the lanes'
@@ -105,28 +140,169 @@ export function topicSeatOffset(rank: number): { dx: number; dy: number } {
   return { dx: Math.cos(a) * r, dy: Math.sin(a) * r };
 }
 
-/** Deterministic homes: biggest first, each walking a golden spiral out
- * from the identity ring until it clears every placed home by TOPIC_GAP. */
-export function planTopicHomes(communities: TopicCommunity[]): TopicHome[] {
+/** Homes STABLE across refetches (review 2026-11-07: rank-derived homes
+ * moved a topic 839-1188 px and recoloured it whenever its size rank
+ * changed). A topic matching a previous one (KEEP_JACCARD) keeps that
+ * home's centre and colour — only its radius follows its size. New topics
+ * take free room: biggest first, each walking a golden spiral out from
+ * the identity ring until it clears every home by TOPIC_GAP, coloured with
+ * the least-used palette colour. With no previous slots this is the plain
+ * deterministic packing (the same payload always maps the same). */
+export function planTopicHomes(communities: TopicCommunity[], previous: TopicSlot[] = []): TopicHome[] {
   const sized = communities
-    .map((c) => ({ c, free: freeCountOf(c) }))
+    .map((c) => ({ c, free: freeCountOf(c), members: new Set(c.member_ids) }))
     .filter((x) => x.free > 0)
     .sort((a, b) => b.free - a.free || a.c.id - b.c.id);
+  const prevSets = previous.map((p) => new Set(p.members));
+  const pairs: Array<{ j: number; i: number; k: number }> = [];
+  sized.forEach((x, i) => {
+    prevSets.forEach((set, k) => {
+      const j = jaccard(x.members, set);
+      if (j >= KEEP_JACCARD) pairs.push({ j, i, k });
+    });
+  });
+  pairs.sort((a, b) => b.j - a.j || a.i - b.i || a.k - b.k);
+  const slotOf = new Map<number, TopicSlot>();
+  const usedPrev = new Set<number>();
+  for (const { i, k } of pairs) {
+    if (slotOf.has(i) || usedPrev.has(k)) continue;
+    slotOf.set(i, previous[k]);
+    usedPrev.add(k);
+  }
   const homes: TopicHome[] = [];
-  sized.forEach(({ c, free }, i) => {
-    const r = topicRadius(free);
-    let placed: { x: number; y: number } | null = null;
-    for (let step = 0; step < 20000 && !placed; step++) {
-      const dist = IDENTITY_CLEAR + r + step * 3;
-      const angle = i * GOLDEN_ANGLE + step * 0.21;
-      const x = Math.cos(angle) * dist;
-      const y = Math.sin(angle) * dist;
-      if (homes.every((h) => Math.hypot(h.x - x, h.y - y) >= h.r + r + TOPIC_GAP)) placed = { x, y };
+  const home = (x: (typeof sized)[number], at: { x: number; y: number }, colorIndex: number): TopicHome => ({
+    id: x.c.id,
+    label: x.c.label,
+    keywords: x.c.keywords ?? [],
+    size: x.c.size,
+    color: TOPIC_COLORS[colorIndex % TOPIC_COLORS.length],
+    colorIndex,
+    x: at.x,
+    y: at.y,
+    r: topicRadius(x.free),
+    free: x.free,
+    members: [...x.c.member_ids],
+  });
+  // Persisting topics first: they hold their place.
+  const kept = new Map<number, TopicHome>();
+  sized.forEach((x, i) => {
+    const slot = slotOf.get(i);
+    if (slot) kept.set(i, home(x, slot, slot.color));
+  });
+  const placed: TopicHome[] = [...kept.values()];
+  const colorUse = new Array<number>(TOPIC_COLORS.length).fill(0);
+  for (const h of placed) colorUse[h.colorIndex % TOPIC_COLORS.length] += 1;
+  sized.forEach((x, i) => {
+    const keptHome = kept.get(i);
+    if (keptHome) {
+      homes.push(keptHome);
+      return;
     }
-    const at = placed ?? { x: 0, y: IDENTITY_CLEAR + r + homes.length * 2 * r };
-    homes.push({ id: c.id, label: c.label, color: TOPIC_COLORS[i % TOPIC_COLORS.length], x: at.x, y: at.y, r, free });
+    const r = topicRadius(x.free);
+    const n = placed.length;
+    let at: { x: number; y: number } | null = null;
+    for (let step = 0; step < 20000 && !at; step++) {
+      const dist = IDENTITY_CLEAR + r + step * 3;
+      const angle = n * GOLDEN_ANGLE + step * 0.21;
+      const px = Math.cos(angle) * dist;
+      const py = Math.sin(angle) * dist;
+      if (placed.every((h) => Math.hypot(h.x - px, h.y - py) >= h.r + r + TOPIC_GAP)) at = { x: px, y: py };
+    }
+    let colorIndex = 0;
+    for (let c = 1; c < colorUse.length; c++) if (colorUse[c] < colorUse[colorIndex]) colorIndex = c;
+    colorUse[colorIndex] += 1;
+    const h = home(x, at ?? { x: 0, y: IDENTITY_CLEAR + r + n * 2 * r }, colorIndex);
+    placed.push(h);
+    homes.push(h);
   });
   return homes;
+}
+
+/** What to remember of these homes for the next fetch / reload. */
+export function topicSlotsOf(homes: TopicHome[]): TopicSlot[] {
+  return homes.map((h) => ({ x: Math.round(h.x * 10) / 10, y: Math.round(h.y * 10) / 10, color: h.colorIndex, members: h.members }));
+}
+
+/** Read remembered slots back (storage is presentation: anything
+ * malformed is dropped, never trusted). */
+export function parseTopicSlots(raw: string | null): TopicSlot[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    const list = Array.isArray(v) ? v : [];
+    return list.filter(
+      (s): s is TopicSlot =>
+        !!s &&
+        typeof s === "object" &&
+        Number.isFinite((s as TopicSlot).x) &&
+        Number.isFinite((s as TopicSlot).y) &&
+        Number.isInteger((s as TopicSlot).color) &&
+        Array.isArray((s as TopicSlot).members),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** A diary ENTRY id as the runtime mints it (identity/diary.py:
+ * "diary_" + 24 hex) — never a label a person should read. */
+const ENTRY_ID = /^diary_[0-9a-f]{24}$/;
+
+/** A topic keyword as a person reads it: a raw diary entry id becomes
+ * that entry's title (its summary, when the fold carries one), else
+ * "a diary entry"; every other keyword stays as the runtime wrote it. */
+export function readableKeyword(keyword: string, entryTitle: (entryId: string) => string | null): string {
+  const k = keyword.trim();
+  if (!ENTRY_ID.test(k)) return k;
+  return entryTitle(k) ?? "a diary entry";
+}
+
+/** Entry id -> the entry's readable title from the fold (its summary
+ * when served; null for a redacted entry or one not in the fold). */
+export function entryTitleOf(fold: FoldState): (entryId: string) => string | null {
+  const byEntry = new Map<string, NodeState>();
+  for (const n of fold.nodes.values()) if (n.entry_id) byEntry.set(n.entry_id, n);
+  return (id) => {
+    const n = byEntry.get(id);
+    return n ? summaryLabel(n.title, n.redacted) : null;
+  };
+}
+
+/** The label's words, readable (the label is the runtime's first three
+ * keywords joined by ", "). */
+export function readableTopicLabel(label: string, entryTitle: (entryId: string) => string | null): string {
+  return label
+    .split(", ")
+    .map((k) => readableKeyword(k, entryTitle))
+    .join(", ");
+}
+
+/** Wrap a label onto at most two lines of `maxW` (measured), breaking
+ * after ", " first, then at spaces. `complete` = nothing was left out (the
+ * canvas then needs no "…"; the hover card always shows everything). */
+export function wrapTopicLabel(text: string, maxW: number, measure: (s: string) => number): { lines: string[]; complete: boolean } {
+  if (measure(text) <= maxW) return { lines: [text], complete: true };
+  const tokens = text.split(/(?<=, )|(?<= )/);
+  let first = "";
+  let i = 0;
+  while (i < tokens.length && measure(first + tokens[i]) <= maxW) {
+    first += tokens[i];
+    i += 1;
+  }
+  if (!first) {
+    // One word wider than a line: it is the first line as is.
+    first = tokens[0];
+    i = 1;
+  }
+  const rest = tokens.slice(i).join("").trim();
+  if (!rest) return { lines: [first.trim()], complete: true };
+  if (measure(rest) <= maxW) return { lines: [first.trim(), rest], complete: true };
+  let second = "";
+  for (const ch of rest) {
+    if (measure(second + ch + "…") > maxW) break;
+    second += ch;
+  }
+  return { lines: [first.trim(), `${second.trimEnd()}…`], complete: false };
 }
 
 /** Furthest world reach of the homes (lanes step outside it). */

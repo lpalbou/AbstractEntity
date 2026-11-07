@@ -137,3 +137,12 @@
     max-width: none;
   }
 }
+
+/* TOPIC CARD (hover a topic label): the topic's every keyword, never cut
+ * (the shared hover card clamps titles to two lines — not this one). */
+.gc_topic_card .gc_topic_words {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  overflow-wrap: anywhere;
+}

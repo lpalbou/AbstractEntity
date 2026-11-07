@@ -24,13 +24,28 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { FoldState, NodeState, StandingState } from "./stream_fold";
 import { ADMISSION_LABELS } from "./stream_types";
-import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, type RecallClass } from "./recall_emphasis";
+import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, resolveSelection, type RecallClass } from "./recall_emphasis";
 import "./graph_canvas.css";
 import { nodeLabel, shapeLabel, summaryLabel } from "./node_label";
 import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
 import { useCommunities, type TopicSource } from "./topic_map";
-import { haloOf, placeTopicLabel, planTopicHomes, planTopicSeats, TOPIC_SEAT_STRENGTH, trailPulls, type Rect } from "./topic_layout";
+import {
+  entryTitleOf,
+  haloOf,
+  parseTopicSlots,
+  placeTopicLabel,
+  planTopicHomes,
+  planTopicSeats,
+  readableKeyword,
+  readableTopicLabel,
+  TOPIC_SEAT_STRENGTH,
+  topicSlotsOf,
+  trailPulls,
+  wrapTopicLabel,
+  type Rect,
+  type TopicSlot,
+} from "./topic_layout";
 
 export interface GraphCanvasProps {
   fold: FoldState;
@@ -307,6 +322,9 @@ function isFreeNode(node: NodeState): boolean {
  * smaller than this on screen carries no label either. */
 const TOPIC_LABEL_MIN_ZOOM = 0.16;
 const TOPIC_LABEL_MIN_SCREEN_R = 24;
+/** A label line's width before it wraps (two lines at most). */
+const TOPIC_LABEL_MAX_W = 220;
+const TOPIC_LABEL_LINE_H = 14;
 /** Halo margin around the furthest member (world px). */
 const TOPIC_HALO_PAD = 16;
 
@@ -370,6 +388,12 @@ function layoutStorageKey(key: string): string {
   return `abstractentity_layout_v2:${key}`;
 }
 
+/** Topic homes + colours remembered per life (presentation, like the
+ * layout): a refetch or a reload keeps every persisting topic in place. */
+function topicSlotsStorageKey(key: string): string {
+  return `abstractentity_topic_homes_v1:${key}`;
+}
+
 /** SPATIAL MEMORY MIGRATION (repo split 2026-07-12): this app used to ship
  * inside abstractobserver and — served on the same origin (the entity
  * launcher's port) — its saved layouts live under the old spelling. Layout
@@ -404,6 +428,11 @@ export function GraphCanvas({
   // replaces it (recall_emphasis.ts). A recall line picked in the ledger
   // (selection "beat:…") lights that beat. Recomputed per fold change,
   // never per frame.
+  // The selection as the CANVAS knows it: a memory opened by its graph id
+  // (a ledger moment in Live) resolves to its row id exactly like the
+  // Inspector does (fold.graph_to_row) — otherwise the canvas would not
+  // see a selection and the recall would keep lighting the graph.
+  const selectedRow = resolveSelection(fold, selectedId);
   const recall = useMemo(() => canvasRecall(fold, scrubSeq, selectedId), [fold, scrubSeq, selectedId]);
   // TOPICS AS THE NATURAL LAYOUT (operator 2026-11-07): the served
   // communities give every topic a home and its memories seats inside it
@@ -412,13 +441,48 @@ export function GraphCanvas({
   // payload only (stable under scrub); seats per fold change.
   const { state: topicsState, retry: retryTopics } = useCommunities(topicSource, fold.nodes.size);
   const topicsData = topicsState.phase === "ready" ? topicsState.data : null;
-  const topicHomes = useMemo(() => (topicsData ? planTopicHomes(topicsData.communities) : null), [topicsData]);
+  // Homes are STABLE: planned against the slots remembered from the last
+  // fetch (and from storage after a reload) — a persisting topic keeps
+  // its place and colour (topic_layout.planTopicHomes). `topicResetN`
+  // re-plans from scratch after ⟲ reset.
+  const topicSlotsRef = useRef<TopicSlot[]>([]);
+  const [topicResetN, setTopicResetN] = useState(0);
+  const topicHomes = useMemo(
+    () => (topicsData ? planTopicHomes(topicsData.communities, topicSlotsRef.current) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [topicsData, topicResetN],
+  );
+  useEffect(() => {
+    if (!topicHomes) return;
+    topicSlotsRef.current = topicSlotsOf(topicHomes);
+    const key = layoutKeyRef.current;
+    if (!key) return;
+    try {
+      localStorage.setItem(topicSlotsStorageKey(key), JSON.stringify(topicSlotsRef.current));
+    } catch {
+      // Quota/private mode: stability then holds for this session only.
+    }
+  }, [topicHomes]);
+  // A topic's words as a person reads them: a raw diary entry id in the
+  // runtime's keywords becomes that entry's title, else "a diary entry".
+  const topicWords = useMemo(() => {
+    const out = new Map<number, { label: string; keywords: string }>();
+    if (!topicHomes) return out;
+    const entryTitle = entryTitleOf(fold);
+    for (const h of topicHomes) {
+      out.set(h.id, {
+        label: readableTopicLabel(h.label, entryTitle),
+        keywords: (h.keywords.length ? h.keywords : h.label.split(", ")).map((k) => readableKeyword(k, entryTitle)).join(", "),
+      });
+    }
+    return out;
+  }, [topicHomes, fold]);
   const topicPlan = useMemo(
     () => (topicsData && topicHomes && topicHomes.length > 0 ? planTopicSeats(fold, topicsData.communities, topicHomes, isFreeNode) : null),
     [fold, topicsData, topicHomes],
   );
   const topicsPending = topicsState.phase === "loading";
-  const stateRef = useRef({ fold, temporal, scrubSeq, selectedId, searchIds, recall, topicPlan, showTopics, topicsPending });
+  const stateRef = useRef({ fold, temporal, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords });
   /** Topic label rects drawn last frame (screen px) — the click targets. */
   const topicLabelsRef = useRef<Array<{ rect: Rect; topic: number; label: string }>>([]);
   const onPickTopicRef = useRef(onPickTopic);
@@ -444,6 +508,9 @@ export function GraphCanvas({
   /** The small memory card beside the cursor (maintainer ask, 2026-07-08):
    * set when the hovered node CHANGES (never per mousemove — no jitter). */
   const [hoverCard, setHoverCard] = useState<{ id: string; x: number; y: number } | null>(null);
+  /** The topic label under the cursor (its full words in a card). */
+  const [topicCard, setTopicCard] = useState<{ topic: number; x: number; y: number } | null>(null);
+  const topicHoverRef = useRef<number | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const onSelectRef = useRef(onSelect);
   // Cooling state (P0-2/3): alpha decays toward freeze; arrivals reheat.
@@ -456,7 +523,7 @@ export function GraphCanvas({
    * for the node's lifetime (and persisted): permanent spatial memory. */
   const seatRef = useRef<{ seats: Map<string, number>; next: number }>({ seats: new Map(), next: 0 });
 
-  stateRef.current = { fold, temporal, scrubSeq, selectedId, searchIds, recall, topicPlan, showTopics, topicsPending };
+  stateRef.current = { fold, temporal, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords };
   onSelectRef.current = onSelect;
 
   // FIT-TO-EMPHASIS (graph-access wave, 2026-07-12): when the OPERATOR's
@@ -516,7 +583,13 @@ export function GraphCanvas({
     seatRef.current = { seats: new Map(), next: 0 };
     simRef.current.alpha = 1;
     simRef.current.autoFitDone = false;
+    topicSlotsRef.current = [];
     if (!layoutKey) return;
+    try {
+      topicSlotsRef.current = parseTopicSlots(localStorage.getItem(topicSlotsStorageKey(layoutKey)));
+    } catch {
+      topicSlotsRef.current = [];
+    }
     try {
       const raw = readStoredLayout(layoutKey);
       if (!raw) return;
@@ -548,13 +621,13 @@ export function GraphCanvas({
 
   // Center the camera on selection changes (P0-6: "find the node again").
   useEffect(() => {
-    if (!selectedId) return;
-    const ln = layoutRef.current.get(selectedId);
+    if (!selectedRow) return;
+    const ln = layoutRef.current.get(selectedRow);
     if (ln) {
       cameraRef.current.x = ln.x;
       cameraRef.current.y = ln.y;
     }
-  }, [selectedId]);
+  }, [selectedRow]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -583,7 +656,7 @@ export function GraphCanvas({
 
     const frame = () => {
       if (disposed) return;
-      const { fold, temporal, scrubSeq, selectedId, searchIds, recall, topicPlan: plan, showTopics: topicsOn, topicsPending: pending } = stateRef.current;
+      const { fold, temporal, scrubSeq, selectedId, searchIds, recall, topicPlan: plan, showTopics: topicsOn, topicsPending: pending, topicWords } = stateRef.current;
       const layout = layoutRef.current;
       const sim = simRef.current;
 
@@ -1258,9 +1331,12 @@ export function GraphCanvas({
         ctx.textBaseline = "middle";
         for (const halo of topicHalos) {
           if (halo.r < TOPIC_LABEL_MIN_SCREEN_R) continue;
-          const text = nodeLabel(halo.label, 34);
-          const w = ctx.measureText(text).width + 14;
-          const h = 18;
+          // Never cut mid-word at a fixed count: the label wraps onto two
+          // lines; the hover card carries every keyword.
+          const words = topicWords.get(halo.topic)?.label ?? halo.label;
+          const { lines } = wrapTopicLabel(words, TOPIC_LABEL_MAX_W, (t) => ctx.measureText(t).width);
+          const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 14;
+          const h = 6 + lines.length * TOPIC_LABEL_LINE_H;
           const rect = placeTopicLabel({
             halo: { cx: halo.cx, cy: halo.cy, r: halo.r },
             w,
@@ -1274,7 +1350,7 @@ export function GraphCanvas({
           });
           if (!rect) continue;
           placed.push(rect);
-          labelHits.push({ rect, topic: halo.topic, label: halo.label });
+          labelHits.push({ rect, topic: halo.topic, label: words });
           ctx.globalAlpha = halo.hd;
           ctx.beginPath();
           ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 9);
@@ -1284,7 +1360,7 @@ export function GraphCanvas({
           ctx.lineWidth = 1;
           ctx.stroke();
           ctx.fillStyle = rgbaOf(CANVAS_THEME.text, 0.92);
-          ctx.fillText(text, rect.x + rect.w / 2, rect.y + rect.h / 2 + 0.5);
+          lines.forEach((line, li) => ctx.fillText(line, rect.x + rect.w / 2, rect.y + 3 + TOPIC_LABEL_LINE_H * (li + 0.5) + 0.5));
           ctx.globalAlpha = 1;
         }
         ctx.textBaseline = "alphabetic";
@@ -1368,13 +1444,25 @@ export function GraphCanvas({
         hoverRef.current = hit;
         setHoverCard(hit ? { id: hit, x: ev.clientX, y: ev.clientY } : null);
       }
-      canvas.style.cursor = hoverRef.current || topicLabelAt(ev.clientX, ev.clientY) ? "pointer" : "grab";
+      // A topic label under the cursor (and no node): its card shows the
+      // topic's full words — the canvas label never hides any for good.
+      const label = hit ? null : topicLabelAt(ev.clientX, ev.clientY);
+      const topic = label ? label.topic : null;
+      if (topic !== topicHoverRef.current) {
+        topicHoverRef.current = topic;
+        setTopicCard(topic !== null ? { topic, x: ev.clientX, y: ev.clientY } : null);
+      }
+      canvas.style.cursor = hoverRef.current || label ? "pointer" : "grab";
     };
     const onCanvasLeave = () => {
       mouseRef.current = null;
       if (hoverRef.current !== null) {
         hoverRef.current = null;
         setHoverCard(null);
+      }
+      if (topicHoverRef.current !== null) {
+        topicHoverRef.current = null;
+        setTopicCard(null);
       }
       canvas.style.cursor = "grab";
     };
@@ -1422,7 +1510,8 @@ export function GraphCanvas({
   const hoverNode = hoverCard ? fold.nodes.get(hoverCard.id) ?? null : null;
   // The recall line shows while the recall is what the canvas lights (a
   // lens/search or a selection takes over — the Inspector's rule).
-  const selectionIsNode = selectedId !== null && (fold.nodes.has(selectedId) || selectedId.startsWith("standing:"));
+  const selectionIsNode = selectedRow !== null && (fold.nodes.has(selectedRow) || selectedRow.startsWith("standing:"));
+  const topicCardHome = topicCard && showTopics ? topicHomes?.find((h) => h.id === topicCard.topic) ?? null : null;
   const recallShown = recall !== null && searchIds === null && !selectionIsNode;
   const recallLabelOf = (id: string): string | null => (recall ? recall.labels.get(id) ?? null : null);
   const recallLegend = recallShown && recall ? recallLegendParts(recall) : null;
@@ -1516,6 +1605,28 @@ export function GraphCanvas({
           ) : null}
         </div>
       ) : null}
+      {topicCard && topicCardHome ? (
+        <div
+          className="gc_hovercard gc_topic_card"
+          style={{
+            left: Math.min(topicCard.x + 16, window.innerWidth - 440),
+            top: Math.min(topicCard.y + 12, window.innerHeight - 150),
+          }}
+        >
+          <div className="gc_hc_head" style={{ borderLeft: `3px solid ${topicCardHome.color}`, paddingLeft: 8 }}>
+            <span className="gc_hc_kind_dot" style={{ background: topicCardHome.color }} aria-hidden="true" />
+            <span className="ei_kind">topic</span>
+            <span className="gc_hc_title gc_topic_words">{topicWords.get(topicCardHome.id)?.keywords ?? topicCardHome.label}</span>
+          </div>
+          <div className="gc_hc_rows">
+            <span>memories</span>
+            <span>
+              {topicCardHome.size} ({topicCardHome.free} on the disc; diary entries and identity stay in their places)
+            </span>
+          </div>
+          <div className="gc_hc_hint">click to light these {topicCardHome.size} on the graph</div>
+        </div>
+      ) : null}
       {showTopics && topicsState.phase !== "ready" ? (
         <div className={`gc_topic_note ${topicsState.phase === "error" ? "gc_topic_note_error" : ""}`} role="status">
           {topicsState.phase === "loading" ? "grouping his memories by topic…" : null}
@@ -1573,7 +1684,7 @@ export function GraphCanvas({
         </button>
         <button
           className="gc_btn"
-          title="Reset layout — forget saved positions and re-place every node"
+          title="Reset layout — forget saved positions (and topic places) and re-place every node"
           onClick={() => {
             if (layoutKey) {
               try {
@@ -1584,6 +1695,16 @@ export function GraphCanvas({
             }
             layoutRef.current = new Map();
             seatRef.current = { seats: new Map(), next: 0 };
+            // Forget the topic homes too: re-planned from the current topics.
+            if (layoutKey) {
+              try {
+                localStorage.removeItem(topicSlotsStorageKey(layoutKey));
+              } catch {
+                // best-effort
+              }
+            }
+            topicSlotsRef.current = [];
+            setTopicResetN((n) => n + 1);
             simRef.current.alpha = 1;
             simRef.current.frozen = false;
             setMotionUi("live");

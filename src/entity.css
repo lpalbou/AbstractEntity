@@ -435,16 +435,6 @@ body {
     justify-items: center;
   }
 }
-/* The reading sentence under the row (and in the Wave tab's turn header). */
-.cm_reading_line {
-  margin-top: 2px;
-  text-align: center;
-  font-size: max(calc(9.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-style: italic;
-  color: var(--text-secondary, #a6adc8);
-  cursor: help;
-}
-
 /* Inline verbatim in the Detail tab (dm#28: the words, no button). */
 .ei_verbatim_inline {
   margin: 6px 0 8px;
@@ -3018,15 +3008,6 @@ body {
   cursor: default;
 }
 
-.et_speed {
-  background: var(--bg-raise);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 4px 6px;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-
 .et_live {
   color: var(--text-dim);
 }
@@ -5321,50 +5302,7 @@ body {
 }
 .entity_search_close:hover { color: var(--text); }
 
-/* Topic map (the community view, 2026-07-17). */
-.tm_wrap {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-primary);
-  z-index: 2;
-}
-.tm_head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  /* The lens bar floats over the canvas area's top band — the map's own
-   * header starts below it (same 104px overlay band the canvas labels
-   * respect). */
-  padding: 44px 14px 4px;
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-muted);
-}
-.tm_title { font-weight: 600; color: var(--text-primary); }
-.tm_algo { cursor: help; opacity: 0.75; }
-.tm_retry {
-  background: transparent;
-  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  padding: 2px 8px;
-}
-.tm_retry:hover { color: var(--text-primary); }
-.tm_svg { flex: 1; width: 100%; min-height: 0; color: var(--text-primary); }
-.tm_bubble { cursor: pointer; }
-.tm_bubble .tm_label { font-size: max(12px, var(--ent-type-floor, 0px)); font-weight: 600; paint-order: stroke; stroke: var(--bg-primary); stroke-width: 3px; stroke-linejoin: round; }
-.tm_bubble .tm_count { font-size: max(10px, var(--ent-type-floor, 0px)); paint-order: stroke; stroke: var(--bg-primary); stroke-width: 3px; stroke-linejoin: round; }
-.tm_note { padding: 24px; color: var(--text-muted); font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px)); }
-.tm_error { color: var(--warn, #e7b45a); display: flex; gap: 10px; align-items: center; }
-.tm_foot {
-  margin: 0;
-  padding: 6px 14px 10px;
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-}
+/* The lit-topic chip on the lens row (a topic label clicked on the graph). */
 .tm_filter_chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Detail card: speaker-labeled verbatim turns + metadata chips (dm#54). */

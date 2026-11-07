@@ -16,6 +16,7 @@ import {
   dimRampSec,
   emphasisDriver,
   HOVER_RAMP_SEC,
+  resolveSelection,
   RECALL_RAMP_SEC,
   recallEmphasis,
   recallLegendText,
@@ -256,5 +257,26 @@ describe("dimRampSec", () => {
     expect(dimRampSec(1500, 1000)).toBe(RECALL_RAMP_SEC);
     // …then hover pace returns.
     expect(dimRampSec(1700, 1000)).toBe(HOVER_RAMP_SEC);
+  });
+});
+
+describe("resolveSelection", () => {
+  it("a memory opened by its graph id is the canvas's row-id selection (the Inspector's rule)", () => {
+    const envs = [
+      binding(1, "ex:memory-b", "memory", "the media server"),
+      env(2, "event", { kind: "listed", scope: "life", owner_id: "entity:test", record_id: "row-b", pair_ids: null, weight: 0, matched: false, event_id: "e2", seq: 2 }, {
+        display: { record_id: "row-b", graph_id: "ex:memory-b", title: "the media server" } as ReplayEnvelope["display"],
+      }),
+      binding(3, "ex:memory-c", "memory"),
+      trace(10, "tr1", ["row-b", "ex:memory-c"], { "row-b": "stm", "ex:memory-c": "stimulus" }),
+    ];
+    const fold = foldEnvelopes(envs);
+    expect(resolveSelection(fold, "ex:memory-b")).toBe("row-b");
+    expect(resolveSelection(fold, "row-b")).toBe("row-b");
+    expect(resolveSelection(fold, "ex:memory-c")).toBe("ex:memory-c");
+    expect(resolveSelection(fold, "standing:person:x")).toBe("standing:person:x");
+    expect(resolveSelection(fold, null)).toBeNull();
+    // A selection the canvas sees outranks the recall (Detail shows it).
+    expect(emphasisDriver({ filter: false, hover: false, selected: fold.nodes.has(resolveSelection(fold, "ex:memory-b")!), recall: true })).toBe("focus");
   });
 });

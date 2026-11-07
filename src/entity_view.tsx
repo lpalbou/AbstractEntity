@@ -2313,8 +2313,8 @@ export function EntityView(): React.ReactElement {
                   aria-pressed={showTopics}
                   title={
                     showTopics
-                      ? "Hide the topic halos and labels (the memories stay grouped by topic)"
-                      : "Show the topics — a halo and a label around each group of memories (groups computed from his memory graph: engraved relations + shared digest keywords). Click a label to light that topic."
+                      ? "Hide the topic halos and labels. Memories group by topic even with this off; “used together” trails across topics are drawn but do not pull."
+                      : "Show the topics — a halo and a label around each group of memories (groups computed from his memory graph: engraved relations + shared digest keywords; click a label to light that topic). Memories group by topic even with this off; “used together” trails across topics are drawn but do not pull."
                   }
                   onClick={() => setShowTopics((v) => !v)}
                 >
