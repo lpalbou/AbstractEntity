@@ -137,8 +137,8 @@ function useCardRead(source: VerbatimSource, node: NodeState | null, enabled: bo
   return read;
 }
 
-const stamp = (iso: string | null | undefined) => (iso ? `${bookDate(iso).day}, ${bookDate(iso).time}` : "unknown");
-const dayOf = (iso: string | null | undefined) => (iso ? bookDate(iso).day : "unknown");
+const stamp = (iso: string | null | undefined) => (iso ? `${bookDate(iso).day}, ${bookDate(iso).time}` : "—");
+const dayOf = (iso: string | null | undefined) => (iso ? bookDate(iso).day : "—");
 
 export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldState; card: NodeState; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
   const { chain, index, broken } = useMemo(() => revisionChain(fold, card), [fold, card]);

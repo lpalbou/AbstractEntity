@@ -461,7 +461,8 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                 : isDiaryGraphId(target)
                   ? "Show this entry in his Book, marked (reading its words there is a separate click, recorded in his biography)"
                   : "Open this memory in Detail"
-              : undefined
+              : // nothing to open: the whole text is at least on hover (the row clamps it)
+                [line.title, line.detail].filter(Boolean).join("\n")
           }
           onClick={(e) => {
             if (fromLink(e)) return;

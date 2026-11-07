@@ -2456,6 +2456,11 @@ body {
 .el_title {
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   font-weight: 600;
+  /* whole text, clamped like the detail (a 949-character recall cue made one row 390 px tall) */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .el_detail {

@@ -10,19 +10,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
-- **Every memory opens on what matters.** Clicking any memory — a diary entry, lesson, interest,
-  summary, dream, identity line, an engine act or a recall — shows its title, kind and full
-  summary first, then its facts, and keeps the words, feelings, used-together and night signals
-  one click away. A diary entry's words still open only on a click that says the read is
-  recorded.
 - **Every text renders its Markdown.** Ledger rows, the Now line, the Book, Lessons and World,
   the identity card, world-model cards and their sources, Health, the turn panel, the meet reader
   and the entities list show bold, italics, code and links instead of raw markers; no image in
-  any text is ever loaded. Ledger rows no longer cut record text: they clamp to a few lines and a
-  click opens the whole memory.
+  any text outside the chat is loaded. Ledger rows no longer cut record text: they clamp to three
+  lines, a click opens the memory, and a row with nothing to open shows its whole text on hover.
 - **Graph hover cards say what a memory is**: its title, its full summary once known, then the
-  facts. Topic halos and labels keep their place and colour as his life grows; long labels wrap
-  and show every keyword on hover.
+  facts. A topic keeps its place and colour while its members stay mostly the same; when the
+  runtime regroups topics, the new groups take new places. Long labels wrap and show every keyword
+  on hover.
 - **When he recalls, the graph shows it.** The memories he brought to mind light up and the rest
   of the graph slowly dims; a ring says why each one came (present by right, from continuity,
   matched) and a line says how many. It clears when he answers, and scrubbing to a past recall
@@ -55,9 +51,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   shows what it is first — its title, its kind in plain words ("A lesson he drew", "A diary entry
   — a question he left open", "One of his values", "An engine act — the engine's own
   bookkeeping, not a memory") and its summary in full when the app has one (words born as the
-  whole record, or the summary a recall carried) — then its facts in one grid, then the rest one
-  click away: its words as saved, how he feels about it, what it was used with, the night's
-  signals, each list foldable on every width. A recall card says how many memories he
+  whole record, or the summary a recall carried) — then its facts in one grid, then the rest in
+  foldable sections: its words as saved, how he feels about it, what it was used with, the
+  night's signals (lists start open and remember your fold). A recall card says how many memories he
   considered, how many came to mind and entered his context, and what it was for, before the
   lists; a feeling card names what it is toward and keeps both sides before every event. A dream
   says what the night moved before what it touched. A diary entry's words are no longer read

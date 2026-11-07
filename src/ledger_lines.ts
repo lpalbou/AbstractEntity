@@ -762,10 +762,8 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         // N4's render leg (config-object R5; contract confirmed c746): the
         // deposit gate refused a write from this phase. refused_by
         // distinguishes the sleep phase-gate class from ordinary channel
-        // refusals. The reason is the door's sentence — clipped at the
-        // file's 96 default (visibly, with an ellipsis), never the tighter
-        // 80 shared clip, because the refusal sentence is the load-bearing
-        // content of this line.
+        // refusals. The reason is the door's sentence, kept whole: it is the
+        // load-bearing content of this line.
         const phase = tidy(typeof p["phase"] === "string" ? String(p["phase"]) : "");
         const effectType = tidy(typeof p["effect_type"] === "string" && p["effect_type"] ? String(p["effect_type"]) : "a deposit");
         const recordKind = tidy(typeof p["record_kind"] === "string" ? String(p["record_kind"]) : "");

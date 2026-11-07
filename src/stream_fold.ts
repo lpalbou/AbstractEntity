@@ -848,7 +848,7 @@ function applySnapshot(state: FoldState, env: ReplayEnvelope): void {
     const node = resolveUsageNode(state, rid, { record_id: rid, title: row.title, token_estimate: row.token_estimate }, env.seq);
     // The row's digest is that record's summary: kept on its own node only
     // (an edge row resolves onto its source), never on a diary record.
-    if (node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && typeof row.digest === "string" && row.digest.trim()) node.digest = row.digest;
+    if (node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && !isDiaryGraphId(rid) && typeof row.digest === "string" && row.digest.trim()) node.digest = row.digest;
   }
 }
 
