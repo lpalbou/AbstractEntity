@@ -276,3 +276,23 @@ class FakeObserver {
     for (const o of FakeObserver.live) if (o.targets.has(t)) o.cb();
   }
 }
+
+describe("ledger times", () => {
+  it("rows read as UTC clock times; the numbers live in the hover", async () => {
+    const { clockUtc, rowHint, turnLabel } = await import("./ledger_lines");
+    expect(clockUtc("2026-11-07T12:05:07.665849+00:00")).toBe("12:05");
+    expect(clockUtc("2026-11-07T14:05:07+02:00", true)).toBe("12:05:07");
+    expect(clockUtc("")).toBe("");
+    expect(turnLabel("t-0003")).toBe("tick 3");
+    expect(turnLabel("t-reflect-owntime-20261107T115925")).toBe("reflection");
+    expect(rowHint(2178, 2518, "t-0001", "2026-11-07T14:07:12+00:00")).toBe("events #2178–2518 · tick 1 · 14:07:12 UTC");
+    expect(rowHint(2647, null, null, "2026-11-07T14:07:12+00:00")).toBe("event #2647 · 14:07:12 UTC");
+  });
+
+  it("a tick line says when it started", () => {
+    const tick = titles(journal()).length;
+    expect(tick).toBe(3);
+    const lines = foldLedgerLines(null, journal()).lines.filter((l) => l.line.title === "— tick 2 —");
+    expect(lines[0].line.detail).toBe("12:00 UTC");
+  });
+});

@@ -19,7 +19,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
   no longer shows through the rows beneath it.
 - Opening another recorded life with the same event numbers no longer keeps the previous one's
   lines in the ledger.
-- Long reflection turn ids fit on one line in the ledger (the full id shows on hover).
+- **The ledger reads by time.** Each row shows when it happened (UTC); hovering the time shows the
+  event number and the tick. A colour key names what each colour means, the colours are all
+  distinct, grouped "memories drawn on" rows read in two lines (click to see each one), and each
+  tick line says when it started.
 
 ## [0.11.2] - 2026-11-07
 

@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { AfMemoryHintChip } from "@abstractframework/ui-kit";
 
-import { foldLedgerLines, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
+import { clockUtc, foldLedgerLines, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
 import type { ReplayEnvelope } from "./stream_types";
 
 export interface LedgerPanelProps {
@@ -120,6 +120,35 @@ function weaveSummary(group: WeaveGroup, items: IndexedLine[]): { title: string;
     title: `🔦 Used — ${members.length} memor${members.length === 1 ? "y" : "ies"} served this moment`,
     detail: list,
   };
+}
+
+/** What each colour means, in plain words (operator 2026-11-07: "the
+ * colour code is not explained"). The tones are ledger_lines' `tone`. */
+const LEDGER_KEY: Array<{ tone: string; label: string }> = [
+  { tone: "formation", label: "new memory" },
+  { tone: "usage", label: "memories drawn on" },
+  { tone: "recall", label: "came to mind" },
+  { tone: "context", label: "held in mind" },
+  { tone: "feeling", label: "feeling" },
+  { tone: "revision", label: "memory revised" },
+  { tone: "session", label: "visits & phases" },
+];
+
+function LedgerKey(props: { showQuiet: boolean }): React.ReactElement {
+  const items = props.showQuiet ? [...LEDGER_KEY, { tone: "quiet", label: "audit detail" }] : LEDGER_KEY;
+  return (
+    <div className="el_key" aria-label="What the colours mean">
+      {items.map((k) => (
+        <span key={k.tone} className={`el_key_item el_tone_${k.tone}`}>
+          <span className="el_key_dot" aria-hidden="true" />
+          {k.label}
+        </span>
+      ))}
+      <span className="el_key_item el_key_note" title="Hover a time to see its event number and tick.">
+        times UTC
+      </span>
+    </div>
+  );
 }
 
 /** Distance from the bottom that still counts as "at the bottom". */
@@ -279,6 +308,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           ⏳ {props.loadingNote} — partial view while his life streams in
         </div>
       ) : null}
+      <LedgerKey showQuiet={showQuiet} />
       <div className="el_list" ref={listRef}>
         {windowed.hiddenBefore > 0 ? (
           <div className="el_window_note">{windowed.hiddenBefore} earlier lines — scrub the timeline to bring them into view</div>
@@ -306,10 +336,8 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                   }}
                   title={expanded ? "Collapse the pairings" : "Expand to see each pairing"}
                 >
-                  <div className="el_row_meta">
-                    <span className="el_seq">
-                      {first.line.seq}–{last.line.seq}
-                    </span>
+                  <div className="el_row_meta" title={rowHint(first.line.seq, last.line.seq, first.line.turn_id, first.line.observed_at)}>
+                    <span className="el_time">{clockUtc(first.line.observed_at)}</span>
                   </div>
                   <div className="el_row_body">
                     <div className="el_title">
@@ -328,8 +356,8 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                           if (line.subject_id) props.onSelectSubject(line.subject_id);
                         }}
                       >
-                        <div className="el_row_meta">
-                          <span className="el_seq">{line.seq}</span>
+                        <div className="el_row_meta" title={rowHint(line.seq, null, line.turn_id, line.observed_at)}>
+                          <span className="el_time">{clockUtc(line.observed_at)}</span>
                         </div>
                         <div className="el_row_body">
                           <div className="el_detail">{line.detail}</div>
@@ -366,13 +394,8 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                 if (line.subject_id) props.onSelectSubject(line.subject_id);
               }}
             >
-              <div className="el_row_meta">
-                <span className="el_seq">{line.seq}</span>
-                {line.turn_id ? (
-                  <span className="el_turn" title={line.turn_id}>
-                    {line.turn_id}
-                  </span>
-                ) : null}
+              <div className="el_row_meta" title={rowHint(line.seq, null, line.turn_id, line.observed_at)}>
+                <span className="el_time">{clockUtc(line.observed_at)}</span>
               </div>
               <div className="el_row_body">
                 <div className="el_title">{line.title}</div>

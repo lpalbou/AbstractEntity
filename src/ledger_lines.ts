@@ -144,9 +144,36 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
       lines.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
       closed = false;
     }
-    lines.push({ ...base, title: `— tick ${n} —`, detail: "" });
+    const at = clockUtc(env.observed_at);
+    lines.push({ ...base, title: `— tick ${n} —`, detail: at ? `${at} UTC` : "" });
   }
   return { lines, state: { ownTime: true, turn, closed } };
+}
+
+/** "14:07" (or "14:07:12") in UTC from an ISO stamp; "" when unreadable. */
+export function clockUtc(iso: string | null | undefined, seconds = false): string {
+  const t = Date.parse(String(iso || ""));
+  if (!Number.isFinite(t)) return "";
+  return new Date(t).toISOString().slice(11, seconds ? 19 : 16);
+}
+
+/** A turn id in human words: "tick 3", "reflection", or the id itself. */
+export function turnLabel(turn: string | null | undefined): string {
+  const t = String(turn || "");
+  const n = t.match(/^t-0*(\d+)$/)?.[1];
+  if (n) return `tick ${n}`;
+  if (t.startsWith("t-reflect")) return "reflection";
+  return t;
+}
+
+/** The hover text of a row's time: what the numbers behind it are. */
+export function rowHint(fromSeq: number, toSeq: number | null, turn: string | null | undefined, iso: string | null | undefined): string {
+  const parts = [toSeq !== null && toSeq !== fromSeq ? `events #${fromSeq}–${toSeq}` : `event #${fromSeq}`];
+  const label = turnLabel(turn);
+  if (label) parts.push(label);
+  const at = clockUtc(iso, true);
+  if (at) parts.push(`${at} UTC`);
+  return parts.join(" · ");
 }
 
 /** One ledger line and the envelope index it belongs to (boundary lines
