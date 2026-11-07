@@ -27,22 +27,32 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
-import { basisCalibrationNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, CHANNEL_AXES, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceTitle, interpretWave, MonitorInfoModal, TONE_POLES, toneWord, type AxisInfo } from "./cognitive_monitor";
+import { CHANNELS } from "./vendor/cognition/core";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
 import { ScoringReads } from "./cognition_reads";
 
 async function loadBasis(): Promise<FrozenBasis> {
-  // v1 (2026-08-01): cut on HIS real utterances (74 door-read episode
-  // replies + diary entries + the curated arc) — the v0 provenance's
-  // promised re-cut. Ships GRV (nine registers) and a corpus-calibrated
-  // abstention floor; v0 stays beside it (the gate tests pin it).
+  // v1 (2026-08-01): the generic registers and channels (anchor-text
+  // prototypes, the same for every entity) with whitening statistics and
+  // the abstention floor re-fitted on a mixed corpus (curated arc + anchor
+  // texts + 74 real replies). Ships GRV (nine registers); v0 stays beside
+  // it (the gate tests pin it).
   const mod = await import("./vendor/cognition/data/basis_v1.json");
   return (mod.default ?? mod) as unknown as FrozenBasis;
 }
 
 const FOLD_KEY = "abstractentity_cogmon_fold_v1";
+
+/** A channel value for the narrow code row: sign + tenths ("−.9", "+.7", "0"); the exact value
+ * is in the code's hover title. */
+export function signedTenths(v: number): string {
+  const t = Math.round(Math.abs(v) * 10);
+  if (t === 0) return "0";
+  return `${v > 0 ? "+" : "−"}${t >= 10 ? "1" : `.${t}`}`;
+}
 
 /** The monitor's first state: the viewer's remembered choice, else folded on
  * a phone (DESIGN §12 — the ~300 px bloom left a 393x852 phone ~6 transcript
@@ -241,10 +251,9 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         throw Object.assign(new Error(`home embedder ${embedderId} ≠ basis ${basis.embedder_id}`), { mismatch: true });
       }
       embedderRef.current = embedderId;
-      // The gate floor rides the basis when calibrated (v1: 0.0798, cut on
-      // entity:ephemeral's corpus — one basis for every entity; measured
-      // 2026-11-07, 12 of 23 real replies on record read fully quiet); a
-      // floor-less basis keeps the scorer's default.
+      // The gate floor rides the basis when calibrated (v1: 0.0798); a
+      // floor-less basis keeps the scorer's default. A factual reply often
+      // sits below it (no clear emotion); its tone channels still read.
       scorerRef.current = createScorer(basis, {
         embedderId,
         ...(typeof basis.abstention_floor === "number" ? { abstention: { floor: basis.abstention_floor } } : {}),
@@ -308,10 +317,11 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // ships it. Explicit 0 lowers a petal, so we send every known register.
   const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, current?.emotions?.[id] ?? 0])), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
-  /** The honest quiet/faint caption (null when the bloom has real reach or
-   * the diagnostics are absent — old cache entries predate them). */
-  const quiet = evidenceNote(current?.emotionEvidence);
-  const calibration = calibratedOn ? basisCalibrationNote(calibratedOn, entity) : null;
+  /** The reading, always said (operator 2026-11-07): the tone of the phrasing from the five
+   * signed channels, plus the emotion when one clears the gate — never a bare "no clear
+   * emotional tone". Hover keeps the gate's live numbers. */
+  const reading = useMemo(() => (current ? interpretWave({ emotions: current.emotions, scores: current.scores }) : null), [current]);
+  const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
   // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
   if (status === "idle") return null;
@@ -358,13 +368,30 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
-            {/* The abstention gate, SAID (adversarial finding 2026-08-01):
-              * a flat bloom was pixel-identical to a broken one. The scorer
-              * ships evidence diagnostics for exactly this — hover explains
-              * the gate with the live numbers. */}
-            {status === "live" && quiet ? (
-              <div role="status" className="cm_quiet" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim, calibration)}>
-                {current?.emotionEvidence !== undefined && current.emotionEvidence <= 0.02 ? "Read complete · no clear emotional tone" : quiet}
+            {/* The five tone channels, signed (both poles speak): the same code-and-value row as
+              * the conduct gauge's, under the bloom. Hover names the pole, click explains the axis. */}
+            {status === "live" && current ? (
+              <div className="cm_gauge_codes cm_tone_codes" aria-label="Tone of the phrasing">
+                {CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => {
+                  const v = current.scores?.[a.id];
+                  const word = toneWord(a.id, v);
+                  const cold = CHANNELS.find((c) => c.id === a.id)?.cold;
+                  return (
+                    <button key={a.id} className="cm_gauge_code" style={{ color: typeof v === "number" && v < 0 && cold ? cold : a.color }}
+                      title={`${a.name} — ${a.description}${typeof v === "number" ? ` NOW: ${word ?? "neutral"} (${v.toFixed(2)}).` : ""}`}
+                      onClick={() => setModalAxis(a)}>
+                      {a.code}
+                      <span className="cm_gauge_val">{typeof v === "number" ? signedTenths(v) : "—"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {/* The reading, said (the gate's diagnostics on hover: a quiet bloom is honest
+              * abstention for the emotions, while the tone still reads). */}
+            {status === "live" && reading ? (
+              <div role="status" className="cm_quiet cm_reading_line" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim, calibration)}>
+                {reading}
               </div>
             ) : null}
           </div>

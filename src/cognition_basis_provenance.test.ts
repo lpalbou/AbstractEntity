@@ -1,69 +1,53 @@
 /**
- * Whose words calibrated the monitor's basis, said for the entity being
- * viewed (operator report 2026-11-07, Castor: "Read complete · no clear
- * emotional tone" on every reply). The tooltip and the (i) modal claimed the
- * quiet-gate floor was "calibrated on his own corpus" for EVERY entity, while
- * the shipped basis v1 records `calibrated_on.entity: "entity:ephemeral"`.
- * Castor's replies are read against another entity's corpus and floor; the
- * copy must say so, from the basis metadata, never a fixed sentence.
+ * What the monitor's basis IS, said from its own metadata (operator ruling 2026-11-07): the design
+ * is generic for ANY entity. The registers and channels come from generic anchor texts; basis v1
+ * only re-fitted the whitening statistics and the emotion gate's floor on a mixed corpus (curated
+ * arc + anchor texts + 74 real replies). The copy must never claim the basis is tuned to one
+ * entity (neither "his own corpus" nor "calibrated on <someone>'s words").
  */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { basisCalibrationNote, evidenceTitle, MonitorInfoModal } from "./cognitive_monitor";
+import { basisProvenanceNote, evidenceTitle, MonitorInfoModal } from "./cognitive_monitor";
 import basisV1 from "./vendor/cognition/data/basis_v1.json";
 
 const V1 = (basisV1 as unknown as { calibrated_on: Record<string, unknown> }).calibrated_on;
+const NO_ONE_ENTITY = /his own|ephemeral|castor|'s words/i;
 
-describe("basisCalibrationNote (the basis's own provenance, per viewed entity)", () => {
-  it("names the calibration entity when it is not the viewed one (the shipped v1 viewed as castor)", () => {
-    expect(V1["entity"]).toBe("entity:ephemeral");
-    const note = basisCalibrationNote(V1, "castor");
-    expect(note).toContain("ephemeral's words");
-    expect(note).toContain("not on castor's");
-    expect(note).toContain("74 real replies");
-    expect(note).toContain("2026-08-01");
-    expect(note.toLowerCase()).not.toContain("his own");
+describe("basisProvenanceNote (generic design, mixed-corpus normalization)", () => {
+  it("the shipped v1: generic prototypes; normalization and floor fitted on the mixed corpus it records", () => {
+    const note = basisProvenanceNote(V1);
+    expect(note).toContain("generic");
+    expect(note).toContain("the same for every entity");
+    expect(note).toContain("20 curated texts, 125 anchor texts and 74 real replies (2026-08-01)");
+    expect(note).not.toMatch(NO_ONE_ENTITY);
   });
 
-  it("says 'his own words' only for the entity the basis was cut on (slug, id or handle form)", () => {
-    for (const viewed of ["ephemeral", "entity:ephemeral", "entity:ephemeral@home-aced8b78"]) {
-      expect(basisCalibrationNote(V1, viewed)).toContain("his own words");
-    }
-  });
-
-  it("a curated-only basis (v0) claims no real replies at all", () => {
-    const note = basisCalibrationNote({ curated_arc: 20, castor_utterances: 0, date: "2026-07-14" }, "castor");
-    expect(note).toContain("curated example texts only");
-    expect(note.toLowerCase()).not.toContain("his own");
-  });
-
-  it("a basis that does not record whose words says exactly that", () => {
-    expect(basisCalibrationNote({ castor_utterances: 12 }, "castor")).toContain("does not record whose");
+  it("records only what the metadata holds", () => {
+    expect(basisProvenanceNote({ curated_arc: 20, castor_utterances: 0, date: "2026-07-14" })).toContain("mixed corpus: 20 curated texts (2026-07-14)");
+    expect(basisProvenanceNote({})).toBe("The registers and tone channels are generic: their prototypes come from generic anchor texts, the same for every entity.");
+    expect(basisProvenanceNote(null)).not.toMatch(/fitted/);
   });
 });
 
-describe("the quiet-state copy carries the provenance, never a fixed 'his own corpus'", () => {
-  it("evidenceTitle for castor names ephemeral's corpus and keeps the live numbers", () => {
-    const t = evidenceTitle(0, 0.0167, basisCalibrationNote(V1, "castor"));
+describe("the quiet-state copy carries the generic provenance", () => {
+  it("evidenceTitle keeps the live numbers and claims no single-entity tuning", () => {
+    const t = evidenceTitle(0, 0.0167, basisProvenanceNote(V1));
     expect(t).toContain("evidence 0.00");
     expect(t).toContain("similarity 0.02");
-    expect(t).toContain("ephemeral's words");
-    expect(t).not.toContain("his own corpus");
+    expect(t).not.toMatch(NO_ONE_ENTITY);
   });
 
   it("evidenceTitle without a loaded basis makes no calibration claim", () => {
-    const t = evidenceTitle(0, 0.0167);
-    expect(t).not.toMatch(/calibrated/i);
+    expect(evidenceTitle(0, 0.0167)).not.toMatch(/calibrated|fitted/i);
   });
 
-  it("the (i) modal states the viewed entity's provenance and drops the stale v0 / 'his own corpus' sentences", () => {
-    const html = renderToStaticMarkup(
-      React.createElement(MonitorInfoModal, { axis: "about", onClose: () => undefined, calibration: basisCalibrationNote(V1, "castor") }),
-    );
-    expect(html).toContain("ephemeral&#x27;s words");
-    expect(html).not.toContain("his own corpus");
+  it("the (i) modal states the generic provenance, explains the signed tone channels, and drops the stale sentences", () => {
+    const html = renderToStaticMarkup(React.createElement(MonitorInfoModal, { axis: "about", onClose: () => undefined, calibration: basisProvenanceNote(V1) }));
+    expect(html).toContain("the same for every entity");
+    expect(html).toContain("both poles speak");
+    expect(html).not.toMatch(NO_ONE_ENTITY);
     expect(html).not.toContain("calibrated on his real utterances");
     expect(html).not.toContain("curated-only v0 basis");
   });

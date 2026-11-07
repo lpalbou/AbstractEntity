@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisCalibrationNote, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -90,10 +90,10 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
     const c = (basis.calibrated_on ?? {}) as { curated_arc?: number; castor_utterances?: number };
     const real = c.castor_utterances ?? 0;
     return real > 0
-      ? `basis v${basis.version} · calibrated on ${real} real utterance(s)`
-      : `basis v${basis.version} · curated-only (no real utterances yet) — shapes are indicative`;
+      ? `basis v${basis.version} · generic registers, normalization fitted on a mixed corpus incl. ${real} real replies`
+      : `basis v${basis.version} · generic registers, normalization fitted on curated texts only — shapes are indicative`;
   }, [basis]);
-  const calibration = useMemo(() => (basis && source ? basisCalibrationNote(basis.calibrated_on, source.entity) : null), [basis, source]);
+  const calibration = useMemo(() => (basis ? basisProvenanceNote(basis.calibrated_on) : null), [basis]);
 
   // Switching entity (or losing the gateway) discards any scored wave and
   // returns to the resting state — never carries one mind's wave onto

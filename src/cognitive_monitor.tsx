@@ -98,28 +98,30 @@ export function evidenceNote(evidence: number | undefined): string | null {
   return null;
 }
 
-/** Whose words the frozen basis was calibrated on, said for the entity being
- * viewed (operator report 2026-11-07: the copy claimed "calibrated on his own
- * corpus" for EVERY entity, while basis v1 records `calibrated_on.entity:
- * "entity:ephemeral"` — Castor's replies are read against another entity's
- * corpus and floor). Pure: reads the basis metadata, never guesses. */
-export function basisCalibrationNote(calibratedOn: Record<string, unknown> | null | undefined, entity: string): string {
+/** What the frozen basis is, from its own metadata (operator ruling 2026-11-07: the design is
+ * generic, for ANY entity). The nine registers and the five tone channels come from generic
+ * anchor texts (emotion prototypes = centroids of first-person anchor sets; channels = generic
+ * contrast pairs), the same for every entity. Basis v1 only re-fitted the whitening statistics
+ * (mean, per-channel scale) and the emotion gate's floor, on a mixed corpus. Pure: reads the
+ * metadata, claims nothing it does not record. */
+export function basisProvenanceNote(calibratedOn: Record<string, unknown> | null | undefined): string {
   const c = calibratedOn ?? {};
-  const name = (id: unknown) => (typeof id === "string" ? id.trim().replace(/^entity:/, "").replace(/@.*$/, "").toLowerCase() : "");
-  const source = name(c["entity"]);
-  const viewed = name(entity);
-  const real = typeof c["castor_utterances"] === "number" ? (c["castor_utterances"] as number) : 0;
-  const date = typeof c["date"] === "string" ? c["date"] : "";
-  if (!real) return `The basis is calibrated on curated example texts only${date ? ` (${date})` : ""}, not on anyone's real replies.`;
-  const corpus = `${real} real replies and diary entries${date ? `, ${date}` : ""}`;
-  if (source && viewed && source === viewed) return `The gate's floor is calibrated on his own words (${corpus}).`;
-  if (source) return `The basis and its gate floor were calibrated on ${source}'s words (${corpus}), not on ${viewed || "this entity"}'s.`;
-  return `The basis and its gate floor were calibrated on ${corpus}; the basis does not record whose.`;
+  const count = (k: string) => (typeof c[k] === "number" && (c[k] as number) > 0 ? (c[k] as number) : 0);
+  const parts = [
+    count("curated_arc") ? `${count("curated_arc")} curated texts` : null,
+    count("anchor_texts") ? `${count("anchor_texts")} anchor texts` : null,
+    count("castor_utterances") ? `${count("castor_utterances")} real replies` : null,
+  ].filter(Boolean) as string[];
+  const date = typeof c["date"] === "string" ? ` (${c["date"]})` : "";
+  const generic = "The registers and tone channels are generic: their prototypes come from generic anchor texts, the same for every entity.";
+  if (!parts.length) return generic;
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  return `${generic} The basis fitted only its normalization and the emotion gate's floor on a mixed corpus: ${list}${date}.`;
 }
 
 /** The (i)-level explanation of the quiet state, shared by both mounts'
  * tooltips (honest: abstention is the design, not a fault). `calibration`
- * is basisCalibrationNote's sentence for the viewed entity. */
+ * is basisProvenanceNote's sentence. */
 export function evidenceTitle(evidence: number | undefined, maxSim: number | undefined, calibration?: string | null): string {
   const nums = [
     typeof evidence === "number" ? `evidence ${evidence.toFixed(2)}` : null,
@@ -133,6 +135,39 @@ export interface WaveSampleLike {
   scores?: Record<string, number>;
   novelty?: number;
 }
+
+/** The five signed tone channels (scores in [-1, 1], relative to the basis's normalization):
+ * BOTH poles speak, salience = |value|. Words describe the phrasing, never inner state.
+ * Tiers: below 0.2 says nothing; 0.2 mild, 0.45 clear, 0.75 strong. */
+export const TONE_POLES: Record<string, { positive: [string, string, string]; negative: [string, string, string] }> = {
+  warmth: { positive: ["slightly warm", "warm", "very warm"], negative: ["slightly cool", "cool", "very cool"] },
+  tension: { positive: ["slightly tense", "tense", "very tense"], negative: ["slightly relaxed", "relaxed", "very relaxed"] },
+  reflection: { positive: ["slightly reflective", "reflective", "deeply reflective"], negative: ["slightly outward-looking", "outward-looking", "strongly outward-looking"] },
+  structure: { positive: ["somewhat structured", "structured", "tightly structured"], negative: ["somewhat loose", "loose", "loose and associative"] },
+  certainty: { positive: ["slightly assertive", "assertive", "very assertive"], negative: ["slightly hedging", "hedging", "heavily hedging"] },
+};
+export const TONE_MIN = 0.2;
+
+/** The tone words for one channel value, or null below the mild tier. */
+export function toneWord(channel: string, value: number | undefined): string | null {
+  const poles = TONE_POLES[channel];
+  if (!poles || typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) < TONE_MIN) return null;
+  const tier = Math.abs(value) >= 0.75 ? 2 : Math.abs(value) >= 0.45 ? 1 : 0;
+  return (value > 0 ? poles.positive : poles.negative)[tier];
+}
+
+/** The tone reading: the strongest channels (up to three, by |value|) as one phrase. */
+export function toneReading(scores: Record<string, number> | undefined): { text: string | null; salience: number } {
+  const ranked = Object.keys(TONE_POLES)
+    .map((id) => ({ id, v: scores?.[id], word: toneWord(id, scores?.[id]) }))
+    .filter((c): c is { id: string; v: number; word: string } => c.word !== null)
+    .sort((a, b) => Math.abs(b.v) - Math.abs(a.v))
+    .slice(0, 3);
+  if (!ranked.length) return { text: null, salience: 0 };
+  return { text: `${ranked.map((c) => c.word).join(", ")} phrasing`, salience: Math.abs(ranked[0].v) };
+}
+
+const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 /** The dominant emotion (id + value) or null when the shape is flat. */
 export function dominantEmotion(emotions: Record<string, number> | undefined): { axis: AxisInfo; value: number } | null {
@@ -164,22 +199,11 @@ export function interpretWave(sample: WaveSampleLike | null): string {
   const ranked = EMOTION_AXES.map((axis) => ({ axis, v: Math.max(0, emotions[axis.id] ?? 0) })).sort((a, b) => b.v - a.v);
   const top = ranked[0];
   const second = ranked[1];
-  const tension = scores.tension ?? 0;
-  const certainty = scores.certainty ?? 0;
-  const reflection = scores.reflection ?? 0;
-  const structure = scores.structure ?? 0;
-
-  // Candidate channel clauses carry a SALIENCE so the strongest signal is
-  // the one that speaks (a 0.83 reflection must beat a 0.12-certainty
-  // hedge — magnitude decides, not a fixed priority list).
-  const channelCandidates: Array<{ ok: boolean; salience: number; text: string }> = [
-    { ok: tension >= 0.6, salience: tension, text: "tension runs high in the phrasing" },
-    { ok: reflection >= 0.65, salience: reflection, text: "deeply reflective, inward-looking prose" },
-    { ok: structure >= 0.65, salience: structure, text: "tightly structured — lists and steps, not loose association" },
-    { ok: certainty >= 0.7, salience: certainty, text: "the phrasing is confident, assertive" },
-    { ok: certainty > 0 && certainty <= 0.3, salience: 0.6 - certainty, text: "the phrasing hedges — little is asserted flatly" },
-  ];
-  const chosenChannel = channelCandidates.filter((c) => c.ok).sort((a, b) => b.salience - a.salience)[0] ?? null;
+  // The tone clause speaks from BOTH poles of the five signed channels (operator 2026-11-07:
+  // the monitor shows the attitude of ANY discussion; a cool, hedging reply is a reading, not
+  // silence). Its salience (|value| of the strongest channel) competes with the top emotion.
+  const tone = toneReading(scores);
+  const chosenChannel = tone.text ? { salience: tone.salience, text: tone.text } : null;
   const channelClause = (): string | null => chosenChannel?.text ?? null;
 
   // Emotion clause with STRENGTH-HONEST verbs: a 0.4 lean is a tilt, not a
@@ -196,14 +220,14 @@ export function interpretWave(sample: WaveSampleLike | null): string {
   const ch = channelClause();
   const em = emotionClause();
   const channelDominates = chosenChannel !== null && (!top || chosenChannel.salience > top.v);
-  if (channelDominates && ch) {
-    clauses.push(ch.charAt(0).toUpperCase() + ch.slice(1));
-    if (em) clauses.push(em);
-  } else if (em) {
-    clauses.push(em.charAt(0).toUpperCase() + em.slice(1));
-    if (ch) clauses.push(ch);
+  if (!em) {
+    // No emotion clears the gate: the tone IS the reading, never a bare "no clear tone".
+    clauses.push(`${capital(ch ?? "even, neutral phrasing")} — no clear emotion`);
+  } else if (channelDominates && ch) {
+    clauses.push(capital(ch));
+    clauses.push(em);
   } else {
-    clauses.push("An even, quiet bloom — no single feeling pulls at the words");
+    clauses.push(capital(em));
     if (ch) clauses.push(ch);
   }
 
@@ -217,7 +241,8 @@ export function interpretWave(sample: WaveSampleLike | null): string {
     vx += v * e.vx;
     ay += v * e.ay;
   }
-  if (sum > 1e-6) {
+  // Only when an emotion is named: sub-threshold residue must not contradict "no clear emotion".
+  if (em && sum > 1e-6) {
     const valence = vx / sum;
     const energy = ay / sum;
     const tone: string[] = [];
@@ -239,7 +264,7 @@ export function interpretWave(sample: WaveSampleLike | null): string {
 /** What the monitor IS — the (i) modal body, shared by the chat panel and
  * the Wave tab. Axis = null shows the general explanation; an axis shows
  * its detail. */
-export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisCalibrationNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
+export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
@@ -277,8 +302,10 @@ export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInf
               <p>
                 <strong>A flat bloom is usually honest abstention, not a fault:</strong> an evidence gate scales every
                 register by how near the words land to ANY register prototype — words far from every register show
-                NOTHING rather than a confident wrong reading. The panel says so under the bloom ("quiet" / "faint")
-                with the live evidence number.
+                NOTHING rather than a confident wrong reading. The tone still reads: the five channels under the bloom
+                (WAR warmth, TSN tension, REF reflection, STR structure, CER certainty) are signed, so both poles speak
+                (cool or warm, relaxed or tense, outward or reflective, loose or structured, hedging or assertive), and
+                the sentence under them says the strongest ones, adding an emotion only when one clears the gate.
               </p>
               <p>
                 RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing
@@ -310,7 +337,7 @@ export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInf
                     <span className="cm_axis_desc">{a.description}</span>
                   </div>
                 ))}
-                <span className="cm_modal_axes_head">The scored channels (behind the bloom)</span>
+                <span className="cm_modal_axes_head">The tone channels (under the bloom; CUR belongs to the Wave tab)</span>
                 {CHANNEL_AXES.map((a) => (
                   <div key={a.id} className="cm_modal_axis">
                     <span className="cm_axis_code" style={{ color: a.color }}>{a.code}</span>

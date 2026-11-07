@@ -6,12 +6,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Fixed
 
-- **The Cognitive Monitor says whose words its emotion reading was calibrated on.** The quiet-bloom
-  tooltip and the monitor's information panel said the reading was calibrated on the entity's own
-  words. The shipped calibration comes from one entity (Ephemeral) and is used for every entity, so
-  for Castor and the others they now say "calibrated on ephemeral's words (74 real replies and
-  diary entries, 2026-08-01), not on castor's". The panel no longer mentions the retired v0
-  calibration.
+- **The Cognitive Monitor always reads the tone of a reply.** When no emotion clears the evidence
+  gate (common for factual replies), the monitor used to say only "Read complete · no clear emotional
+  tone". It now says the tone of the phrasing from the five tone channels it already scored, both
+  poles: warm or cool, tense or relaxed, reflective or outward-looking, structured or loose, assertive
+  or hedging, e.g. "Very cool, heavily hedging, structured phrasing — no clear emotion." When an
+  emotion clears the gate it is named with the tone. A row of the five channels with their signed
+  values (WAR, TSN, REF, STR, CER) sits under the bloom; hover gives the exact value, click explains
+  the channel. Negative values were previously ignored (a hedging reply never read as hedging). No
+  scoring change and no text matching: only the existing embedding scores.
+- **The monitor describes its basis correctly.** The tooltip and the information panel said the basis
+  was calibrated on the entity's own words. The registers and channels are generic (the same for
+  every entity); basis v1 only fitted its normalization and the emotion gate's floor on a mixed
+  corpus (20 curated texts, 125 anchor texts and 74 real replies, 2026-08-01). The panel no longer
+  mentions the retired v0 calibration.
 
 ## [0.11.1] - 2026-11-07
 
