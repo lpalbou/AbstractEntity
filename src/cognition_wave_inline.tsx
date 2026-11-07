@@ -27,8 +27,7 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
-import { basisProvenanceNote, BloomAxisOverlay, CHANNEL_AXES, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceTitle, interpretWave, MonitorInfoModal, TONE_POLES, toneWord, type AxisInfo } from "./cognitive_monitor";
-import { CHANNELS } from "./vendor/cognition/core";
+import { basisProvenanceNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceTitle, MonitorInfoModal, ReadingLine, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -45,14 +44,6 @@ async function loadBasis(): Promise<FrozenBasis> {
 }
 
 const FOLD_KEY = "abstractentity_cogmon_fold_v1";
-
-/** A channel value for the narrow code row: sign + tenths ("−.9", "+.7", "0"); the exact value
- * is in the code's hover title. */
-export function signedTenths(v: number): string {
-  const t = Math.round(Math.abs(v) * 10);
-  if (t === 0) return "0";
-  return `${v > 0 ? "+" : "−"}${t >= 10 ? "1" : `.${t}`}`;
-}
 
 /** The monitor's first state: the viewer's remembered choice, else folded on
  * a phone (DESIGN §12 — the ~300 px bloom left a 393x852 phone ~6 transcript
@@ -317,10 +308,6 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // ships it. Explicit 0 lowers a petal, so we send every known register.
   const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, current?.emotions?.[id] ?? 0])), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
-  /** The reading, always said (operator 2026-11-07): the tone of the phrasing from the five
-   * signed channels, plus the emotion when one clears the gate — never a bare "no clear
-   * emotional tone". Hover keeps the gate's live numbers. */
-  const reading = useMemo(() => (current ? interpretWave({ emotions: current.emotions, scores: current.scores }) : null), [current]);
   const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
   // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
@@ -368,32 +355,12 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
-            {/* The five tone channels, signed (both poles speak): the same code-and-value row as
-              * the conduct gauge's, under the bloom. Hover names the pole, click explains the axis. */}
-            {status === "live" && current ? (
-              <div className="cm_gauge_codes cm_tone_codes" aria-label="Tone of the phrasing">
-                {CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => {
-                  const v = current.scores?.[a.id];
-                  const word = toneWord(a.id, v);
-                  const cold = CHANNELS.find((c) => c.id === a.id)?.cold;
-                  return (
-                    <button key={a.id} className="cm_gauge_code" style={{ color: typeof v === "number" && v < 0 && cold ? cold : a.color }}
-                      title={`${a.name} — ${a.description}${typeof v === "number" ? ` NOW: ${word ?? "neutral"} (${v.toFixed(2)}).` : ""}`}
-                      onClick={() => setModalAxis(a)}>
-                      {a.code}
-                      <span className="cm_gauge_val">{typeof v === "number" ? signedTenths(v) : "—"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-            {/* The reading, said (the gate's diagnostics on hover: a quiet bloom is honest
-              * abstention for the emotions, while the tone still reads). */}
-            {status === "live" && reading ? (
-              <div role="status" className="cm_quiet cm_reading_line" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim, calibration)}>
-                {reading}
-              </div>
-            ) : null}
+            {/* The five tone channels, signed (both poles speak), and the reading sentence: the
+              * tone always, the emotion when it clears the gate. Hover keeps the gate's numbers. */}
+            {status === "live" && current ? <>
+              <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} />
+              <ReadingLine sample={current} title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)} />
+            </> : null}
           </div>
           {/* Slot (b): uic's AfConductGauge v2.1 "THE STANCE" (posture
             * figure — breath+head size=effort, strokes=tools with violet
@@ -429,7 +396,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </div>
       ) : null}
 
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} /> : null}
     </div>
   );
 }

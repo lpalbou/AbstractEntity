@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, evidenceTitle, MonitorInfoModal, ReadingLine, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -185,7 +185,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
         {provenance ? <span className="cw_prov">{provenance}</span> : null}
       </div>
       <div className="cw_framing">{FRAMING}</div>
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} /> : null}
 
       {/* THE ONE-PULL CONTROL (c1824 ruling, flood fix c2155): scoring is an
         * EXPLICIT operator act, never automatic — reading his words costs
@@ -285,11 +285,9 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
                 {/* The abstention gate, said per utterance (2026-08-01):
                   * a flat bloom on this sample is honest quiet, not a
                   * scoring failure — hover carries the live numbers. */}
-                {evidenceNote(current.emotionEvidence) ? (
-                  <span className="cw_quiet" title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)}>
-                    {evidenceNote(current.emotionEvidence)}
-                  </span>
-                ) : null}
+                {/* The same reading sentence as the chat monitor: the tone always, the
+                  * emotion when it clears the gate; hover keeps the gate's numbers. */}
+                <ReadingLine sample={current} className="cw_quiet cw_reading_line" title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)} />
               </div>
               {current.request ? (
                 <div className="cw_turn_block cw_turn_request">

@@ -411,7 +411,8 @@ body {
 }
 
 /* The five signed tone channels under the bloom: the gauge's code row, kept inside the bloom's
- * box (compact values like −.9, exact on hover; wraps rather than overflowing into the gauge). */
+ * box. The code keeps its light channel colour; the tier mark (· + ++ − −−) carries the sign in
+ * the secondary text colour (readable contrast); the exact value is in the button's name. */
 .cm_tone_codes {
   flex-wrap: wrap;
   justify-content: space-between;
@@ -421,6 +422,27 @@ body {
 .cm_tone_codes .cm_gauge_code {
   padding: 0;
   letter-spacing: 0;
+}
+.cm_tone_val {
+  color: var(--text-secondary, #a6adc8);
+  font-weight: 600;
+}
+/* Touch: 44 px targets do not fit five across the bloom column; a 3 + 2 grid, never a lone code. */
+@media (pointer: coarse) {
+  .cm_tone_codes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-items: center;
+  }
+}
+/* The reading sentence under the row (and in the Wave tab's turn header). */
+.cm_reading_line {
+  margin-top: 2px;
+  text-align: center;
+  font-size: max(calc(9.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-style: italic;
+  color: var(--text-secondary, #a6adc8);
+  cursor: help;
 }
 
 /* Inline verbatim in the Detail tab (dm#28: the words, no button). */

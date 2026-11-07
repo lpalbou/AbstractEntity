@@ -12,7 +12,7 @@ export interface FrozenBasis {
   calibrated_on: Record<string, unknown>;
   channels: string[];
   emotions: string[];
-  /** Gate floor calibrated on the entity's OWN corpus (v1+, 2026-08-01:
+  /** Gate floor fitted on the basis's mixed calibration corpus (v1+, 2026-08-01:
    * the default floor=emotion_scale made his measured register the
    * baseline — "always neutral"). Mounts pass it as abstention.floor;
    * absent (v0) keeps the scorer's default. */

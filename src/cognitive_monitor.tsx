@@ -59,17 +59,16 @@ export const EMOTION_AXES: AxisInfo[] = EMOTION_REGISTERS.map((r) =>
   axis(r.id, r.code, r.label, r.color, EMOTION_DESCRIPTIONS[r.id] ?? r.label),
 );
 
-/** Circumplex weights for the tone clause, from the kit registers. */
-const CIRCUMPLEX = EMOTION_REGISTERS.map((r) => ({ id: r.id, vx: r.vx, ay: r.ay }));
 
-/** The six scored channels (not drawn as petals; they feed the
- * interpretation line + the info modal). */
+/** The six scored channels. The five tone channels are drawn as the signed row under the bloom
+ * and spoken in the reading; each description names BOTH poles in the meaning of the generic
+ * anchor texts that build the axis. CUR belongs to the Wave tab. */
 export const CHANNEL_AXES: AxisInfo[] = [
-  axis("warmth", "WAR", "warmth", channelColor.get("warmth") ?? "#8a94a6", "How warm vs cool the register of the words is."),
-  axis("tension", "TSN", "tension", channelColor.get("tension") ?? "#8a94a6", "Strain in the phrasing — conflict, pressure, friction between ideas."),
-  axis("reflection", "REF", "reflection", channelColor.get("reflection") ?? "#8a94a6", "Inward-looking language — thinking about thinking, weighing, reconsidering."),
-  axis("structure", "STR", "structure", channelColor.get("structure") ?? "#8a94a6", "How organized the words are — lists, steps, tight argument vs loose association."),
-  axis("certainty", "CER", "certainty", channelColor.get("certainty") ?? "#8a94a6", "Assertion vs hedging — 'it is' language against 'it might be' language."),
+  axis("warmth", "WAR", "warmth", channelColor.get("warmth") ?? "#8a94a6", "Warm (glad, grateful, at ease with the work) against discouraged (drained, stung, bitter) phrasing."),
+  axis("tension", "TSN", "tension", channelColor.get("tension") ?? "#8a94a6", "Urgent (pressed for time, attention jumping) against unhurried (no rush, at leisure) phrasing."),
+  axis("reflection", "REF", "reflection", channelColor.get("reflection") ?? "#8a94a6", "Reflective (looking back at its own thinking, weighing) against matter-of-fact (the answer, the step, moving on) phrasing."),
+  axis("structure", "STR", "structure", channelColor.get("structure") ?? "#8a94a6", "Structured (premises, steps, cases) against loosely associative (images drifting into each other) phrasing."),
+  axis("certainty", "CER", "certainty", channelColor.get("certainty") ?? "#8a94a6", "Assured ('I am sure, I have verified it') against hedging ('I might be wrong, it is hazy') phrasing."),
   axis("current", "CUR", "current", channelColor.get("current") ?? "#8a94a6", "The conversation's own main axis (its principal component) — how strongly this utterance rides the session's dominant direction."),
 ];
 
@@ -99,24 +98,24 @@ export function evidenceNote(evidence: number | undefined): string | null {
 }
 
 /** What the frozen basis is, from its own metadata (operator ruling 2026-11-07: the design is
- * generic, for ANY entity). The nine registers and the five tone channels come from generic
- * anchor texts (emotion prototypes = centroids of first-person anchor sets; channels = generic
- * contrast pairs), the same for every entity. Basis v1 only re-fitted the whitening statistics
- * (mean, per-channel scale) and the emotion gate's floor, on a mixed corpus. Pure: reads the
- * metadata, claims nothing it does not record. */
+ * generic, for ANY entity). The registers and the tone channels come from generic anchor texts,
+ * the same for every entity; basis v1 re-fitted its normalization (whitening, channel scales,
+ * emotion scale) and the emotion gate's floor on the mixed corpus its `calibrated_on` records.
+ * Pure: says the recorded counts, entity and date, nothing else. */
 export function basisProvenanceNote(calibratedOn: Record<string, unknown> | null | undefined): string {
   const c = calibratedOn ?? {};
   const count = (k: string) => (typeof c[k] === "number" && (c[k] as number) > 0 ? (c[k] as number) : 0);
+  const whose = typeof c["entity"] === "string" && (c["entity"] as string).trim() ? ` (${(c["entity"] as string).trim()})` : "";
   const parts = [
     count("curated_arc") ? `${count("curated_arc")} curated texts` : null,
     count("anchor_texts") ? `${count("anchor_texts")} anchor texts` : null,
-    count("castor_utterances") ? `${count("castor_utterances")} real replies` : null,
+    count("castor_utterances") ? `${count("castor_utterances")} replies and diary entries${whose}` : null,
   ].filter(Boolean) as string[];
   const date = typeof c["date"] === "string" ? ` (${c["date"]})` : "";
   const generic = "The registers and tone channels are generic: their prototypes come from generic anchor texts, the same for every entity.";
   if (!parts.length) return generic;
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
-  return `${generic} The basis fitted only its normalization and the emotion gate's floor on a mixed corpus: ${list}${date}.`;
+  return `${generic} Its normalization (whitening, channel scales, emotion scale) and the emotion gate's floor were fitted on a mixed corpus: ${list}${date}.`;
 }
 
 /** The (i)-level explanation of the quiet state, shared by both mounts'
@@ -134,37 +133,87 @@ export interface WaveSampleLike {
   emotions?: Record<string, number>;
   scores?: Record<string, number>;
   novelty?: number;
+  /** The emotion gate's evidence (0..1): below 0.35 a named emotion is marked faint. */
+  emotionEvidence?: number;
 }
 
-/** The five signed tone channels (scores in [-1, 1], relative to the basis's normalization):
- * BOTH poles speak, salience = |value|. Words describe the phrasing, never inner state.
- * Tiers: below 0.2 says nothing; 0.2 mild, 0.45 clear, 0.75 strong. */
-export const TONE_POLES: Record<string, { positive: [string, string, string]; negative: [string, string, string] }> = {
-  warmth: { positive: ["slightly warm", "warm", "very warm"], negative: ["slightly cool", "cool", "very cool"] },
-  tension: { positive: ["slightly tense", "tense", "very tense"], negative: ["slightly relaxed", "relaxed", "very relaxed"] },
-  reflection: { positive: ["slightly reflective", "reflective", "deeply reflective"], negative: ["slightly outward-looking", "outward-looking", "strongly outward-looking"] },
-  structure: { positive: ["somewhat structured", "structured", "tightly structured"], negative: ["somewhat loose", "loose", "loose and associative"] },
-  certainty: { positive: ["slightly assertive", "assertive", "very assertive"], negative: ["slightly hedging", "hedging", "heavily hedging"] },
+/**
+ * Where a tone channel starts to speak (review 2026-11-07, finding 1). A channel score is
+ * tanh((raw - median) / (1.5 MAD)) of the basis normalization, and real text is spread wide and
+ * skewed on that scale (the median text of this home already scores warmth +0.58, reflection
+ * -0.47), so fixed round cutoffs called a third of all texts "very" something. A channel now
+ * speaks only when the reply sits in the outer 3% of a reference population on that side (plain
+ * word) or the outer 1% (strong word); everything between is typical and says nothing.
+ *
+ * Reference population: 1,599 texts of the home gateway's embeddings cache
+ * (text-embedding-qwen3-embedding-0.6b, 2026-11-07), scored with basis v1. With these cutoffs
+ * 74% of those texts read as typical on every channel and 10% get a strong word (the previous
+ * round cutoffs: 0% and 81%). The repo's neutral fixtures (meeting, weather, travel) read typical;
+ * the fear and joy controls read strong. Regenerate with scripts/derive_tone_cutoffs.mjs when the basis changes;
+ * a test pins the basis version.
+ */
+export const TONE_CUTOFFS = {
+  basisVersion: "1.0.0",
+  tails: { plain: 0.03, strong: 0.01 },
+  channels: {
+    warmth: { low: -0.879, lowStrong: -0.963, high: 0.975, highStrong: 0.989 },
+    tension: { low: -0.909, lowStrong: -0.957, high: 0.907, highStrong: 0.948 },
+    reflection: { low: -0.952, lowStrong: -0.968, high: 0.727, highStrong: 0.836 },
+    structure: { low: -0.936, lowStrong: -0.961, high: 0.975, highStrong: 0.988 },
+    certainty: { low: -0.931, lowStrong: -0.971, high: 0.855, highStrong: 0.917 },
+  } as Record<string, { low: number; lowStrong: number; high: number; highStrong: number }>,
 };
-export const TONE_MIN = 0.2;
 
-/** The tone words for one channel value, or null below the mild tier. */
-export function toneWord(channel: string, value: number | undefined): string | null {
-  const poles = TONE_POLES[channel];
-  if (!poles || typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) < TONE_MIN) return null;
-  const tier = Math.abs(value) >= 0.75 ? 2 : Math.abs(value) >= 0.45 ? 1 : 0;
-  return (value > 0 ? poles.positive : poles.negative)[tier];
+/** The words for each pole, in the meaning of the generic anchor texts that build the axis:
+ * [plain, strong]. Words describe the phrasing, never inner state. */
+export const TONE_POLES: Record<string, { positive: [string, string]; negative: [string, string] }> = {
+  warmth: { positive: ["warm", "very warm"], negative: ["discouraged", "deeply discouraged"] },
+  tension: { positive: ["urgent", "very urgent"], negative: ["unhurried", "entirely unhurried"] },
+  reflection: { positive: ["reflective", "deeply reflective"], negative: ["matter-of-fact", "strictly matter-of-fact"] },
+  structure: { positive: ["structured", "tightly structured"], negative: ["loosely associative", "very loosely associative"] },
+  certainty: { positive: ["assured", "very assured"], negative: ["hedging", "heavily hedging"] },
+};
+
+/** -2/-1 = the negative pole's strong/plain tail, 0 = typical, 1/2 = the positive pole; null when
+ * there is no finite reading for the channel. */
+export type ToneTier = -2 | -1 | 0 | 1 | 2;
+export function toneTier(channel: string, value: number | undefined): ToneTier | null {
+  const k = TONE_CUTOFFS.channels[channel];
+  if (!k || typeof value !== "number" || !Number.isFinite(value)) return null;
+  if (value <= k.lowStrong) return -2;
+  if (value <= k.low) return -1;
+  if (value >= k.highStrong) return 2;
+  if (value >= k.high) return 1;
+  return 0;
 }
 
-/** The tone reading: the strongest channels (up to three, by |value|) as one phrase. */
-export function toneReading(scores: Record<string, number> | undefined): { text: string | null; salience: number } {
-  const ranked = Object.keys(TONE_POLES)
-    .map((id) => ({ id, v: scores?.[id], word: toneWord(id, scores?.[id]) }))
-    .filter((c): c is { id: string; v: number; word: string } => c.word !== null)
-    .sort((a, b) => Math.abs(b.v) - Math.abs(a.v))
+/** The tone words for one channel value, or null when it is typical or unread. */
+export function toneWord(channel: string, value: number | undefined): string | null {
+  const tier = toneTier(channel, value);
+  const poles = TONE_POLES[channel];
+  if (!poles || !tier) return null;
+  return (tier > 0 ? poles.positive : poles.negative)[Math.abs(tier) - 1];
+}
+
+/** The compact signed mark the row shows: the same tiers the sentence speaks ("—" unread). */
+export function toneMark(channel: string, value: number | undefined): string {
+  const tier = toneTier(channel, value);
+  return tier === null ? "—" : tier === 0 ? "·" : `${tier > 0 ? "+" : "−"}`.repeat(Math.abs(tier));
+}
+
+/** The tone reading: strong words first, then plain, each group by |value|; at most three.
+ * `read` is false when no tone channel holds a finite score (nothing to say, not "even"). */
+export function toneReading(scores: Record<string, number> | undefined, omit: readonly string[] = []): { text: string | null; read: boolean; strong: boolean } {
+  const ids = Object.keys(TONE_POLES);
+  const read = ids.some((id) => toneTier(id, scores?.[id]) !== null);
+  const ranked = ids
+    .filter((id) => !omit.includes(id))
+    .map((id) => ({ id, v: scores?.[id] as number, tier: toneTier(id, scores?.[id]), word: toneWord(id, scores?.[id]) }))
+    .filter((c): c is { id: string; v: number; tier: ToneTier; word: string } => c.word !== null)
+    .sort((a, b) => Math.abs(b.tier) - Math.abs(a.tier) || Math.abs(b.v) - Math.abs(a.v))
     .slice(0, 3);
-  if (!ranked.length) return { text: null, salience: 0 };
-  return { text: `${ranked.map((c) => c.word).join(", ")} phrasing`, salience: Math.abs(ranked[0].v) };
+  if (!ranked.length) return { text: null, read, strong: false };
+  return { text: `${ranked.map((c) => c.word).join(", ")} phrasing`, read, strong: Math.abs(ranked[0].tier) === 2 };
 }
 
 const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -181,90 +230,87 @@ export function dominantEmotion(emotions: Record<string, number> | undefined): {
 }
 
 /**
- * PRE-COMPUTED MEANING (operator's ask): a deterministic, rule-based
- * verbalization of what the diagram currently shows — so the shape always
- * arrives with a human-readable sentence. Describes the WORDS' expressive
- * character (shape, lean, phrasing), never inner state. Pure + tested.
+ * PRE-COMPUTED MEANING: a deterministic, rule-based verbalization of the scores (never the
+ * text). It describes the WORDS' expressive character, never inner state. Rules:
+ * - the tone clause speaks the channels that sit in the outer tails (TONE_CUTOFFS), both poles;
+ * - an emotion is named only when it clears the gate (>= 0.18 after the evidence gate), with
+ *   strength-honest verbs and "(faint evidence)" when the gate's evidence is below 0.35;
+ * - ONE rule against contradiction: when an emotion is named, warmth is not spoken (the named
+ *   emotion already carries the valence) and no second valence clause is added;
+ * - no emotion: the tone IS the reading ("… — no clear emotion"); no tone scores at all: say so.
+ * Pure + tested.
  */
 export function interpretWave(sample: WaveSampleLike | null): string {
   if (!sample) return "Nothing scored yet — the monitor reads his replies as they arrive.";
   const emotions = sample.emotions ?? {};
   const scores = sample.scores ?? {};
-
-  // ---- rank both vocabularies; the STRONGEST signal leads the sentence
-  // (investigation 2026-07-15 16:11: an introspective reply scored
-  // reflection=0.83 / sadness=0.48 — the old order led with the weak
-  // emotion and read as a wrong "sadness" verdict; the dominant signal
-  // was reflective prose all along). ----------------------------------
   const ranked = EMOTION_AXES.map((axis) => ({ axis, v: Math.max(0, emotions[axis.id] ?? 0) })).sort((a, b) => b.v - a.v);
   const top = ranked[0];
   const second = ranked[1];
-  // The tone clause speaks from BOTH poles of the five signed channels (operator 2026-11-07:
-  // the monitor shows the attitude of ANY discussion; a cool, hedging reply is a reading, not
-  // silence). Its salience (|value| of the strongest channel) competes with the top emotion.
-  const tone = toneReading(scores);
-  const chosenChannel = tone.text ? { salience: tone.salience, text: tone.text } : null;
-  const channelClause = (): string | null => chosenChannel?.text ?? null;
+  const named = Boolean(top && top.v >= 0.18);
 
-  // Emotion clause with STRENGTH-HONEST verbs: a 0.4 lean is a tilt, not a
-  // verdict (the v0 curated basis maps introspective gravity toward SAD —
-  // a weak rectified lean must never read as "he is sad").
+  const tone = toneReading(scores, named ? ["warmth"] : []);
+  const faint = typeof sample.emotionEvidence === "number" && Number.isFinite(sample.emotionEvidence) && sample.emotionEvidence < 0.35;
   const emotionClause = (): string | null => {
-    if (!top || top.v < 0.18) return null;
-    const verb = top.v >= 0.75 ? "lean strongly toward" : top.v >= 0.45 ? "lean" : "tilt mildly toward";
+    if (!named) return null;
+    const verb = top.v >= 0.75 ? "lean strongly toward" : top.v >= 0.45 ? "lean toward" : "tilt mildly toward";
     const thread = second && second.v >= 0.2 && second.v >= top.v * 0.6 ? ` with a thread of ${second.axis.name} (${second.axis.code})` : "";
-    return `the words ${verb} ${top.axis.name} (${top.axis.code})${thread}`;
+    return `the words ${verb} ${top.axis.name} (${top.axis.code})${thread}${faint ? " (faint evidence)" : ""}`;
   };
 
   const clauses: string[] = [];
-  const ch = channelClause();
   const em = emotionClause();
-  const channelDominates = chosenChannel !== null && (!top || chosenChannel.salience > top.v);
   if (!em) {
-    // No emotion clears the gate: the tone IS the reading, never a bare "no clear tone".
-    clauses.push(`${capital(ch ?? "even, neutral phrasing")} — no clear emotion`);
-  } else if (channelDominates && ch) {
-    clauses.push(capital(ch));
-    clauses.push(em);
+    if (tone.text) clauses.push(`${capital(tone.text)} — no clear emotion`);
+    else if (tone.read) clauses.push("Typical phrasing, no tone stands out — no clear emotion");
+    else clauses.push("Tone not read — no clear emotion");
   } else {
-    clauses.push(capital(em));
-    if (ch) clauses.push(ch);
+    // A strong tone word outranks a mild emotional tilt; otherwise the emotion leads.
+    const toneLeads = tone.text !== null && tone.strong && top.v < 0.45;
+    if (toneLeads) clauses.push(capital(tone.text!), em);
+    else {
+      clauses.push(capital(em));
+      if (tone.text) clauses.push(tone.text);
+    }
   }
-
-  // ---- tone clause: valence × energy from the circumplex ---------------
-  let sum = 0;
-  let vx = 0;
-  let ay = 0;
-  for (const e of CIRCUMPLEX) {
-    const v = Math.max(0, emotions[e.id] ?? 0);
-    sum += v;
-    vx += v * e.vx;
-    ay += v * e.ay;
-  }
-  // Only when an emotion is named: sub-threshold residue must not contradict "no clear emotion".
-  if (em && sum > 1e-6) {
-    const valence = vx / sum;
-    const energy = ay / sum;
-    const tone: string[] = [];
-    if (valence > 0.25) tone.push("bright");
-    else if (valence < -0.25) tone.push("strained");
-    if (energy > 0.3) tone.push("energized");
-    else if (energy < -0.3) tone.push("settled");
-    if (tone.length > 0) clauses.push(`the register reads ${tone.join(" and ")}`);
-  }
-
-  // ---- wandering (session-relative, labeled as such) --------------------
   if (typeof sample.novelty === "number" && sample.novelty >= 0.5) {
     clauses.push("and it wanders off the conversation's usual ground (session-relative)");
   }
-
   return `${clauses.join("; ")}.`;
+}
+
+/** The five tone channels as a signed row (the conduct gauge's code-and-value pattern): each
+ * code shows the same tier the sentence speaks ("·" typical, "−"/"+" outer 3%, "−−"/"++" outer
+ * 1%, "—" unread). Each button is named with the channel, exact value and pole word; a click
+ * opens the axis panel, which states the same. */
+export function ToneRow({ scores, onAxis }: { scores: Record<string, number> | undefined; onAxis(axis: AxisInfo): void }): React.ReactElement {
+  return (
+    <div className="cm_gauge_codes cm_tone_codes" role="group" aria-label="Tone of the phrasing">
+      {CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => {
+        const v = scores?.[a.id];
+        const finite = typeof v === "number" && Number.isFinite(v);
+        const word = toneWord(a.id, v);
+        const said = finite ? `${a.name} ${v.toFixed(2)}, ${word ?? "typical"}` : `${a.name}, not read`;
+        return (
+          <button key={a.id} type="button" className="cm_gauge_code" style={{ color: a.color }} aria-label={said} title={`${said}. ${a.description}`} onClick={() => onAxis(a)}>
+            {a.code}
+            <span className="cm_gauge_val cm_tone_val" aria-hidden="true">{toneMark(a.id, v)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The reading line under the row: interpretWave's sentence; hover keeps the gate's numbers. */
+export function ReadingLine({ sample, title, className = "cm_reading_line" }: { sample: WaveSampleLike; title?: string; className?: string }): React.ReactElement {
+  return <div role="status" className={className} title={title}>{interpretWave(sample)}</div>;
 }
 
 /** What the monitor IS — the (i) modal body, shared by the chat panel and
  * the Wave tab. Axis = null shows the general explanation; an axis shows
  * its detail. */
-export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
+export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null; /** The shown reply's channel scores: a channel axis states its current value and pole. */ scores?: Record<string, number> }): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
@@ -304,8 +350,10 @@ export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInf
                 register by how near the words land to ANY register prototype — words far from every register show
                 NOTHING rather than a confident wrong reading. The tone still reads: the five channels under the bloom
                 (WAR warmth, TSN tension, REF reflection, STR structure, CER certainty) are signed, so both poles speak
-                (cool or warm, relaxed or tense, outward or reflective, loose or structured, hedging or assertive), and
-                the sentence under them says the strongest ones, adding an emotion only when one clears the gate.
+                (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
+                associative, assured or hedging). A channel speaks only when the reply sits in the outer 3% of typical
+                texts on that side ("+" or "−"; "++" or "−−" for the outer 1%); "·" is typical. The sentence says the
+                strongest ones and adds an emotion only when one clears the gate.
               </p>
               <p>
                 RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing
@@ -362,6 +410,7 @@ export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInf
             </div>
             <div className="cm_modal_body">
               <p>{(axis as AxisInfo).description}</p>
+              {(axis as AxisInfo).id in TONE_POLES ? <p className="cm_modal_now">{channelNow((axis as AxisInfo).id, scores?.[(axis as AxisInfo).id])}</p> : null}
               <p className="cm_modal_note">Read from his words only — a register of the text, not a window into inner state.</p>
             </div>
           </>
@@ -369,6 +418,15 @@ export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInf
       </div>
     </div>
   );
+}
+
+/** One channel's current reading, said in full (the touch path: no hover needed). */
+export function channelNow(channel: string, value: number | undefined): string {
+  const tier = toneTier(channel, value);
+  if (tier === null) return "This reply: not read.";
+  const word = toneWord(channel, value);
+  const where = tier === 0 ? "typical (inside the middle 94% of texts)" : `${word} (beyond ${Math.abs(tier) === 2 ? "99%" : "97%"} of texts on this side)`;
+  return `This reply: ${(value as number).toFixed(2)}, ${where}.`;
 }
 
 /** The compact axis list beside the diagram: code + name, hover for the
