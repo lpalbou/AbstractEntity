@@ -15,14 +15,15 @@ Works with the same gateways as 0.11.0.
   while their readings are still loading, the emotional diagram shows the measurements of the
   reply on screen, never those of the one you just left, and a reading that failed while you were
   elsewhere is fetched again instead of leaving the diagram empty. Switching entity or gateway
-  starts the diagram afresh.
+  starts the diagram afresh. For an entity whose memory uses a different embedding model, the
+  diagram now appears with a note saying so, where 0.11.0 hid it.
 - **In the Avatar view, the avatar speaks only while you can hear it.** It shows the speaking pose
   while the reply is actually audible, not while it is still being prepared or while the browser
   holds the sound back. When the browser blocks the sound, the app says so ("Audio playback is
-  paused by the browser. Press Play to try again."), and pressing Play again while a reply is
-  being prepared plays it once.
+  paused by the browser. Press Play to try again."), and Play then resumes the same audio instead
+  of preparing the reply again.
 - **The live line and the answer each have their own read-aloud button** in the Avatar view, the
-  same speaker as in Chat: play, pause or stop it there.
+  same speaker as in Chat: play or pause it there.
 - **Completed answers no longer carry an accent border** in the Avatar view.
 - An entity without its own identity yet is drawn in the shared default avatar design in the
   Avatar view.
