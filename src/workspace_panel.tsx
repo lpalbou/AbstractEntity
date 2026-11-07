@@ -2,36 +2,52 @@
  * The Settings modal (operator 2026-07-15 (d)(e): the old "workspace"
  * button was really settings — everything a summoned entity's operator
  * configures lives behind ONE modal, kept off the top bar by progressive
- * disclosure):
+ * disclosure). Remodelled 2026-11-07 (operator: "completely remodel the
+ * settings modal. it is ugly. make it aesthetically pleasant and better
+ * organize"): the kit's AfModal chrome, nine sections in four groups
+ * (settings_sections.ts) with a side list on desktop and the kit's AfSelect
+ * on a phone, a title and one line per section, long explanations folded
+ * under "How … works".
  *
- * - 🧠 mind: the kit's shared picker ("Gateway default" or its own choice;
- *   mind_voice_settings.tsx) — visits and own time both use it.
- * - 🪪 identity: its look (design + colour) and its voice, one record, one
- *   Save (framework ADR 0052; identity_settings.tsx).
- * - 📈 track record: what it has done, trust by task, whom it has met
- *   (track_record_panel.tsx), read when the tab opens.
- * - 🔊 voice: the listener's own playback and microphone.
- * - 📁 files: browse the entity's home workspace and read files.
- * - mounts: whitelist extra directories the entity may reach (read-only or
- *   read+write). Writes go through the operator door (token).
- * - tools: the per-phase tool grant (visit / work / personal / sleep) as a
- *   checkbox matrix over <home>/tool_policy.yaml. (Per-phase skills/MCP is
- *   deferred by ruling; when it ships it slots in this same modal.)
- * - prompt: the entity's prompt layers.
+ * - Mind & voice: Mind — the kit's shared picker ("Gateway default" or its
+ *   own choice; mind_voice_settings.tsx), used by visits and its own time;
+ *   Voice — the listener's own playback and microphone (entity_voice.tsx).
+ * - Identity & record: Identity — its look and its voice, one record, one
+ *   Save (framework ADR 0052; identity_settings.tsx); Track record — what it
+ *   has done, trust by task, whom it has met (track_record_panel.tsx).
+ * - Workspace: Files (browse the home workspace, read files); Mounts (extra
+ *   directories, read-only or read+write; writes go through the operator
+ *   door with the token); Tools (the per-phase tool grant over
+ *   <home>/tool_policy.yaml, one switch per cell, applied at once); Skills
+ *   (the per-phase skill selection, saved whole).
+ * - Prompt: the entity's prompt layers.
  *
  * Everything renders from gateway answers; a refused write shows the
- * door's words verbatim. (File kept as workspace_panel.tsx; the component
- * is the Settings modal.)
+ * door's words verbatim. What each control writes is unchanged by the
+ * remodel. (File kept as workspace_panel.tsx; the component is the
+ * Settings modal.)
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { authRefusedMsg } from "./gateway_session";
 import { EntityMindPicker, substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { IdentitySettings } from "./identity_settings";
 import { TrackRecordPanel } from "./track_record_panel";
 import { ListenerVoiceSettings } from "./entity_voice";
-import { AfSwitch, PhaseCapabilityMatrix } from "@abstractframework/ui-kit";
+import { SETTINGS_GROUPS, settingsSection, settingsSectionOptions, type SettingsSection } from "./settings_sections";
+import {
+  AfChip,
+  AfModal,
+  AfSelect,
+  AfSettingRow,
+  AfSettingsGroup,
+  AfSwitch,
+  Icon,
+  PhaseCapabilityMatrix,
+  formatFileSize,
+} from "@abstractframework/ui-kit";
+import "./settings_modal.css";
 
 import {
   getEntityPrompt,
@@ -73,88 +89,148 @@ export interface SettingsPanelProps {
     substrate?: { provider?: string; model?: string } | null;
     substrate_at?: string | null;
   } | null;
+  /** The section shown first (default Mind). */
+  initialSection?: SettingsSection;
   onClose(): void;
 }
 
-type Tab = "mind" | "identity" | "record" | "voice" | "files" | "mounts" | "tools" | "skills" | "prompt";
+export function SettingsPanel({
+  baseUrl,
+  entity,
+  entityName,
+  token,
+  substrate,
+  onSubstrateChange,
+  substrateTimeline,
+  lastSubstrateChangeAt,
+  loopFacts,
+  initialSection = "mind",
+  onClose,
+}: SettingsPanelProps): React.ReactElement {
+  const [tab, setTab] = useState<SettingsSection>(initialSection);
+  const { section, group } = settingsSection(tab);
+  const titleId = `${useId().replace(/:/g, "")}-section`;
+  const mainRef = useRef<HTMLDivElement>(null);
 
-const TAB_LABELS: Array<[Tab, string]> = [
-  ["mind", "🧠 mind"],
-  ["identity", "🪪 identity"],
-  ["record", "📈 track record"],
-  ["voice", "🔊 voice"],
-  ["files", "📁 files"],
-  ["mounts", "🗂 mounts"],
-  ["tools", "🛠 tools"],
-  ["skills", "🎒 skills"],
-  ["prompt", "📜 prompt"],
-];
-
-export function SettingsPanel({ baseUrl, entity, entityName, token, substrate, onSubstrateChange, substrateTimeline, lastSubstrateChangeAt, loopFacts, onClose }: SettingsPanelProps): React.ReactElement {
-  const [tab, setTab] = useState<Tab>("mind");
-
+  // A new section starts at its top (desktop: the page column scrolls; phone: the sheet does).
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Consumed-event convention (kit AfDrawer/appearance do the same):
-      // one Escape closes ONE layer, never the whole stack.
-      if (e.key === "Escape" && !e.defaultPrevented) {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    const main = mainRef.current;
+    const sheet = main?.closest(".af-modal");
+    for (const el of [main, sheet]) if (el && typeof el.scrollTo === "function") el.scrollTo({ top: 0 });
+  }, [tab]);
 
   return (
-    <div
-      className="ev_backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <AfModal
+      open
+      onClose={onClose}
+      size="wide"
+      // In the app's tree (like the dialog it replaces): the #root-scoped touch
+      // targets and type floors keep applying to everything inside.
+      portal={false}
+      className="stg_modal"
+      closeLabel="Close settings"
+      title={
+        <span className="stg_title">
+          <span className="stg_title_word">Settings</span>
+          <span className="stg_title_name">{entityName}</span>
+        </span>
+      }
     >
-      <div className="ev_panel wsp_panel">
-        <div className="ev_head">
-          <div className="ev_title">
-            <span className="ei_kind ei_kind_lesson">settings</span>
-            <span>{entityName}</span>
-          </div>
-          <div className="wsp_tabs">
-            {TAB_LABELS.map(([id, label]) => (
-              <button key={id} className={tab === id ? "wsp_tab wsp_tab_on" : "wsp_tab"} onClick={() => setTab(id)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <button className="ev_close" onClick={onClose}>
-            close
-          </button>
-        </div>
-        <div className="ev_body wsp_body">
-          {tab === "mind" ? (
-            <MindTab
-              baseUrl={baseUrl}
-              entity={entity}
-              token={token}
-              substrate={substrate}
-              onSubstrateChange={onSubstrateChange}
-              substrateTimeline={substrateTimeline}
-              lastSubstrateChangeAt={lastSubstrateChangeAt}
-              loopFacts={loopFacts}
+      <div className="stg" data-testid="settings-modal" data-section={tab}>
+        <nav className="stg_nav" aria-label="Settings sections">
+          {SETTINGS_GROUPS.map((g) => (
+            <div key={g.id} className="af-nav-group stg_nav_group" role="group" aria-label={g.label}>
+              <p className="af-nav-group__caption" aria-hidden="true">
+                {g.label}
+              </p>
+              {g.sections.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="stg_nav_item"
+                  data-section={s.id}
+                  aria-current={tab === s.id ? "page" : undefined}
+                  onClick={() => setTab(s.id)}
+                >
+                  <Icon name={s.icon} size={16} aria-hidden="true" />
+                  <span>{s.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="stg_main" ref={mainRef}>
+          <div className="stg_jump">
+            <AfSelect
+              value={tab}
+              options={settingsSectionOptions()}
+              onChange={(next) => setTab(next as SettingsSection)}
+              ariaLabel="Settings section"
+              className="stg_jump_select"
             />
-          ) : null}
-          {tab === "identity" ? <IdentitySettings baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
-          {tab === "record" ? <TrackRecordPanel baseUrl={baseUrl} entity={entity} entityName={entityName} /> : null}
-          {tab === "voice" ? <VoiceTab baseUrl={baseUrl} /> : null}
-          {tab === "files" ? <FilesTab baseUrl={baseUrl} entity={entity} /> : null}
-          {tab === "mounts" ? <MountsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
-          {tab === "tools" ? <ToolsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
-          {tab === "skills" ? <SkillsTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
-          {tab === "prompt" ? <PromptTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+          </div>
+          <section className="stg_page" aria-labelledby={titleId}>
+            <header className="stg_page_head">
+              <p className="stg_page_group">{group.label}</p>
+              <h3 className="stg_page_title" id={titleId}>
+                {section.label}
+              </h3>
+              <p className="stg_page_lede">{section.lede(entityName)}</p>
+            </header>
+            <div className="stg_page_body">
+              {tab === "mind" ? (
+                <MindTab
+                  baseUrl={baseUrl}
+                  entity={entity}
+                  token={token}
+                  substrate={substrate}
+                  onSubstrateChange={onSubstrateChange}
+                  substrateTimeline={substrateTimeline}
+                  lastSubstrateChangeAt={lastSubstrateChangeAt}
+                  loopFacts={loopFacts}
+                />
+              ) : null}
+              {tab === "voice" ? <VoiceTab baseUrl={baseUrl} onOpenIdentity={() => setTab("identity")} /> : null}
+              {tab === "identity" ? <IdentitySettings baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+              {tab === "record" ? <TrackRecordPanel baseUrl={baseUrl} entity={entity} entityName={entityName} /> : null}
+              {tab === "files" ? <FilesTab baseUrl={baseUrl} entity={entity} /> : null}
+              {tab === "mounts" ? <MountsTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+              {tab === "tools" ? <ToolsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
+              {tab === "skills" ? <SkillsTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+              {tab === "prompt" ? <PromptTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+            </div>
+          </section>
         </div>
       </div>
-    </div>
+    </AfModal>
   );
+}
+
+/** "How … works": a section's long explanation, folded so the page reads calm. */
+function MoreAbout({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
+  return (
+    <details className="stg_more">
+      <summary>
+        <Icon name="info" size={14} aria-hidden="true" />
+        <span>{title}</span>
+        <Icon name="chevronDown" size={14} className="stg_more_chevron" aria-hidden="true" />
+      </summary>
+      <div className="stg_more_body">{children}</div>
+    </details>
+  );
+}
+
+/** The error line a refused read/write shows (the gateway's words). */
+function ErrorLine({ text }: { text: string }): React.ReactElement {
+  return (
+    <p className="wsp_error stg_error" role="alert">
+      {text}
+    </p>
+  );
+}
+
+function Reading({ text = "Reading…" }: { text?: string }): React.ReactElement {
+  return <p className="stg_quiet">{text}</p>;
 }
 
 // -------------------------------------------------------------------- mind
@@ -211,26 +287,36 @@ function MindTab({
     return Number.isFinite(started) && changed > started;
   }, [loopFacts, lastSubstrateChangeAt, substrate]);
   return (
-    <div className="wsp_mind">
+    <div className="stg_stack">
       {staleLoop ? (
-        <p className="wsp_note wsp_warn">
-          Its own time still uses the previous mind until its next day; restart it to switch now.
+        <p className="stg_callout stg_callout_warn" role="note">
+          <Icon name="warning" size={16} aria-hidden="true" />
+          <span>Its own time still uses the previous mind until its next day; restart it to switch now.</span>
         </p>
       ) : null}
-      <EntityMindPicker
-        baseUrl={baseUrl}
-        entity={entity}
-        token={token}
-        onSaved={(s) => onSubstrateChange(substrateChoiceOf(s))}
-      />
+      <AfSettingsGroup title="Model" help="Every change saves itself. “Gateway default” follows the gateway's text model.">
+        <EntityMindPicker
+          baseUrl={baseUrl}
+          entity={entity}
+          token={token}
+          onSaved={(s) => onSubstrateChange(substrateChoiceOf(s))}
+        />
+      </AfSettingsGroup>
       {substrateTimeline && substrateTimeline.length > 0 ? (
-        <details className="wsp_mind_history">
-          <summary className="wsp_mind_history_head">Mind history</summary>
-          {substrateTimeline.map((line, i) => (
-            <div key={i} className="wsp_mind_history_row">
-              {line}
-            </div>
-          ))}
+        <details className="stg_more stg_history">
+          <summary>
+            <Icon name="history" size={14} aria-hidden="true" />
+            <span>Mind history</span>
+            <span className="stg_count">{substrateTimeline.length}</span>
+            <Icon name="chevronDown" size={14} className="stg_more_chevron" aria-hidden="true" />
+          </summary>
+          <ol className="stg_more_body stg_history_list">
+            {substrateTimeline.map((line, i) => (
+              <li key={i} className="stg_history_row">
+                {line}
+              </li>
+            ))}
+          </ol>
         </details>
       ) : null}
     </div>
@@ -240,11 +326,17 @@ function MindTab({
 // ------------------------------------------------------------------ voice
 
 /** The listener's own playback/microphone settings (the kit's AfVoiceSection, entity_voice.tsx). The
- * entity's own voice is part of its identity (the identity tab). */
-function VoiceTab({ baseUrl }: { baseUrl: string }): React.ReactElement {
+ * entity's own voice is part of its identity (the identity section). */
+function VoiceTab({ baseUrl, onOpenIdentity }: { baseUrl: string; onOpenIdentity(): void }): React.ReactElement {
   return (
-    <div className="wsp_voice">
-      <p className="wsp_note">The voice it speaks with is part of its identity: choose it in 🪪 identity.</p>
+    <div className="stg_stack">
+      <p className="stg_callout" role="note">
+        <Icon name="user" size={16} aria-hidden="true" />
+        <span>The voice it speaks with is part of its identity.</span>
+        <button type="button" className="af-setting-btn stg_callout_action" data-action="open-identity" onClick={onOpenIdentity}>
+          Open Identity
+        </button>
+      </p>
       <ListenerVoiceSettings baseUrl={baseUrl} />
     </div>
   );
@@ -296,58 +388,75 @@ function FilesTab({ baseUrl, entity }: { baseUrl: string; entity: string }): Rea
   };
 
   return (
-    <div className="wsp_files">
-      <div className="wsp_crumbs">
-        <button className="wsp_up" onClick={up} disabled={path === "."}>
-          ↑ up
+    <div className="stg_stack">
+      <div className="stg_toolbar">
+        <button type="button" className="af-setting-btn" onClick={up} disabled={path === "."} data-action="up">
+          Up
         </button>
-        <code>{path === "." ? "workspace/" : `workspace/${path}`}</code>
+        <code className="stg_path" title={path === "." ? "workspace/" : `workspace/${path}`}>
+          {path === "." ? "workspace/" : `workspace/${path}`}
+        </code>
       </div>
-      {error ? <p className="wsp_error">{error}</p> : null}
+      {error ? <ErrorLine text={error} /> : null}
       {file ? (
-        <div className="wsp_file">
-          <div className="wsp_file_head">
-            <code>{file.path}</code>
-            <button className="wsp_up" onClick={() => setFile(null)}>
-              back to listing
+        <div className="stg_card stg_file">
+          <div className="stg_file_head">
+            <code className="stg_path">{file.path}</code>
+            <button type="button" className="af-setting-btn" onClick={() => setFile(null)} data-action="back">
+              Back to files
             </button>
           </div>
-          {file.truncated ? <p className="wsp_error">(truncated at the read cap — the file continues on disk)</p> : null}
-          <pre className="wsp_pre">{file.text || "(empty file)"}</pre>
+          {file.truncated ? <p className="stg_quiet">Truncated at the read cap — the file continues on disk.</p> : null}
+          <pre className="stg_pre">{file.text || "(empty file)"}</pre>
         </div>
       ) : listing ? (
         listing.entries.length === 0 ? (
-          <p className="wsp_quiet">Empty — nothing here yet.</p>
+          <p className="stg_empty">Empty — nothing here yet.</p>
         ) : (
-          <ul className="wsp_list">
+          <ul className="stg_list">
             {listing.entries.map((e) => (
               <li key={e.path}>
-                <button className="wsp_entry" onClick={() => openEntry(e)}>
-                  <span className="wsp_icon">{e.kind === "file" ? "📄" : e.kind === "mount" ? "🔗" : "📁"}</span>
-                  <span className="wsp_name">{e.name}</span>
-                  {e.kind === "file" && typeof e.size === "number" ? <span className="wsp_size">{e.size} B</span> : null}
-                  {e.kind === "mount" ? <span className={`wsp_mode wsp_mode_${e.mode}`}>{e.mode === "rw" ? "read+write" : "read-only"}</span> : null}
+                <button type="button" className="stg_row stg_row_button" onClick={() => openEntry(e)}>
+                  <Icon name={e.kind === "file" ? "file" : e.kind === "mount" ? "database" : "folder"} size={16} className="stg_row_icon" aria-hidden="true" />
+                  <span className="stg_row_name">{e.name}</span>
+                  {e.kind === "file" && typeof e.size === "number" ? <span className="stg_row_meta">{formatFileSize(e.size)}</span> : null}
+                  {e.kind === "mount" ? <ModeChip mode={e.mode} /> : null}
+                  {e.kind !== "file" ? <Icon name="chevronRight" size={14} className="stg_row_chevron" aria-hidden="true" /> : null}
                 </button>
               </li>
             ))}
           </ul>
         )
       ) : (
-        <p className="wsp_quiet">reading…</p>
+        <Reading />
       )}
     </div>
   );
 }
 
+function ModeChip({ mode }: { mode: string | undefined }): React.ReactElement {
+  return (
+    <AfChip size="sm" tone={mode === "rw" ? "warning" : "muted"}>
+      {mode === "rw" ? "read+write" : "read-only"}
+    </AfChip>
+  );
+}
+
 // ----------------------------------------------------------------- mounts
 
-function MountsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string; token: string | null }): React.ReactElement {
+const MOUNT_MODE_OPTIONS = [
+  { value: "ro", label: "read-only" },
+  { value: "rw", label: "read+write" },
+];
+
+function MountsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; entity: string; entityName: string; token: string | null }): React.ReactElement {
   const [mounts, setMounts] = useState<WorkspaceMount[] | null>(null);
   const [newPath, setNewPath] = useState("");
   const [newName, setNewName] = useState("");
   const [newMode, setNewMode] = useState<"ro" | "rw">("ro");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const ids = useId().replace(/:/g, "");
 
   useEffect(() => {
     getWorkspaceMounts(baseUrl, entity)
@@ -379,49 +488,85 @@ function MountsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string
   };
 
   return (
-    <div className="wsp_mounts">
-      <p className="wsp_quiet">
-        Extra workspaces the entity may reach, beside its home workspace. They appear to him as <code>mounts/&lt;name&gt;/</code>, each with its honest
-        mode; a read-only mount refuses his writes structurally.
-      </p>
-      {error ? <p className="wsp_error">{error}</p> : null}
-      {mounts === null ? (
-        <p className="wsp_quiet">reading…</p>
-      ) : mounts.length === 0 ? (
-        <p className="wsp_quiet">No extra workspaces granted.</p>
-      ) : (
-        <ul className="wsp_list">
-          {mounts.map((m) => (
-            <li key={m.name} className="wsp_mount_row">
-              <span className="wsp_icon">🔗</span>
-              <code className="wsp_name">mounts/{m.name}/</code>
-              <span className={`wsp_mode wsp_mode_${m.mode}`}>{m.mode === "rw" ? "read+write" : "read-only"}</span>
-              <span className="wsp_target" title={m.path}>
-                {m.path}
-              </span>
-              <button
-                className="wsp_remove"
-                disabled={busy}
-                title="Remove this grant (his tools lose it on their next call)"
-                onClick={() => save(mounts.filter((x) => x.name !== m.name))}
-              >
-                remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="wsp_add">
-        <input type="text" placeholder="/absolute/path/to/directory" value={newPath} onChange={(e) => setNewPath(e.target.value)} />
-        <input type="text" className="wsp_add_name" placeholder="name (optional)" value={newName} onChange={(e) => setNewName(e.target.value)} />
-        <select value={newMode} onChange={(e) => setNewMode(e.target.value as "ro" | "rw")}>
-          <option value="ro">read-only</option>
-          <option value="rw">read+write</option>
-        </select>
-        <button onClick={add} disabled={busy || !newPath.trim() || mounts === null}>
-          + grant
-        </button>
-      </div>
+    <div className="stg_stack">
+      {error ? <ErrorLine text={error} /> : null}
+      <AfSettingsGroup
+        title="Granted folders"
+        help={
+          <>
+            Each appears to {entityName} as <code>mounts/&lt;name&gt;/</code> with its mode; a read-only mount refuses its writes structurally.
+          </>
+        }
+      >
+        {mounts === null ? (
+          <Reading />
+        ) : mounts.length === 0 ? (
+          <p className="stg_empty">No extra folders granted.</p>
+        ) : (
+          <ul className="stg_list stg_list_flat">
+            {mounts.map((m) => (
+              <li key={m.name} className="stg_row stg_mount">
+                <Icon name="database" size={16} className="stg_row_icon" aria-hidden="true" />
+                <span className="stg_mount_text">
+                  <span className="stg_mount_name">
+                    <code>mounts/{m.name}/</code>
+                    <ModeChip mode={m.mode} />
+                  </span>
+                  <span className="stg_mount_path" title={m.path}>
+                    {m.path}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="af-setting-btn stg_btn_danger"
+                  data-action="remove-mount"
+                  disabled={busy}
+                  title="Remove this grant (its tools lose it on their next call)"
+                  onClick={() => save(mounts.filter((x) => x.name !== m.name))}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </AfSettingsGroup>
+      <AfSettingsGroup title="Grant a folder" help="An absolute path on the gateway's machine.">
+        <AfSettingRow label="Folder" htmlFor={`${ids}-path`} stack>
+          <input
+            id={`${ids}-path`}
+            type="text"
+            className="stg_input"
+            placeholder="/absolute/path/to/directory"
+            value={newPath}
+            onChange={(e) => setNewPath(e.target.value)}
+          />
+        </AfSettingRow>
+        <AfSettingRow label="Name" help="Optional; the folder's own name otherwise." htmlFor={`${ids}-name`}>
+          <input
+            id={`${ids}-name`}
+            type="text"
+            className="stg_input"
+            placeholder="name (optional)"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+        </AfSettingRow>
+        <AfSettingRow label="Access">
+          <AfSelect value={newMode} options={MOUNT_MODE_OPTIONS} onChange={(v) => setNewMode(v as "ro" | "rw")} ariaLabel="Access" />
+        </AfSettingRow>
+        <div className="stg_actions">
+          <button
+            type="button"
+            className="af-setting-btn stg_btn_primary"
+            data-action="grant-mount"
+            onClick={add}
+            disabled={busy || !newPath.trim() || mounts === null}
+          >
+            Grant access
+          </button>
+        </div>
+      </AfSettingsGroup>
     </div>
   );
 }
@@ -471,11 +616,11 @@ const PHASE_HINT: Record<string, string> = {
  * generic label) instead of being silently dropped from the next save —
  * the whole-document-replace PUT makes a missing key a deletion. */
 const PROMPT_LAYER_META: Record<string, { label: string; hint: string }> = {
-  conversation: { label: "conversation contract", hint: "How memories arrive and how the diary is offered — every session." },
-  visit: { label: "visit paragraph", hint: "The life framing during visits (own time continues after)." },
-  own_time: { label: "own-time contract", hint: "The framing of the entity's own 24/7 loop sessions." },
+  conversation: { label: "Conversation contract", hint: "How memories arrive and how the diary is offered — every session." },
+  visit: { label: "Visit paragraph", hint: "The life framing during visits (own time continues after)." },
+  own_time: { label: "Own-time contract", hint: "The framing of the entity's own 24/7 loop sessions." },
   operator: {
-    label: "operator instructions",
+    label: "Operator instructions",
     hint:
       "Standing direction and PERMISSIONS, appended last and attributed to you — never blended into the entity's own voice. " +
       "Grants of authority belong here (\"You have my standing permission to act without asking\"). CHARACTER statements " +
@@ -484,6 +629,43 @@ const PROMPT_LAYER_META: Record<string, { label: string; hint: string }> = {
   },
 };
 
+/** A served layer the app has no words for reads as its key, capitalised ("own_time" → "Own time"). */
+export function layerLabel(key: string): string {
+  const words = key.replace(/_/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : key;
+}
+
+/** One fold of the prompt page: a header button (chevron, title, state chip) over its content. */
+function PromptFold({
+  title,
+  chip,
+  chipTone = "muted",
+  chipTitle,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  chip: string;
+  chipTone?: "muted" | "accent" | "info";
+  chipTitle?: string;
+  open: boolean;
+  onToggle(): void;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <div className={open ? "stg_fold stg_fold_open" : "stg_fold"}>
+      <button type="button" className="stg_fold_head" aria-expanded={open} onClick={onToggle}>
+        <Icon name={open ? "chevronDown" : "chevronRight"} size={14} aria-hidden="true" />
+        <span className="stg_fold_title">{title}</span>
+        <AfChip size="sm" tone={chipTone} title={chipTitle}>
+          {chip}
+        </AfChip>
+      </button>
+      {open ? <div className="stg_fold_body">{children}</div> : null}
+    </div>
+  );
+}
 
 function PromptTab({
   baseUrl,
@@ -540,8 +722,8 @@ function PromptTab({
       .finally(() => setBusy(false));
   };
 
-  if (error && !info) return <p className="wsp_error">{error}</p>;
-  if (!info || !draft) return <p className="wsp_quiet">reading…</p>;
+  if (error && !info) return <ErrorLine text={error} />;
+  if (!info || !draft) return <Reading />;
 
   const dirty = layerKeys(info).some((key) => {
     const live = info.layers[key]?.source === "overlay" ? info.layers[key].text : "";
@@ -549,99 +731,104 @@ function PromptTab({
   });
 
   return (
-    <div className="wsp_prompt">
-      <p className="wsp_quiet">
-        {entityName}'s system prompt, layer by layer. The identity block and the tools text are machine-owned (identity evolves by the entity's own
-        acts; tools text follows the actual grant — edit it in the tools tab). The layers below are yours to rewrite; empty = the built-in default.
-        Saving writes <code>system_prompt.yaml</code> in the home — the next summon obeys it; a session already open keeps the prompt it was
-        summoned with.
-      </p>
-      {info.warnings.length > 0 ? <p className="wsp_error">{info.warnings.join(" · ")}</p> : null}
+    <div className="stg_stack">
+      <MoreAbout title="How the prompt works">
+        <p>
+          {entityName}'s system prompt, layer by layer. The identity block and the tools text are machine-owned (identity evolves by the entity's own
+          acts; tools text follows the actual grant — edit it in Tools). The layers below are yours to rewrite; empty = the built-in default.
+          Saving writes <code>system_prompt.yaml</code> in the home — the next summon obeys it; a session already open keeps the prompt it was
+          summoned with.
+        </p>
+      </MoreAbout>
+      {info.warnings.length > 0 ? <ErrorLine text={info.warnings.join(" · ")} /> : null}
       {info.raw_file ? (
-        <div className="wsp_prompt_section">
-          <div className="wsp_prompt_editor">
-            <p className="wsp_error">The file on disk could not be parsed — its raw content is shown here so nothing is lost. Saving replaces it.</p>
-            <pre className="wsp_pre wsp_prompt_pre">{info.raw_file}</pre>
-          </div>
+        <div className="stg_card">
+          <p className="wsp_error stg_error">The file on disk could not be parsed — its raw content is shown here so nothing is lost. Saving replaces it.</p>
+          <pre className="stg_pre">{info.raw_file}</pre>
         </div>
       ) : null}
-      {error ? <p className="wsp_error">{error}</p> : null}
+      {error ? <ErrorLine text={error} /> : null}
 
-      <div className="wsp_prompt_section">
-        <button className="wsp_prompt_head" onClick={() => setShowPrelude(!showPrelude)}>
-          <span className="wsp_prompt_arrow">{showPrelude ? "▾" : "▸"}</span> identity prelude
-          <span className="wsp_badge wsp_badge_locked" title="Rendered from the engrammed core + diary + standing; evolves only by the entity's own acts">
-            read-only
-          </span>
-        </button>
-        {showPrelude ? <pre className="wsp_pre wsp_prompt_pre">{info.prelude || "(prelude refused to render — see warnings)"}</pre> : null}
-      </div>
+      <div className="stg_folds">
+        <PromptFold
+          title="Identity prelude"
+          chip="read-only"
+          chipTitle="Rendered from the engrammed core + diary + standing; evolves only by the entity's own acts"
+          open={showPrelude}
+          onToggle={() => setShowPrelude(!showPrelude)}
+        >
+          <pre className="stg_pre">{info.prelude || "(prelude refused to render — see warnings)"}</pre>
+        </PromptFold>
 
-      {layerKeys(info).map((key) => {
-        const meta = PROMPT_LAYER_META[key] ?? { label: key.replace(/_/g, " "), hint: "" };
-        const live = info.layers[key];
-        const isOpen = open === key;
-        const overlayOn = (draft[key] ?? "").trim().length > 0;
-        return (
-          <div className="wsp_prompt_section" key={key}>
-            <button className="wsp_prompt_head" onClick={() => setOpen(isOpen ? null : key)}>
-              <span className="wsp_prompt_arrow">{isOpen ? "▾" : "▸"}</span> {meta.label}
-              <span className={overlayOn ? "wsp_badge wsp_badge_overlay" : "wsp_badge"} title={overlayOn ? "Your rewrite is live" : "Built-in default text"}>
-                {overlayOn ? "rewritten" : "default"}
-              </span>
-            </button>
-            {isOpen ? (
-              <div className="wsp_prompt_editor">
-                {meta.hint ? <p className="wsp_quiet">{meta.hint}</p> : null}
-                <textarea
-                  className="wsp_prompt_text"
-                  rows={key === "operator" ? 4 : 8}
-                  placeholder={key === "operator" ? "(nothing yet — standing instructions you want in every summon)" : "(empty = the built-in default below)"}
-                  value={draft[key] ?? ""}
-                  onChange={(e) => {
-                    setDraft({ ...draft, [key]: e.target.value });
-                    setSaved(false);
-                  }}
-                />
-                {(info.defaults[key] ?? "") !== "" ? (
-                  <div className="wsp_prompt_default">
-                    <div className="wsp_prompt_default_head">
-                      built-in default{live?.source === "overlay" ? " (replaced by your rewrite)" : " (live)"}
-                      <button
-                        className="wsp_up"
-                        onClick={() => {
-                          setDraft({ ...draft, [key]: info.defaults[key] ?? "" });
-                          setSaved(false);
-                        }}
-                        title="Copy the default into the editor as a starting point (saving it unchanged keeps the default live)"
-                      >
-                        copy to editor
-                      </button>
-                    </div>
-                    <pre className="wsp_pre wsp_prompt_pre">{info.defaults[key]}</pre>
+        {layerKeys(info).map((key) => {
+          const meta = PROMPT_LAYER_META[key] ?? { label: layerLabel(key), hint: "" };
+          const live = info.layers[key];
+          const isOpen = open === key;
+          const overlayOn = (draft[key] ?? "").trim().length > 0;
+          return (
+            <PromptFold
+              key={key}
+              title={meta.label}
+              chip={overlayOn ? "rewritten" : "default"}
+              chipTone={overlayOn ? "accent" : "muted"}
+              chipTitle={overlayOn ? "Your rewrite is live" : "Built-in default text"}
+              open={isOpen}
+              onToggle={() => setOpen(isOpen ? null : key)}
+            >
+              {meta.hint ? <p className="stg_hint">{meta.hint}</p> : null}
+              <textarea
+                className="stg_textarea"
+                aria-label={meta.label}
+                rows={key === "operator" ? 4 : 8}
+                placeholder={key === "operator" ? "(nothing yet — standing instructions you want in every summon)" : "(empty = the built-in default below)"}
+                value={draft[key] ?? ""}
+                onChange={(e) => {
+                  setDraft({ ...draft, [key]: e.target.value });
+                  setSaved(false);
+                }}
+              />
+              {(info.defaults[key] ?? "") !== "" ? (
+                <div className="stg_default">
+                  <div className="stg_default_head">
+                    <span>Built-in default{live?.source === "overlay" ? " (replaced by your rewrite)" : " (live)"}</span>
+                    <button
+                      type="button"
+                      className="af-setting-btn af-setting-btn--quiet"
+                      data-action="copy-default"
+                      onClick={() => {
+                        setDraft({ ...draft, [key]: info.defaults[key] ?? "" });
+                        setSaved(false);
+                      }}
+                      title="Copy the default into the editor as a starting point (saving it unchanged keeps the default live)"
+                    >
+                      Copy to editor
+                    </button>
                   </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+                  <pre className="stg_pre">{info.defaults[key]}</pre>
+                </div>
+              ) : null}
+            </PromptFold>
+          );
+        })}
 
-      <div className="wsp_prompt_section">
-        <button className="wsp_prompt_head" onClick={() => setShowPreview(!showPreview)}>
-          <span className="wsp_prompt_arrow">{showPreview ? "▾" : "▸"}</span> full preview
-          <span className="wsp_badge" title="The exact head the next VISIT summon composes (per-turn presence + MEMORIES append at runtime; own-time sessions swap the visit paragraph for the own-time contract)">
-            next visit summon
-          </span>
-        </button>
-        {showPreview ? <pre className="wsp_pre wsp_prompt_pre">{info.preview || "(no preview — prelude refused)"}</pre> : null}
+        <PromptFold
+          title="Full preview"
+          chip="next visit summon"
+          chipTone="info"
+          chipTitle="The exact head the next VISIT summon composes (per-turn presence + MEMORIES append at runtime; own-time sessions swap the visit paragraph for the own-time contract)"
+          open={showPreview}
+          onToggle={() => setShowPreview(!showPreview)}
+        >
+          <pre className="stg_pre">{info.preview || "(no preview — prelude refused)"}</pre>
+        </PromptFold>
       </div>
 
-      <div className="wsp_save_row">
-        <button onClick={save} disabled={busy || !dirty}>
-          {busy ? "saving…" : "save prompt"}
+      <div className="stg_savebar">
+        <button type="button" className="af-setting-btn stg_btn_primary" data-action="save-prompt" onClick={save} disabled={busy || !dirty}>
+          {busy ? "Saving…" : "Save prompt"}
         </button>
-        {saved ? <span className="wsp_saved">saved — next summon obeys it</span> : null}
+        {saved ? <span className="stg_saved" role="status">Saved — the next summon obeys it</span> : null}
+        {dirty && !busy ? <span className="stg_quiet">Unsaved changes</span> : null}
       </div>
     </div>
   );
@@ -718,8 +905,8 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
       .finally(() => setBusy(false));
   };
 
-  if (error && !data) return <p className="wsp_error">{error}</p>;
-  if (!data) return <p className="wsp_quiet">reading his shelf…</p>;
+  if (error && !data) return <ErrorLine text={error} />;
+  if (!data) return <Reading text="Reading its shelf…" />;
 
   const verdicts = data.resolved?.verdicts ?? [];
   const resolvedSkills = data.resolved?.skills ?? [];
@@ -743,16 +930,18 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
       (typeof s.requires_unmet === "string" || Object.keys(s.requires_unmet).length > 0),
   );
   return (
-    <div className="wsp_skills">
-      <p className="wsp_quiet">
-        What {entityName} is taught beyond his capability map — skills selected here ride his sessions per phase (Grant),
-        stay off (Deny), or follow the framework default (Default = not selected). Saving writes <code>skills.yaml</code> in
-        his home, marker-first: the change is a visible moment in his biography. Trust verdicts come from the shelf's gate
-        verbatim — a blocked skill renders blocked, never silently skipped. Delivery into his prompts lands with runtime's
-        composition slot (in flight); until then a selection is standing config.
-      </p>
+    <div className="stg_stack">
+      <MoreAbout title="How skills work">
+        <p>
+          What {entityName} is taught beyond his capability map — skills selected here ride his sessions per phase (Grant),
+          stay off (Deny), or follow the framework default (Default = not selected). Saving writes <code>skills.yaml</code> in
+          his home, marker-first: the change is a visible moment in his biography. Trust verdicts come from the shelf's gate
+          verbatim — a blocked skill renders blocked, never silently skipped. Delivery into his prompts lands with runtime's
+          composition slot (in flight); until then a selection is standing config.
+        </p>
+      </MoreAbout>
       {deliveredMap.length > 0 || hostOnly.length > 0 ? (
-        <div className="wsp_skills_audience">
+        <div className="stg_notes wsp_skills_audience">
           {deliveredMap.length > 0 ? (
             <p>
               <span className="wsp_aud_delivered">● delivered</span> <code>{deliveredMap.map((s) => s.name).join(", ")}</code> — his
@@ -760,7 +949,7 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
             </p>
           ) : null}
           {hostOnly.length > 0 ? (
-            <p className="wsp_quiet">
+            <p className="stg_quiet">
               <span className="wsp_aud_host">▲ observer/dev only</span> {hostOnly.join(", ")} — audience=host in the registry:
               these teach agents/operators, never {entityName}. Un-grantable to an entity by construction (skill's fail-closed
               audience field), shown for transparency.
@@ -769,9 +958,9 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
         </div>
       ) : null}
       {requiresUnmet.length > 0 ? (
-        <div className="wsp_skills_audience">
+        <div className="stg_notes wsp_skills_audience">
           {requiresUnmet.map((s, i) => (
-            <p key={`${s.name}:${(s.phases ?? []).join(",")}:${i}`} className="wsp_quiet">
+            <p key={`${s.name}:${(s.phases ?? []).join(",")}:${i}`} className="stg_quiet">
               <span className="wsp_aud_unmet">⚠ dependency unmet</span> <code>{s.name}</code> —{" "}
               {typeof s.requires_unmet === "string" ? s.requires_unmet : JSON.stringify(s.requires_unmet)} (selected but
               dropped from his teaching until the dependency is declared; the gate's verdict, verbatim).
@@ -779,36 +968,43 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
           ))}
         </div>
       ) : null}
-      {error ? <p className="wsp_error">{error}</p> : null}
-      <PhaseCapabilityMatrix
-        payload={data.matrix}
-        patches={patches}
-        onPatchesChange={(next) => {
-          setPatches(next as MatrixPatch[]);
-          setSaved(false);
-        }}
-        disabled={busy}
-        title="skills by phase"
-        subtitle="Grant = taught in that phase · Default = not selected"
-      />
+      {error ? <ErrorLine text={error} /> : null}
+      <div className="stg_table_wrap">
+        <PhaseCapabilityMatrix
+          payload={data.matrix}
+          patches={patches}
+          onPatchesChange={(next) => {
+            setPatches(next as MatrixPatch[]);
+            setSaved(false);
+          }}
+          disabled={busy}
+          title="Skills by phase"
+          subtitle="Grant = taught in that phase · Default = not selected"
+        />
+      </div>
       {verdicts.length > 0 ? (
-        <div className="wsp_skills_verdicts">
-          <span className="wsp_quiet">gate verdicts (server verbatim):</span>
-          <ul>
+        <details className="stg_more wsp_skills_verdicts">
+          <summary>
+            <Icon name="warning" size={14} aria-hidden="true" />
+            <span>Gate verdicts (server verbatim)</span>
+            <span className="stg_count">{verdicts.length}</span>
+            <Icon name="chevronDown" size={14} className="stg_more_chevron" aria-hidden="true" />
+          </summary>
+          <ul className="stg_more_body">
             {verdicts.map((v, i) => (
               <li key={i}>
                 <code>{JSON.stringify(v)}</code>
               </li>
             ))}
           </ul>
-        </div>
+        </details>
       ) : null}
-      <div className="wsp_save_row">
-        <button onClick={save} disabled={busy || patches.length === 0}>
-          {busy ? "saving…" : "save selection"}
+      <div className="stg_savebar">
+        <button type="button" className="af-setting-btn stg_btn_primary" data-action="save-skills" onClick={save} disabled={busy || patches.length === 0}>
+          {busy ? "Saving…" : "Save selection"}
         </button>
-        {saved ? <span className="wsp_saved">saved — the marker is in his stream</span> : null}
-        {patches.length > 0 ? <span className="wsp_quiet">{patches.length} unsaved change{patches.length === 1 ? "" : "s"}</span> : null}
+        {saved ? <span className="stg_saved" role="status">Saved — the marker is in his stream</span> : null}
+        {patches.length > 0 ? <span className="stg_quiet">{patches.length} unsaved change{patches.length === 1 ? "" : "s"}</span> : null}
       </div>
     </div>
   );
@@ -864,8 +1060,8 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
       .finally(() => setBusyCell(null));
   };
 
-  if (error && !policy) return <p className="wsp_error">{error}</p>;
-  if (!policy || !draft) return <p className="wsp_quiet">reading…</p>;
+  if (error && !policy) return <ErrorLine text={error} />;
+  if (!policy || !draft) return <Reading />;
 
   return <ToolGrantsView policy={policy} draft={draft} error={error} saved={saved} busyCell={busyCell} onToggle={toggle} />;
 }
@@ -904,101 +1100,105 @@ export function ToolGrantsView({
   const tier1 = new Set(policy.tiers["tier1"] ?? []);
 
   return (
-    <div className="wsp_tools">
-      <p className="wsp_quiet">
-        Which tools he holds in each phase of life. The ● mark is his read-only COGNITION lane (his own memory and book — no reach into the world);
-        everything else reaches outward to some degree: workspace reads/writes, web lanes (network egress), and execute_command (a sandboxed shell —
-        walled, but real hands). Each switch writes <code>tool_policy.yaml</code> in his home at once — the next summon of each phase obeys it; a session already
-        open (a live visit, an own-time day mid-run) keeps the grant it was summoned with. The sleep column (⏳) is standing config with an explore-only
-        DEFAULT (recall, search, read) — widen it if his dreams should act; it takes effect when the sleep pass gains tool use.
-      </p>
-      <p className="wsp_quiet">
-        A switch that is on is the <strong>grant</strong> — the operator's word. What a live session can actually <em>call</em> also depends on that lane's
-        wiring; a granted tool the lane cannot offer yet shows <span className="wsp_unwired" title="granted but not yet callable on this lane">▲</span> with
-        the reason.
-      </p>
-      {error ? <p className="wsp_error">{error}</p> : null}
-      <table className="wsp_matrix">
-        <thead>
-          <tr>
-            <th>tool</th>
-            {Object.keys(policy.phases).map((phase) => (
-              <th key={phase} title={PHASE_HINT[phase] ?? ""}>
-                {PHASE_LABEL[phase] ?? phase}
-                {phase === "sleep" ? (
-                  <span className="wsp_phase_note" title={PHASE_HINT.sleep}>
-                    {" "}
-                    ⏳
-                  </span>
-                ) : null}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {policy.all_tools.map((tool) => (
-            <tr key={tool}>
-              <td>
-                <code>{tool}</code> {tier1.has(tool) ? <span className="wsp_tier1" title="his read-only cognition lane (memory + book reads — no reach into the world)">●</span> : null}
-                {/* THE RISK BADGE (tool-tiers round): renders ONLY what the
-                  * gateway serves — a derived band with its words. A tool
-                  * the server has not vetted says so; nothing is guessed
-                  * client-side (the drifted-claims lesson, three times). */}
-                {(() => {
-                  const riskMap = policy.risk ?? policy.risk_tier;
-                  if (!riskMap) return null;
-                  const risk = riskMap[tool];
-                  // The settled wire (semantics c4589): risk_rank = integer
-                  // ordinal, the word rides risk_tier/band; presentation
-                  // "unvetted" marks a factless row whose rank-4 must never
-                  // read as destructive. Older tier/label spellings read too.
-                  const rank = typeof risk?.risk_rank === "number" ? risk.risk_rank : typeof risk?.tier === "number" ? risk.tier : null;
-                  const word = risk?.band ?? (typeof risk?.risk_tier === "string" ? risk.risk_tier : undefined) ?? risk?.label;
-                  const unvetted = risk?.risk_presentation === "unvetted";
-                  if (!risk || rank === null) {
-                    return <span className="wsp_risk wsp_risk_unvetted" title="unvetted — this tool's structural facts are undeclared; treated deny-safe">?</span>;
-                  }
-                  if (unvetted) {
-                    return <span className="wsp_risk wsp_risk_unvetted" title={`risk ${rank} (unvetted) — facts undeclared, held at the deny-safe top band; not a destructive verdict`}>{rank}?</span>;
-                  }
-                  return (
-                    <span className={`wsp_risk wsp_risk_${rank}`} title={`risk ${rank}${word ? ` · ${word}` : ""} — served, derived from the tool's declared facts`}>
-                      {rank}
+    <div className="stg_stack wsp_tools">
+      <MoreAbout title="How tool grants work">
+        <p>
+          Which tools he holds in each phase of life. The ● mark is his read-only COGNITION lane (his own memory and book — no reach into the world);
+          everything else reaches outward to some degree: workspace reads/writes, web lanes (network egress), and execute_command (a sandboxed shell —
+          walled, but real hands). Each switch writes <code>tool_policy.yaml</code> in his home at once — the next summon of each phase obeys it; a session already
+          open (a live visit, an own-time day mid-run) keeps the grant it was summoned with. The sleep column (⏳) is standing config with an explore-only
+          DEFAULT (recall, search, read) — widen it if his dreams should act; it takes effect when the sleep pass gains tool use.
+        </p>
+        <p>
+          A switch that is on is the <strong>grant</strong> — the operator's word. What a live session can actually <em>call</em> also depends on that lane's
+          wiring; a granted tool the lane cannot offer yet shows <span className="wsp_unwired" title="granted but not yet callable on this lane">▲</span> with
+          the reason. The number beside a tool is its risk rank, served by the gateway.
+        </p>
+      </MoreAbout>
+      {error ? <ErrorLine text={error} /> : null}
+      <div className="stg_table_wrap">
+        <table className="wsp_matrix stg_matrix">
+          <thead>
+            <tr>
+              <th scope="col">Tool</th>
+              {Object.keys(policy.phases).map((phase) => (
+                <th key={phase} scope="col" title={PHASE_HINT[phase] ?? ""}>
+                  {PHASE_LABEL[phase] ?? phase}
+                  {phase === "sleep" ? (
+                    <span className="wsp_phase_note" title={PHASE_HINT.sleep}>
+                      {" "}
+                      ⏳
                     </span>
-                  );
-                })()}
-              </td>
-              {Object.keys(policy.phases).map((phase) => {
-                const exec = policy.phases[phase]?.executable?.[tool];
-                const unwired = exec ? exec.ok === false : false;
-                return (
-                  <td key={phase}>
-                    <AfSwitch
-                      variant="sm"
-                      className="wsp_cell_switch"
-                      label={tool}
-                      ariaLabel={`${tool} in ${PHASE_LABEL[phase] ?? phase}`}
-                      checked={draft[phase]?.has(tool) ?? false}
-                      busy={busyCell === `${phase}/${tool}`}
-                      unavailableReason={busyCell && busyCell !== `${phase}/${tool}` ? "Saving another change…" : null}
-                      reasonVisible={false}
-                      onChange={(next) => onToggle(phase, tool, next)}
-                    />
-                    {unwired && (draft[phase]?.has(tool) ?? false) ? (
-                      <span className="wsp_unwired" title={exec?.reason || "granted but not yet callable on this lane"}>
-                        ▲
-                      </span>
-                    ) : null}
-                  </td>
-                );
-              })}
+                  ) : null}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="wsp_save_row" role="status">
-        {saved ? <span className="wsp_saved">{saved}</span> : null}
-        {policy.phases["visit"]?.source === "default" && !saved ? <span className="wsp_quiet">(currently on defaults — no policy file yet)</span> : null}
+          </thead>
+          <tbody>
+            {policy.all_tools.map((tool) => (
+              <tr key={tool}>
+                <td>
+                  <code>{tool}</code> {tier1.has(tool) ? <span className="wsp_tier1" title="his read-only cognition lane (memory + book reads — no reach into the world)">●</span> : null}
+                  {/* THE RISK BADGE (tool-tiers round): renders ONLY what the
+                    * gateway serves — a derived band with its words. A tool
+                    * the server has not vetted says so; nothing is guessed
+                    * client-side (the drifted-claims lesson, three times). */}
+                  {(() => {
+                    const riskMap = policy.risk ?? policy.risk_tier;
+                    if (!riskMap) return null;
+                    const risk = riskMap[tool];
+                    // The settled wire (semantics c4589): risk_rank = integer
+                    // ordinal, the word rides risk_tier/band; presentation
+                    // "unvetted" marks a factless row whose rank-4 must never
+                    // read as destructive. Older tier/label spellings read too.
+                    const rank = typeof risk?.risk_rank === "number" ? risk.risk_rank : typeof risk?.tier === "number" ? risk.tier : null;
+                    const word = risk?.band ?? (typeof risk?.risk_tier === "string" ? risk.risk_tier : undefined) ?? risk?.label;
+                    const unvetted = risk?.risk_presentation === "unvetted";
+                    if (!risk || rank === null) {
+                      return <span className="wsp_risk wsp_risk_unvetted" title="unvetted — this tool's structural facts are undeclared; treated deny-safe">?</span>;
+                    }
+                    if (unvetted) {
+                      return <span className="wsp_risk wsp_risk_unvetted" title={`risk ${rank} (unvetted) — facts undeclared, held at the deny-safe top band; not a destructive verdict`}>{rank}?</span>;
+                    }
+                    return (
+                      <span className={`wsp_risk wsp_risk_${rank}`} title={`risk ${rank}${word ? ` · ${word}` : ""} — served, derived from the tool's declared facts`}>
+                        {rank}
+                      </span>
+                    );
+                  })()}
+                </td>
+                {Object.keys(policy.phases).map((phase) => {
+                  const exec = policy.phases[phase]?.executable?.[tool];
+                  const unwired = exec ? exec.ok === false : false;
+                  return (
+                    <td key={phase}>
+                      <AfSwitch
+                        variant="sm"
+                        className="wsp_cell_switch"
+                        label={tool}
+                        ariaLabel={`${tool} in ${PHASE_LABEL[phase] ?? phase}`}
+                        checked={draft[phase]?.has(tool) ?? false}
+                        busy={busyCell === `${phase}/${tool}`}
+                        unavailableReason={busyCell && busyCell !== `${phase}/${tool}` ? "Saving another change…" : null}
+                        reasonVisible={false}
+                        onChange={(next) => onToggle(phase, tool, next)}
+                      />
+                      {unwired && (draft[phase]?.has(tool) ?? false) ? (
+                        <span className="wsp_unwired" title={exec?.reason || "granted but not yet callable on this lane"}>
+                          ▲
+                        </span>
+                      ) : null}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="stg_savebar" role="status">
+        {saved ? <span className="stg_saved">{saved}</span> : null}
+        {policy.phases["visit"]?.source === "default" && !saved ? <span className="stg_quiet">Currently on defaults — no policy file yet.</span> : null}
       </div>
     </div>
   );

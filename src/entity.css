@@ -3113,219 +3113,16 @@ body {
   list-style: disc inside;
 }
 
-/* ---------------------------------------------------- workspace panel (wsp) */
-.wsp_panel {
-  max-width: 760px;
-  width: min(760px, 94vw);
-}
-.wsp_tabs {
-  display: flex;
-  gap: 6px;
-  margin-right: 12px;
-}
-.wsp_tab {
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--text-dim) 25%, transparent);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 3px 12px;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  cursor: pointer;
-}
-.wsp_tab_on {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--memory) 60%, transparent);
-  background: color-mix(in srgb, var(--memory) 12%, transparent);
-}
+/* ------------------------------------------- workspace panel (wsp) leftovers */
+/* The Settings modal's layout lives in settings_modal.css (remodel 2026-11-07). Kept here: the
+ * note/error lines other panels share (wsp_quiet, wsp_error) and the tool-grant matrix cells. */
 
-/* Mind (substrate) tab in Settings (operator 2026-07-15 (e)): provider +
- * model moved off the top strip into the settings modal. */
-.wsp_mind {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 2px;
-}
-.wsp_mind_intro {
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  line-height: 1.55;
-  margin: 0;
-}
-.wsp_mind_intro strong {
-  color: var(--identity);
-}
-.wsp_mind_picker {
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--bg-raise);
-}
-.wsp_mind_history {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-}
-.wsp_mind_history_head {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 6px;
-}
-.wsp_mind_history_row {
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-  padding: 2px 0;
-}
-.wsp_body {
-  font-size: max(calc(12.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_crumbs {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  color: var(--text-dim);
-}
-.wsp_up {
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 2px 10px;
-  cursor: pointer;
-  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_up:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.wsp_list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.wsp_entry {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--text-dim) 12%, transparent);
-  color: var(--text);
-  padding: 6px 4px;
-  cursor: pointer;
-  font-size: max(calc(12.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_entry:hover {
-  background: color-mix(in srgb, var(--memory) 7%, transparent);
-}
-.wsp_name {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wsp_size {
-  color: var(--text-dim);
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_mode {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--text-dim) 35%, transparent);
-  color: var(--text-dim);
-}
-.wsp_mode_rw {
-  border-color: color-mix(in srgb, var(--diary) 55%, transparent);
-  color: var(--diary);
-}
-.wsp_mode_ro {
-  border-color: rgba(216, 180, 90, 0.5);
-  color: var(--identity);
-}
-.wsp_pre {
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text-dim) 20%, transparent);
-  border-radius: 8px;
-  padding: 12px;
-  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.5;
-  overflow: auto;
-  max-height: 52vh;
-  white-space: pre-wrap;
-}
-.wsp_file_head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
 .wsp_error {
   color: color-mix(in srgb, var(--scar) 55%, var(--text));
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 .wsp_quiet {
   color: var(--text-dim);
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_mount_row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 4px;
-  border-bottom: 1px solid color-mix(in srgb, var(--text-dim) 12%, transparent);
-}
-.wsp_target {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-dim);
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_remove {
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--scar) 40%, transparent);
-  color: color-mix(in srgb, var(--scar) 55%, var(--text));
-  border-radius: 6px;
-  padding: 2px 10px;
-  cursor: pointer;
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_add {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  align-items: center;
-}
-.wsp_add input,
-.wsp_add select {
-  background-color: color-mix(in srgb, var(--bg) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 5px 9px;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_add input:first-child {
-  flex: 1;
-}
-.wsp_add_name {
-  width: 140px;
-}
-.wsp_add button {
-  background: color-mix(in srgb, var(--memory) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--memory) 50%, transparent);
-  color: color-mix(in srgb, var(--memory) 60%, var(--text));
-  border-radius: 6px;
-  padding: 5px 14px;
-  cursor: pointer;
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 .wsp_matrix {
@@ -3391,109 +3188,6 @@ body {
   margin-left: 4px;
   cursor: help;
   font-size: max(calc(9px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_save_row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-}
-.wsp_save_row button {
-  background: color-mix(in srgb, var(--diary) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--diary) 50%, transparent);
-  color: var(--diary);
-  border-radius: 6px;
-  padding: 5px 16px;
-  cursor: pointer;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_saved {
-  color: var(--diary);
-  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-
-/* ------------------------------------------------------------- prompt tab */
-.wsp_prompt_section {
-  margin-bottom: 8px;
-  border: 1px solid color-mix(in srgb, var(--text-dim) 18%, transparent);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.wsp_prompt_head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  text-align: left;
-  background: color-mix(in srgb, var(--bg-raise) 70%, transparent);
-  border: none;
-  color: var(--text);
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_prompt_head:hover {
-  background: color-mix(in srgb, var(--bg-raise) 85%, transparent);
-}
-.wsp_prompt_arrow {
-  color: var(--text-dim);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_badge {
-  margin-left: auto;
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  border: 1px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
-  border-radius: 10px;
-  padding: 1px 8px;
-}
-.wsp_badge_overlay {
-  color: var(--identity);
-  border-color: color-mix(in srgb, var(--identity) 50%, transparent);
-}
-.wsp_badge_locked {
-  color: var(--text-dim);
-  border-color: color-mix(in srgb, var(--text-dim) 35%, transparent);
-}
-.wsp_prompt_editor {
-  padding: 10px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.wsp_prompt_text {
-  width: 100%;
-  box-sizing: border-box;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text-dim) 25%, transparent);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.5;
-  padding: 10px;
-  resize: vertical;
-}
-.wsp_prompt_text:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--diary) 50%, transparent);
-}
-.wsp_prompt_default_head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  margin-bottom: 4px;
-}
-.wsp_prompt_pre {
-  max-height: 34vh;
-  white-space: pre-wrap;
-  margin: 0 0 6px;
-}
-.wsp_prompt_section > .wsp_prompt_pre {
-  margin: 10px 12px 12px;
 }
 
 /* ------------------------------------------------ gateway auth + own time */
@@ -5721,74 +5415,6 @@ body {
   line-height: 1.4;
 }
 
-/* Voice tab (Settings): catalog picker over the home triple. */
-.wsp_voice_current {
-  margin: 8px 0 12px;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_voice_row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0;
-}
-.wsp_voice_row label {
-  min-width: 64px;
-  color: var(--text-dim);
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.wsp_voice_row select,
-.wsp_voice_row input {
-  background-color: var(--bg-primary, #0d1117);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  min-width: 220px;
-}
-.wsp_voice_list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 10px 0;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.wsp_voice_item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 11px;
-  color: var(--text);
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  cursor: pointer;
-}
-.wsp_voice_item:hover {
-  border-color: color-mix(in srgb, var(--entity-accent, #e8a54a) 55%, transparent);
-}
-.wsp_voice_item_on {
-  border-color: var(--entity-accent, #e8a54a);
-  background: color-mix(in srgb, var(--entity-accent, #e8a54a) 12%, transparent);
-}
-.wsp_voice_kind {
-  font-size: max(calc(9px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.wsp_voice_kind_clone {
-  color: var(--entity-accent, #e8a54a);
-}
-.wsp_voice_clear {
-  background: none;
-  border: 1px solid var(--line);
-  color: var(--text-dim);
-}
-
 /* Skills tab (Settings): matrix + verdicts + audience taxonomy. */
 .wsp_skills_audience {
   margin: 8px 0 10px;
@@ -5935,13 +5561,6 @@ body {
 .cd_queue_card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 25%, transparent); border-radius: 8px; margin: 6px 0; }
 .cd_queue_line { color: var(--text, #dbe2ee); font-size: max(12.5px, var(--ent-type-floor, 0px)); }
 
-/* THE REASONING DIAL (operator task c5710: provider, model, reasoning). */
-.wsp_reasoning { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
-.wsp_reasoning_row { display: flex; align-items: center; gap: 10px; }
-.wsp_reasoning_label { font-size: max(12px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); text-transform: uppercase; letter-spacing: 0.04em; }
-.wsp_reasoning_select { background-color: color-mix(in srgb, #0e1420 70%, transparent); color: var(--text, #dbe2ee); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: max(12.5px, var(--ent-type-floor, 0px)); }
-.wsp_reasoning_unlock { background: none; border: 1px dashed color-mix(in srgb, var(--text-dim, #8a94a6) 40%, transparent); color: var(--text-dim, #8a94a6); border-radius: 6px; padding: 4px 10px; font-size: max(12px, var(--ent-type-floor, 0px)); cursor: pointer; }
-.wsp_reasoning_unlock:hover { color: var(--text, #dbe2ee); }
 
 
 /* =====================================================================
@@ -6294,8 +5913,7 @@ body {
     align-items: flex-end;
     padding-top: var(--safe-top, 0px);
   }
-  .ev_panel,
-  .wsp_panel {
+  .ev_panel {
     width: 100%;
     max-width: 100%;
     max-height: 100%;
@@ -6309,16 +5927,6 @@ body {
   .ev_body {
     min-height: 0;
     padding: 12px var(--gutter, 12px);
-  }
-  .wsp_tabs {
-    order: 3;
-    flex: 1 1 100%;
-    margin-right: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .wsp_tabs > * {
-    flex: none;
   }
 }
 
@@ -6488,9 +6096,7 @@ body {
   }
   .entity_connect input,
   .bp_tun_reason,
-  .pe_add_form input,
-  .wsp_voice_row select,
-  .wsp_voice_row input {
+  .pe_add_form input {
     min-width: min(200px, 100%);
   }
 }
@@ -6833,32 +6439,16 @@ body {
 .wsp_status_error {
   color: var(--error, #e5484d);
 }
-.wsp_mind_history > summary {
-  cursor: pointer;
-}
 
 /* ------------------------------------------- voice in a visit (R7.1) */
 /* Settings → voice: the listener half is the kit's AfVoiceSection. Its
  * text→speech override row is not offered: the entity speaks with its own
- * voice (the picker above). */
+ * voice (Settings → Identity). The modal's own layout is settings_modal.css. */
 .ent_listener_voice {
-  margin-top: 18px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line, #24304a);
   min-width: 0;
 }
 .ent_listener_voice .af-override[data-setting="tts"] {
   display: none;
-}
-.wsp_listener_head {
-  margin: 0 0 4px;
-  font-size: max(calc(14px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-weight: 600;
-}
-.ent_listener_voice .wsp_note {
-  margin: 0 0 10px;
-  color: var(--text-dim);
-  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 /* Composer: microphone + "Transcribing… 12 s · faster-whisper / large-v3". */
 .cd_mic_btn[aria-pressed="true"] {
@@ -6909,11 +6499,6 @@ body {
   flex: none;
   border-radius: 12px;
   background: var(--bg-raise);
-}
-.idn_head {
-  margin: 4px 0 0;
-  font-size: max(calc(14px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-weight: 600;
 }
 .trk_row {
   display: flex;

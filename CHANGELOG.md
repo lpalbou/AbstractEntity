@@ -4,6 +4,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- **A calmer, better organised Settings window.** Its nine sections now sit in four groups (Mind &
+  voice, Identity & record, Workspace, Prompt) in a side list — a section picker on a phone — and
+  each opens with a title and one line saying what it is for, with the long explanations folded
+  under "How … works". The window, its menus, switches and buttons are the shared AbstractFramework
+  ones, and every setting saves exactly as before.
+
 ### Fixed
 
 - **The ledger follows the entity live again.** In live mode the ledger kept showing only what

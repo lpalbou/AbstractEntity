@@ -306,20 +306,18 @@ export function VisitVoiceButtons({
   );
 }
 
-/** Settings → voice, listener half: the kit's shared section (the entity's own voice sits above it). */
+/** Settings → Voice: the listener's own playback and microphone, the kit's shared section (the page
+ * title and its one line are the Settings modal's; the entity's own voice is in Settings → Identity). */
 export function ListenerVoiceSettings({ baseUrl }: { baseUrl: string }): React.ReactElement {
   const [prefs, setPrefs] = useVoicePreferences();
   return (
     <section className="ent_listener_voice" data-testid="listener-voice-settings" aria-label="Listening and playback">
-      <h3 className="wsp_listener_head">Listening and playback</h3>
-      <p className="wsp_note">How you hear him and how your voice reaches him, in this browser. He always speaks with the voice chosen above.</p>
       <AfVoiceSection
         value={prefs}
         onChange={setPrefs}
         fetchCatalog={(provider, model) => getVoiceCatalog(baseUrl, provider, model)}
         fetchDefaults={() => getVoiceDefaults(baseUrl)}
         overrideOwner="this browser"
-        nested
       />
     </section>
   );

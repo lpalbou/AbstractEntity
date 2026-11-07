@@ -9,6 +9,7 @@
  * in plain words. The words here are the app's; the numbers are the gateway's.
  */
 import React, { useEffect, useState } from "react";
+import { AfSettingsGroup } from "@abstractframework/ui-kit";
 
 import {
   getEntityAcquaintances,
@@ -132,8 +133,7 @@ export function TrackRecordPanel({ baseUrl, entity, entityName }: { baseUrl: str
         </p>
       ))}
 
-      <section className="trk_section">
-        <h4 className="idn_head">Track record</h4>
+      <AfSettingsGroup title={`What ${entityName} has done`} className="trk_section">
         {record ? (
           <dl className="trk_counts" data-testid="track-record-counts">
             <div><dt>Sessions</dt><dd>{count(record.sessions)}</dd></div>
@@ -143,10 +143,9 @@ export function TrackRecordPanel({ baseUrl, entity, entityName }: { baseUrl: str
             <div title={`${count(record.tokens.input)} in, ${count(record.tokens.output)} out`}><dt>Tokens</dt><dd>{count(record.tokens.total)}</dd></div>
           </dl>
         ) : !errors.length ? <p className="wsp_status">Loading…</p> : null}
-      </section>
+      </AfSettingsGroup>
 
-      <section className="trk_section">
-        <h4 className="idn_head">Trust by task</h4>
+      <AfSettingsGroup title="Trust by task" className="trk_section">
         {reputation ? (
           <>
             <p className="trk_overall" data-testid="trust-overall">
@@ -175,10 +174,9 @@ export function TrackRecordPanel({ baseUrl, entity, entityName }: { baseUrl: str
             </p>
           </>
         ) : null}
-      </section>
+      </AfSettingsGroup>
 
-      <section className="trk_section">
-        <h4 className="idn_head">Who {entityName} has met</h4>
+      <AfSettingsGroup title={`Who ${entityName} has met`} className="trk_section">
         {met ? (
           <>
             <MetList title="People" rows={met.humans} testid="met-people" />
@@ -190,7 +188,7 @@ export function TrackRecordPanel({ baseUrl, entity, entityName }: { baseUrl: str
             ))}
           </>
         ) : null}
-      </section>
+      </AfSettingsGroup>
     </div>
   );
 }
