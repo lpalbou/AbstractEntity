@@ -137,6 +137,22 @@ describe("live ledger fold", () => {
     expect(titles([...journal(), reflect, ...visit]).slice(3)).toEqual(["1368 — he closes the day —"]);
   });
 
+  it("lives with few recalls: a visit's turn-1 events after the close never open a day", () => {
+    const reflect = env(1700, "binding", OWN, "t-reflect", { record_id: "ex:summary-1", source: "remember" }, { kind: "summary", title: "reflection" });
+    const visit = [listed(1765, "t-0001"), listed(1766, "t-0002"), env(1780, "binding", "chat-chat-20260709-ab12", "t-0001", { record_id: "ex:episode-1780", source: "remember" }, { kind: "episode", title: "exchange: hello" })];
+    const day = [listed(1849, "t-0001"), env(1850, "binding", "chat-owntime-20260709T120000", "t-0001", { record_id: "ex:episode-1850", source: "remember" }, { kind: "episode", title: "exchange: alone" })];
+    expect(titles([...journal(), reflect, ...visit, ...day]).slice(3)).toEqual([
+      "1700 — he closes the day —",
+      "1850 — a day of his own begins —",
+      "1850 — tick 1 —",
+    ]);
+  });
+
+  it("a recall with no participants recorded says nothing about who is there", () => {
+    const quiet = journal().map((e) => (e.seq === 87 ? recall(87, "t-0002", []) : e));
+    expect(titles(quiet)).toContain("87 — tick 2 —");
+  });
+
   it("a day the loop opens after a visit starts at its first solitary recall", () => {
     const visit = [host(170, "summon", "visit-run-2"), visitRecall(171, "t-0001"), env(180, "host", "visit-run-2", null, { kind: "session_closed" })];
     const nextDay = [recall(200, "t-0001"), listed(201, "t-0001"), env(240, "binding", "chat-owntime-20261108T060000", "t-0001", { record_id: "ex:episode-240", source: "remember" }, { kind: "episode", title: "exchange: morning" })];
@@ -188,6 +204,17 @@ describe("live follow", () => {
     expect(refs.stick.current).toBe(true);
     scroll(el.scrollTop - 300);
     expect(refs.stick.current).toBe(false);
+  });
+
+  it("wired to a list: revealing the tab leaves a reader who scrolled up where they were", () => {
+    const { el, scroll } = fakeList();
+    const refs = { stick: { current: true }, lastTop: { current: 0 } };
+    attachLiveFollow(el, refs, () => {}, FakeObserver);
+    scroll(el.scrollTop - 600);
+    const kept = el.scrollTop;
+    el.scrollHeight += 1000;
+    FakeObserver.resize(el);
+    expect(el.scrollTop).toBe(kept);
   });
 
   it("wired to a list: revealing the hidden tab lands on the newest line", () => {

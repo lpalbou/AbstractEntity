@@ -73,8 +73,9 @@ function clip(text: string, max = 96): string {
  * time, anyone with him is a visit). A tick starts at the first
  * envelope of a new turn — the recall trace that opens it carries the
  * turn in `need.turn_id`. Turns restart at 1 each day (one session per
- * day), so turn 1 opens a day; the first reflection turn (`t-reflect…`,
- * the runtime writes several) closes it, once. Operator report
+ * day), so turn 1 opens a day — only on an envelope that itself shows
+ * own time; the first reflection turn (`t-reflect…`, the runtime writes
+ * several) closes it, once, and nothing ticks again until a day opens. Operator report
  * 2026-11-07: the old run-change rule repeated "a day of his own begins"
  * before every tick and put each tick marker mid-tick. */
 export interface RhythmState {
@@ -108,12 +109,19 @@ function ownTimeStamp(env: ReplayEnvelope): boolean | null {
 }
 
 export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: LedgerLine[]; state: RhythmState } {
-  const ownTime = ownTimeStamp(env) ?? state.ownTime;
+  const stamp = ownTimeStamp(env);
+  const ownTime = stamp ?? state.ownTime;
   if (!ownTime) {
     return { lines: [], state: state === RHYTHM_START ? state : RHYTHM_START };
   }
   const turn = envelopeTurn(env);
-  if (!turn || turn === state.turn) {
+  const n = turn.match(/^t-0*(\d+)$/)?.[1];
+  // A day opens only on direct evidence (an own-time run or a recall
+  // made alone), and after the day closed nothing ticks until one does:
+  // lives that journal few recalls carried own time past the reflection
+  // into the next visit's turn-1 events (Castor, adversarial review).
+  const needsEvidence = n === "1" || (state.closed && !turn.startsWith("t-reflect"));
+  if (!turn || turn === state.turn || (n && needsEvidence && stamp !== true)) {
     return { lines: [], state: state.ownTime ? state : { ...state, ownTime: true } };
   }
   const base = {
@@ -127,7 +135,6 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
   };
   const lines: LedgerLine[] = [];
   let closed = state.closed;
-  const n = turn.match(/^t-0*(\d+)$/)?.[1];
   if (turn.startsWith("t-reflect")) {
     if (!closed) lines.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
     closed = true;
