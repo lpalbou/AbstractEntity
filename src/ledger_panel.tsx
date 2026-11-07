@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { AF_MEDIA, AfMemoryHintChip, useAfMedia } from "@abstractframework/ui-kit";
 
-import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
+import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
 import type { ReplayEnvelope } from "./stream_types";
 
 export interface LedgerPanelProps {
@@ -382,6 +382,17 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
               <div className="el_row_body">
                 <div className="el_title">
                   {summary.title} {expanded ? "▾" : "▸"}
+                  {first.line.trace_id ? (
+                    <button
+                      className="el_open_btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onSelectSubject(`beat:${first.line.trace_id}`);
+                      }}
+                    >
+                      open →
+                    </button>
+                  ) : null}
                 </div>
                 <div className="el_detail" title={weaveMembers(items)}>
                   {summary.detail}
@@ -425,13 +436,15 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           </div>
         );
       }
+      const target = lineTarget(line);
       return (
         <div
           key={`${line.seq}-${rowIdx}`}
-          className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""}`}
+          className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""} ${target ? "el_row_open" : ""}`}
+          title={target ? (target.startsWith("beat:") ? "Open what came to mind at this moment" : "Open this memory in Detail") : undefined}
           onClick={() => {
             props.onJump(index);
-            if (line.subject_id) props.onSelectSubject(line.subject_id);
+            if (target) props.onSelectSubject(target);
           }}
         >
           <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, renderItem.item.own)} />

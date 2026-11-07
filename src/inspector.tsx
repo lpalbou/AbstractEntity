@@ -516,7 +516,11 @@ export function Inspector({ fold, temporal, scrubSeq, selectedId, onSelect, verb
   // visible diary_read moments in the stream on their FIRST read (the
   // text cache serves later reads without touching the door).
   const content = useMemo(() => {
-    if (selectedId?.startsWith("standing:")) {
+    if (selectedId?.startsWith("beat:")) {
+      // A ledger recall line: what came to mind at that moment.
+      const beat = fold.beats.get(selectedId.slice("beat:".length));
+      if (beat) return <BeatCard fold={fold} beat={beat} onSelect={onSelect} />;
+    } else if (selectedId?.startsWith("standing:")) {
       const standing = fold.standings.get(selectedId.slice("standing:".length));
       if (standing) return <StandingCard standing={standing} />;
     } else if (selectedId) {

@@ -2388,6 +2388,67 @@ body {
   opacity: 0.32;
 }
 
+/* What he is doing now, above the ledger. */
+.now_line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.45;
+}
+
+.now_note {
+  color: var(--text-dim);
+}
+
+.now_dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--adm-both);
+  animation: now-pulse 1.6s ease-in-out infinite;
+}
+
+.now_dot_idle {
+  background: var(--text-dim);
+  animation: none;
+}
+
+@keyframes now-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .now_dot {
+    animation: none;
+  }
+}
+
+.el_row_open {
+  cursor: pointer;
+}
+
+.el_row_open:hover .el_title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.el_open_btn {
+  margin-left: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 400;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
 .el_row_current {
   background: var(--bg-raise);
   border-left-color: var(--ea-accent);

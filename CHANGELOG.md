@@ -4,6 +4,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The ledger keeps following even if the live connection stalls.** While live, the page checks
+  every 20 seconds that it holds the gateway's latest events; if the connection went quiet while
+  newer events exist, it fetches what it missed and reconnects.
+
 ### Changed
 
 - **A calmer, better organised Settings window.** Its nine sections now sit in four groups (Mind &
@@ -50,6 +54,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- **See what he is doing now.** Above the ledger, a line says whether he is thinking (which tick,
+  since when) or when his last moment ended and what he looked up in it (web searches, pages read,
+  memories reread), with a link to open it. Every ledger line opens what it is about in Detail: a
+  memory opens the memory, a recall opens what came to mind at that moment.
 - **A world model reads as his understanding of something.** The Detail tab now opens a world
   model with what it is about: when it first formed, how many times it was revised and by whom
   (him, or the sleep pass gathering evidence), when it was last updated, the evidence behind it and

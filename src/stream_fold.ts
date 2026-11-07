@@ -1076,6 +1076,31 @@ function tryHostRetrogradeRecovery(envelopes: ReplayEnvelope[], cache: FoldCache
   return { state: cache.state, index: target, last_seq: target >= 0 ? envelopes[target].seq : -1 };
 }
 
+/** Merge envelopes into a seq-sorted list (adversarial realtime review,
+ * 2026-07-08): newer ones append; retrograde host markers insert in seq
+ * order; a seq already held is a reconnect duplicate and is dropped. The
+ * same list comes back when nothing was added. */
+export function mergeEnvelopes(prev: ReplayEnvelope[], incoming: ReplayEnvelope[]): ReplayEnvelope[] {
+  let next = prev;
+  for (const env of incoming) {
+    const last = next.length > 0 ? next[next.length - 1].seq : -Infinity;
+    if (env.seq > last) {
+      next = next === prev ? [...prev, env] : (next.push(env), next);
+      continue;
+    }
+    let lo = 0;
+    let hi = next.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (next[mid].seq < env.seq) lo = mid + 1;
+      else hi = mid;
+    }
+    if (next[lo]?.seq === env.seq) continue;
+    next = [...next.slice(0, lo), env, ...next.slice(lo)];
+  }
+  return next;
+}
+
 /** Families that change what the entity IS (memories, diary, feelings,
  * closures, lifecycle markers) — not recall bookkeeping (`event`, `trace`,
  * `snapshot`). */
