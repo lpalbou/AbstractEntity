@@ -88,7 +88,7 @@ export interface RhythmState {
 
 export const RHYTHM_START: RhythmState = { ownTime: false, turn: null, closed: false };
 
-const OWN_TIME_RUN = /^(chat-)?owntime-/;
+export const OWN_TIME_RUN = /^(chat-)?owntime-/;
 
 function envelopeTurn(env: ReplayEnvelope): string {
   if (env.turn_id) return String(env.turn_id);
@@ -247,6 +247,13 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
     lines.push({ line: ledgerLine(env), index: i, own: rhythm.ownTime });
   }
   return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm };
+}
+
+/** What a ledger line opens in the Detail tab: the memory it is about, or
+ * the recall it belongs to ("beat:<trace>" — what came to mind then). */
+export function lineTarget(line: LedgerLine): string | null {
+  if (line.subject_id) return line.subject_id;
+  return line.trace_id ? `beat:${line.trace_id}` : null;
 }
 
 function displayTitle(env: ReplayEnvelope, fallback: string): string {
@@ -416,6 +423,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
     }
     case "trace": {
       const p = env.payload as unknown as TracePayload;
+      base.trace_id = base.trace_id || String((p as { trace_id?: string }).trace_id || "") || null;
       const cue = String(p.need?.cue_text ?? "");
       const admissions = p.admissions ?? {};
       const counts: Record<string, number> = {};
@@ -440,6 +448,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
     }
     case "snapshot": {
       const p = env.payload as unknown as SnapshotPayload;
+      base.trace_id = base.trace_id || String((p as { trace_id?: string }).trace_id || "") || null;
       return {
         ...base,
         title: "He holds these in mind",

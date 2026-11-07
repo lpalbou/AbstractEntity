@@ -1204,7 +1204,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             getSpeakState={voice.tts_supported ? (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle") : undefined}
             onFocusMessage={setFocusMid}
           />}
-          {detailTurn ? <TurnDetailModal turn={detailTurn} entityName={entityName} onClose={() => setDetailTurn(null)} /> : null}
+          {detailTurn ? <TurnDetailModal turn={detailTurn} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (
             <div className="cd_queue_offer">
               <span className="cd_note">His seat is taken — wait in line, or leave the message with him?</span>

@@ -47,8 +47,14 @@ import { PhaseGraphEditor } from "./phase_editor";
 import { HealthPanel } from "./health_panel";
 import { Inspector } from "./inspector";
 import { LedgerPanel } from "./ledger_panel";
+import { NowLine } from "./now_line";
 import { Timeline } from "./timeline";
-import { foldUpToIndex, lastLifeChangeSeq, type FoldCache } from "./stream_fold";
+import { foldUpToIndex, isDiaryGraphId, lastLifeChangeSeq, mergeEnvelopes, type FoldCache } from "./stream_fold";
+
+/** Live watchdog: how often to compare with the gateway, and how long the
+ * tail may be silent before newer gateway events mean it stalled. */
+const LIVE_CHECK_MS = 20_000;
+const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
 import { activeRuledPhase, dayCauseLine, deriveLifeState, type ClientVisitSignal } from "./entity_state";
@@ -65,6 +71,7 @@ import {
   getLoopStatus,
   getServerLifeState,
   listEntities,
+  fetchReplay,
   openLiveTail,
   parseLoopRefusal,
   parseNdjson,
@@ -508,34 +515,65 @@ export function EntityView(): React.ReactElement {
       (env) => {
         lastEnvelopeAtRef.current = Date.now();
         setEnvelopes((prev) => {
-          // Seq-keyed merge (adversarial realtime review, 2026-07-08): the
-          // old "drop anything ≤ last" dedup silently ate LEGITIMATE
-          // retrograde arrivals — host markers anchor to a journal base
-          // the tail may already have passed. Append fast-path; true
-          // duplicates drop; retrogrades insert in seq order.
-          const last = prev.length > 0 ? prev[prev.length - 1].seq : -Infinity;
-          if (env.seq > last) {
-            const next = [...prev, env];
-            setScrubIndex(next.length - 1);
-            return next;
-          }
-          // Binary search for the insert position among the (sorted) prefix.
-          let lo = 0;
-          let hi = prev.length;
-          while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (prev[mid].seq < env.seq) lo = mid + 1;
-            else hi = mid;
-          }
-          if (prev[lo]?.seq === env.seq) return prev; // reconnect duplicate
-          const next = [...prev.slice(0, lo), env, ...prev.slice(lo)];
-          setScrubIndex(next.length - 1);
+          const next = mergeEnvelopes(prev, [env]);
+          if (next !== prev) setScrubIndex(next.length - 1);
           return next;
         });
       },
       (status) => setLiveStatus(status),
     );
   }, []);
+
+  // Live watchdog (operator 2026-11-07: "the ledger still not updating by
+  // itself — once refreshing the page, I had more entries"): every 20 s
+  // while live, ask the gateway for anything after the last envelope held.
+  // If it has newer events and the tail has been silent for 15 s, the tail
+  // stalled (or was refused): take the missing events, reconnect from them,
+  // and say so in the console. A healthy tail delivers within a second, so
+  // it is never raced.
+  const envelopesRef = useRef(envelopes);
+  envelopesRef.current = envelopes;
+  useEffect(() => {
+    if (!live || sourceKind !== "gateway" || !entityName) return;
+    const base = gatewayUrl.trim().replace(/\/+$/, "");
+    let busy = false;
+    let cancelled = false; // this effect's run ended (left live, switched entity)
+    const check = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const held = envelopesRef.current;
+        const last = held.length > 0 ? held[held.length - 1].seq : 0;
+        const heardAt = lastEnvelopeAtRef.current ?? 0;
+        const silentMs = Date.now() - heardAt;
+        if (silentMs < LIVE_STALL_MS) return;
+        // From the start of the last held seq's base: a gateway marker
+        // written during the stall can carry a fraction of a seq the page
+        // already holds; the merge drops what is already held.
+        const fetched = await fetchReplay(base, entityName, Math.max(0, Math.floor(last) - 1));
+        // Act only if nothing moved meanwhile: still this live run, and the
+        // tail did not deliver while we asked (activity resuming is not a
+        // stall).
+        if (cancelled || (lastEnvelopeAtRef.current ?? 0) !== heardAt) return;
+        const next = mergeEnvelopes(envelopesRef.current, fetched);
+        if (next === envelopesRef.current) return;
+        const added = next.length - envelopesRef.current.length;
+        console.warn(`#FALLBACK live tail silent for ${Math.round(silentMs / 1000)} s while the gateway had ${added} event(s) the page lacked: caught up and reconnected`);
+        setEnvelopes(next);
+        setScrubIndex(next.length - 1);
+        startTail(base, entityName, next[next.length - 1].seq);
+      } catch {
+        // the next check tries again; the header shows the tail's own state
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = window.setInterval(check, LIVE_CHECK_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [live, sourceKind, entityName, gatewayUrl, startTail]);
 
   useEffect(() => {
     if (!live) {
@@ -1395,6 +1433,8 @@ export function EntityView(): React.ReactElement {
     }, 2000);
     return () => window.clearTimeout(t);
   }, [lifeChange, live]);
+  /** The Book entry a diary line or mark asked for (shown, never read). */
+  const [bookFocus, setBookFocus] = useState<{ id: string; nonce: number } | null>(null);
   /** The side tab on screen (null: none) — the card reads only while shown. */
   const [openTab, setOpenTab] = useState<string | null>(null);
   // The header's state, loop and cognition follow the live stream at once
@@ -2475,7 +2515,7 @@ export function EntityView(): React.ReactElement {
               id: "book",
               icon: "📔",
               title: "Book",
-              content: <BookReader fold={fold} verbatimSource={verbatimSource} />,
+              content: <BookReader fold={fold} verbatimSource={verbatimSource} focus={bookFocus} />,
             },
             {
               id: "health",
@@ -2548,6 +2588,15 @@ export function EntityView(): React.ReactElement {
                     <input type="checkbox" checked={showQuiet} onChange={() => setShowQuiet((v) => !v)} />
                     audit lines
                   </label>
+                  <NowLine
+                    envelopes={envelopes}
+                    live={live}
+                    source={verbatimSource}
+                    onOpen={(id) => {
+                      setSelectedId(fold.graph_to_row.get(id) ?? id);
+                      setRequestedTab({ tab: "detail", nonce: Date.now() });
+                    }}
+                  />
                   <LedgerPanel
                     envelopes={envelopes}
                     scrubIndex={effectiveIndex}
@@ -2555,7 +2604,23 @@ export function EntityView(): React.ReactElement {
                       setPlaying(false);
                       if (!live) setScrubIndex(i);
                     }}
-                    onSelectSubject={setSelectedId}
+                    onSelectSubject={(id) => {
+                      // A ledger line opens what it is about (operator
+                      // 2026-11-07: "the items in the ledger … should be
+                      // informative, interactive and actionable"). A diary
+                      // entry opens the Book, never Detail: selecting a diary
+                      // record makes Detail (mounted even when hidden) read
+                      // it, and that read is recorded in his biography — in
+                      // the Book, reading the words is its own click.
+                      if (id && isDiaryGraphId(id)) {
+                        const nonce = Date.now();
+                        setBookFocus({ id, nonce });
+                        setRequestedTab({ tab: "book", nonce });
+                        return;
+                      }
+                      setSelectedId(id);
+                      if (id) setRequestedTab({ tab: "detail", nonce: Date.now() });
+                    }}
                     showQuiet={showQuiet}
                     onToggleQuiet={() => setShowQuiet((v) => !v)}
                     loadingNote={bootProgress}
@@ -2590,6 +2655,27 @@ export function EntityView(): React.ReactElement {
               setLiveStatus(null);
             }
             setScrubIndex(i);
+          }}
+          onOpenEvent={(i, recordId) => {
+            // A mark on the time panel: go there and open what formed.
+            setPlaying(false);
+            if (live) {
+              tailRef.current?.close();
+              tailRef.current = null;
+              setLive(false);
+              setLiveStatus(null);
+            }
+            setScrubIndex(i);
+            // A diary mark opens the Book (no read); anything else opens in
+            // Detail (see the ledger's rule above).
+            if (isDiaryGraphId(recordId)) {
+              const nonce = Date.now();
+              setBookFocus({ id: recordId, nonce });
+              setRequestedTab({ tab: "book", nonce });
+              return;
+            }
+            setSelectedId(recordId);
+            setRequestedTab({ tab: "detail", nonce: Date.now() });
           }}
           onTogglePlay={() => setPlaying((v) => !v)}
           onSpeed={setSpeed}

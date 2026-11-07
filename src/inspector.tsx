@@ -6,16 +6,22 @@
  * scars and bonds, and belief revisions.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type { BeatState, FeelingEvent, FoldState, NodeState, StandingState } from "./stream_fold";
 import type { TemporalActivation } from "./temporal_activation";
 import { ADMISSION_LABELS } from "./stream_types";
-import { fetchDiaryEntry, fetchRecordVerbatim } from "./stream_source";
+import { fetchDiaryEntry } from "./stream_source";
 import { shapeLabel } from "./node_label";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
 import { SectionDisclosure } from "./section_disclosure";
+import { DreamDetail } from "./dream_detail";
+import { WorldModelView } from "./world_model_view";
+import { readRecordWords, VerbatimTurns } from "./verbatim_view";
+
+/** Rows listed before "(…) N more" — every one stays one click away. */
+const PARTNERS_SHOWN = 8;
 
 export interface InspectorProps {
   fold: FoldState;
@@ -75,81 +81,18 @@ function FeelingEvents({ events }: { events: FeelingEvent[] }): React.ReactEleme
  * artifacts): a diary entry marks the biography ON ITS FIRST read only —
  * cache hits never touch the door (the read-flood lesson). Honest states:
  * loading, the text, born-digest notes, or the reason there is none. */
-/** One speaker turn inside an exchange verbatim. */
-export interface VerbatimTurn {
-  speaker: string;
-  text: string;
-}
-
-/** Parse an exchange verbatim ("person:admin:\n…\n\nEphemeral:\n…") into
- * labeled turns. STRICT speaker recognition (laurent dm#54 pt5: the
- * interlocutor belongs in metadata, not scrolling text): a line is a
- * speaker head only when the WHOLE line is `X:` where X is a namespaced
- * identity (person:/entity:/agent:…), the entity's own name
- * (case-insensitive), or the door — prose headers like "Note:" never
- * split. Returns null when the text doesn't open with a speaker head
- * (diary entries, born-digest words): the caller renders plain text. */
-/** The semantics-blessed inner-speech section marker (framework c3313/
- * c3318): runtime appends "(thinking, unspoken)" to the turn verbatim at
- * the three formation sites, byte-identical forever. Split the spoken
- * verbatim from his unspoken reasoning so the render treats them
- * distinctly — say-vs-think honesty: his private reasoning must never read
- * as something he said aloud. Absent marker = no thinking section (pre-ship
- * verbatims and substrates that return no reasoning pass through whole). */
-const UNSPOKEN_MARKER = "(thinking, unspoken)";
-
-export function splitUnspokenThinking(raw: string): { spoken: string; thinking: string | null } {
-  const text = String(raw || "");
-  // The marker sits on its own line (a labeled section head). Match at a
-  // line boundary so the literal string inside prose never false-splits.
-  const idx = text.search(/(^|\n)\s*\(thinking, unspoken\)\s*(\n|$)/);
-  if (idx < 0) return { spoken: text, thinking: null };
-  const markerStart = text.indexOf(UNSPOKEN_MARKER, idx);
-  const spoken = text.slice(0, markerStart).replace(/\n+$/, "");
-  const thinking = text.slice(markerStart + UNSPOKEN_MARKER.length).replace(/^\n+/, "").trim();
-  return { spoken, thinking: thinking || null };
-}
-
-export function parseVerbatimTurns(raw: string, entityName: string): VerbatimTurn[] | null {
-  const lines = String(raw || "").split("\n");
-  const name = entityName.trim().toLowerCase();
-  const isSpeakerHead = (line: string): string | null => {
-    const m = line.match(/^(\S+|\S+ \(while looking things up\)|\(the door\)):\s*$/);
-    if (!m) return null;
-    const head = m[1];
-    const bare = head.replace(/ \(while looking things up\)$/, "");
-    if (/^[a-z0-9_-]+:[\w.@-]+$/i.test(bare)) return head; // namespaced identity
-    if (bare.toLowerCase() === name) return head; // the entity itself
-    if (bare === "(the door)") return head;
-    return null;
-  };
-  const turns: VerbatimTurn[] = [];
-  let current: VerbatimTurn | null = null;
-  for (let i = 0; i < lines.length; i++) {
-    const head = isSpeakerHead(lines[i]);
-    // A head mid-text only counts at a paragraph boundary (prev empty).
-    if (head && (current === null || i === 0 || lines[i - 1].trim() === "")) {
-      if (current) turns.push({ ...current, text: current.text.trim() });
-      current = { speaker: head, text: "" };
-      continue;
-    }
-    if (current === null) {
-      if (lines[i].trim()) return null; // words before any speaker → not an exchange
-      continue;
-    }
-    current.text += (current.text ? "\n" : "") + lines[i];
-  }
-  if (current) turns.push({ ...current, text: current.text.trim() });
-  return turns.length > 0 ? turns : null;
-}
+export { parseVerbatimTurns, splitUnspokenThinking, type VerbatimTurn } from "./verbatim_parse";
 
 function InlineVerbatim({
   node,
   source,
   onSpeakers,
+  plain = false,
 }: {
   node: NodeState;
   source: VerbatimSource;
+  /** Words that are not Markdown, shown as written, without the born-digest note. */
+  plain?: boolean;
   /** Reports the exchange's OTHER participants up to the card's metadata
    * panel (dm#54 pt5) — fires once per fetch. */
   onSpeakers?(speakers: string[]): void;
@@ -157,12 +100,9 @@ function InlineVerbatim({
   const [state, setState] = useState<{ phase: "loading" } | { phase: "ready"; text: string; note: string | null } | { phase: "none"; message: string }>({
     phase: "loading",
   });
-  const reportedRef = useRef(false);
-
   useEffect(() => {
     let cancelled = false;
     setState({ phase: "loading" });
-    reportedRef.current = false; // a new node's speakers report fresh
     (async () => {
       try {
         if (node.diary && node.entry_id) {
@@ -182,22 +122,8 @@ function InlineVerbatim({
           }
           return;
         }
-        const vk = textCacheKey(source.baseUrl, source.entity, `verbatim:${node.graph_id ?? node.id}`);
-        let cached = await getCachedText(vk);
-        let note: string | null = cached?.note ?? null;
-        if (!cached) {
-          const v = await fetchRecordVerbatim(source.baseUrl, source.entity, node.graph_id ?? node.id);
-          note = v.born_digest
-            ? node.kind === "world_model"
-              ? "His working model — born as words by the sleep pass (mechanical distillation for now; it becomes his own prose only through his revisions)."
-              : "Born as words — never a compression; these are all the words there are."
-            : null;
-          cached = { text: String(v.text ?? ""), note: note ?? "" };
-          if (cached.text) void putCachedText(vk, cached);
-        } else {
-          note = cached.note || null;
-        }
-        if (!cancelled) setState({ phase: "ready", text: cached.text || "", note });
+        const words = await readRecordWords(source, node.graph_id ?? node.id, node.kind);
+        if (!cancelled) setState({ phase: "ready", text: words.text, note: words.note });
       } catch (e) {
         if (cancelled) return;
         const err = e as Error & { status?: number };
@@ -218,55 +144,12 @@ function InlineVerbatim({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id, node.graph_id, node.entry_id, node.diary, node.kind, source.baseUrl, source.entity]);
 
-  // Speaker-labeled rendering (dm#54 pt6: "clear verbatim"): exchanges
-  // split into turns with the speaker as a small header chip; anything
-  // that isn't exchange-shaped renders as plain words. The interlocutor
-  // list flows UP into the metadata panel (pt5).
-  // Separate his unspoken reasoning (if the verbatim carries it) BEFORE
-  // parsing turns — the spoken half parses as the exchange, the thinking
-  // half renders as its own muted block, never as a turn he spoke.
-  const { spoken, thinking } = useMemo(
-    () => (state.phase === "ready" ? splitUnspokenThinking(state.text) : { spoken: "", thinking: null }),
-    [state],
-  );
-  const turns = useMemo(
-    () => (state.phase === "ready" ? parseVerbatimTurns(spoken, source.entity) : null),
-    [state.phase, spoken, source.entity],
-  );
-  useEffect(() => {
-    if (turns && onSpeakers && !reportedRef.current) {
-      reportedRef.current = true;
-      const name = source.entity.trim().toLowerCase();
-      const others = [...new Set(turns.map((t) => t.speaker.replace(/ \(while looking things up\)$/, "")))].filter(
-        (s) => s.toLowerCase() !== name && s !== "(the door)",
-      );
-      onSpeakers(others);
-    }
-  }, [turns, onSpeakers, source.entity]);
-
   if (state.phase === "loading") return <p className="ei_note">reading his words…</p>;
   if (state.phase === "none") return <p className="ei_note">{state.message}</p>;
   return (
     <div className="ei_verbatim_inline">
-      {state.note ? <p className="ei_verbatim_note">{state.note}</p> : null}
-      {turns ? (
-        <div className="ei_turns">
-          {turns.map((t, i) => (
-            <div key={i} className={`ei_turn ${t.speaker.toLowerCase().startsWith(source.entity.trim().toLowerCase()) ? "ei_turn_self" : ""}`}>
-              <span className="ei_turn_speaker">{t.speaker}</span>
-              <pre className="ei_turn_text">{t.text}</pre>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <pre className="ei_verbatim_text">{spoken || state.text}</pre>
-      )}
-      {thinking ? (
-        <div className="ei_unspoken">
-          <span className="ei_unspoken_head">thinking · unspoken</span>
-          <pre className="ei_unspoken_text">{thinking}</pre>
-        </div>
-      ) : null}
+      {state.note && !plain ? <p className="ei_verbatim_note">{state.note}</p> : null}
+      <VerbatimTurns text={state.text} entity={source.entity} onSpeakers={onSpeakers} plain={plain} />
     </div>
   );
 }
@@ -295,8 +178,10 @@ function NodeCard({
       rows.push({ id: other, title: otherNode?.title || other.slice(0, 18), count: e.count });
     }
     rows.sort((a, b) => b.count - a.count);
-    return rows.slice(0, 8);
+    return rows;
   }, [fold, node]);
+  const [allPartners, setAllPartners] = useState(false);
+  useEffect(() => setAllPartners(false), [node.id]);
 
   // Feelings ABOUT this record (valence targets may be record ids).
   const feeling = useMemo(() => {
@@ -311,31 +196,7 @@ function NodeCard({
 
   const bornDate = node.born_at ? node.born_at.slice(0, 16).replace("T", " ") : null;
 
-  return (
-    <div className="ei_card">
-      <div className="ei_kind_row">
-        {/* Bookkeeping markers are kind="claim" but NOT identity — the chip
-         * must not wear identity gold (engine excludes them from the self). */}
-        <span className={`ei_kind ei_kind_${node.diary ? "diary" : node.bookkeeping ? "bookkeeping" : node.kind}`}>
-          {node.diary ? "diary" : node.bookkeeping ? `engine act${node.maintenance ? ` · ${node.maintenance}` : ""}` : node.kind}
-        </span>
-        {admissionBadge(node.last_admission)}
-      </div>
-      {/* The kind badge sits directly above — a "lesson:" prefix here said
-        * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
-      <h3 className="ei_title">{shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
-      {node.digest_method ? (
-        <p
-          className="ei_digest_method"
-          title="Digest provenance — who wrote this record's words: mechanical-v1/v2 = the driver's floor (never marker-only), mechanical-flow-v1 = the flow brain's mechanical digest; entity prose carries no method. Mechanical digests are repairable debt (the consent set governs re-digestion)."
-        >
-          digest: <code>{node.digest_method}</code>{node.digest_method.startsWith("mechanical") ? " — mechanical, repairable" : ""}
-        </p>
-      ) : null}
-      {/* METADATA PANEL FIRST (dm#54 pt6: "clear metadata panel, clear
-        * verbatim, links") — every fact in one labeled grid, the date
-        * beside the seq (pt5: "it should have a clear date"), the
-        * interlocutor as a field once the verbatim reports it. */}
+  const recordFacts = (
       <dl className="ei_facts">
         {speakers.length > 0 ? (
           <>
@@ -351,7 +212,7 @@ function NodeCard({
         ) : null}
         <dt>born</dt>
         <dd>
-          {bornDate ? `${bornDate} · ` : ""}seq {node.first_seq}
+          {bornDate ? `${bornDate} UTC · ` : ""}seq {node.first_seq}
         </dd>
         <dt>used</dt>
         <dd>
@@ -393,17 +254,59 @@ function NodeCard({
           </>
         ) : null}
       </dl>
+  );
+
+  return (
+    <div className="ei_card">
+      <div className="ei_kind_row">
+        {/* Bookkeeping markers are kind="claim" but NOT identity — the chip
+         * must not wear identity gold (engine excludes them from the self). */}
+        <span className={`ei_kind ei_kind_${node.diary ? "diary" : node.bookkeeping ? "bookkeeping" : node.kind}`}>
+          {node.diary ? "diary" : node.bookkeeping ? `engine act${node.maintenance ? ` · ${node.maintenance}` : ""}` : node.kind}
+        </span>
+        {admissionBadge(node.last_admission)}
+      </div>
+      {/* The kind badge sits directly above — a "lesson:" prefix here said
+        * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
+      <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
+      {node.digest_method ? (
+        <p
+          className="ei_digest_method"
+          title="Digest provenance — who wrote this record's words: mechanical-v1/v2 = the driver's floor (never marker-only), mechanical-flow-v1 = the flow brain's mechanical digest; entity prose carries no method. Mechanical digests are repairable debt (the consent set governs re-digestion)."
+        >
+          digest: <code>{node.digest_method}</code>{node.digest_method.startsWith("mechanical") ? " — mechanical, repairable" : ""}
+        </p>
+      ) : null}
+      {/* METADATA PANEL FIRST (dm#54 pt6: "clear metadata panel, clear
+        * verbatim, links") — every fact in one labeled grid, the date
+        * beside the seq (pt5: "it should have a clear date"), the
+        * interlocutor as a field once the verbatim reports it. */}
+      {node.kind === "world_model" ? null : recordFacts}
       {/* THE WORDS (operator dm#28): no button between the click and the
         * verbatim — the Detail tab IS the reading surface. Only relation
         * rows and engine bookkeeping carry no words to show. */}
+      {node.kind === "world_model" && verbatimSource ? <WorldModelView fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
+      {node.kind === "world_model" ? (
+        <SectionDisclosure id="wm_record" title="Record details">
+          {recordFacts}
+        </SectionDisclosure>
+      ) : null}
+      {node.kind === "dream" && verbatimSource ? <DreamDetail fold={fold} dream={node} source={verbatimSource} onSelect={onSelect} /> : null}
       {node.kind !== "relation" && !node.bookkeeping ? (
         verbatimSource ? (
-          <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
+          node.kind === "dream" ? (
+            <SectionDisclosure id="dream_summary" title="The sleep pass's summary">
+              <p className="ei_note">A mechanical summary that quotes titles cut short — what the night touched is listed above in full.</p>
+              <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} plain />
+            </SectionDisclosure>
+          ) : node.kind === "world_model" ? null : (
+            <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
+          )
         ) : (
           <p className="ei_note">Verbatim reads need a connected gateway (this is an exported file).</p>
         )
       ) : null}
-      {node.signals && node.signals.length > 0 ? (
+      {node.signals && node.signals.length > 0 && !(node.kind === "dream" && verbatimSource) ? (
         <SectionDisclosure id="night" className="ei_night" title="The night moved" sectionTitle="The night's telemetry (wave-5 dream signals): what the sleep pass MOVED — structure decided what enters; the felt tint only COLORS it (a read of his accumulated feelings, never a deposit). Machine acts carry no tint by design.">
           <ul className="ei_signals">
             {node.signals.map((s, i) => {
@@ -478,12 +381,17 @@ function NodeCard({
       ) : null}
       {partners.length > 0 ? (
         <SectionDisclosure id="partners" title="Used together with">
-          {partners.map((p) => (
+          {(allPartners ? partners : partners.slice(0, PARTNERS_SHOWN)).map((p) => (
             <button key={p.id} className="ei_link ei_partner" onClick={() => onSelect(p.id)}>
               <span>{p.title}</span>
               <span className="ei_count">×{p.count}</span>
             </button>
           ))}
+          {partners.length > PARTNERS_SHOWN ? (
+            <button className="wm_more" onClick={() => setAllPartners((v) => !v)}>
+              {allPartners ? `show the first ${PARTNERS_SHOWN}` : `(…) ${partners.length - PARTNERS_SHOWN} more`}
+            </button>
+          ) : null}
         </SectionDisclosure>
       ) : null}
     </div>
@@ -545,6 +453,8 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
     return byLabel;
   }, [beat]);
 
+  const [allDropped, setAllDropped] = useState(false);
+  useEffect(() => setAllDropped(false), [beat]);
   const order = ["self", "stm", "both", "stimulus"];
   return (
     <div className="ei_card">
@@ -579,7 +489,7 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
       })}
       {beat.dropped.length > 0 ? (
         <SectionDisclosure id="dropped" title="Considered but dropped">
-          {beat.dropped.slice(0, 10).map((d, i) => {
+          {(allDropped ? beat.dropped : beat.dropped.slice(0, PARTNERS_SHOWN)).map((d, i) => {
             const node = fold.nodes.get(d.record_id);
             return (
               <div key={`${d.record_id}-${i}`} className="ei_dropped">
@@ -588,6 +498,11 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
               </div>
             );
           })}
+          {beat.dropped.length > PARTNERS_SHOWN ? (
+            <button className="wm_more" onClick={() => setAllDropped((v) => !v)}>
+              {allDropped ? `show the first ${PARTNERS_SHOWN}` : `(…) ${beat.dropped.length - PARTNERS_SHOWN} more`}
+            </button>
+          ) : null}
         </SectionDisclosure>
       ) : null}
     </div>
@@ -601,7 +516,11 @@ export function Inspector({ fold, temporal, scrubSeq, selectedId, onSelect, verb
   // visible diary_read moments in the stream on their FIRST read (the
   // text cache serves later reads without touching the door).
   const content = useMemo(() => {
-    if (selectedId?.startsWith("standing:")) {
+    if (selectedId?.startsWith("beat:")) {
+      // A ledger recall line: what came to mind at that moment.
+      const beat = fold.beats.get(selectedId.slice("beat:".length));
+      if (beat) return <BeatCard fold={fold} beat={beat} onSelect={onSelect} />;
+    } else if (selectedId?.startsWith("standing:")) {
       const standing = fold.standings.get(selectedId.slice("standing:".length));
       if (standing) return <StandingCard standing={standing} />;
     } else if (selectedId) {

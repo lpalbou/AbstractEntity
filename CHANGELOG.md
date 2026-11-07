@@ -4,8 +4,30 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The ledger keeps following even if the live connection stalls.** While live, the page checks
+  every 20 seconds that it holds the gateway's latest events; if the connection went quiet while
+  newer events exist, it fetches what it missed and reconnects.
+
+### Changed
+
+- **A calmer, better organised Settings window.** Its nine sections now sit in four groups (Mind &
+  voice, Identity & record, Workspace, Prompt) in a side list — a section picker on a phone — and
+  each opens with a title and one line saying what it is for, with the long explanations folded
+  under "How … works". The window, its menus, switches and buttons are the shared AbstractFramework
+  ones, and every setting saves exactly as before.
+
 ### Fixed
 
+- **The "what moved in his mind" window under a reply is readable.** Each lookup now says in
+  plain words what he asked (the web search, the page, the memory search) and what came back:
+  web results as titles, snippets and links, a page with its title and text, memory search hits
+  as rows, failures marked clearly, with long results folded and the exact text one click away.
+  The system prompt opens as titled sections (who he is, his values, his diary, then the
+  framework's instructions, and anything else as "Other instructions") and copy still copies it
+  exactly. Every memory in the context can be opened to its full words; a diary entry opens only
+  when you click, and the button says whether that opening is recorded in his biography. The
+  Context tab's copy button copies each memory's title and excerpt as the turn report gives them,
+  marked "…" where they were cut. No picture in a page, a tool result or the prompt is ever loaded.
 - **The ledger follows the entity live again.** In live mode the ledger kept showing only what
   had loaded when the page opened, while the timeline went on counting, so an entity's personal
   time looked stuck on its first recall. Every new line now appears as it lands: the diary entries
@@ -29,6 +51,34 @@ All notable changes to `@abstractframework/entity` are recorded here.
   colour key names the six colours, all taken from the theme so they stay readable in light and
   dark; it can be folded, and stays as you left it. Grouped "memories drawn on" rows read in two
   lines (hover for every memory, click for each event), and each tick line says when it started.
+
+### Changed
+
+- **A time panel that shows his life's defining moments.** The bar at the bottom is taller: above
+  the scrub bar, one lane each for the moments he lived, his diary entries, lessons, world-model
+  revisions and dreams, every mark where it happened; hovering a mark says what it is and when, and
+  clicking it moves time there and opens it (a diary entry opens in his Book, where reading its
+  words stays a separate, recorded click). Play, pause and the step buttons sit together on the
+  right, and the position reads as a time.
+- **See what he is doing now.** Above the ledger, a line says whether he is thinking (which tick,
+  since when) or when his last moment ended and what he looked up in it (web searches, pages read,
+  memories reread), with a link to open it. Every ledger line opens what it is about in Detail: a
+  memory opens the memory, a diary entry opens in his Book (reading its words there is a separate,
+  recorded click), a recall opens what came to mind at that moment. A turn with no moment after an
+  hour is no longer shown as thinking.
+- **A world model reads as his understanding of something.** The Detail tab now opens a world
+  model with what it is about: when it first formed, how many times it was revised and by whom
+  (him, or the sleep pass gathering evidence), when it was last updated, the evidence behind it and
+  its threads. Then comes his understanding in his own words, as of when he wrote it (or a plain
+  statement that he has not written it yet), how his view evolved from revision to revision, and
+  finally the memories it comes from, one line each, his words one click away.
+- **A dream shows what it touched.** Instead of the sleep pass's run-on summary, the Detail tab
+  shows how his understanding changed (the card revised, and the memories new in it) and what the
+  night set side by side, each with the night's own note and how it felt, and the memories
+  themselves in full; the summary stays below.
+- **His words are formatted.** Answers render as Markdown (images stay links), his choice to
+  rest reads as a line ("Chose to rest: …"), and code blocks wrap instead of scrolling sideways.
+  "Used together with" and a recall's "considered but dropped" list every memory behind "(…)".
 
 ## [0.11.2] - 2026-11-07
 

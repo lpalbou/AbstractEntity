@@ -12,60 +12,28 @@
  * "The goal is really to be able to probe the input context and the
  * outcomes." Everything here is driver-authored data; nothing is parsed
  * from reply prose.
+ *
+ * Readable (operator 2026-11-07): tools, the system prompt and context
+ * memories render through turn_probe_views.tsx, which reads only formats
+ * our own code emits (turn_probe_parse.ts) and keeps every exact text one
+ * click away.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-import type { ChatTurnResult, TurnMemory } from "./stream_source";
+import type { ChatTurnResult } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
+import type { VerbatimSource } from "./verbatim_modal";
+import { MEMORY_DIGEST_CAP, MEMORY_TITLE_CAP, servedExcerpt, summarizeTools } from "./turn_probe_parse";
+import { ContextMemory, safeText, SystemPromptView, ToolCall, whyLabel, type ToolDetail } from "./turn_probe_views";
 
 export interface TurnDetailModalProps {
   turn: ChatTurnResult;
   entityName: string;
+  /** Where a context memory's full words are read (the pure record read). */
+  source: VerbatimSource;
   onClose(): void;
-}
-
-const WHY_LABEL: Record<string, string> = {
-  stimulus: "matched what was said",
-  stm: "just worked with it",
-  both: "matched + just worked with it",
-  self: "identity (always present)",
-};
-
-/** Render-safe text: the object-as-child class crashed the whole app once
- * (React #31, 2026-07-08 23:49) — every server-shaped field renders
- * through this, never raw. */
-function safeText(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  return typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
-}
-
-function MemoryRow({ m }: { m: TurnMemory }): React.ReactElement {
-  const activation = m.activation ?? {};
-  const total = typeof activation.total === "number" ? activation.total : null;
-  return (
-    <div className="tdm_mem">
-      <div className="tdm_mem_head">
-        <span className={`ei_kind ei_kind_${safeText(m.kind) || "memory"}`}>{safeText(m.kind) || "memory"}</span>
-        <span className="tdm_mem_title">{safeText(m.title) || safeText(m.tag) || m.graph_id?.slice(0, 22) || "?"}</span>
-        {m.tag ? <span className="tdm_tag">#{safeText(m.tag)}</span> : null}
-      </div>
-      {m.digest ? <div className="tdm_mem_digest">{safeText(m.digest)}</div> : null}
-      <div className="tdm_mem_meta">
-        <span title="Why this memory entered the context">{WHY_LABEL[m.admission ?? ""] ?? m.why ?? "recalled"}</span>
-        {m.born_at ? (
-          <span title="When this memory was born — 'last time' is answerable">{safeText(m.born_at).slice(0, 16).replace("T", " ")}</span>
-        ) : null}
-        {m.origin ? (
-          <span title="Where it came from — his own retellings are not corroborations">{safeText(m.origin)}</span>
-        ) : null}
-        <span title="Lifetime selected count — never decays">used {m.global_count ?? 0}×</span>
-        {total !== null ? <span title="Temporal activation right now (decays with disuse)">warmth {total.toFixed(1)}</span> : null}
-        {m.tokens ? <span title="Prompt tokens this handle cost">~{m.tokens} tok</span> : null}
-      </div>
-    </div>
-  );
 }
 
 type ProbeTab = "context" | "tools" | "system";
@@ -74,9 +42,14 @@ async function copyToClipboard(text: string, done: (msg: string) => void): Promi
   done((await clipboardWrite(text)) ? "copied" : COPY_FAILED);
 }
 
-export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalProps): React.ReactElement {
+export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetailModalProps): React.ReactElement {
   const [tab, setTab] = useState<ProbeTab>("context");
   const [copied, setCopied] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // Each tab opens at its top (the body is one scroller for all three).
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [tab]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -101,7 +74,7 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
   // carries the real names — `??` never fell through, so the modal said
   // "Tools 0 / No lookups" over a turn full of searches). Non-empty
   // details win (args+results); otherwise the driver-authored names.
-  const tools: Array<{ name: string; arg?: string; result?: string; success?: boolean }> =
+  const tools: ToolDetail[] =
     turn.tool_details && turn.tool_details.length > 0 ? turn.tool_details : (turn.tools_ran ?? []).map((name) => ({ name }));
   const files = turn.files ?? [];
   const notices = turn.notices ?? [];
@@ -113,15 +86,21 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
   const claimVerdict = toolClaimVerdict(turn.reply, turn.tools_ran);
 
   const contextText = (): string => {
-    const lines = [`# Context — ${turn.turn_id ?? "this turn"} (${memories.length} memories)`, ""];
+    const lines = [
+      `# Context — ${turn.turn_id ?? "this turn"} (${memories.length} memories)`,
+      "Each memory as the turn report serves it: its title and digest, ending with \"…\" where the report cut them. Open a card for its full words.",
+      "",
+    ];
     for (const m of memories) {
-      lines.push(`## ${safeText(m.kind) || "memory"} — ${safeText(m.title) || safeText(m.tag) || m.graph_id || "?"}`);
-      const meta = [`why: ${WHY_LABEL[m.admission ?? ""] ?? safeText(m.why) ?? "recalled"}`];
+      const title = servedExcerpt(safeText(m.title), MEMORY_TITLE_CAP);
+      lines.push(`## ${safeText(m.kind) || "memory"} — ${title.text ? title.text + (title.cut ? "…" : "") : safeText(m.tag) || m.graph_id || "?"}`);
+      const meta = [`why: ${whyLabel(m)}`];
       if (m.born_at) meta.push(`born ${safeText(m.born_at).slice(0, 16)}`);
       if (m.origin) meta.push(`origin ${safeText(m.origin)}`);
       meta.push(`used ${m.global_count ?? 0}×`, `~${m.tokens ?? "?"} tok`);
       lines.push(meta.join(" · "));
-      if (m.digest) lines.push(safeText(m.digest));
+      const digest = servedExcerpt(safeText(m.digest), MEMORY_DIGEST_CAP);
+      if (digest.text) lines.push(digest.text + (digest.cut ? "…" : ""));
       lines.push("");
     }
     return lines.join("\n");
@@ -159,7 +138,7 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
         </div>
         <div className="tdm_tabs">
           <button className={`tdm_tab ${tab === "context" ? "tdm_tab_on" : ""}`} onClick={() => setTab("context")}>
-            Context <span className="tdm_count">{memories.length}</span>
+            Context <span className="tdm_count">{turn.memories === undefined ? "–" : memories.length}</span>
           </button>
           <button className={`tdm_tab ${tab === "tools" ? "tdm_tab_on" : ""}`} onClick={() => setTab("tools")}>
             Tools <span className="tdm_count">{tools.length}</span>
@@ -178,20 +157,24 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
             {copied ?? "⧉ copy"}
           </button>
         </div>
-        <div className="ev_body tdm_body">
+        <div ref={bodyRef} className="ev_body tdm_body">
           {tab === "context" ? (
             <>
               <section>
                 {memories.length === 0 ? (
-                  <p className="tdm_quiet">No memories beyond his identity core entered this turn.</p>
+                  <p className="tdm_quiet">
+                    {turn.memories === undefined
+                      ? "Which memories entered this turn is not served here: only a turn sent from this page carries them (a rejoined or reloaded conversation keeps its tools only)."
+                      : "No memories beyond his identity core entered this turn."}
+                  </p>
                 ) : (
-                  memories.map((m, i) => <MemoryRow key={m.record_id ?? m.tag ?? i} m={m} />)
+                  memories.map((m, i) => <ContextMemory key={m.record_id || m.graph_id || m.tag || i} m={m} source={source} />)
                 )}
                 {identityRows.length > 0 ? (
                   <>
                     <h4 className="tdm_h">identity — always present, never counted</h4>
                     {identityRows.map((m, i) => (
-                      <MemoryRow key={m.record_id ?? m.tag ?? `id${i}`} m={m} />
+                      <ContextMemory key={m.record_id || m.graph_id || m.tag || `id${i}`} m={m} source={source} />
                     ))}
                   </>
                 ) : null}
@@ -201,7 +184,11 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
                   Formed this turn <span className="tdm_count">{formedList.length + diaryList.length}</span>
                 </h4>
                 {formedList.length === 0 && diaryList.length === 0 ? (
-                  <p className="tdm_quiet">Nothing formed (the turn did not complete a memory).</p>
+                  <p className="tdm_quiet">
+                    {turn.records_formed === undefined && turn.diary_entries === undefined
+                      ? "What this turn formed is not served here (only a turn sent from this page carries it)."
+                      : "Nothing formed (the turn did not complete a memory)."}
+                  </p>
                 ) : (
                   <ul className="tdm_list">
                     {formedList.map((id) => (
@@ -249,34 +236,12 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
               {tools.length === 0 ? (
                 <p className="tdm_quiet">No lookups — the reply came from context alone.</p>
               ) : (
-                tools.map((t, i) => (
-                  <div key={i} className="tdm_tool">
-                    <div className="tdm_tool_head">
-                      <code>{safeText(t.name)}</code>
-                      {t.arg ? <span className="tdm_arg">{safeText(t.arg)}</span> : null}
-                      {t.success === false ? (
-                        <span className="tdm_tool_failed" title="This call failed or was refused — the result below is the error text, verbatim.">
-                          ✗ failed
-                        </span>
-                      ) : null}
-                    </div>
-                    {t.result ? (
-                      <pre className="tdm_tool_result">{safeText(t.result)}</pre>
-                    ) : (
-                      // Honest ABSENCE, never accusation (memory c74 +
-                      // gateway c79 forensics: the tool RAN and succeeded;
-                      // the old text blamed the gateway with a stale
-                      // 2026-07-09 citation and read as a tool failure).
-                      // Post-fix gateways fold results from the run's own
-                      // ledger, so this fires only on older gateways, a
-                      // ledger-read failure, or a genuinely-empty output.
-                      <p className="tdm_quiet tdm_tool_noresult">
-                        Ran — the result text is not served for this turn (an older gateway, a ledger-read hiccup, or
-                        nothing to show). Absence of the excerpt is not a failed lookup.
-                      </p>
-                    )}
-                  </div>
-                ))
+                <>
+                  <p className="tp_tools_summary">{summarizeTools(tools)}</p>
+                  {tools.map((t, i) => (
+                    <ToolCall key={i} t={t} />
+                  ))}
+                </>
               )}
               {notices.length > 0 ? (
                 <div className="tdm_notices_block">
@@ -294,7 +259,7 @@ export function TurnDetailModal({ turn, entityName, onClose }: TurnDetailModalPr
           {tab === "system" ? (
             <section>
               {systemPrompt ? (
-                <pre className="tdm_system">{systemPrompt}</pre>
+                <SystemPromptView prompt={systemPrompt} />
               ) : (
                 <p className="tdm_quiet">
                   The system prompt is not served for this turn — when it rides the turn response, the exact prompt sent
