@@ -82,19 +82,18 @@ export const CONDUCT_AXES: AxisInfo[] = [
   axis("rigor", "RIG", "rigor", "#c084dd", "The verification-SHAPED share of his calls (read/check/search/diary-class names, retry-after-failure) — act-shaped evidence of care, honestly labeled: it measures the shape of his acts, never verified truth. Each verify-shaped call rings its stroke tip violet in the figure."),
 ];
 
-/**
- * The bloom's QUIET states, verbalized (adversarial finding 2026-08-01: the
- * scorer ships emotionEvidence/emotionMaxSim diagnostics precisely so mounts
- * can say WHY a bloom is flat, and both mounts dropped them — an honest
- * abstention was pixel-identical to a broken widget). Tiers follow the
- * gate's own geometry (evidence = clamp01((maxSim - floor)/ramp)): ~0 is a
- * full abstention, the low band is a damped read. Pure + tested.
- */
-export function evidenceNote(evidence: number | undefined): string | null {
-  if (typeof evidence !== "number" || !Number.isFinite(evidence)) return null;
-  if (evidence <= 0.02) return "very weak evidence — his words sit far from every emotional register; the shape is indicative only";
-  if (evidence < 0.35) return "faint evidence — the shape is indicative";
-  return null;
+/** Where a register's similarity sits on the radar: ONE fixed linear scale for every reply,
+ * −1 at the centre, 0 at half reach, +1 at the rim (operator 2026-11-07: "a radar with continuous
+ * values — we just represent the value, however small it is"). Nothing is cut, centred or rescaled
+ * per reply; a non-number is drawn at the centre's zero, never invented. */
+export function radarValue(similarity: number | undefined): number {
+  if (typeof similarity !== "number" || !Number.isFinite(similarity)) return 0.5;
+  return Math.max(0, Math.min(1, (similarity + 1) / 2));
+}
+
+/** "0.12" / "−0.02": a similarity as the monitor prints it (true minus sign). */
+export function simText(similarity: number): string {
+  return (similarity < 0 ? "−" : "") + Math.abs(similarity).toFixed(2);
 }
 
 /** What the frozen basis is, from its own metadata (operator ruling 2026-11-07: the design is
@@ -119,23 +118,18 @@ export function basisProvenanceNote(calibratedOn: Record<string, unknown> | null
   return `${generic} Its normalization (whitening, channel scales, emotion scale) and the emotion gate's floor were fitted on a mixed corpus: ${list}${date}.`;
 }
 
-/** The (i)-level explanation of the quiet state, shared by both mounts'
- * tooltips (honest: abstention is the design, not a fault). `calibration`
- * is basisProvenanceNote's sentence. */
-export function evidenceTitle(evidence: number | undefined, maxSim: number | undefined, calibration?: string | null): string {
-  const nums = [
-    typeof evidence === "number" ? `evidence ${evidence.toFixed(2)}` : null,
-    typeof maxSim === "number" ? `nearest-register similarity ${maxSim.toFixed(2)}` : null,
-  ].filter(Boolean).join(", ");
-  return `The evidence: how close his words land to the nearest emotional register in embedding space${nums ? ` (${nums})` : ""}. The bloom always shows the shape of his words across the registers; weak evidence means that shape is indicative only.${calibration ? ` ${calibration}` : ""}`;
+/** The reading's hover text, shared by both mounts: what the petals mean, the closest register's
+ * similarity, and the basis's provenance (`calibration` is basisProvenanceNote's sentence). */
+export function readingTitle(maxSim: number | undefined, calibration?: string | null): string {
+  const near = typeof maxSim === "number" && Number.isFinite(maxSim) ? ` The closest register here is at ${simText(maxSim)}.` : "";
+  return `Each petal is the similarity of his words to that register, on one fixed scale for every reply: the centre is −1, half reach is 0, the rim is +1. Nothing is cut, centred or rescaled per reply.${near}${calibration ? ` ${calibration}` : ""}`;
 }
 
 export interface WaveSampleLike {
   emotions?: Record<string, number>;
   scores?: Record<string, number>;
   novelty?: number;
-  /** The evidence (0..1) beside the shape: below 0.35 the named register is marked faint, at
-   * 0.02 or less very weak. It qualifies the reading, never hides it. */
+  /** The scorer's gate diagnostic (kept with the reading; the display does not use it). */
   emotionEvidence?: number;
 }
 
@@ -228,51 +222,58 @@ export function toneReading(scores: Record<string, number> | undefined, omit: re
 
 const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/** The leading register (id + value), however small; null only when nothing was read. The
- * monitor always shows the signal (operator 2026-11-07) — strength is said, never a cutoff. */
+/** The register his words are closest to (its similarity, however small or negative); null only
+ * when nothing was read. */
 export function dominantEmotion(emotions: Record<string, number> | undefined): { axis: AxisInfo; value: number } | null {
   if (!emotions) return null;
   let best: { axis: AxisInfo; value: number } | null = null;
   for (const axis of EMOTION_AXES) {
-    const v = Math.max(0, emotions[axis.id] ?? 0);
+    const v = emotions[axis.id];
+    if (typeof v !== "number" || !Number.isFinite(v)) continue;
     if (!best || v > best.value) best = { axis, value: v };
   }
-  return best && best.value > 0 ? best : null;
+  return best;
 }
 
 /**
  * PRE-COMPUTED MEANING: a deterministic, rule-based verbalization of the scores (never the
- * text). It describes the WORDS' expressive character, never inner state. Rules:
- * - the tone clause speaks the channels that sit in the outer tails (TONE_CUTOFFS), both poles;
- * - the leading register is ALWAYS named when anything was read (operator 2026-11-07: "there
- *   will always be some signal and I want to see it all the time"), with strength-honest verbs
- *   (faintly / mildly / lean / strongly) and the evidence as a qualifier: "(faint evidence)"
- *   below 0.35, "(very weak evidence)" at 0.02 or less;
- * - ONE rule against contradiction: when an emotion is named, warmth is not spoken (the named
- *   emotion already carries the valence) and no second valence clause is added. Scope: valence is
- *   the only dimension both instruments measure; urgency, reflection, structure and certainty
- *   describe the phrasing alongside any emotion (e.g. calm with very urgent phrasing is two
- *   readings, not a contradiction the scores could settle), so they are not suppressed;
- * - nothing read at all (no emotion values): the tone IS the reading ("… — no clear emotion").
+ * text). It describes the WORDS' expressive character, never inner state. `emotions` are the
+ * registers' measured similarities in [−1, 1]. Rules:
+ * - the closest register is ALWAYS named with its similarity (operator 2026-11-07: nothing is
+ *   ours to remove); the verb only words the number: "lean strongly toward" ≥ 0.45, "lean
+ *   toward" ≥ 0.25, "tilt mildly toward" ≥ 0.10, otherwise the words "are closest to";
+ * - a second register within reach (≥ 0.20 and ≥ 60% of the first) reads as a thread;
+ * - the tone clause speaks the channels in the outer tails (TONE_CUTOFFS), both poles;
+ * - ONE rule against contradiction: when a register is clearly present (≥ 0.25) it carries
+ *   the valence, so warmth is not spoken beside it; below that, warmth speaks. Urgency,
+ *   reflection, structure and certainty describe the phrasing beside any register;
+ * - a strong tone word leads over a register below 0.25; otherwise the register leads;
+ * - nothing read at all: the tone IS the reading ("… — no clear emotion").
  * Pure + tested.
  */
+export const LEAN_STRONGLY = 0.45;
+export const LEAN = 0.25;
+export const TILT = 0.1;
+
 export function interpretWave(sample: WaveSampleLike | null): string {
   if (!sample) return "Nothing scored yet — the monitor reads his replies as they arrive.";
   const emotions = sample.emotions ?? {};
   const scores = sample.scores ?? {};
-  const ranked = EMOTION_AXES.map((axis) => ({ axis, v: Math.max(0, emotions[axis.id] ?? 0) })).sort((a, b) => b.v - a.v);
+  const ranked = EMOTION_AXES.filter((axis) => typeof emotions[axis.id] === "number" && Number.isFinite(emotions[axis.id]))
+    .map((axis) => ({ axis, v: emotions[axis.id] as number }))
+    .sort((a, b) => b.v - a.v);
   const top = ranked[0];
   const second = ranked[1];
-  const named = Boolean(top && top.v > 0);
+  const clear = Boolean(top && top.v >= LEAN);
 
-  const tone = toneReading(scores, named ? ["warmth"] : []);
-  const ev = typeof sample.emotionEvidence === "number" && Number.isFinite(sample.emotionEvidence) ? sample.emotionEvidence : null;
-  const evidenceWord = ev === null ? "" : ev <= 0.02 ? " (very weak evidence)" : ev < 0.35 ? " (faint evidence)" : "";
+  const tone = toneReading(scores, clear ? ["warmth"] : []);
   const emotionClause = (): string | null => {
-    if (!named) return null;
-    const verb = top.v >= 0.75 ? "lean strongly toward" : top.v >= 0.45 ? "lean toward" : top.v >= 0.18 ? "tilt mildly toward" : "tilt faintly toward";
-    const thread = second && second.v >= 0.2 && second.v >= top.v * 0.6 ? ` with a thread of ${second.axis.name} (${second.axis.code})` : "";
-    return `the words ${verb} ${top.axis.name} (${top.axis.code})${thread}${evidenceWord}`;
+    if (!top) return null;
+    const what = `${top.axis.name} (${top.axis.code} ${simText(top.v)})`;
+    if (top.v < TILT) return `the words are closest to ${what}`;
+    const verb = top.v >= LEAN_STRONGLY ? "lean strongly toward" : top.v >= LEAN ? "lean toward" : "tilt mildly toward";
+    const thread = second && second.v >= 0.2 && second.v >= top.v * 0.6 ? ` with a thread of ${second.axis.name} (${second.axis.code} ${simText(second.v)})` : "";
+    return `the words ${verb} ${what}${thread}`;
   };
 
   const clauses: string[] = [];
@@ -282,8 +283,7 @@ export function interpretWave(sample: WaveSampleLike | null): string {
     else if (tone.read) clauses.push("Typical phrasing, no tone stands out — no clear emotion");
     else clauses.push("Tone not read — no clear emotion");
   } else {
-    // A strong tone word outranks a mild emotional tilt; otherwise the emotion leads.
-    const toneLeads = tone.text !== null && tone.strong && top.v < 0.45;
+    const toneLeads = tone.text !== null && tone.strong && top.v < LEAN;
     if (toneLeads) clauses.push(capital(tone.text!), em);
     else {
       clauses.push(capital(em));
@@ -358,21 +358,22 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis:
               <p>
                 <strong>Two instruments, side by side.</strong> LEFT — the mood bloom — reads the{" "}
                 <strong>expressive character of his words</strong>, never his inner state (a text performing calm scores
-                calm). Each reply is embedded with the home's own pinned embedder and scored against a frozen basis of
-                expressive registers; the petal's reach is that register's strength, so a spike toward FEA is threat
-                language you see before reading a number.
+                calm). Each reply is embedded with the home's own pinned embedder and compared with a frozen basis of
+                expressive registers; each petal's reach is the <strong>similarity</strong> of his words to that register,
+                on one fixed scale for every reply — the centre is −1, half reach is 0, the rim +1. Nothing is cut,
+                centred or rescaled per reply, so an ordinary reply draws a small, even bloom and threat language
+                spikes toward FEA.
               </p>
               <p>
-                <strong>The bloom always shows the shape</strong> of his words across the registers — which lead, and by
-                how much. Beside it, the <strong>evidence</strong> says how close the words land to any register at all:
-                when it is weak, the sentence says so ("faint" or "very weak evidence") and the shape is indicative only,
-                never a confident reading. The tone reads too: the five channels under the bloom
+                <strong>Every value is shown, however small.</strong> The sentence names the register his words are
+                closest to, with its similarity ("the words are closest to calm (CAL 0.03)"; "lean strongly toward fear
+                (FEA 0.59)"); the verb only puts the number into words. The tone reads too: the five channels under the bloom
                 (WAR warmth, TSN tension, REF reflection, STR structure, CER certainty) are signed, so both poles speak
                 (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
                 associative, assured or hedging). A channel speaks only when the reply sits in the outer 3% of a reference set
                 on that side ("+" or "−"; "++" or "−−" for the outer 1%); "·" is typical. The reference set is{" "}
                 {TONE_CUTOFFS.reference.label}: what this home embedded, not a general corpus. The sentence says the
-                strongest ones and always names the leading register, with how strong it is and how good the evidence is.
+                strongest ones and always names the closest register with its similarity.
               </p>
               <p>
                 RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing
@@ -454,10 +455,12 @@ export function AxisList({ emotions, onAxis }: { emotions: Record<string, number
   return (
     <div className="cm_axes" role="list" aria-label="Monitor axes">
       {EMOTION_AXES.map((a) => {
-        const v = Math.max(0, emotions?.[a.id] ?? 0);
+        const sim = emotions?.[a.id];
+        const v = radarValue(sim);
+        const said = typeof sim === "number" && Number.isFinite(sim) ? `, similarity ${simText(sim)}` : "";
         return (
-          <button key={a.id} className="cm_axis_row" role="listitem" title={`${a.name} — ${a.description}`} onClick={() => onAxis(a)}>
-            <span className="cm_axis_code" style={{ color: a.color, opacity: 0.55 + Math.min(0.45, v) }}>
+          <button key={a.id} className="cm_axis_row" role="listitem" title={`${a.name}${said} — ${a.description}`} onClick={() => onAxis(a)}>
+            <span className="cm_axis_code" style={{ color: a.color, opacity: 0.55 + 0.45 * v }}>
               {a.code}
             </span>
             <span className="cm_axis_name">{a.name}</span>

@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import { EMOTION_REGISTERS } from "@abstractframework/ui-kit";
 
-import { CHANNEL_AXES, dominantEmotion, EMOTION_AXES, evidenceNote, evidenceTitle, interpretWave } from "./cognitive_monitor";
+import { CHANNEL_AXES, dominantEmotion, EMOTION_AXES, interpretWave, radarValue, readingTitle, simText } from "./cognitive_monitor";
 import { CHANNELS } from "./vendor/cognition/core";
 
 describe("axis tables (drift pins against the kit contract)", () => {
@@ -63,64 +63,39 @@ describe("interpretWave (the pre-computed meaning)", () => {
     expect(interpretWave(null)).toContain("Nothing scored yet");
   });
 
-  it("a small signal is still named — the monitor always shows it (operator 2026-11-07)", () => {
-    const text = interpretWave({ emotions: { joy: 0.05, calm: 0.1 }, scores: { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 } });
-    expect(text).toBe("The words tilt faintly toward calm (CAL).");
+  it("the closest register is always named with its similarity, however small or negative", () => {
+    const typical = { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 };
+    expect(interpretWave({ emotions: { joy: -0.02, calm: -0.035, fear: -0.09 }, scores: typical })).toBe("The words are closest to joy (JOY −0.02).");
+    expect(interpretWave({ emotions: { calm: 0.03 }, scores: typical })).toBe("The words are closest to calm (CAL 0.03).");
   });
 
   it("only when nothing was read at all does the sentence say no clear emotion", () => {
-    const text = interpretWave({ emotions: { joy: 0, calm: 0 }, scores: { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 } });
-    expect(text).toBe("Typical phrasing, no tone stands out — no clear emotion.");
+    const typical = { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 };
+    expect(interpretWave({ emotions: {}, scores: typical })).toBe("Typical phrasing, no tone stands out — no clear emotion.");
+    expect(interpretWave({ emotions: { joy: Number.NaN }, scores: typical })).toBe("Typical phrasing, no tone stands out — no clear emotion.");
   });
 
-  it("weak evidence qualifies the reading, never hides it", () => {
-    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0 })).toBe("The words lean toward fear (FEA) (very weak evidence).");
-    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0.02 })).toContain("(very weak evidence)");
-    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0.1 })).toContain("(faint evidence)");
-    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0.35 })).not.toMatch(/evidence\)/);
+  it("the verb only puts the number into words", () => {
+    expect(interpretWave({ emotions: { sadness: 0.05 }, scores: {} })).toContain("are closest to sadness (SAD 0.05)");
+    expect(interpretWave({ emotions: { sadness: 0.12 }, scores: {} })).toContain("tilt mildly toward sadness (SAD 0.12)");
+    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {} })).toContain("lean toward sadness (SAD 0.30)");
+    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: {} })).toContain("lean strongly toward sadness (SAD 0.50)");
   });
 
-  it("missing scores never read as neutral: the tone is said to be unread", () => {
-    expect(interpretWave({ emotions: {}, scores: {} })).toBe("Tone not read — no clear emotion.");
-    expect(interpretWave({ emotions: {} })).toBe("Tone not read — no clear emotion.");
-    expect(interpretWave({ emotions: {}, scores: { warmth: Number.NaN } })).toBe("Tone not read — no clear emotion.");
+  it("a close second reads as a thread, with its number", () => {
+    expect(interpretWave({ emotions: { fear: 0.59, anxiety: 0.43, calm: -0.1 }, scores: {} })).toBe("The words lean strongly toward fear (FEA 0.59) with a thread of anxiety (ANX 0.43).");
+    expect(interpretWave({ emotions: { joy: 0.69, calm: 0.19 }, scores: {} })).not.toContain("thread");
   });
 
-  it("a dominant register is named with its code", () => {
-    expect(interpretWave({ emotions: { discovery: 0.7, calm: 0.1 }, scores: {} })).toBe("The words lean toward discovery (DIS).");
+  it("ONE rule against contradiction: a clear register (≥ 0.25) silences warmth; a faint one lets warmth speak", () => {
+    expect(interpretWave({ emotions: { joy: 0.69 }, scores: { warmth: -0.99, certainty: 0.95 } })).toBe("The words lean strongly toward joy (JOY 0.69); very assured phrasing.");
+    expect(interpretWave({ emotions: { calm: 0.03 }, scores: { warmth: -0.99 } })).toBe("Deeply discouraged phrasing; the words are closest to calm (CAL 0.03).");
+    expect(interpretWave({ emotions: { calm: 0.8 }, scores: { tension: 0.99 } })).toBe("The words lean strongly toward calm (CAL 0.80); very urgent phrasing.");
   });
 
-  it("verbs are strength-honest and grammatical: tilt mildly toward / lean toward / lean strongly toward", () => {
-    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {} })).toContain("tilt mildly toward sadness (SAD)");
-    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: {} })).toContain("lean toward sadness (SAD)");
-    expect(interpretWave({ emotions: { sadness: 0.9 }, scores: {} })).toContain("lean strongly toward sadness (SAD)");
-    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: {} })).not.toMatch(/lean sadness/);
-  });
-
-  it("a close second reads as a thread", () => {
-    const text = interpretWave({ emotions: { discovery: 0.6, calm: 0.45 }, scores: {} });
-    expect(text).toContain("discovery (DIS)");
-    expect(text).toContain("thread of calm (CAL)");
-  });
-
-  it("a named emotion with faint gate evidence says so", () => {
-    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {}, emotionEvidence: 0.2 })).toContain("sadness (SAD) (faint evidence)");
-    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {}, emotionEvidence: 0.6 })).not.toContain("faint");
-  });
-
-  it("ONE rule against contradiction: a named emotion silences warmth, and no second valence clause is added", () => {
-    const text = interpretWave({ emotions: { joy: 0.8 }, scores: { warmth: -0.99, certainty: 0.95 } });
-    expect(text).toBe("The words lean strongly toward joy (JOY); very assured phrasing.");
-    expect(text).not.toMatch(/discouraged|bright|strained|settled|energized/);
-    // without a named emotion, warmth speaks
-    expect(interpretWave({ emotions: {}, scores: { warmth: -0.99 } })).toBe("Deeply discouraged phrasing — no clear emotion.");
-    // Scope: only valence is shared; other channels speak beside any emotion (documented on interpretWave).
-    expect(interpretWave({ emotions: { calm: 0.8 }, scores: { tension: 0.99 } })).toBe("The words lean strongly toward calm (CAL); very urgent phrasing.");
-  });
-
-  it("a strong tone word leads over a mild emotional tilt; otherwise the emotion leads", () => {
-    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: { reflection: 0.9 } })).toBe("Deeply reflective phrasing; the words tilt mildly toward sadness (SAD).");
-    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: { reflection: 0.9 } })).toBe("The words lean toward sadness (SAD); deeply reflective phrasing.");
+  it("a strong tone word leads over a register below 0.25; otherwise the register leads", () => {
+    expect(interpretWave({ emotions: { sadness: 0.12 }, scores: { reflection: 0.9 } })).toBe("Deeply reflective phrasing; the words tilt mildly toward sadness (SAD 0.12).");
+    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: { reflection: 0.9 } })).toBe("The words lean toward sadness (SAD 0.30); deeply reflective phrasing.");
   });
 
   it("high novelty is labeled session-relative wandering", () => {
@@ -149,44 +124,37 @@ describe("interpretWave (the pre-computed meaning)", () => {
 });
 
 describe("dominantEmotion", () => {
-  it("returns the leading axis however small; null only when nothing was read", () => {
+  it("returns the register closest to his words, however small or negative; null only when nothing was read", () => {
     expect(dominantEmotion({ joy: 0.5, calm: 0.2 })?.axis.code).toBe("JOY");
-    expect(dominantEmotion({ joy: 0.1 })?.axis.code).toBe("JOY");
-    expect(dominantEmotion({ joy: 0, calm: 0 })).toBeNull();
+    expect(dominantEmotion({ joy: -0.1, calm: -0.3 })).toMatchObject({ value: -0.1 });
+    expect(dominantEmotion({ joy: Number.NaN, calm: -0.3 })?.axis.code).toBe("CAL");
+    expect(dominantEmotion({})).toBeNull();
     expect(dominantEmotion(undefined)).toBeNull();
   });
 });
 
-describe("evidenceNote / evidenceTitle (the abstention gate, said)", () => {
-  it("no reach reads very weak; the low band reads faint; real reach says nothing", () => {
-    expect(evidenceNote(0)).toContain("very weak evidence");
-    expect(evidenceNote(0.02)).toContain("very weak evidence");
-    expect(evidenceNote(0.2)).toContain("faint evidence");
-    expect(evidenceNote(0.35)).toBeNull();
-    expect(evidenceNote(0.9)).toBeNull();
+describe("radarValue / readingTitle (one fixed scale, every value shown)", () => {
+  it("maps similarity linearly: −1 at the centre, 0 at half reach, +1 at the rim; never cut", () => {
+    expect(radarValue(-1)).toBe(0);
+    expect(radarValue(0)).toBe(0.5);
+    expect(radarValue(1)).toBe(1);
+    expect(radarValue(-0.02)).toBeCloseTo(0.49, 10);
+    expect(radarValue(0.02)).toBeGreaterThan(radarValue(0.01));
+    expect(radarValue(undefined)).toBe(0.5);
+    expect(radarValue(Number.NaN)).toBe(0.5);
   });
 
-  it("absent diagnostics (pre-gate scorer / old cache entries) → no caption, never a guess", () => {
-    expect(evidenceNote(undefined)).toBeNull();
-    expect(evidenceNote(Number.NaN)).toBeNull();
+  it("prints similarities with a true minus sign", () => {
+    expect(simText(-0.02)).toBe("−0.02");
+    expect(simText(0.5)).toBe("0.50");
   });
 
-  it("the caption never claims inner state (banned vocabulary pin)", () => {
-    for (const v of [0, 0.2]) {
-      expect(evidenceNote(v)!.toLowerCase()).not.toMatch(/he feels|his feelings|inner state/);
-    }
-  });
-
-  it("the title carries the live numbers and says the shape is always shown", () => {
-    const t = evidenceTitle(0.04, 0.12);
-    expect(t).toContain("evidence 0.04");
-    expect(t).toContain("similarity 0.12");
-    expect(t).toContain("always shows the shape");
-    expect(t.toLowerCase()).not.toContain("abstention");
-    // Absent diagnostics → no dangling number clause (the "(basis v1)"
-    // provenance parenthetical is prose, not a number).
-    const bare = evidenceTitle(undefined, undefined);
-    expect(bare).not.toMatch(/evidence \d/);
-    expect(bare).not.toMatch(/similarity \d/);
+  it("the title says the scale and carries the live number; no gate language", () => {
+    const t = readingTitle(0.12);
+    expect(t).toContain("the centre is −1, half reach is 0, the rim is +1");
+    expect(t).toContain("closest register here is at 0.12");
+    expect(t).toContain("Nothing is cut");
+    expect(t.toLowerCase()).not.toMatch(/abstention|evidence|gate/);
+    expect(readingTitle(undefined)).not.toMatch(/closest register here/);
   });
 });

@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, evidenceTitle, MonitorInfoModal, ReadingLine, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, MonitorInfoModal, radarValue, ReadingLine, readingTitle, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -226,7 +226,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
       {phase.name === "ready" ? (
         <>
           <div className="cw_bloom">
-            <AfCognitionBloom scores={current?.emotions ?? {}} options={{ labels: true, vignette: true }} size={300} />
+            <AfCognitionBloom scores={Object.fromEntries(Object.entries(current?.emotions ?? {}).map(([id, sim]) => [id, radarValue(sim)]))} options={{ labels: true, vignette: true }} size={300} />
           </div>
 
           {/* Replay controls (operator 2026-07-15): grouped RIGHT like the
@@ -282,12 +282,9 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
                     wandering {current.novelty.toFixed(2)}
                   </span>
                 ) : null}
-                {/* The abstention gate, said per utterance (2026-08-01):
-                  * a flat bloom on this sample is honest quiet, not a
-                  * scoring failure — hover carries the live numbers. */}
-                {/* The same reading sentence as the chat monitor: the tone always, the
-                  * emotion when it clears the gate; hover keeps the gate's numbers. */}
-                <ReadingLine sample={current} className="cw_quiet cw_reading_line" title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)} />
+                {/* The same reading sentence as the chat monitor: the tone, and always the
+                  * closest register with its similarity. */}
+                <ReadingLine sample={current} className="cw_quiet cw_reading_line" title={readingTitle(current.emotionMaxSim, calibration)} />
               </div>
               {current.request ? (
                 <div className="cw_turn_block cw_turn_request">

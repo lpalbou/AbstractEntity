@@ -98,8 +98,8 @@ export function createScorer(basis, opts = {}) {
     calibratedOn: basis.calibrated_on,
 
     /** Score one utterance vector. Returns {scores, emotions, novelty,
-     * emotionsShape, emotionMaxSim, emotionEvidence} (the last three are
-     * additive: the ungated relative shape, and the gate's diagnostics). */
+     * emotionSims, emotionMaxSim, emotionEvidence} (the last three are
+     * additive: each register's raw similarity, and the gate's diagnostics). */
     score(vec) {
       const w = whiten(vec);
 
@@ -125,16 +125,14 @@ export function createScorer(basis, opts = {}) {
       // shape (which register leads) survives untouched; only its permission
       // to show scales with real evidence.
       const evidence = Math.max(0, Math.min(1, (maxSim - gateFloor) / gateRamp));
-      // The relative shape (which registers lead, and by how much) is kept
-      // as its own output: the monitor always shows it, with `evidence` as a
-      // qualifier (operator 2026-11-07: "there will always be some signal
-      // and I want to see it all the time"). `emotions` stays the gated
-      // product, unchanged for parity.
-      const shape = {};
+      // `emotions` stays the gated, per-reply-centred product, unchanged for
+      // parity. The monitor displays `emotionSims` instead: each register's
+      // measured similarity, signed, unscaled (operator 2026-11-07: "a radar
+      // with continuous values — we just represent the value, however small;
+      // it's not up to us to remove them").
       const emo = {};
       for (const eid of emotions) {
-        shape[eid] = Math.max(0, Math.min(1, Math.tanh((sims[eid] - mu) / emotionScale)));
-        emo[eid] = evidence * shape[eid];
+        emo[eid] = evidence * Math.max(0, Math.min(1, Math.tanh((sims[eid] - mu) / emotionScale)));
       }
 
       // wandering: session-relative EMA drift (labeled as such — this is the
@@ -155,7 +153,7 @@ export function createScorer(basis, opts = {}) {
       // Additive diagnostics (contract-preserving): the gate's inputs ride
       // along so mounts/tests can see WHY a bloom is quiet (maxSim below the
       // floor) without recomputing whitening.
-      return { scores, emotions: emo, emotionsShape: shape, novelty, emotionMaxSim: maxSim, emotionEvidence: evidence };
+      return { scores, emotions: emo, emotionSims: { ...sims }, novelty, emotionMaxSim: maxSim, emotionEvidence: evidence };
     },
 
     /** Reset session-relative state (new conversation). */

@@ -22,6 +22,7 @@ import basisV1 from "./vendor/cognition/data/basis_v1.json";
 import fixture from "./fixtures/cognition_gate_vectors.json";
 import reference from "./fixtures/tone_reference_scores.json";
 import { deriveToneCutoffs } from "./tone_cutoffs_derive.js";
+import { readingFromScore } from "./cognition_adapter";
 
 const basis = basisV1 as unknown as FrozenBasis;
 const score = (vector: number[]) =>
@@ -29,7 +30,8 @@ const score = (vector: number[]) =>
 const vec = (id: string) => (fixture.cases.find((c) => c.id === id) as { vector: number[] }).vector;
 const reading = (id: string) => {
   const r = score(vec(id));
-  return { sample: { emotions: r.emotions, scores: r.scores, emotionEvidence: r.emotionEvidence }, r };
+  // The app's own data path (readingFromScore): what both mounts show.
+  return { sample: readingFromScore(r) as { emotions: Record<string, number>; scores: Record<string, number>; emotionEvidence?: number }, r };
 };
 
 describe("tone calibration (outer-tail cutoffs, not round numbers)", () => {
@@ -68,8 +70,11 @@ describe("tone calibration (outer-tail cutoffs, not round numbers)", () => {
     for (const id of ["neutral_meeting", "weather_summary_sentence", "benign_travel_reply"]) {
       const { sample } = reading(id);
       for (const c of Object.keys(TONE_POLES)) expect(toneTier(c, sample.scores[c]), `${id} ${c}`).toBe(0);
-      expect(interpretWave(sample)).toBe("Typical phrasing, no tone stands out — no clear emotion.");
     }
+    // Every value is shown, however small: the closest register is named with its similarity.
+    expect(interpretWave(reading("benign_travel_reply").sample)).toBe("The words are closest to joy (JOY −0.02).");
+    expect(interpretWave(reading("weather_summary_sentence").sample)).toBe("The words are closest to fear (FEA 0.06).");
+    expect(interpretWave(reading("neutral_meeting").sample)).toBe("The words are closest to anxiety (ANX 0.02).");
   });
 
   it("KNOWN LIMITATION, pinned: storm_caution_neutral reads hedging (hazard vocabulary projects onto CER-)", () => {
@@ -78,21 +83,21 @@ describe("tone calibration (outer-tail cutoffs, not round numbers)", () => {
     // (cognition_scorer_gate.test.ts). Recorded, not hidden: if a re-cut changes it, update here.
     const { sample } = reading("storm_caution_neutral");
     expect(toneTier("certainty", sample.scores.certainty)).toBe(-1);
-    expect(interpretWave(sample)).toBe("The words lean toward fear (FEA) with a thread of anxiety (ANX); hedging phrasing.");
+    expect(interpretWave(sample)).toBe("The words tilt mildly toward fear (FEA 0.16); hedging phrasing.");
   });
 
   it("the fear control reads strongly discouraged and urgent on the row; its sentence names fear and the urgency", () => {
     const { sample } = reading("fearful_control");
     expect(toneTier("warmth", sample.scores.warmth)).toBe(-2);
     expect(toneTier("tension", sample.scores.tension)).toBe(2);
-    expect(interpretWave(sample)).toBe("The words lean strongly toward fear (FEA) with a thread of anxiety (ANX); very urgent phrasing.");
+    expect(interpretWave(sample)).toBe("The words lean strongly toward fear (FEA 0.59) with a thread of anxiety (ANX 0.43); very urgent phrasing.");
   });
 
   it("the joy control still reads very warm and very assured on the row; its sentence names joy", () => {
     const { sample } = reading("joy_control");
     expect(toneTier("warmth", sample.scores.warmth)).toBe(2);
     expect(toneTier("certainty", sample.scores.certainty)).toBe(2);
-    expect(interpretWave(sample)).toBe("The words lean strongly toward joy (JOY) with a thread of calm (CAL); very assured phrasing.");
+    expect(interpretWave(sample)).toBe("The words lean strongly toward joy (JOY 0.69); very assured phrasing.");
   });
 
   it("REAL READINGS (live replies 2026-11-07, channel scores): Castor and Hypnos", () => {

@@ -42,18 +42,31 @@ export interface WaveScore {
    * pixel-identical to a broken read (adversarial finding 2026-08-01). */
   emotionEvidence?: number;
   emotionMaxSim?: number;
-  /** The relative register shape before the evidence gate (scorer additive
+  /** Each register's measured similarity, signed, unscaled (scorer additive
    * output, 2026-11-07) — what the monitor displays. */
-  emotionsShape?: Record<string, number>;
+  emotionSims?: Record<string, number>;
 }
 
-/** What the monitor draws and names: the register shape before the gate,
- * always (operator 2026-11-07: "there will always be some signal and I want
- * to see it all the time"); the evidence travels beside it as a qualifier.
- * A scorer without the shape is the wrong vendored copy — fail loudly. */
-export function displayEmotions(scored: WaveScore): Record<string, number> {
-  if (!scored.emotionsShape) throw new Error("The cognition scorer returned no emotion shape — update src/vendor/cognition.");
-  return scored.emotionsShape;
+/** What one scored reply shows, for BOTH mounts (chat monitor and Wave tab):
+ * `emotions` carries each register's measured similarity in [-1, 1], never
+ * the gated values (operator 2026-11-07: "we just represent the value,
+ * however small it is; it's not up to us to remove them"). A scorer without
+ * them is the wrong vendored copy — fail loudly. */
+export function readingFromScore(scored: WaveScore): WaveScore {
+  if (!scored.emotionSims) throw new Error("The cognition scorer returned no register similarities — update src/vendor/cognition.");
+  return {
+    scores: scored.scores,
+    emotions: scored.emotionSims,
+    novelty: scored.novelty,
+    emotionEvidence: scored.emotionEvidence,
+    emotionMaxSim: scored.emotionMaxSim,
+  };
+}
+
+/** An embedding worth scoring: non-empty, finite, not all zeros (a zero
+ * vector is a broken embedding, never a reading). */
+export function isUsableVector(v: unknown): v is number[] {
+  return Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "number" && Number.isFinite(x)) && v.some((x) => x !== 0);
 }
 export interface Scorer {
   score(vector: number[]): WaveScore;
@@ -139,25 +152,13 @@ export async function scoreEntityUtterances(
     }
     batch.forEach((u, j) => {
       const vector = vectors[j];
-      if (!Array.isArray(vector) || vector.length === 0) {
-        warnings.push(`#FALLBACK no vector for utterance ${u.id} — dropped`);
+      if (!isUsableVector(vector)) {
+        warnings.push(`#FALLBACK no usable vector for utterance ${u.id} (empty, non-finite or all zeros) — dropped`);
         return;
       }
+      let scored: WaveScore;
       try {
-        const scored = scorer.score(vector);
-        samples.push({
-          id: u.id,
-          label: u.label,
-          at: u.at,
-          source: u.source,
-          seq: u.seq,
-          scores: scored.scores,
-          emotions: displayEmotions(scored),
-          novelty: scored.novelty,
-          emotionEvidence: scored.emotionEvidence,
-          emotionMaxSim: scored.emotionMaxSim,
-          ...(includeText ? { text: u.text, ...(u.request ? { request: u.request } : {}) } : {}),
-        });
+        scored = scorer.score(vector);
       } catch (e) {
         // A scorer throw is almost always the M1 refusal (embedder/dim
         // mismatch) — abort loud rather than skip silently, because it means
@@ -166,6 +167,17 @@ export async function scoreEntityUtterances(
         warnings.push(`#FALLBACK scorer refused (${msg}) — aborting; vectors are not in the basis space`);
         throw new CognitionSpaceError(msg, warnings, corpus);
       }
+      // Outside the space-error mapping: a scorer missing its similarities is
+      // the wrong vendored copy, not a wrong embedding space.
+      samples.push({
+        id: u.id,
+        label: u.label,
+        at: u.at,
+        source: u.source,
+        seq: u.seq,
+        ...readingFromScore(scored),
+        ...(includeText ? { text: u.text, ...(u.request ? { request: u.request } : {}) } : {}),
+      });
     });
   }
 

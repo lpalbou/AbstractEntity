@@ -9,7 +9,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { basisProvenanceNote, evidenceTitle, MonitorInfoModal } from "./cognitive_monitor";
+import { basisProvenanceNote, MonitorInfoModal, readingTitle } from "./cognitive_monitor";
 import basisV1 from "./vendor/cognition/data/basis_v1.json";
 
 const V1 = (basisV1 as unknown as { calibrated_on: Record<string, unknown> }).calibrated_on;
@@ -38,15 +38,14 @@ describe("basisProvenanceNote (generic design, mixed-corpus normalization)", () 
 });
 
 describe("the quiet-state copy carries the generic provenance", () => {
-  it("evidenceTitle keeps the live numbers and claims no single-entity tuning", () => {
-    const t = evidenceTitle(0, 0.0167, basisProvenanceNote(V1));
-    expect(t).toContain("evidence 0.00");
-    expect(t).toContain("similarity 0.02");
+  it("readingTitle keeps the live number and claims no single-entity tuning", () => {
+    const t = readingTitle(0.0167, basisProvenanceNote(V1));
+    expect(t).toContain("closest register here is at 0.02");
     expect(t).not.toMatch(NO_ONE_ENTITY);
   });
 
-  it("evidenceTitle without a loaded basis makes no calibration claim", () => {
-    expect(evidenceTitle(0, 0.0167)).not.toMatch(/calibrated|fitted/i);
+  it("readingTitle without a loaded basis makes no calibration claim", () => {
+    expect(readingTitle(0.0167)).not.toMatch(/calibrated|fitted/i);
   });
 
   it("the (i) modal states the generic provenance, explains the signed tone channels, and drops the stale sentences", () => {

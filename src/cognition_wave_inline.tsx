@@ -27,8 +27,8 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
-import { displayEmotions } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceTitle, MonitorInfoModal, ReadingLine, ToneRow, type AxisInfo } from "./cognitive_monitor";
+import { isUsableVector, readingFromScore } from "./cognition_adapter";
+import { basisProvenanceNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, MonitorInfoModal, radarValue, ReadingLine, readingTitle, simText, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -281,13 +281,11 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
       await ensureSetup();
       const res = await embedTexts(baseUrl, [shownText], embedderRef.current ?? undefined);
       const vec = res.vectors[0];
-      if (!Array.isArray(vec) || vec.length === 0) throw new Error("No embedding was returned for this reply.");
+      if (!isUsableVector(vec)) throw new Error("No usable embedding was returned for this reply (empty or all zeros).");
       if (embedderRef.current && res.model && res.model !== embedderRef.current) {
         throw new Error(`The reply's embedding model (${res.model}) differs from the entity's pinned model.`);
       }
-      const scored = scorerRef.current!.score(vec);
-      return { scores: scored.scores, emotions: displayEmotions(scored), novelty: scored.novelty,
-        emotionEvidence: scored.emotionEvidence, emotionMaxSim: scored.emotionMaxSim };
+      return readingFromScore(scorerRef.current!.score(vec));
     }, (entry) => {
       setCurrent(entry); setStatus("live"); setNote(null);
     }, (e) => {
@@ -307,7 +305,8 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // absent keys keep their target (the kit's absent-not-zero rule), so an
   // 8-emotion v0 basis leaves the 9th (gravity) petal flat until the basis
   // ships it. Explicit 0 lowers a petal, so we send every known register.
-  const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, current?.emotions?.[id] ?? 0])), [current]);
+  // Each register at its measured similarity on the radar's one fixed scale (radarValue).
+  const bloomScores = useMemo(() => Object.fromEntries(EMOTION_AXES.map(({ id }) => [id, radarValue(current?.emotions?.[id])])), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
   const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
@@ -322,7 +321,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </button>
         <span className="cm_title">
           🧠 Cognitive Monitor
-          {mood ? <span className="cm_mood_dot" style={{ background: mood.axis.color }} title={`leaning ${mood.axis.name}`} /> : <span className="cm_mood_dot cm_mood_neutral" title="even" />}
+          {mood ? <span className="cm_mood_dot" style={{ background: mood.axis.color }} title={`closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})`} /> : <span className="cm_mood_dot cm_mood_neutral" title="not read" />}
         </span>
         <button className="cm_info" onClick={() => setModalAxis("about")} title="What is this? How to read it">
           ⓘ
@@ -357,10 +356,10 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
             {/* The five tone channels, signed (both poles speak), and the reading sentence: the
-              * tone always, the emotion when it clears the gate. Hover keeps the gate's numbers. */}
+              * tone, and always the closest register with its similarity. */}
             {status === "live" && current ? <>
               <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} />
-              <ReadingLine sample={current} title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)} />
+              <ReadingLine sample={current} title={readingTitle(current.emotionMaxSim, calibration)} />
             </> : null}
           </div>
           {/* Slot (b): uic's AfConductGauge v2.1 "THE STANCE" (posture

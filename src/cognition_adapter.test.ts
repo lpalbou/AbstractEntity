@@ -47,7 +47,7 @@ const fold = foldEnvelopes([episode("ex:a", "first moment"), episode("ex:b", "se
 
 /** A scorer that returns fixed scores — the widget's contract, faked. */
 const okScorer: Scorer = {
-  score: () => ({ scores: { warmth: 0.5, tension: -0.2 }, emotions: { calm: 0.1 }, emotionsShape: { calm: 0.8 }, novelty: 0.1, emotionEvidence: 0.125 }),
+  score: () => ({ scores: { warmth: 0.5, tension: -0.2 }, emotions: { calm: 0.1 }, emotionSims: { calm: 0.8, fear: -0.2 }, novelty: 0.1, emotionEvidence: 0.125 }),
   reset: () => {},
 };
 
@@ -71,8 +71,8 @@ describe("cognition adapter", () => {
     const out = await scoreEntityUtterances("http://x", "castor", fold, okScorer);
     expect(out.samples.length).toBe(2);
     expect(out.samples[0].scores.warmth).toBe(0.5);
-    // The monitor shows the shape before the gate, with the evidence beside it (operator 2026-11-07).
-    expect(out.samples[0].emotions).toEqual({ calm: 0.8 });
+    // The monitor shows each register's measured similarity, never the gated values (operator 2026-11-07).
+    expect(out.samples[0].emotions).toEqual({ calm: 0.8, fear: -0.2 });
     expect(out.samples[0].emotionEvidence).toBe(0.125);
     expect(out.samples[0].text).toBeTruthy(); // includeText default
     expect(out.embedderId).toBe("qwen3-0.6b");
@@ -96,7 +96,18 @@ describe("cognition adapter", () => {
 
     const out = await scoreEntityUtterances("http://x", "castor", fold, okScorer);
     expect(out.samples.length).toBe(1);
-    expect(out.warnings.some((w) => w.includes("no vector"))).toBe(true);
+    expect(out.warnings.some((w) => w.includes("no usable vector"))).toBe(true);
     vi.restoreAllMocks();
+  });
+});
+
+describe("isUsableVector (a broken embedding is never a reading)", () => {
+  it("refuses empty, non-finite and all-zero vectors", async () => {
+    const { isUsableVector } = await import("./cognition_adapter");
+    expect(isUsableVector([0.1, 0, -0.2])).toBe(true);
+    expect(isUsableVector([])).toBe(false);
+    expect(isUsableVector([0, 0, 0])).toBe(false);
+    expect(isUsableVector([0.1, Number.NaN])).toBe(false);
+    expect(isUsableVector(null)).toBe(false);
   });
 });

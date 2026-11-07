@@ -24,7 +24,8 @@ import basisJson from "./vendor/cognition/data/basis_v0.json";
 import currentBasisJson from "./vendor/cognition/data/basis_v1.json";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 import fixture from "./fixtures/cognition_gate_vectors.json";
-import { interpretWave } from "./cognitive_monitor";
+import { interpretWave, LEAN, LEAN_STRONGLY, TILT } from "./cognitive_monitor";
+import { readingFromScore } from "./cognition_adapter";
 
 const basis = basisJson as unknown as FrozenBasis;
 
@@ -132,23 +133,34 @@ describe("contract (additive only)", () => {
     expect(legacy.emotionEvidence).toBe(1);
   });
 
-  it("emotionsShape is the ungated shape, and the gated emotions are evidence × shape", () => {
-    for (const id of ["benign_travel_reply", "fearful_control", "joy_control"]) {
-      const out = scoreOf(id);
-      const legacy = scoreOf(id, { abstention: { floor: -1 } });
+  it("emotionSims are the raw similarities: their max is emotionMaxSim, and the gated emotions derive from them", () => {
+    const scale = Number((basis as { emotion_scale?: number }).emotion_scale);
+    for (const c of cases.values()) {
+      const out = scoreOf(c.id);
+      const sims = basis.emotions.map((e) => out.emotionSims[e]);
+      expect(Math.max(...sims)).toBeCloseTo(out.emotionMaxSim as number, 12);
+      const mu = sims.reduce((x, y) => x + y, 0) / sims.length;
       for (const e of basis.emotions) {
-        expect(out.emotionsShape[e]).toBeCloseTo(legacy.emotions[e], 12);
-        expect(out.emotions[e]).toBeCloseTo((out.emotionEvidence ?? 0) * out.emotionsShape[e], 12);
+        const gated = (out.emotionEvidence ?? 0) * Math.max(0, Math.min(1, Math.tanh((out.emotionSims[e] - mu) / scale)));
+        expect(out.emotions[e]).toBeCloseTo(gated, 12);
       }
     }
   });
 
-  it("the monitor shows the benign reply's shape, qualified as weak evidence — never a confident verdict", () => {
-    const out = scoreOf("benign_travel_reply");
-    const sentence = interpretWave({ emotions: out.emotionsShape, scores: out.scores, emotionEvidence: out.emotionEvidence });
-    expect(sentence).toMatch(/the words (tilt faintly|tilt mildly|lean) toward/i);
-    expect(sentence).toMatch(/\((faint|very weak) evidence\)/);
-    expect(sentence).not.toMatch(/strongly/);
+  it("on every real fixture and both bases, the sentence's words match the measured number (never a confident verb on a small one)", () => {
+    for (const b of [basis, currentBasisJson as unknown as FrozenBasis]) {
+      for (const c of cases.values()) {
+        const out = createScorer(b, { embedderId: b.embedder_id }).score(c.vector);
+        const reading = readingFromScore(out);
+        const top = Math.max(...b.emotions.map((e) => (reading.emotions as Record<string, number>)[e]));
+        const sentence = interpretWave(reading);
+        if (top >= LEAN_STRONGLY) expect(sentence, c.id).toMatch(/lean strongly toward/);
+        else if (top >= LEAN) expect(sentence, c.id).toMatch(/lean toward/);
+        else if (top >= TILT) expect(sentence, c.id).toMatch(/tilt mildly toward/);
+        else expect(sentence, c.id).toMatch(/are closest to/);
+        if (top < LEAN_STRONGLY) expect(sentence, c.id).not.toMatch(/strongly/);
+      }
+    }
   });
 
   it("channel scores are untouched by the gate", () => {

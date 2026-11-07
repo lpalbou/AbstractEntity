@@ -16,12 +16,13 @@ all live in the kit now, co-designed via c2229→c2242).
   scoring (sim − mean) always crowned a winner, so a benign travel reply
   whose best raw prototype similarity was 0.066 (noise) rendered fear≈0.5.
   All emotion values scale by `clamp01((maxSim − floor)/ramp)` with
-  floor = ramp = the basis's own `emotion_scale`; a text near NO prototype
-  shows an empty bloom (the monitor's absent-not-zero honesty rule).
-  Additive outputs: `emotionMaxSim`, `emotionEvidence`; since 2026-11-07 also
-  `emotionsShape` (the shape before the gate), which the monitor displays
-  ALWAYS, with the evidence as a qualifier (operator: always see the signal).
-  `emotions` (gated) is unchanged. Regression tests +
+  floor = ramp = the basis's own `emotion_scale`. Additive outputs:
+  `emotionMaxSim`, `emotionEvidence`, and since 2026-11-07 `emotionSims` —
+  each register's measured similarity, signed and unscaled. **The monitor
+  displays `emotionSims`, never the gated `emotions`** (operator ruling
+  2026-11-07: the radar represents every value, however small; nothing is
+  cut, centred or gated for display). `emotions` is kept unchanged for parity.
+  Regression tests +
   frozen live-embedding fixtures: `src/cognition_scorer_gate.test.ts`,
   `src/fixtures/cognition_gate_vectors.json`.
 - `core.js` (+ `.d.ts`) — the framework-free vocab + physics core. Now used

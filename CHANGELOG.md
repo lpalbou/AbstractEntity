@@ -10,11 +10,13 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
-- **The Cognitive Monitor always shows his emotional signal.** The bloom used to go flat, and the
-  sentence said "no clear emotion", whenever his words were not close to any emotional register,
-  so most ordinary replies showed nothing. It now always draws the shape of his words across the
-  registers and always names the leading one ("tilt faintly toward calm"). How good the evidence is
-  is said beside it ("faint evidence", "very weak evidence") instead of hiding the reading.
+- **The Cognitive Monitor shows every value.** Each petal of the bloom is the similarity of his
+  words to that emotional register, on one fixed scale for every reply: the centre is −1, half
+  reach is 0, the rim is +1. Nothing is cut, centred or hidden any more (before, most registers
+  of an ordinary reply were drawn at zero and the bloom often went flat). The sentence always
+  names the register his words are closest to, with its number ("the words are closest to joy
+  (JOY −0.02)"; "lean strongly toward fear (FEA 0.59) with a thread of anxiety (ANX 0.43)"), and
+  the mood dot's tooltip says the same.
 - **A calmer, better organised Settings window.** Its nine sections now sit in four groups (Mind &
   voice, Identity & record, Workspace, Prompt) in a side list — a section picker on a phone — and
   each opens with a title and one line saying what it is for, with the long explanations folded
