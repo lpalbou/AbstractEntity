@@ -5,7 +5,8 @@
  * it."):
  *
  * - EpisodeDetail (the Detail tab): what kind of moment it was and the
- *   record's facts, then its summary, then the exchange, then how he got
+ *   record's facts, then its summary (the full digest once a recall served
+ *   it, else the saved title, said so), then the exchange, then how he got
  *   there.
  * - LivedExchangeView (everywhere a whole exchange is shown, through
  *   VerbatimTurns): what was said to him, his answer, and "How he got
@@ -70,10 +71,10 @@ export function lookupsFact(ex: LivedExchange): string {
   return skipped > 0 ? `${base} · ${skipped === 1 ? "one more did" : `${skipped} more did`} not run` : base;
 }
 
-/** The summary served for an episode, and how honest it is: the title the
- * runtime saved (digest.py: "exchange: " + one sentence cut at 14 words
- * with "…"). The record's longer summary (its digest) is not served to the
- * app with the record. */
+/** The record's title as a stand-in summary, and how it was cut: the
+ * runtime saves "exchange: " + one extracted sentence (from either side)
+ * cut at 14 words with "…" (digest.py). The record's full summary, its
+ * digest, reaches the app only in the recall snapshots (node.digest). */
 export function episodeSummary(title: string): { text: string; cut: "words" | "short" | null } {
   const raw = String(title || "").trim();
   const text = shapeLabel(raw);
@@ -189,7 +190,7 @@ export function HowHeGotThere({ ex, defaultOpen = false }: { ex: LivedExchange; 
 function cueLabel(ex: LivedExchange): string {
   if (ex.ownTime) return "His own time began with";
   if (ex.door) return "His home announced the visit";
-  return `${ex.cueSpeaker} said`;
+  return `${speakerName(ex.cueSpeaker)} said`;
 }
 
 /** What was said to him, his answer, how he got there, the exact text. */
@@ -237,6 +238,7 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
   const visit = Boolean(node.visit_id);
   const turnId = state.phase === "ready" ? state.words.turnId : null;
   const summary = episodeSummary(node.title);
+  const digest = typeof node.digest === "string" && node.digest.trim() ? node.digest.trim() : null;
   const extra = ex ? (
     <>
       <dt>moment</dt>
@@ -251,13 +253,22 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
       {renderFacts(extra)}
       <section className="ep_summary">
         <h4 className="ep_h">Summary</h4>
-        {summary.text ? <Words text={summary.text} className="ev_markdown ep_summary_text" /> : <p className="tp_quiet">No summary was saved with this moment.</p>}
-        <p className="ep_summary_note">
-          {summary.text
-            ? `His one-line summary, saved with the moment${summary.cut === "words" ? " (it is cut at 14 words when saved)" : summary.cut === "short" ? " (it was cut short when saved)" : ""}.`
-            : ""}{" "}
-          The longer summary in his memory is not available to this app yet — everything that was said is below.
-        </p>
+        {digest ? (
+          <>
+            <Words text={digest} className="ev_markdown ep_summary_text" />
+            <p className="ep_summary_note">The summary saved with the record, as it was saved.</p>
+          </>
+        ) : (
+          <>
+            {summary.text ? <Words text={summary.text} className="ev_markdown ep_summary_text" /> : <p className="tp_quiet">No title was saved with this moment.</p>}
+            <p className="ep_summary_note">
+              {summary.text
+                ? `The title saved with the record${summary.cut === "words" ? " (cut at 14 words when saved)" : summary.cut === "short" ? " (cut short when saved)" : ""}. `
+                : ""}
+              The fuller summary arrives once this memory is recalled; everything that was said is below.
+            </p>
+          </>
+        )}
       </section>
       <section className="ep_section">
         <h4 className="ep_h">The exchange</h4>

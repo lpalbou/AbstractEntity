@@ -66,8 +66,26 @@ describe("the episode's Detail", () => {
       expect(next, piece).toBeGreaterThan(at);
       at = next;
     }
-    expect(html).toContain("(it is cut at 14 words when saved)");
-    expect(html).toContain("The longer summary in his memory is not available to this app yet");
+    expect(html).toContain("The title saved with the record (cut at 14 words when saved).");
+    expect(html).toContain("The fuller summary arrives once this memory is recalled");
+    expect(html).not.toContain("His one-line");
+  });
+
+  it("shows the record's full summary once a recall served it, in place of the title", () => {
+    const digest = "person:admin: welcome to our world, how are you? nerin: Thank you—I'm here, attentive, and glad to meet you. How are you?";
+    const html = renderToStaticMarkup(<EpisodeBody node={node({ digest })} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: "t-0001" } }} renderFacts={facts} />);
+    expect(html).toContain("Thank you—I&#x27;m here, attentive, and glad to meet you. How are you?");
+    expect(html).toContain("The summary saved with the record, as it was saved.");
+    expect(html).not.toContain("ADB attributes");
+    expect(html).not.toContain("fuller summary arrives");
+    expect(html.indexOf("Summary")).toBeLessThan(html.indexOf("The exchange"));
+  });
+
+  it("names who spoke the way the heading does", () => {
+    const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: null } }} renderFacts={facts} />);
+    expect(html).toContain("A conversation with admin");
+    expect(html).toContain(">admin said<");
+    expect(html).not.toContain("person:admin said");
   });
 
   it("shows only the facts the record gives while his words are read, and says why words are missing", () => {

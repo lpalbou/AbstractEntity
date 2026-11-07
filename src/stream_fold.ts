@@ -60,6 +60,11 @@ export interface NodeState {
   last_admission: string | null;
   /** Digest provenance when served (mechanical-v1/-v2, mechanical-flow-v1, …). */
   digest_method?: string | null;
+  /** The record's full digest (its summary), from the recall snapshots that
+   * carried it (abstractmemory selection.py display_rows); null until a
+   * recall at or before this fold position served it. Never kept for a
+   * diary record. */
+  digest?: string | null;
   /** Belief lifecycle: set once a closure names this record. */
   closed: { kind: string; reason: string; seq: number; replacement_ids: string[] } | null;
   /** The BOOK entry id (diary projections; from binding provenance) — the
@@ -840,7 +845,10 @@ function applySnapshot(state: FoldState, env: ReplayEnvelope): void {
   for (const row of Array.isArray(p.display) ? p.display : []) {
     const rid = String(row.record_id || "");
     if (!rid) continue;
-    resolveUsageNode(state, rid, { record_id: rid, title: row.title, token_estimate: row.token_estimate }, env.seq);
+    const node = resolveUsageNode(state, rid, { record_id: rid, title: row.title, token_estimate: row.token_estimate }, env.seq);
+    // The row's digest is that record's summary: kept on its own node only
+    // (an edge row resolves onto its source), never on a diary record.
+    if (node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && typeof row.digest === "string" && row.digest.trim()) node.digest = row.digest;
   }
 }
 

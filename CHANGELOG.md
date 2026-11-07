@@ -26,16 +26,18 @@ All notable changes to `@abstractframework/entity` are recorded here.
   explaining it with this reply's value; failed tool calls reach the gauge.
 - **A lived moment reads facts and summary first.** Clicking an episode now shows what kind of
   moment it was (his own time with its tick, a conversation or a visit with its turn, and with
-  whom), how many lookups he made and of what kind, the record's facts, then its summary (the
-  one-line summary saved with it, in full as saved, with an honest note that the longer summary
-  in his memory is not available to the app yet), then what was said to him and his answer as
-  readable text. "How he got there" replaces the "thinking and lookups · unspoken" box: folded,
-  it says in one line what he did ("Before answering he searched the web 4 times."); open, it
-  shows his thinking set apart as not said aloud and each lookup as the turn panel shows it (web
-  results as a numbered list of title, snippet and link, pages as readable text, memory hits as
-  rows), says when a result stays in his book or a lookup did not run, and keeps the exact text
-  one click away. The same layout is used wherever a whole exchange is shown (the world model's
-  sources, a memory opened from a turn). Nothing new is ever read from a diary-shaped record.
+  whom), how many lookups he made and of what kind, the record's facts, then its summary: the
+  full summary saved with the record, in full, once a recall has carried it into the ledger;
+  before that the title saved with the record, with a note that the fuller summary arrives once
+  the memory is recalled. Then what was said to him (under the speaker's name, as in the heading)
+  and his answer as readable text. "How he got there" replaces the "thinking and lookups ·
+  unspoken" box: folded, it says in one line what he did ("Before answering he searched the web
+  4 times."); open, it shows his thinking set apart as not said aloud and each lookup as the turn
+  panel shows it (web results as a numbered list of title, snippet and link, pages as readable
+  text, memory hits as rows), says when a result stays in his book or a lookup did not run, and
+  keeps the exact text one click away. The same layout is used wherever a whole exchange is
+  shown (the world model's sources, a memory opened from a turn). Nothing new is ever read from
+  a diary-shaped record.
 - **The Cognitive Monitor shows every value.** Each petal of the bloom is the similarity of his
   words to that emotional register, with its number printed beside it, on one fixed scale for
   every reply: the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out.
