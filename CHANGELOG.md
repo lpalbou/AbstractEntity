@@ -4,6 +4,24 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-07
+
+On AbstractUIC `@abstractframework/ui-kit` ^0.9.15 and `@abstractframework/panel-chat` ^0.8.2.
+Works with the same gateways as 0.11.0.
+
+### Fixed
+
+- **The cognitive readings follow the reply you are looking at.** When you move between replies
+  while their readings are still loading, the emotional diagram shows the measurements of the
+  reply on screen, never those of the one you just left, and a reading that failed while you were
+  elsewhere is fetched again instead of leaving the diagram empty. Switching entity or gateway
+  starts the diagram afresh.
+- An entity without its own identity yet is drawn in the shared default avatar design in the
+  Avatar view.
+- Voice playback comes from the updated shared kit: pressing Play again while a reply is being
+  prepared plays it once, and when the browser blocks the sound the app says so ("Audio playback
+  is paused by the browser. Press Play to try again.").
+
 ## [0.11.0] - 2026-11-04
 
 On AbstractUIC `@abstractframework/ui-kit` ^0.9.14 and `@abstractframework/panel-chat` ^0.8.1.
