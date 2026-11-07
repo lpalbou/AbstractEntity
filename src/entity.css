@@ -1694,10 +1694,10 @@ body {
   color: var(--text-dim);
   cursor: pointer;
   /* fits the trapezoid, whose clip keeps 80% of the tab's height for the label (operator
-     2026-11-07: "decrease the font so it better fits the trapezes"). A fixed 11px: the app's
-     reading-pane type floor (12-13px) does not apply to this chrome label — LESSONS at 12px bold
-     ran 66px into a 60px window. */
-  font-size: 11px;
+     2026-11-07: "decrease the font so it better fits the trapezes"). Two px under the type
+     floor, through the token (DESIGN §12.1): LESSONS at the 12-13px floor ran 66px into a 60px
+     window; it scales with the user's floor (coarse pointer 14px → 12px). */
+  font-size: max(11px, calc(var(--ent-type-floor, 0px) - 2px));
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
