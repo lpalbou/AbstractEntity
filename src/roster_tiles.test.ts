@@ -228,6 +228,7 @@ describe("the tile while its card is on its way", () => {
     expect(src).not.toContain("reading his card");
     expect(src).toContain('<span className="eix_sk eix_sk_meta" aria-hidden="true" />');
     expect(src).toContain('<span className="eix_sk eix_sk_upto" aria-hidden="true" />');
+    expect(src).toContain('<span className="eix_sk eix_sk_meta eix_sk_last" aria-hidden="true" />');
     expect(src).toContain("{CARD_FAILED_NOTE}");
     expect(CARD_FAILED_NOTE).toBe("details unavailable right now");
     const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");

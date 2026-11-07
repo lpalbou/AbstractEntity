@@ -4726,7 +4726,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* A drawn tile whose card has not answered yet (roster_tiles.ts): two quiet lines hold the
+/* A drawn tile whose card has not answered yet (roster_tiles.ts): three quiet lines hold the
  * loaded lines' place (the meta line at 11 px, the interest chips at 11 px + padding + border),
  * so nothing moves when the card lands. Still under reduced motion. */
 .eix_sk {
@@ -4740,6 +4740,9 @@ body {
 .eix_sk_meta {
   width: 46%;
   height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4);
+}
+.eix_sk_last {
+  width: 34%;
 }
 .eix_sk_upto {
   width: 78%;

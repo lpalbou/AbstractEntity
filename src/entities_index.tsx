@@ -478,10 +478,12 @@ export function EntitiesIndex({
 
               <div className="eix_card_body" data-card={cardStatus}>
                 {cardStatus === "pending" ? (
-                  // The card arrives after the roster: quiet lines hold the loaded lines' place.
+                  // The card arrives after the roster: quiet lines hold the loaded lines' place
+                  // (age and mind, what it is into, sleeps and key moments).
                   <>
                     <span className="eix_sk eix_sk_meta" aria-hidden="true" />
                     <span className="eix_sk eix_sk_upto" aria-hidden="true" />
+                    <span className="eix_sk eix_sk_meta eix_sk_last" aria-hidden="true" />
                   </>
                 ) : cardStatus === "failed" ? (
                   <p className="eix_note eix_card_note" title={cardError}>
