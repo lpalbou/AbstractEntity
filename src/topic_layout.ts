@@ -94,6 +94,9 @@ export interface TopicHome {
   free: number;
   /** The members' GRAPH ids (the identity a later fetch is matched on). */
   members: string[];
+  /** The runtime's most representative member (graph id + title). */
+  exemplarId: string;
+  exemplarTitle: string;
 }
 
 /** What the layout remembers of a topic between fetches (and reloads):
@@ -182,6 +185,8 @@ export function planTopicHomes(communities: TopicCommunity[], previous: TopicSlo
     r: topicRadius(x.free),
     free: x.free,
     members: [...x.c.member_ids],
+    exemplarId: x.c.exemplar_id ?? "",
+    exemplarTitle: x.c.exemplar_title ?? "",
   });
   // Persisting topics first: they hold their place.
   const kept = new Map<number, TopicHome>();

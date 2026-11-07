@@ -20,13 +20,15 @@
  * owns truth: everything drawn derives from the fold at the scrub seq.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { FoldState, NodeState, StandingState } from "./stream_fold";
 import { ADMISSION_LABELS } from "./stream_types";
 import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, resolveSelection, type RecallClass } from "./recall_emphasis";
 import "./graph_canvas.css";
-import { nodeLabel, shapeLabel, summaryLabel } from "./node_label";
+import { nodeCardText, placeCard, plainLabel, topicExemplarText } from "./hover_card";
+import { Words } from "./verbatim_view";
+import { nodeLabel, summaryLabel } from "./node_label";
 import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
 import { useCommunities, type TopicSource } from "./topic_map";
@@ -403,6 +405,25 @@ function readStoredLayout(key: string): string | null {
   const fresh = localStorage.getItem(layoutStorageKey(key));
   if (fresh !== null) return fresh;
   return localStorage.getItem(`abstractobserver_entity_layout_v2:${key}`);
+}
+
+/** A hover card beside the cursor, measured and kept inside the viewport
+ * (hover_card.placeCard). Pointer-transparent like before. */
+function HoverCardBox({ x, y, className, children }: { x: number; y: number; className: string; children: React.ReactNode }): React.ReactElement {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number }>({ left: x + 16, top: y + 12 });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const next = placeCard(x, y, r.width, r.height, window.innerWidth, window.innerHeight);
+    setPos((p) => (p.left === next.left && p.top === next.top ? p : next));
+  });
+  return (
+    <div ref={ref} className={className} style={{ left: pos.left, top: pos.top }}>
+      {children}
+    </div>
+  );
 }
 
 export function GraphCanvas({
@@ -1193,7 +1214,7 @@ export function GraphCanvas({
               ctx.fillStyle = rgbaOf(CANVAS_THEME.text, alpha);
               ctx.font = `${Math.max(10, 10 * cam.zoom * 0.7)}px Menlo, Monaco, monospace`;
               ctx.textAlign = "center";
-              ctx.fillText(nodeLabel(label, 34), p.x, p.y - r - 8);
+              ctx.fillText(nodeLabel(plainLabel(label), 34), p.x, p.y - r - 8);
             }
           }
         }
@@ -1310,7 +1331,7 @@ export function GraphCanvas({
             ctx.fillStyle = rgbaOf(CANVAS_THEME.text, alpha);
             ctx.font = `${Math.max(10, 10 * Math.min(1.2, cam.zoom * 0.6))}px Menlo, Monaco, monospace`;
             ctx.textAlign = "center";
-            ctx.fillText(nodeLabel(labelBase, 34), p.x, p.y - r - 6);
+            ctx.fillText(nodeLabel(plainLabel(labelBase), 34), p.x, p.y - r - 6);
           }
         }
         ctx.globalAlpha = 1;
@@ -1508,10 +1529,12 @@ export function GraphCanvas({
   }, []);
 
   const hoverNode = hoverCard ? fold.nodes.get(hoverCard.id) ?? null : null;
+  const hoverText = hoverNode ? nodeCardText(hoverNode) : null;
   // The recall line shows while the recall is what the canvas lights (a
   // lens/search or a selection takes over — the Inspector's rule).
   const selectionIsNode = selectedRow !== null && (fold.nodes.has(selectedRow) || selectedRow.startsWith("standing:"));
   const topicCardHome = topicCard && showTopics ? topicHomes?.find((h) => h.id === topicCard.topic) ?? null : null;
+  const topicExemplar = topicCardHome ? topicExemplarText(fold, topicCardHome.exemplarId, topicCardHome.exemplarTitle) : null;
   const recallShown = recall !== null && searchIds === null && !selectionIsNode;
   const recallLabelOf = (id: string): string | null => (recall ? recall.labels.get(id) ?? null : null);
   const recallLegend = recallShown && recall ? recallLegendParts(recall) : null;
@@ -1527,13 +1550,7 @@ export function GraphCanvas({
         style={{ width: "100%", height: height ? `${height}px` : "100%", display: "block" }}
       />
       {hoverCard && (hoverNode || hoverStanding) ? (
-        <div
-          className="gc_hovercard"
-          style={{
-            left: Math.min(hoverCard.x + 16, window.innerWidth - 440),
-            top: Math.min(hoverCard.y + 12, window.innerHeight - 190),
-          }}
-        >
+        <HoverCardBox x={hoverCard.x} y={hoverCard.y} className="gc_hovercard">
           {hoverNode ? (
             <>
               {/* The card carries the memory-type COLOR (laurent 12:23,
@@ -1549,8 +1566,12 @@ export function GraphCanvas({
                 <span className={`ei_kind ei_kind_${hoverNode.diary ? "diary" : hoverNode.kind}`}>
                   {hoverNode.diary ? "diary" : hoverNode.kind}
                 </span>
-                <span className="gc_hc_title">{hoverNode.redacted ? "a diary entry" : shapeLabel(hoverNode.title) || hoverNode.id.slice(0, 22)}</span>
+                {/* The title as Markdown (bold, code, headings render —
+                  * never raw "##"/"**"), then the record's summary in full
+                  * when the fold holds it (hover_card.nodeCardText). */}
+                <Words text={hoverText?.title ?? ""} className="gc_hc_title gc_hc_md" />
               </div>
+              {hoverText?.summary ? <Words text={hoverText.summary} className="gc_hc_summary" /> : null}
               <div className="gc_hc_rows">
                 <span>used</span>
                 <span>
@@ -1603,21 +1624,23 @@ export function GraphCanvas({
               <div className="gc_hc_hint">click to open in Detail</div>
             </>
           ) : null}
-        </div>
+        </HoverCardBox>
       ) : null}
       {topicCard && topicCardHome ? (
-        <div
-          className="gc_hovercard gc_topic_card"
-          style={{
-            left: Math.min(topicCard.x + 16, window.innerWidth - 440),
-            top: Math.min(topicCard.y + 12, window.innerHeight - 150),
-          }}
-        >
+        <HoverCardBox x={topicCard.x} y={topicCard.y} className="gc_hovercard gc_topic_card">
           <div className="gc_hc_head" style={{ borderLeft: `3px solid ${topicCardHome.color}`, paddingLeft: 8 }}>
             <span className="gc_hc_kind_dot" style={{ background: topicCardHome.color }} aria-hidden="true" />
             <span className="ei_kind">topic</span>
             <span className="gc_hc_title gc_topic_words">{topicWords.get(topicCardHome.id)?.keywords ?? topicCardHome.label}</span>
           </div>
+          {/* Its most representative memory, by its summary (or title) —
+            * never a private diary entry's words (hover_card). */}
+          {topicExemplar ? (
+            <div className="gc_topic_exemplar">
+              <span className="gc_topic_exemplar_word">for example</span>
+              <Words text={topicExemplar} className="gc_hc_summary" />
+            </div>
+          ) : null}
           <div className="gc_hc_rows">
             <span>memories</span>
             <span>
@@ -1625,7 +1648,7 @@ export function GraphCanvas({
             </span>
           </div>
           <div className="gc_hc_hint">click to light these {topicCardHome.size} on the graph</div>
-        </div>
+        </HoverCardBox>
       ) : null}
       {showTopics && topicsState.phase !== "ready" ? (
         <div className={`gc_topic_note ${topicsState.phase === "error" ? "gc_topic_note_error" : ""}`} role="status">
