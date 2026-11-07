@@ -94,9 +94,10 @@ const TOOL_WORDS: Record<string, [string, string]> = {
   diary_read: ["diary lookup", "diary lookups"],
 };
 
-/** A turn that formed no moment for this long did not finish (failed,
- * stopped, paused) — it is not shown as thinking. */
-export const STALE_TURN_MS = 10 * 60_000;
+/** Past this long without a moment, a turn is no longer shown as thinking;
+ * the line only states the fact (real turns have taken 15 minutes, so no
+ * failure is claimed). */
+export const STALE_TURN_MS = 60 * 60_000;
 
 export function lookupWords({ items, partial }: { items: Array<{ tool: string; count: number }>; partial: boolean }): string {
   if (items.length === 0) return partial ? "lookups not counted (his record quotes older moments)" : "no lookups";
@@ -138,7 +139,7 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
       <div className="now_line" role="status">
         <span className="now_dot now_dot_idle" aria-hidden="true" />
         <span>
-          A turn began at {clockUtc(state.since)} UTC ({ago(state.since, clock)}) and formed no moment — it did not finish (stopped, paused or failed).
+          A turn began at {clockUtc(state.since)} UTC ({ago(state.since, clock)}) and no moment has formed since.
         </span>
       </div>
     );

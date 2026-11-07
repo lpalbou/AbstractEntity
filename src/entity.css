@@ -2856,8 +2856,13 @@ body {
   z-index: 1;
 }
 
-.et_mark_future {
-  opacity: 0.3;
+.et_lane_future {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--bg-panel) 65%, transparent);
+  pointer-events: none;
 }
 
 .et_icon_back {
@@ -2956,11 +2961,60 @@ body {
   height: 10px;
 }
 
+.entity_timeline {
+  --et-thumb: 16px;
+}
+
+/* The slider is drawn explicitly so its thumb size is known: event marks
+   above it use the same arithmetic (timeline.tsx pct) to line up. */
 .et_track {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: var(--ea-accent);
-  height: 4px;
+  height: 16px;
+  margin: 0;
+  background: transparent;
   cursor: pointer;
+}
+
+.et_track::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--ea-accent) 0 var(--et-progress, 100%),
+    color-mix(in srgb, var(--text-dim) 30%, transparent) var(--et-progress, 100%)
+  );
+}
+
+.et_track::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--ea-accent) 0 var(--et-progress, 100%),
+    color-mix(in srgb, var(--text-dim) 30%, transparent) var(--et-progress, 100%)
+  );
+}
+
+.et_track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--et-thumb);
+  height: var(--et-thumb);
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-panel);
+  background: var(--ea-accent);
+}
+
+.et_track::-moz-range-thumb {
+  width: var(--et-thumb);
+  height: var(--et-thumb);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--bg-panel);
+  background: var(--ea-accent);
 }
 
 .et_track:disabled {

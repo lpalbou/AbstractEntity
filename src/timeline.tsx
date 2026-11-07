@@ -104,7 +104,11 @@ export function Timeline(props: TimelineProps): React.ReactElement {
   const { envelopes, scrubIndex, playing, speed, live, liveAvailable } = props;
   const max = envelopes.length - 1;
   const current = envelopes[scrubIndex];
-  const pct = (index: number) => `${max > 0 ? (index / max) * 100 : 0}%`;
+  // Where the slider puts an event: its range runs from -1 to max and its
+  // thumb (--et-thumb wide) travels the track minus one thumb width, so a
+  // mark uses the same arithmetic to sit exactly above that position.
+  const span = Math.max(1, max + 1);
+  const pct = (index: number) => `calc(var(--et-thumb) / 2 + (100% - var(--et-thumb)) * ${(index + 1) / span})`;
 
   const foldRef = useRef<EventFold | null>(null);
   const events = useMemo(() => {
@@ -151,7 +155,33 @@ export function Timeline(props: TimelineProps): React.ReactElement {
 
   // Effective position for stepping: live rides the head.
   const pos = live ? max : scrubIndex;
-  const open = (e: TimelineEvent) => (props.onOpenEvent ? props.onOpenEvent(e.index, e.recordId) : props.onScrub(e.index));
+  const onOpenEvent = props.onOpenEvent;
+  const onScrub = props.onScrub;
+  // Marks depend on the events, not on the position (a scrub step must not
+  // re-render thousands of them); the past/future shade is one overlay per
+  // lane. Marks are not Tab stops — the ledger is the keyboard path.
+  const marks = useMemo(() => {
+    const out = {} as Record<LaneId, React.ReactElement[]>;
+    for (const lane of LANES) {
+      out[lane.id] = byLane[lane.id].map((e) => {
+        const diary = lane.id === "diary";
+        const when = `${dayLabelUtc(e.at)}, ${clockUtc(e.at)} UTC`;
+        return (
+          <button
+            key={`${e.index}-${e.recordId}`}
+            className="et_mark"
+            tabIndex={-1}
+            style={{ left: pct(e.index), background: lane.color }}
+            title={`${lane.label} · ${when}\n${e.title}${diary ? "\n(click: shows it in his Book; reading its words there is recorded)" : ""}`}
+            aria-label={`${lane.label}, ${when}: ${e.title}`}
+            onClick={() => (onOpenEvent ? onOpenEvent(e.index, e.recordId) : onScrub(e.index))}
+          />
+        );
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byLane, span, onOpenEvent, onScrub]);
 
   return (
     <div className="entity_timeline et_grid">
@@ -161,17 +191,9 @@ export function Timeline(props: TimelineProps): React.ReactElement {
             {lane.label}
             <span className="et_lane_count">{byLane[lane.id].length || ""}</span>
           </span>
-          <div className="et_lane" aria-label={`${lane.label}: ${byLane[lane.id].length}`}>
-            {byLane[lane.id].map((e) => (
-              <button
-                key={`${e.index}-${e.recordId}`}
-                className={`et_mark ${e.index <= pos ? "" : "et_mark_future"}`}
-                style={{ left: pct(e.index), background: lane.color }}
-                title={`${lane.label} · ${dayLabelUtc(e.at)}, ${clockUtc(e.at)} UTC\n${e.title}`}
-                aria-label={`${lane.label}, ${dayLabelUtc(e.at)} ${clockUtc(e.at)} UTC: ${e.title}`}
-                onClick={() => open(e)}
-              />
-            ))}
+          <div className="et_lane" role="group" aria-label={`${lane.label}: ${byLane[lane.id].length}`}>
+            {marks[lane.id]}
+            {pos < max ? <div className="et_lane_future" style={{ left: pct(Math.max(pos, -1)) }} aria-hidden="true" /> : null}
           </div>
           <span />
         </React.Fragment>
@@ -195,6 +217,7 @@ export function Timeline(props: TimelineProps): React.ReactElement {
           min={-1}
           max={Math.max(-1, max)}
           value={live ? max : scrubIndex}
+          style={{ ["--et-progress" as string]: pct(pos).replace(/^calc\(/, "calc(").toString() } as React.CSSProperties}
           onChange={(e) => props.onScrub(Number(e.target.value))}
         />
       </div>

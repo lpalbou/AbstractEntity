@@ -49,7 +49,7 @@ import { Inspector } from "./inspector";
 import { LedgerPanel } from "./ledger_panel";
 import { NowLine } from "./now_line";
 import { Timeline } from "./timeline";
-import { foldUpToIndex, lastLifeChangeSeq, mergeEnvelopes, type FoldCache } from "./stream_fold";
+import { foldUpToIndex, isDiaryGraphId, lastLifeChangeSeq, mergeEnvelopes, type FoldCache } from "./stream_fold";
 
 /** Live watchdog: how often to compare with the gateway, and how long the
  * tail may be silent before newer gateway events mean it stalled. */
@@ -2605,7 +2605,15 @@ export function EntityView(): React.ReactElement {
                     onSelectSubject={(id) => {
                       // A ledger line opens what it is about (operator
                       // 2026-11-07: "the items in the ledger … should be
-                      // informative, interactive and actionable").
+                      // informative, interactive and actionable"). A diary
+                      // entry opens the Book, never Detail: selecting a diary
+                      // record makes Detail (mounted even when hidden) read
+                      // it, and that read is recorded in his biography — in
+                      // the Book, reading the words is its own click.
+                      if (id && isDiaryGraphId(id)) {
+                        setRequestedTab({ tab: "book", nonce: Date.now() });
+                        return;
+                      }
                       setSelectedId(id);
                       if (id) setRequestedTab({ tab: "detail", nonce: Date.now() });
                     }}
@@ -2654,6 +2662,12 @@ export function EntityView(): React.ReactElement {
               setLiveStatus(null);
             }
             setScrubIndex(i);
+            // A diary mark opens the Book (no read); anything else opens in
+            // Detail (see the ledger's rule above).
+            if (isDiaryGraphId(recordId)) {
+              setRequestedTab({ tab: "book", nonce: Date.now() });
+              return;
+            }
             setSelectedId(recordId);
             setRequestedTab({ tab: "detail", nonce: Date.now() });
           }}
