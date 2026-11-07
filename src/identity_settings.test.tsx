@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { visitIdentityRef } from "./avatar_visit";
 import { IdentityAvatar, identityAvatarStyle, lookOf } from "./identity_avatar";
-import { byWhom, designOptions, formChanged, formOf, historyRevs, historyRows, noVoiceText, saveOf } from "./identity_settings";
+import { VOICE_SAMPLE_TEXT, entityIdentityClient, noVoiceText } from "./identity_settings";
 import { IdentityRefusal, getEntityIdentity, identityRefusalOf, putEntityIdentity, startOfferedDownload, type IdentityRecord, type Reputation, type TrackRecord } from "./stream_source";
 import { basisText, kindRows, nameOf, notCountedText, trustGloss, trustText } from "./track_record_panel";
 
@@ -74,10 +74,15 @@ describe("a refused save shows the gateway's sentence as it is, with its downloa
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
   });
 
-  it("the page shows the refusal's own words (no prefix) and offers its download", () => {
-    const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
-    expect(src).toContain('if (e instanceof IdentityRefusal) setStatus({ text: e.message, tone: "error", download: e.download });');
-    expect(src).toContain('data-testid="identity-download"');
+  it("the panel's save rejects with the refusal itself: its own words and its download (the kit shows both)", async () => {
+    const body = { detail: MISSING, error: { reason_code: "model_not_downloaded", size_mb: 330, download: { method: "POST", path: "/api/gateway/models/download", body: { provider: "kokoro", artifact: "kokoro-big" } } } };
+    answer(409, body);
+    const client = entityIdentityClient("http://gw.test", "castor", "castor", "tok");
+    const err = await client.save({ avatar: { style: "watch-halo", color: "#3366cc" }, voice: { provider: "kokoro", model: "kokoro-big", voice: "af" } }).catch((e) => e);
+    expect(err).toBeInstanceOf(IdentityRefusal);
+    expect(err.message).toBe(MISSING);
+    expect(err.download).toEqual({ method: "POST", path: "/api/gateway/models/download", body: { provider: "kokoro", artifact: "kokoro-big" }, size_mb: 330 });
+    expect(calls).toHaveLength(1);
   });
 
   it("Download posts the offered action to its path", async () => {
@@ -94,83 +99,82 @@ describe("a refused save shows the gateway's sentence as it is, with its downloa
   });
 });
 
-// --------------------------------------------------------------- the form
+// --------------------------------------------------------------- the kit panel's gateway
 
-describe("the form: one Save of the whole record", () => {
-  it("fills from the record and saves design, colour and voice together", () => {
-    const form = formOf(rec(3));
-    expect(form).toEqual({ style: "watch-lotus", color: "#3366cc", voice: { provider: "openai", model: "tts-1", voice: "alloy" } });
-    expect(formChanged(form, rec(3))).toBe(false);
-    const next = { ...form, style: "watch-halo", color: "#AA00FF" };
-    expect(formChanged(next, rec(3))).toBe(true);
-    expect(saveOf(next, rec(3))).toEqual({ body: { avatar: { style: "watch-halo", color: "#aa00ff" }, voice: { provider: "openai", model: "tts-1", voice: "alloy" } } });
+describe("Settings → identity is the kit's IdentityPanel, wired to this gateway", () => {
+  let calls: { url: string; init?: RequestInit }[] = [];
+  beforeEach(() => {
+    calls = [];
+    (globalThis as { window?: unknown }).window = globalThis;
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  const route = (answers: Record<string, unknown>) =>
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      const key = Object.keys(answers).find((k) => url.includes(k));
+      return new Response(key ? (typeof answers[key] === "string" ? (answers[key] as string) : JSON.stringify(answers[key])) : "{}", { status: 200 });
+    });
+
+  it("the page mounts the kit panel with the entity's name, its client and who may change it", () => {
+    const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
+    expect(src).toContain("<IdentityPanel key={`${baseUrl}|${entity}`} name={entityName} client={client} refusal={refusal} />");
+    expect(src).not.toContain("<VoiceSettings");
   });
 
-  it("keeps the record's speed and quality while the voice stays the same, drops them for another voice", () => {
-    const r = rec(2, { voice: { ...VOICE, speed: 1.25, quality_preset: "high" } });
-    expect(saveOf(formOf(r), r)).toEqual({ body: { avatar: { style: "watch-lotus", color: "#3366cc" }, voice: { provider: "openai", model: "tts-1", voice: "alloy", speed: 1.25, quality_preset: "high" } } });
-    const other = { ...formOf(r), voice: { provider: "openai", model: "tts-1", voice: "nova" } };
-    expect(saveOf(other, r)).toEqual({ body: { avatar: { style: "watch-lotus", color: "#3366cc" }, voice: { provider: "openai", model: "tts-1", voice: "nova" } } });
+  it("read: the current record and revision N (GET /identity[?rev=N] → its identity)", async () => {
+    route({ "/identity": { entity_id: "entity:castor", identity: rec(2), identity_ref: { of: "entity:castor", rev: 2 } } });
+    const client = entityIdentityClient("http://gw.test", "castor", "Castor", null);
+    expect(await client.read()).toEqual(rec(2));
+    await client.read(1);
+    expect(calls.map((c) => c.url)).toEqual(["http://gw.test/api/gateway/entities/castor/identity", "http://gw.test/api/gateway/entities/castor/identity?rev=1"]);
   });
 
-  it("a voice that came without its speech model asks for one; no voice saves nothing", () => {
-    const form = { ...formOf(rec(1)), voice: { provider: "qwen3-tts", model: "", voice: "v-1" } };
-    expect(saveOf(form, rec(1))).toEqual({ needsModel: "qwen3-tts", body: { avatar: { style: "watch-lotus", color: "#3366cc" }, voice: { provider: "qwen3-tts", model: "", voice: "v-1" } } });
-    expect(saveOf({ ...form, voice: {} }, rec(1))).toBeNull();
-    expect(saveOf({ ...form, voice: { provider: "openai" } }, rec(1))).toBeNull();
+  it("save: one PUT of the panel's body, the new record back", async () => {
+    route({ "/identity": { entity_id: "entity:castor", identity: rec(4), identity_ref: { of: "entity:castor", rev: 4 } } });
+    const body = { avatar: { style: "watch-halo", color: "#aa33cc" }, voice: { provider: "openai", model: "tts-1", voice: "nova" } };
+    const saved = await entityIdentityClient("http://gw.test", "castor", "Castor", "tok").save(body);
+    expect(saved.rev).toBe(4);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].init?.method).toBe("PUT");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual(body);
   });
 
-  it("only designs the Watch can draw are offered; the current one stays listed", () => {
-    const designs = [
-      { id: "watch-halo", name: "Watch Halo", description: "", watchCode: "A", family: "orbs", gaze: "none" as const },
-      { id: "iphone-weave", name: "Woven orb", description: "", watchCode: "", family: "forms", gaze: "none" as const },
-    ];
-    expect(designOptions(designs, "watch-halo")).toEqual([{ value: "watch-halo", label: "Watch Halo", group: "Orbs" }]);
-    expect(designOptions(designs, "watch-new")[0]).toEqual({ value: "watch-new", label: "watch-new", group: "Current" });
-  });
-});
-
-// --------------------------------------------------------------- no voice
-
-describe("a record without a voice: the gateway's sentence, never a borrowed voice", () => {
-  const SENTENCE = "Castor has no voice yet: choose one in its Identity settings or set the Gateway default voice";
-  it("the sentence is the gateway's note, as it is", () => {
+  it("a record without a voice: the gateway's note from GET /voice, as it is", async () => {
+    const SENTENCE = "Castor has no voice yet: choose one in its Identity settings or set the Gateway default voice";
     expect(noVoiceText({ note: SENTENCE }, "Castor")).toBe(SENTENCE);
     expect(noVoiceText({}, "Castor")).toBe("The gateway did not say why Castor has no voice.");
+    route({ "/castor/voice": { provider: null, model: null, voice: null, source: "identity", note: SENTENCE } });
+    expect(await entityIdentityClient("http://gw.test", "castor", "Castor", null).noVoiceNote!()).toBe(SENTENCE);
+    expect(calls[0].url).toBe("http://gw.test/api/gateway/entities/castor/voice");
   });
-  it("the picker starts empty and Save waits for a chosen voice", () => {
-    const r = rec(1, { voice: null, set_by: "default" });
-    expect(formOf(r).voice).toEqual({});
-    expect(saveOf(formOf(r), r)).toBeNull();
-  });
-  it("the page reads the note from GET /voice only for a record without a voice", () => {
-    const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
-    expect(src).toContain("if (answer.identity.voice === null) {");
-    expect(src).toContain('data-testid="identity-no-voice"');
-  });
-});
 
-// --------------------------------------------------------------- history
+  it("the voices: the gateway's catalog for an engine and model", async () => {
+    route({ "/voice/voices": { tts_providers: ["openai"] } });
+    await entityIdentityClient("http://gw.test", "castor", "Castor", null).voiceCatalog("openai", "tts-1");
+    expect(calls[0].url).toContain("/api/gateway/voice/voices");
+    expect(calls[0].url).toContain("provider=openai");
+    expect(calls[0].url).toContain("model=tts-1");
+  });
 
-describe("history: every revision, newest first, with what changed", () => {
-  it("reads rev N … 1", () => {
-    expect(historyRevs(3)).toEqual([3, 2, 1]);
-    expect(historyRevs(1)).toEqual([1]);
+  it("a sample: the entity's own lane with the chosen voice, the first segment, nothing saved", async () => {
+    const wav = new Uint8Array(48);
+    wav.set([82, 73, 70, 70], 0);
+    wav.set([87, 65, 86, 69], 8);
+    const seg = JSON.stringify({ type: "segment", index: 0, audio_b64: Buffer.from(wav).toString("base64") });
+    route({ "/voice/tts/stream": [JSON.stringify({ type: "start" }), seg, JSON.stringify({ type: "done" })].join("\n") + "\n" });
+    const bytes = await entityIdentityClient("http://gw.test", "castor", "Castor", "tok").previewVoice!({ provider: "qwen3-tts", model: "", voice: "vivian" });
+    expect(bytes.byteLength).toBe(48);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("http://gw.test/api/gateway/entities/castor/voice/tts/stream");
+    expect(calls[0].init?.method).toBe("POST");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ text: VOICE_SAMPLE_TEXT, format: "wav", provider: "qwen3-tts", voice: "vivian" });
   });
-  it("orders by revision (newest first) whatever order the answers came in", () => {
-    const rows = historyRows([
-      rec(1, { set_by: "default", avatar: { style: "watch-nebula", color: "#d06439", source: "default" }, voice: null }),
-      rec(3, { voice: { ...VOICE, voice: "nova" } }),
-      rec(2),
-    ]);
-    expect(rows.map((r) => r.rev)).toEqual([3, 2, 1]);
-    expect(rows.map((r) => r.change)).toEqual(["New voice", "New look and voice", "Default look, no voice"]);
-    expect(rows.map((r) => r.by)).toEqual(["laurent", "laurent", "the gateway"]);
-  });
-  it("names who set it in plain words", () => {
-    expect(byWhom("default")).toBe("the gateway");
-    expect(byWhom("operator")).toBe("the operator");
-    expect(byWhom("person:laurent")).toBe("laurent");
+
+  it("Download: the action the refusal offered, posted to its path", async () => {
+    route({ "/models/download": { ok: true } });
+    await entityIdentityClient("http://gw.test", "castor", "Castor", null).startDownload!({ method: "POST", path: "/api/gateway/models/download", body: { provider: "kokoro", artifact: "kokoro-big" }, size_mb: 330 });
+    expect(calls[0].url).toBe("http://gw.test/api/gateway/models/download");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ provider: "kokoro", artifact: "kokoro-big" });
   });
 });
 
@@ -198,10 +202,6 @@ describe("track record: trust always with its support, in plain words", () => {
     expect(trustGloss({ trust: 0.75, support: 2, successes: 2, failures: 0, last_outcome_at: null })).toBe("2 of 2 finished; trust starts in the middle and moves with each outcome");
     expect(trustGloss({ trust: 0.75, support: 6, successes: 5, failures: 1, last_outcome_at: null })).toBe("5 of 6 finished; trust starts in the middle and moves with each outcome");
     expect(trustGloss({ trust: 0.5, support: 0, successes: 0, failures: 0, last_outcome_at: null })).toBe("");
-  });
-  it("Save says what it changes and for whom", () => {
-    const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
-    expect(src).toContain("Saves {entityName}'s look and voice for everyone who meets it, on every device.");
   });
   it("completion-rate only is said plainly; never the word basis", () => {
     expect(basisText("completion-rate only")).toBe("A success here only means the task finished: nobody has judged the quality of the work yet.");

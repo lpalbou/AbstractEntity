@@ -1,9 +1,12 @@
 // Settings → identity and → track record (framework ADR 0052): real built Entity app, deterministic
 // gateway route doubles, no model or external traffic. Desktop and phone.
 //   npm run build && node scripts/identity.e2e.mjs --playwright ../abstractcode/web [--shots <dir>]
-// Checks: the record without a voice shows the gateway's sentence (and no voice); one Save sends the
-// whole record once; a refusal is shown word for word, never retried, with its Download action;
-// history is newest first; trust reads with its support and "No experience yet".
+// Settings → identity is the kit's IdentityPanel (ui-kit, Unreleased): look, then voice, then history,
+// then one Save at the bottom. Checks: the record without a voice shows the gateway's sentence; the
+// flow look → engine → voice plays a sample on the entity's own lane and one Save sends the whole
+// record; a refusal is shown word for word, never retried, with its Download action; "Create a new
+// voice" selects the new voice; history is newest first; no jargon on the panel; trust reads with
+// its support and "No experience yet". Screenshots at 1440 and 400 px with --shots.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFileSync, mkdirSync } from "node:fs";
@@ -33,6 +36,20 @@ const REVS = {
   2: record(2),
   3: record(3, { voice: { provider: "openai", model: "tts-1", voice: "nova", source: "chosen" } }),
 };
+// A real (silent) WAV the browser can decode: the sample plays for 0.1 s.
+function wav() {
+  const n = 1600, b = Buffer.alloc(44 + n * 2);
+  b.write("RIFF", 0); b.writeUInt32LE(36 + n * 2, 4); b.write("WAVE", 8); b.write("fmt ", 12); b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(16000, 24); b.writeUInt32LE(32000, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34);
+  b.write("data", 36); b.writeUInt32LE(n * 2, 40);
+  return b;
+}
+const SAMPLE_STREAM = [JSON.stringify({ type: "start" }), JSON.stringify({ type: "segment", index: 0, audio_b64: wav().toString("base64") }), JSON.stringify({ type: "done" })].join("\n") + "\n";
+const CATALOG = {
+  "": { providers: ["openai", "qwen3-tts"], tts_providers: ["openai", "qwen3-tts"] },
+  openai: { tts_providers: ["openai"], tts_models_by_provider: { openai: ["tts-1"] }, items: ["alloy", "nova"].map((id) => ({ id, provider: "openai", model: "tts-1", label: id[0].toUpperCase() + id.slice(1) })) },
+  "qwen3-tts": { tts_providers: ["qwen3-tts"], tts_models_by_provider: { "qwen3-tts": ["Qwen-CustomVoice"] }, items: [{ id: "vivian", provider: "qwen3-tts", label: "Vivian", language: "en" }] },
+};
 const view = (r) => ({ entity_id: "entity:castor", identity: r, identity_ref: { of: "entity:castor", rev: r.rev }, age: { born: "2026-11-01T10:00:00+00:00", days: 3 } });
 const TRACK = { subject: "entity:castor", computed_at: "2026-11-04T10:00:00+00:00", as_of: "2026-11-04T09:00:00+00:00", sessions: 4, runs: 7, successes: 5, failures: 1, cancelled: 1, in_progress: 0, assessed: 0, tokens: { input: 31000, output: 9420, total: 40420 }, by_task_kind: { "visit/entity-visit@1": { runs: 6, successes: 5, failures: 1, cancelled: 0, tokens_total: 40000, first_at: null, last_at: null }, "work/task_inbox": { runs: 0, successes: 0, failures: 0, cancelled: 0, tokens_total: 0, first_at: null, last_at: null } }, recent_outcomes: [], basis: "completion-rate only" };
 const REPUTATION = { subject: "entity:castor", computed_at: "2026-11-04T10:00:00+00:00", overall: { trust: 0.75, support: 6, successes: 5, failures: 1, last_outcome_at: "2026-11-04T09:00:00+00:00" }, by_task_kind: { "visit/entity-visit@1": { trust: 0.75, support: 6, successes: 5, failures: 1, last_outcome_at: "2026-11-04T09:00:00+00:00" }, "work/task_inbox": { trust: 0.5, support: 0, successes: 0, failures: 0, last_outcome_at: null } }, evidence: [], basis: "completion-rate only" };
@@ -41,6 +58,7 @@ const MET = { subject: "entity:castor", entities: [{ id: "entity:pollux", first_
 // The settings body scrolls inside its modal: one shot at its top, one at its bottom (the actions).
 async function shoot(page, name) {
   if (!shots) return;
+  await page.waitForTimeout(150);
   const body = page.locator(".wsp_body");
   await body.evaluate((el) => { el.scrollTop = 0; });
   await page.screenshot({ path: `${shots}/${name}-top.png` });
@@ -50,12 +68,13 @@ async function shoot(page, name) {
 }
 
 try {
-  for (const viewport of [{ name: "desktop", width: 1280, height: 860, touch: false }, { name: "phone", width: 400, height: 860, touch: true }]) {
+  for (const viewport of [{ name: "desktop", width: 1440, height: 900, touch: false }, { name: "phone", width: 400, height: 860, touch: true }]) {
     for (const scenario of ["no-voice", "chosen"]) {
       const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, isMobile: viewport.touch, hasTouch: viewport.touch, reducedMotion: "reduce" });
       const page = await context.newPage();
       const errors = [];
-      const seen = { put: [], download: [] };
+      const seen = { put: [], download: [], samples: [], designs: [] };
+      let designed = false;
       page.on("pageerror", (error) => errors.push(String(error)));
       const current = scenario === "no-voice" ? REVS[1] : REVS[3];
       await page.route("**/*", async (route) => {
@@ -79,7 +98,14 @@ try {
         if (p.endsWith("/castor/reputation")) return json(REPUTATION);
         if (p.endsWith("/castor/acquaintances")) return json(MET);
         if (p === "/api/gateway/models/download") { seen.download.push(request.postDataJSON()); return json({ ok: true, job: { id: "job-1" } }); }
-        if (p === "/api/gateway/voice/voices") return json({ providers: ["openai"], tts_providers: ["openai"], tts_models_by_provider: { openai: ["tts-1"] }, items: ["alloy", "nova"].map((id) => ({ id, provider: "openai", label: id })) });
+        if (p === "/api/gateway/voice/voices") {
+          const provider = url.searchParams.get("provider") || "";
+          const answer = structuredClone(CATALOG[provider] || {});
+          if (provider === "qwen3-tts" && designed) answer.items.push({ id: "v-new", provider: "qwen3-tts", label: "Narrator", tags: { designed: true, description: "A calm, low narrator" } });
+          return json(answer);
+        }
+        if (p.endsWith("/castor/voice/tts/stream")) { seen.samples.push(request.postDataJSON()); return route.fulfill({ contentType: "application/x-ndjson", body: SAMPLE_STREAM }); }
+        if (p === "/api/gateway/voice/design") { seen.designs.push(request.postDataJSON()); designed = true; return json({ voice_id: "v-new", name: "Narrator", engine: "qwen3-tts" }); }
         if (p.endsWith("/operator/auth")) return json({ authorized: true, user_id: "laurent", admin: true });
         if (p.endsWith("/replay")) return route.fulfill({ contentType: "application/x-ndjson", body: "" });
         if (p.endsWith("/replay/stream")) return route.fulfill({ contentType: "text/event-stream", body: ": keepalive\n\n" });
@@ -91,45 +117,81 @@ try {
       await page.locator(".wsp_tab", { hasText: "identity" }).click();
       const pane = page.getByTestId("identity-settings");
       await pane.waitFor();
-      await page.getByTestId("identity-avatar").waitFor();
-      assert.equal(await page.getByTestId("identity-avatar").getAttribute("data-style"), current.avatar.style, "the avatar draws the recorded design");
-      assert.equal(await page.getByTestId("identity-avatar").getAttribute("data-color"), current.avatar.color, "in the recorded colour");
+      const avatar = page.locator("[data-identity-avatar]");
+      await avatar.waitFor();
+      assert.equal(await avatar.getAttribute("data-style"), current.avatar.style, "the avatar draws the recorded design");
+      assert.equal(await avatar.getAttribute("data-color"), current.avatar.color, "in the recorded colour");
+      const save = page.locator('[data-action="identity-save"]');
+      const status = page.locator("[data-identity-status]");
+      const pick = async (label, option) => {
+        await pane.locator(`[aria-label="${label}"]`).first().click();
+        await page.getByRole("option", { name: option, exact: true }).click();
+      };
+      // The gateway's own sentences are quoted as they are; the panel's words are checked around them.
+      const panelWords = async () => ((await pane.textContent()) || "").replace(NO_VOICE, "");
+      for (const jargon of ["profile", "provider", "Gateway default", "Custom", "revision"]) assert.ok(!(await panelWords()).includes(jargon), `no "${jargon}" on the identity panel`);
       if (scenario === "no-voice") {
-        // Recorded absence: the gateway's sentence, word for word; the picker names no voice; Save waits.
-        await page.getByTestId("identity-no-voice").filter({ hasText: NO_VOICE }).waitFor();
-        assert.equal((await page.getByTestId("identity-no-voice").textContent()).trim(), NO_VOICE);
-        assert.equal(await page.getByTestId("identity-save").isDisabled(), true, "nothing to save without a voice");
-        assert.match(await pane.textContent(), /Choose a voice to save\./);
-        assert.equal((await page.getByTestId("identity-scope").textContent()).trim(), "Saves castor's look and voice for everyone who meets it, on every device.");
+        // Recorded absence: the gateway's sentence, word for word; no voice chosen; Save waits.
+        await page.locator("[data-identity-no-voice]").filter({ hasText: NO_VOICE }).waitFor();
+        assert.equal((await page.locator("[data-identity-no-voice]").textContent()).trim(), NO_VOICE);
+        assert.equal(await save.isDisabled(), true, "nothing to save without a voice");
+        assert.equal((await page.locator("[data-identity-hint]").textContent()).trim(), "Choose a voice to save.");
         await shoot(page, `identity-no-voice-${viewport.name}`);
+        // The flow: engine, then a voice (it plays a sample on the entity's own lane), then one Save.
+        await pick("Voice engine", "openai");
+        await pick("Voice", "Alloy");
+        await page.waitForFunction(() => document.querySelector('[data-action="play-sample"]')?.getAttribute("data-state") !== "loading");
+        assert.equal(seen.samples.length, 1, "choosing a voice plays one sample");
+        assert.deepEqual({ provider: seen.samples[0].provider, model: seen.samples[0].model, voice: seen.samples[0].voice }, { provider: "openai", model: "tts-1", voice: "alloy" });
+        assert.equal(await save.isDisabled(), false, "a chosen voice can be saved");
+        assert.equal((await page.locator("[data-identity-scope]").textContent()).trim(), "Saves castor's look and voice for everyone who meets it, on every device.");
+        await shoot(page, `identity-voice-chosen-${viewport.name}`);
+        await save.click();
+        await status.filter({ hasText: "kokoro-big" }).waitFor();
+        assert.deepEqual(seen.put, [{ avatar: { style: "watch-nebula", color: "#d06439" }, voice: { provider: "openai", model: "tts-1", voice: "alloy" } }], "one Save, the whole record");
       } else {
-        assert.equal(await page.getByTestId("identity-no-voice").count(), 0, "a recorded voice shows no absence sentence");
+        assert.equal(await page.locator("[data-identity-no-voice]").count(), 0, "a recorded voice shows no absence sentence");
         // History: every revision, newest first.
-        await page.locator(".idn_history > summary").click();
-        await page.getByTestId("identity-history").waitFor();
-        const revs = await page.locator(".idn_history_row").evaluateAll((rows) => rows.map((row) => Number(row.getAttribute("data-rev"))));
+        await page.locator(".af-identity__history > summary").click();
+        await page.locator("[data-identity-history]").waitFor();
+        const revs = await page.locator(".af-identity__history-row").evaluateAll((rows) => rows.map((row) => Number(row.getAttribute("data-rev"))));
         assert.deepEqual(revs, [3, 2, 1], "history newest first");
-        assert.match(await page.locator(".idn_history_row").first().textContent(), /New voice/);
-        assert.match(await page.locator(".idn_history_row").last().textContent(), /Default look, no voice.*by the gateway/s);
+        assert.match(await page.locator(".af-identity__history-row").first().textContent(), /New voice/);
+        assert.match(await page.locator(".af-identity__history-row").last().textContent(), /Default look, no voice.*by the gateway/s);
+        await page.locator(".af-identity__history > summary").click();
         // A design from the catalog (only those the Watch draws), drawn at once in the new colour.
-        await page.locator(`.idn_field [aria-label="Avatar design"]`).first().click();
+        await pane.locator(`[aria-label="Avatar design"]`).first().click();
         assert.equal(await page.getByRole("option", { name: "Woven orb" }).count(), 0, "a design the Watch cannot draw is not offered");
         await page.getByRole("option", { name: "Watch Halo", exact: true }).click();
         await page.locator('input[aria-label="Avatar colour"]').fill("#aa33cc");
-        await page.waitForFunction(() => document.querySelector('[data-testid="identity-avatar"]')?.getAttribute("data-style") === "watch-halo" && document.querySelector('[data-testid="identity-avatar"]')?.getAttribute("data-color") === "#aa33cc");
+        await page.waitForFunction(() => document.querySelector("[data-identity-avatar]")?.getAttribute("data-style") === "watch-halo" && document.querySelector("[data-identity-avatar]")?.getAttribute("data-color") === "#aa33cc");
+        await shoot(page, `identity-chosen-${viewport.name}`);
         // One Save, the whole record, once; the refusal word for word with its Download; no retry.
-        await page.getByTestId("identity-save").click();
-        await page.getByTestId("identity-status").filter({ hasText: "kokoro-big" }).waitFor();
-        assert.equal((await page.getByTestId("identity-status").textContent()).trim(), MISSING, "the refusal is the gateway's sentence");
+        await save.click();
+        await status.filter({ hasText: "kokoro-big" }).waitFor();
+        assert.equal((await status.textContent()).trim(), MISSING, "the refusal is the gateway's sentence");
         await page.waitForTimeout(400);
         assert.equal(seen.put.length, 1, "one save, never retried");
         assert.deepEqual(seen.put[0], { avatar: { style: "watch-halo", color: "#aa33cc" }, voice: { provider: "openai", model: "tts-1", voice: "nova" } });
-        assert.equal((await page.getByTestId("identity-download").textContent()).trim(), "Download (330 MB)");
+        const download = page.locator('[data-action="identity-download"]');
+        assert.equal((await download.textContent()).trim(), "Download (330 MB)");
         await shoot(page, `identity-refused-${viewport.name}`);
-        await page.getByTestId("identity-download").click();
-        await page.getByTestId("identity-status").filter({ hasText: "Downloading the voice model" }).waitFor();
+        await download.click();
+        await status.filter({ hasText: "Downloading the voice model" }).waitFor();
         assert.deepEqual(seen.download, [{ provider: "kokoro", artifact: "kokoro-big" }]);
         assert.equal(seen.put.length, 1, "the download does not save");
+        // Create a new voice: from a description, selected on its engine, saved with the engine's model.
+        await page.locator('[data-action="open-create-voice"]').click();
+        await page.locator('textarea[aria-label="Voice description"]').fill("A calm, low narrator");
+        await page.locator('input[aria-label="Voice name"]').fill("Narrator");
+        await shoot(page, `identity-create-voice-${viewport.name}`);
+        await page.locator('[data-action="create-voice"]').click();
+        await status.filter({ hasText: "New voice ready and selected" }).waitFor();
+        assert.equal(seen.designs.length, 1, "one voice created");
+        await page.waitForFunction(() => /Narrator/.test(document.querySelector('[aria-label="Voice"]')?.textContent || ""));
+        await save.click();
+        await page.waitForFunction(() => document.querySelectorAll("[data-identity-status]").length && !/Saving/.test(document.querySelector("[data-identity-status]").textContent));
+        assert.deepEqual(seen.put[1]?.voice, { provider: "qwen3-tts", model: "Qwen-CustomVoice", voice: "v-new" }, "the new voice is saved with its engine's model");
         // Track record: counts, trust with its support, "No experience yet", plain basis, who it met.
         await page.locator(".wsp_tab", { hasText: "track record" }).click();
         await page.getByTestId("trust-by-task").waitFor();

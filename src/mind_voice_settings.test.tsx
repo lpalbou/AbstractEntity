@@ -130,8 +130,9 @@ describe("Voice: create one in the gateway's voice library", () => {
     expect(html).toContain("Create a voice");
     expect(html).toContain("From a description");
     expect(html).toContain("From a recording");
+    // The identity page is the kit's IdentityPanel; its gateway client carries the voice library.
     const src = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
-    expect(src).toContain("createVoice={createVoice}");
+    expect(src).toContain("createVoice: entityVoiceCreation(baseUrl, token),");
   });
 
   it("designs a voice: POST voice/design with the description, name and language", async () => {
@@ -206,8 +207,9 @@ describe("R16.5: the creator configures their entity (GET /entities/{name}/acces
     const src = fs.readFileSync(path.join(__dirname, "mind_voice_settings.tsx"), "utf8");
     expect(src).toContain("disabled={Boolean(refused)}");
     expect(src.match(/<RefusalLine text=\{refused\} \/>/g)?.length).toBe(1);
+    // Identity: the kit panel reads it as text with the sentence when the answer refuses.
     const identity = fs.readFileSync(path.join(__dirname, "identity_settings.tsx"), "utf8");
-    expect(identity.match(/<RefusalLine text=\{refused\} \/>/g)?.length).toBe(1);
-    expect(identity).toContain('data-testid="identity-voice-current"');
+    expect(identity).toContain("const refusal = accessRefusal(access) || accessError;");
+    expect(identity).toContain("refusal={refusal}");
   });
 });
