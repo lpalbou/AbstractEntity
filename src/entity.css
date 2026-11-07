@@ -410,6 +410,19 @@ body {
   min-height: calc(9px * var(--font-scale, 1));
 }
 
+/* The five signed tone channels under the bloom: the gauge's code row, kept inside the bloom's
+ * box (compact values like −.9, exact on hover; wraps rather than overflowing into the gauge). */
+.cm_tone_codes {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0;
+  row-gap: 2px;
+}
+.cm_tone_codes .cm_gauge_code {
+  padding: 0;
+  letter-spacing: 0;
+}
+
 /* Inline verbatim in the Detail tab (dm#28: the words, no button). */
 .ei_verbatim_inline {
   margin: 6px 0 8px;
