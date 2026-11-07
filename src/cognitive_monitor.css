@@ -1,0 +1,43 @@
+/* The Cognitive Monitor's tone row, each channel with its score (operator 2026-11-07: the numbers
+ * speak, no sentence under the bloom). Five signed values ("−0.94") at the 13–14 px type floor
+ * need about 200 px and the bloom column is 132–190 px wide, so the row is always a 3 + 2 grid
+ * with the second row centred: each cell is a third of the column (44 px at the narrowest, the
+ * touch target), wide enough for one value. Two classes beat entity.css's .cm_tone_codes rules,
+ * the coarse-pointer grid included, whatever the stylesheet order. */
+.cm_tone_codes.cm_tone_nums {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  justify-items: center;
+  row-gap: 2px;
+  padding: 0;
+}
+.cm_tone_nums > .cm_gauge_code {
+  grid-column: span 2;
+}
+.cm_tone_nums > .cm_gauge_code:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+/* A number, not a tier mark: regular weight, aligned digits, never broken across lines. */
+.cm_tone_nums .cm_tone_val {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The conduct codes' values ("40.1s", "44+1", "n/a") never wrap either. */
+.cm_gauge_codes .cm_gauge_val {
+  white-space: nowrap;
+}
+/* The Wave tab's column: the bloom, then the same tone row under it. */
+.cw_bloom_col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Touch: four 44 px conduct codes need 176 px and the gauge box is 132–190 px; centre the row so
+ * any overflow splits into the 14 px gap and the panel padding instead of past the panel edge. */
+@media (pointer: coarse) {
+  .cm_gauge_box > .cm_gauge_codes {
+    justify-content: center;
+    padding: 0;
+  }
+}

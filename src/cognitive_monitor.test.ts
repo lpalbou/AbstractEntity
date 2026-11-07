@@ -1,21 +1,22 @@
 /**
- * The Cognitive Monitor's vocabulary + interpreter (operator 2026-07-15 pm).
+ * The Cognitive Monitor's vocabulary (operator 2026-07-15 pm) and its radar.
  *
- * Two pins:
+ * Pins:
  * - AXIS DRIFT: every vendored uic axis (EMOTIONS/CHANNELS) has a code +
  *   description here, codes are unique, and the emotion order matches the
  *   vendored order (the bloom's petal positions are index-derived — the
  *   axis list IS the geometry key).
- * - INTERPRETATION: the pre-computed meaning is deterministic, names the
- *   dominant registers with their codes, and never speaks of inner state
- *   ("he feels" is banned vocabulary — the instrument reads words).
+ * - NO SENTENCE (operator 2026-11-07: "no need to comment on the value"):
+ *   the interpreter and its reading line are gone; every value is printed.
+ * - THE RADAR: one fixed scale, every petal's number printed beside it.
  */
 
 import { describe, expect, it } from "vitest";
 
 import { EMOTION_REGISTERS } from "@abstractframework/ui-kit";
 
-import { BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, dominantEmotion, EMOTION_AXES, interpretWave, radarValue, readingTitle, registerNow, roundSim, simText } from "./cognitive_monitor";
+import * as monitor from "./cognitive_monitor";
+import { BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, dominantEmotion, EMOTION_AXES, petalLabelTransform, radarValue, registerNow, roundSim, simText } from "./cognitive_monitor";
 import { CHANNELS } from "./vendor/cognition/core";
 
 describe("axis tables (drift pins against the kit contract)", () => {
@@ -58,68 +59,9 @@ describe("axis tables (drift pins against the kit contract)", () => {
   });
 });
 
-describe("interpretWave (the pre-computed meaning)", () => {
-  it("null sample → the resting sentence", () => {
-    expect(interpretWave(null)).toContain("Nothing scored yet");
-  });
-
-  it("the closest register is always named with its similarity, however small or negative", () => {
-    const typical = { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 };
-    expect(interpretWave({ emotions: { joy: -0.02, calm: -0.035, fear: -0.09 }, scores: typical })).toBe("The words are closest to joy (JOY −0.02).");
-    expect(interpretWave({ emotions: { calm: 0.03 }, scores: typical })).toBe("The words are closest to calm (CAL 0.03).");
-  });
-
-  it("only when nothing was read at all does the sentence say no clear emotion", () => {
-    const typical = { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 };
-    expect(interpretWave({ emotions: {}, scores: typical })).toBe("Typical phrasing, no tone stands out — no clear emotion.");
-    expect(interpretWave({ emotions: { joy: Number.NaN }, scores: typical })).toBe("Typical phrasing, no tone stands out — no clear emotion.");
-  });
-
-  it("the verb only puts the number into words", () => {
-    expect(interpretWave({ emotions: { sadness: 0.05 }, scores: {} })).toContain("are closest to sadness (SAD 0.05)");
-    expect(interpretWave({ emotions: { sadness: 0.12 }, scores: {} })).toContain("tilt mildly toward sadness (SAD 0.12)");
-    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: {} })).toContain("lean toward sadness (SAD 0.30)");
-    expect(interpretWave({ emotions: { sadness: 0.5 }, scores: {} })).toContain("lean strongly toward sadness (SAD 0.50)");
-  });
-
-  it("a close second reads as a thread, with its number", () => {
-    expect(interpretWave({ emotions: { fear: 0.59, anxiety: 0.43, calm: -0.1 }, scores: {} })).toBe("The words lean strongly toward fear (FEA 0.59) with a thread of anxiety (ANX 0.43).");
-    expect(interpretWave({ emotions: { joy: 0.69, calm: 0.19 }, scores: {} })).not.toContain("thread");
-  });
-
-  it("ONE rule against contradiction: a clear register (≥ 0.25) silences warmth; a faint one lets warmth speak", () => {
-    expect(interpretWave({ emotions: { joy: 0.69 }, scores: { warmth: -0.99, certainty: 0.95 } })).toBe("The words lean strongly toward joy (JOY 0.69); very assured phrasing.");
-    expect(interpretWave({ emotions: { calm: 0.03 }, scores: { warmth: -0.99 } })).toBe("Deeply discouraged phrasing; the words are closest to calm (CAL 0.03).");
-    expect(interpretWave({ emotions: { calm: 0.8 }, scores: { tension: 0.99 } })).toBe("The words lean strongly toward calm (CAL 0.80); very urgent phrasing.");
-  });
-
-  it("a strong tone word leads over a register below 0.25; otherwise the register leads", () => {
-    expect(interpretWave({ emotions: { sadness: 0.12 }, scores: { reflection: 0.9 } })).toBe("Deeply reflective phrasing; the words tilt mildly toward sadness (SAD 0.12).");
-    expect(interpretWave({ emotions: { sadness: 0.3 }, scores: { reflection: 0.9 } })).toBe("The words lean toward sadness (SAD 0.30); deeply reflective phrasing.");
-  });
-
-  it("high novelty is labeled session-relative wandering", () => {
-    const text = interpretWave({ emotions: { discovery: 0.5 }, scores: {}, novelty: 0.7 });
-    expect(text).toContain("wanders");
-    expect(text).toContain("session-relative");
-  });
-
-  it("NEVER claims inner state — the banned vocabulary pin", () => {
-    const shapes = [
-      { emotions: { fear: 0.9 }, scores: { tension: 0.99, warmth: -0.99 } },
-      { emotions: { joy: 0.9 }, scores: { certainty: 0.99 } },
-      { emotions: {}, scores: { warmth: -0.99, certainty: -0.99, reflection: 0.9 } },
-      { emotions: {}, scores: {} },
-      null,
-    ];
-    for (const s of shapes) {
-      expect(interpretWave(s).toLowerCase()).not.toMatch(/he feels|his feelings|inner state|he is (sad|happy|afraid|anxious|discouraged)/);
-    }
-  });
-
-  it("is deterministic (same sample → same sentence)", () => {
-    const s = { emotions: { tenderness: 0.6, joy: 0.3 }, scores: { structure: 0.99 }, novelty: 0.2 };
-    expect(interpretWave(s)).toBe(interpretWave(s));
+describe("no sentence comments on the values (operator 2026-11-07)", () => {
+  it("the interpreter, its reading line and its hover text are gone from the shared module", () => {
+    for (const name of ["interpretWave", "ReadingLine", "readingTitle", "toneReading", "toneMark"]) expect(Object.keys(monitor), name).not.toContain(name);
   });
 });
 
@@ -157,12 +99,12 @@ describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), 
     expect(Object.values(bloomScoresOf(undefined)).every((v) => v === 0)).toBe(true);
   });
 
-  it("prints with a true minus sign, never −0.00; the verb follows the printed number", () => {
+  it("prints with a true minus sign, never −0.00", () => {
     expect(simText(-0.02)).toBe("−0.02");
     expect(simText(0.5)).toBe("0.50");
     expect(simText(-0.001)).toBe("0.00");
     expect(roundSim(0.0996)).toBe(0.1);
-    expect(interpretWave({ emotions: { fear: 0.0996 }, scores: {} })).toContain("tilt mildly toward fear (FEA 0.10)");
+    expect(simText(0.0996)).toBe("0.10");
   });
 
   it("every petal carries its number; a missing one reads —", async () => {
@@ -178,11 +120,19 @@ describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), 
     expect(registerNow(undefined)).toBe("This reply: not read.");
   });
 
-  it("the title says the scale and carries the live number; no gate language", () => {
-    const t = readingTitle(0.12);
-    expect(t).toContain("the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out");
-    expect(t).toContain("closest register here is at 0.12");
-    expect(t.toLowerCase()).not.toMatch(/abstention|evidence|gate/);
-    expect(readingTitle(undefined)).not.toMatch(/closest register here/);
+  it("petal labels stay centred on their anchor but never cross the centre line nor leave the box", async () => {
+    // the top petal (on the line) stays centred
+    expect(petalLabelTransform(81.5, 163)).toBe("translate(-50%, -50%)");
+    // left of the line: right edge at most 3 px short of it (x 57.6 → 81.5 − 3 − 57.6 = 20.9), left edge ≥ 0
+    expect(petalLabelTransform(57.6, 163)).toBe("translate(max(-57.6px, min(-50%, calc(20.9px - 100%))), -50%)");
+    // right of the line: left edge at least 3 px past it, right edge ≤ the box width
+    expect(petalLabelTransform(105.4, 163)).toBe("translate(min(calc(57.6px - 100%), max(-50%, -20.9px)), -50%)");
+    // every label gets its bounds; exactly one (the top petal) is plainly centred
+    const React = (await import("react")).default;
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 163, height: 163, onAxis: () => undefined, emotions: {} }));
+    expect(html.match(/transform:translate\(-50%, -50%\)/g)?.length).toBe(1);
+    expect(html.match(/transform:translate\(max\(/g)?.length).toBe(4);
+    expect(html.match(/transform:translate\(min\(calc/g)?.length).toBe(4);
   });
 });

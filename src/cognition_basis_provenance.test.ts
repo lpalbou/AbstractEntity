@@ -9,7 +9,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { basisProvenanceNote, MonitorInfoModal, readingTitle } from "./cognitive_monitor";
+import { basisProvenanceNote, MonitorInfoModal } from "./cognitive_monitor";
 import basisV1 from "./vendor/cognition/data/basis_v1.json";
 
 const V1 = (basisV1 as unknown as { calibrated_on: Record<string, unknown> }).calibrated_on;
@@ -38,21 +38,13 @@ describe("basisProvenanceNote (generic design, mixed-corpus normalization)", () 
   });
 });
 
-describe("the quiet-state copy carries the generic provenance", () => {
-  it("readingTitle keeps the live number and claims no single-entity tuning", () => {
-    const t = readingTitle(0.0167, basisProvenanceNote(V1));
-    expect(t).toContain("closest register here is at 0.02");
-    expect(t).not.toMatch(NO_ONE_ENTITY);
-  });
-
-  it("readingTitle without a loaded basis makes no calibration claim", () => {
-    expect(readingTitle(0.0167)).not.toMatch(/calibrated|fitted/i);
-  });
-
+describe("the (i) modal carries the generic provenance", () => {
   it("the (i) modal states the generic provenance, explains the signed tone channels, and drops the stale sentences", () => {
     const html = renderToStaticMarkup(React.createElement(MonitorInfoModal, { axis: "about", onClose: () => undefined, calibration: basisProvenanceNote(V1) }));
     expect(html).toContain("the same for every entity");
-    expect(html).toContain("both poles speak");
+    expect(html).toContain("print their signed score in [−1, 1], so both poles show");
+    // no sentence comments on the values any more (operator 2026-11-07)
+    expect(html).not.toMatch(/The sentence|are closest to calm/);
     expect(html).not.toMatch(NO_ONE_ENTITY);
     expect(html).not.toContain("calibrated on his real utterances");
     expect(html).not.toContain("curated-only v0 basis");

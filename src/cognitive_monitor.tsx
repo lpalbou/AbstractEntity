@@ -1,13 +1,13 @@
 /**
- * The Cognitive Monitor's shared vocabulary + interpretation layer
- * (operator 2026-07-15: "make it useful, readable — a proper panel with a
- * title, axis codes people can understand, an (i) that explains it, and a
- * human-readable interpretation of the state").
+ * The Cognitive Monitor's shared vocabulary (operator 2026-07-15: "make it
+ * useful, readable — a proper panel with a title, axis codes people can
+ * understand, an (i) that explains it"). No sentence comments on the values
+ * (operator 2026-11-07): every register, tone channel and conduct read shows
+ * its number; words (a tone pole, a reason) live on hover and click.
  *
  * Honesty contract (uic's, unchanged): everything here reads the
- * EXPRESSIVE CHARACTER OF THE ENTITY'S WORDS — never inner state. The
- * interpreter below verbalizes the SHAPE of the scores; its sentences are
- * about phrasing and lean, deliberately never "he feels".
+ * EXPRESSIVE CHARACTER OF THE ENTITY'S WORDS — never inner state; the pole
+ * words are about phrasing, deliberately never "he feels".
  *
  * The axis tables are DERIVED from the vendored uic vocabularies (one
  * source: core.js EMOTIONS/CHANNELS) — a drift test pins that every
@@ -15,9 +15,10 @@
  */
 
 import React, { useEffect } from "react";
-import { EMOTION_REGISTERS } from "@abstractframework/ui-kit";
+import { EMOTION_REGISTERS, type ConductAxis, type ConductFacts, type ConductToolCall } from "@abstractframework/ui-kit";
 
 import { CHANNELS } from "./vendor/cognition/core";
+import "./cognitive_monitor.css";
 
 export interface AxisInfo {
   id: string;
@@ -60,9 +61,9 @@ export const EMOTION_AXES: AxisInfo[] = EMOTION_REGISTERS.map((r) =>
 );
 
 
-/** The six scored channels. The five tone channels are drawn as the signed row under the bloom
- * and spoken in the reading; each description names BOTH poles in the meaning of the generic
- * anchor texts that build the axis. CUR belongs to the Wave tab. */
+/** The six scored channels. The five tone channels are drawn as the row under the bloom, each
+ * with its signed score; each description names BOTH poles in the meaning of the generic anchor
+ * texts that build the axis. CUR belongs to the Wave tab. */
 export const CHANNEL_AXES: AxisInfo[] = [
   axis("warmth", "WAR", "warmth", channelColor.get("warmth") ?? "#8a94a6", "Warm (glad, grateful, at ease with the work) against discouraged (drained, stung, bitter) phrasing."),
   axis("tension", "TSN", "tension", channelColor.get("tension") ?? "#8a94a6", "Urgent (pressed for time, attention jumping) against unhurried (no rush, at leisure) phrasing."),
@@ -137,28 +138,14 @@ export function basisProvenanceNote(calibratedOn: Record<string, unknown> | null
   return `${generic} Its normalization (whitening, channel scales) was fitted on a mixed corpus: ${list}${date}.`;
 }
 
-/** The reading's hover text, shared by both mounts: what the petals mean, the closest register's
- * similarity, and the basis's provenance (`calibration` is basisProvenanceNote's sentence). */
-export function readingTitle(maxSim: number | undefined, calibration?: string | null): string {
-  const near = typeof maxSim === "number" && Number.isFinite(maxSim) ? ` The closest register here is at ${simText(maxSim)}.` : "";
-  return `Each petal is the similarity of his words to that register, on one fixed scale for every reply: the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out. Nothing is centred or rescaled per reply; each petal's number is printed beside it.${near}${calibration ? ` ${calibration}` : ""}`;
-}
-
-export interface WaveSampleLike {
-  emotions?: Record<string, number>;
-  scores?: Record<string, number>;
-  novelty?: number;
-  /** The scorer's gate diagnostic (kept with the reading; the display does not use it). */
-  emotionEvidence?: number;
-}
-
 /**
  * Where a tone channel starts to speak (review 2026-11-07, finding 1). A channel score is
  * tanh((raw - median) / (1.5 MAD)) of the basis normalization, and real text is spread wide and
  * skewed on that scale (the median text of this home already scores warmth +0.58, reflection
- * -0.47), so fixed round cutoffs called a third of all texts "very" something. A channel now
- * speaks only when the reply sits in the outer 3% of a reference population on that side (plain
- * word) or the outer 1% (strong word); everything between is typical and says nothing.
+ * -0.47), so fixed round cutoffs called a third of all texts "very" something. A channel's pole
+ * word (on hover and in the axis window; the row always prints the score) is given only when the
+ * reply sits in the outer 3% of a reference population on that side (plain word) or the outer 1%
+ * (strong word); everything between is typical.
  *
  * Reference set: the channel scores of 1,599 texts from this home's embedding cache (2026-11-07),
  * committed as src/fixtures/tone_reference_scores.json (scores only: no texts, no vectors; source,
@@ -218,29 +205,6 @@ export function toneWord(channel: string, value: number | undefined): string | n
   return (tier > 0 ? poles.positive : poles.negative)[Math.abs(tier) - 1];
 }
 
-/** The compact signed mark the row shows: the same tiers the sentence speaks ("—" unread). */
-export function toneMark(channel: string, value: number | undefined): string {
-  const tier = toneTier(channel, value);
-  return tier === null ? "—" : tier === 0 ? "·" : `${tier > 0 ? "+" : "−"}`.repeat(Math.abs(tier));
-}
-
-/** The tone reading: strong words first, then plain, each group by |value|; at most three.
- * `read` is false when no tone channel holds a finite score (nothing to say, not "even"). */
-export function toneReading(scores: Record<string, number> | undefined, omit: readonly string[] = []): { text: string | null; read: boolean; strong: boolean } {
-  const ids = Object.keys(TONE_POLES);
-  const read = ids.some((id) => toneTier(id, scores?.[id]) !== null);
-  const ranked = ids
-    .filter((id) => !omit.includes(id))
-    .map((id) => ({ id, v: scores?.[id] as number, tier: toneTier(id, scores?.[id]), word: toneWord(id, scores?.[id]) }))
-    .filter((c): c is { id: string; v: number; tier: ToneTier; word: string } => c.word !== null)
-    .sort((a, b) => Math.abs(b.tier) - Math.abs(a.tier) || Math.abs(b.v) - Math.abs(a.v))
-    .slice(0, 3);
-  if (!ranked.length) return { text: null, read, strong: false };
-  return { text: `${ranked.map((c) => c.word).join(", ")} phrasing`, read, strong: Math.abs(ranked[0].tier) === 2 };
-}
-
-const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-
 /** The register his words are closest to (its similarity, however small or negative); null only
  * when nothing was read. */
 export function dominantEmotion(emotions: Record<string, number> | undefined): { axis: AxisInfo; value: number } | null {
@@ -254,83 +218,22 @@ export function dominantEmotion(emotions: Record<string, number> | undefined): {
   return best;
 }
 
-/**
- * PRE-COMPUTED MEANING: a deterministic, rule-based verbalization of the scores (never the
- * text). It describes the WORDS' expressive character, never inner state. `emotions` are the
- * registers' measured similarities in [−1, 1]. Rules:
- * - the closest register is ALWAYS named with its similarity (operator 2026-11-07: nothing is
- *   ours to remove); the verb only words the number: "lean strongly toward" ≥ 0.45, "lean
- *   toward" ≥ 0.25, "tilt mildly toward" ≥ 0.10, otherwise the words "are closest to";
- * - a second register within reach (≥ 0.20 and ≥ 60% of the first) reads as a thread;
- * - the tone clause speaks the channels in the outer tails (TONE_CUTOFFS), both poles;
- * - ONE rule against contradiction: when a register is clearly present (≥ 0.25) it carries
- *   the valence, so warmth is not spoken beside it; below that, warmth speaks. Urgency,
- *   reflection, structure and certainty describe the phrasing beside any register;
- * - a strong tone word leads over a register below 0.25; otherwise the register leads;
- * - nothing read at all: the tone IS the reading ("… — no clear emotion").
- * Pure + tested.
- */
-export const LEAN_STRONGLY = 0.45;
-export const LEAN = 0.25;
-export const TILT = 0.1;
-
-export function interpretWave(sample: WaveSampleLike | null): string {
-  if (!sample) return "Nothing scored yet — the monitor reads his replies as they arrive.";
-  const emotions = sample.emotions ?? {};
-  const scores = sample.scores ?? {};
-  const ranked = EMOTION_AXES.filter((axis) => typeof emotions[axis.id] === "number" && Number.isFinite(emotions[axis.id]))
-    .map((axis) => ({ axis, v: roundSim(emotions[axis.id] as number) }))
-    .sort((a, b) => b.v - a.v);
-  const top = ranked[0];
-  const second = ranked[1];
-  const clear = Boolean(top && top.v >= LEAN);
-
-  const tone = toneReading(scores, clear ? ["warmth"] : []);
-  const emotionClause = (): string | null => {
-    if (!top) return null;
-    const what = `${top.axis.name} (${top.axis.code} ${simText(top.v)})`;
-    if (top.v < TILT) return `the words are closest to ${what}`;
-    const verb = top.v >= LEAN_STRONGLY ? "lean strongly toward" : top.v >= LEAN ? "lean toward" : "tilt mildly toward";
-    const thread = second && second.v >= 0.2 && second.v >= top.v * 0.6 ? ` with a thread of ${second.axis.name} (${second.axis.code} ${simText(second.v)})` : "";
-    return `the words ${verb} ${what}${thread}`;
-  };
-
-  const clauses: string[] = [];
-  const em = emotionClause();
-  if (!em) {
-    if (tone.text) clauses.push(`${capital(tone.text)} — no clear emotion`);
-    else if (tone.read) clauses.push("Typical phrasing, no tone stands out — no clear emotion");
-    else clauses.push("Tone not read — no clear emotion");
-  } else {
-    const toneLeads = tone.text !== null && tone.strong && top.v < LEAN;
-    if (toneLeads) clauses.push(capital(tone.text!), em);
-    else {
-      clauses.push(capital(em));
-      if (tone.text) clauses.push(tone.text);
-    }
-  }
-  if (typeof sample.novelty === "number" && sample.novelty >= 0.5) {
-    clauses.push("and it wanders off the conversation's usual ground (session-relative)");
-  }
-  return `${clauses.join("; ")}.`;
-}
-
-/** The five tone channels as a signed row (the conduct gauge's code-and-value pattern): each
- * code shows the same tier the sentence speaks ("·" typical, "−"/"+" outer 3%, "−−"/"++" outer
- * 1%, "—" unread). Each button is named with the channel, exact value and pole word; a click
- * opens the axis panel, which states the same. */
+/** The five tone channels as a row under the bloom (the conduct gauge's code-and-value
+ * pattern): each code prints its score in [−1, 1] as the registers print theirs ("—" when the
+ * channel was not read). The pole word stays on the button's name and hover, and a click opens
+ * the axis window, which states value and pole without hover. */
 export function ToneRow({ scores, onAxis }: { scores: Record<string, number> | undefined; onAxis(axis: AxisInfo): void }): React.ReactElement {
   return (
-    <div className="cm_gauge_codes cm_tone_codes" role="group" aria-label="Tone of the phrasing">
+    <div className="cm_gauge_codes cm_tone_codes cm_tone_nums" role="group" aria-label="Tone of the phrasing">
       {CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => {
         const v = scores?.[a.id];
         const finite = typeof v === "number" && Number.isFinite(v);
         const word = toneWord(a.id, v);
-        const said = finite ? `${a.code} ${a.name} ${v.toFixed(2)}, ${word ?? "typical"}` : `${a.code} ${a.name}, not read`;
+        const said = finite ? `${a.code} ${a.name} ${simText(v)}, ${word ?? "typical"}` : `${a.code} ${a.name}, not read`;
         return (
           <button key={a.id} type="button" className="cm_gauge_code" style={{ color: a.color }} aria-label={said} title={`${said}. ${a.description}`} onClick={() => onAxis(a)}>
             {a.code}
-            <span className="cm_gauge_val cm_tone_val" aria-hidden="true">{toneMark(a.id, v)}</span>
+            <span className="cm_gauge_val cm_tone_val" aria-hidden="true">{finite ? simText(v) : "—"}</span>
           </button>
         );
       })}
@@ -338,15 +241,36 @@ export function ToneRow({ scores, onAxis }: { scores: Record<string, number> | u
   );
 }
 
-/** The reading line under the row: interpretWave's sentence; hover keeps the gate's numbers. */
-export function ReadingLine({ sample, title, className = "cm_reading_line" }: { sample: WaveSampleLike; title?: string; className?: string }): React.ReactElement {
-  return <div role="status" className={className} title={title}>{interpretWave(sample)}</div>;
+/** What one conduct code shows ("short") and says ("now", on hover and in the axis window).
+ * The kit's reads pass through, with one correction: its rigor read prints "—" and says "zero
+ * calls this turn" both when the turn made no calls and when no tool fact was served at all. The
+ * app knows which: a served tool_rounds of 0 is a turn without calls, where rigor does not apply
+ * ("n/a"); no tool fact is unknown ("—"). Every "—" says why. null before the gauge reports. */
+export interface ConductCell {
+  short: string;
+  now: string;
+}
+export function conductCell(axis: ConductAxis | undefined, facts: ConductFacts | null | undefined, tools: ConductToolCall[] | null | undefined): ConductCell | null {
+  if (!axis) return null;
+  if (axis.id === "rigor" && !tools?.length) {
+    const rounds = facts?.tool_rounds;
+    if (rounds === 0) return { short: "n/a", now: "n/a, this turn made no tool calls (rigor reads the names of its calls)" };
+    if (typeof rounds === "number") return { short: "—", now: `not read, ${rounds} tool round${rounds === 1 ? "" : "s"} counted but no call names were served` };
+    return { short: "—", now: "not read, no tool facts were served for this turn" };
+  }
+  const value = axis.text && axis.text !== "—" ? axis.text : "not read";
+  return { short: axis.short, now: axis.reason ? `${value} (${axis.reason})` : value };
+}
+
+/** A conduct read for the shown turn, said in full (the touch path: no hover needed). */
+export function conductNow(cell: ConductCell | null | undefined): string {
+  return cell ? `This turn: ${cell.now}.` : "This turn: not read yet.";
 }
 
 /** What the monitor IS — the (i) modal body, shared by the chat panel and
  * the Wave tab. Axis = null shows the general explanation; an axis shows
  * its detail. */
-export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null; /** The shown reply's channel scores: a channel axis states its current value and pole. */ scores?: Record<string, number>; /** The shown reply's register similarities: a register states its own. */ emotions?: Record<string, number> }): React.ReactElement {
+export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions, conduct }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null; /** The shown reply's channel scores: a channel axis states its current value and pole. */ scores?: Record<string, number>; /** The shown reply's register similarities: a register states its own. */ emotions?: Record<string, number>; /** The shown turn's conduct cells by axis id (chat monitor only): a conduct axis states its read. */ conduct?: Partial<Record<string, ConductCell | null>> }): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
@@ -384,15 +308,14 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions 
                 ordinary reply draws a small bloom near the inner ring and threat language reaches out toward FEA.
               </p>
               <p>
-                <strong>Every value is shown, however small.</strong> The sentence names the register his words are
-                closest to, with its similarity ("the words are closest to calm (CAL 0.03)"; "lean strongly toward fear
-                (FEA 0.59)"); the verb only puts the number into words. The tone reads too: the five channels under the bloom
-                (WAR warmth, TSN tension, REF reflection, STR structure, CER certainty) are signed, so both poles speak
+                <strong>Every value is shown, however small.</strong> Each petal prints its similarity; nothing is
+                summarised in words. The tone reads too: the five channels under the bloom (WAR warmth, TSN tension,
+                REF reflection, STR structure, CER certainty) print their signed score in [−1, 1], so both poles show
                 (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
-                associative, assured or hedging). A channel speaks only when the reply sits in the outer 3% of a reference set
-                on that side ("+" or "−"; "++" or "−−" for the outer 1%); "·" is typical. The reference set is{" "}
-                {TONE_CUTOFFS.reference.label}: what this home embedded, not a general corpus. The sentence says the
-                strongest ones and always names the closest register with its similarity.
+                associative, assured or hedging). Hover or tap a channel for its pole word: it is given only when the
+                reply sits in the outer 3% of a reference set on that side (the strong word for the outer 1%);
+                otherwise the channel is typical. The reference set is {TONE_CUTOFFS.reference.label}: what this home
+                embedded, not a general corpus.
               </p>
               <p>
                 RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing
@@ -400,7 +323,9 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions 
                 call, violet ring = verify-shaped call — the RIG count made visible), attention is one root filament
                 per memory recalled (green buds = memories formed), rigor is the spine's alignment. Reads are relative
                 to this visit's own median turn, never an invented absolute; a dashed stub means the fact is absent
-                (never zero-faked), and the code row under the figure always carries the live numbers.
+                (never zero-faked), and the code row under the figure always carries the live numbers: "—" is a fact
+                not served for this turn, "n/a" a read that does not apply (rigor on a turn without tool calls); hover
+                or tap a code for the reason.
               </p>
               <p>
                 <strong>How they help together:</strong> the bloom shows how the words FEEL; the gauge shows what the
@@ -451,7 +376,12 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores, emotions 
               <p>{(axis as AxisInfo).description}</p>
               {(axis as AxisInfo).id in TONE_POLES ? <p className="cm_modal_now">{channelNow((axis as AxisInfo).id, scores?.[(axis as AxisInfo).id])}</p> : null}
               {EMOTION_AXES.some((e) => e.id === (axis as AxisInfo).id) ? <p className="cm_modal_now">{registerNow(emotions?.[(axis as AxisInfo).id])}</p> : null}
-              <p className="cm_modal_note">Read from his words only — a register of the text, not a window into inner state.</p>
+              {conduct && CONDUCT_AXES.some((c) => c.id === (axis as AxisInfo).id) ? <p className="cm_modal_now">{conductNow(conduct[(axis as AxisInfo).id])}</p> : null}
+              <p className="cm_modal_note">
+                {CONDUCT_AXES.some((c) => c.id === (axis as AxisInfo).id)
+                  ? "Read from the turn's report (what ran, what was recalled, how long it took) — mechanical facts, not his words."
+                  : "Read from his words only — a register of the text, not a window into inner state."}
+              </p>
             </div>
           </>
         )}
@@ -472,13 +402,34 @@ export function channelNow(channel: string, value: number | undefined): string {
   if (tier === null) return "This reply: not read.";
   const word = toneWord(channel, value);
   const where = tier === 0 ? "typical (inside the middle 94% of the reference set)" : `${word} (beyond ${Math.abs(tier) === 2 ? "99%" : "97%"} of the reference set on this side)`;
-  return `This reply: ${(value as number).toFixed(2)}, ${where}.`;
+  return `This reply: ${simText(value as number)}, ${where}.`;
 }
 
 
+/** How far a petal label keeps from the bloom's vertical centre line (px). */
+const LABEL_AXIS_GAP = 3;
+
+/** The CSS transform that centres a petal label on its anchor (x, y) in a box `width` wide, with
+ * two bounds. (1) It never crosses the bloom's vertical centre line (width / 2): the two bottom
+ * petals sit only ±20° off that line, so two centred signed numbers ("−0.08 −0.04") touched at the
+ * 13–14 px type floor and overlapped on a phone; a label left of the line keeps its right edge
+ * LABEL_AXIS_GAP short of it, one on the right its left edge. (2) It never leaves the box: the side
+ * labels' numbers ran past the panel's edge. A label on the line (the top petal) stays centred; a
+ * label far from both bounds is unaffected (the centred position wins). */
+export function petalLabelTransform(x: number, width: number): string {
+  const cx = width / 2;
+  const dx = x - cx;
+  if (Math.abs(dx) < 0.5) return "translate(-50%, -50%)";
+  const px = (v: number) => `${v.toFixed(1)}px`;
+  return dx < 0
+    ? `translate(max(${px(-x)}, min(-50%, calc(${px(cx - LABEL_AXIS_GAP - x)} - 100%))), -50%)`
+    : `translate(min(calc(${px(width - x)} - 100%), max(-50%, ${px(cx + LABEL_AXIS_GAP - x)})), -50%)`;
+}
+
 /** Petal-anchor overlay: the 3-letter codes AT their petal positions over
  * the canvas (DOM, not canvas — native tooltips + click-to-explain). The
- * geometry mirrors the vendored Bloom renderer's label anchors. */
+ * anchors mirror the vendored Bloom renderer's label anchors; no label
+ * crosses the vertical centre line (petalLabelTransform). */
 export function BloomAxisOverlay({ width, height, onAxis, emotions }: { width: number; height: number; onAxis(axis: AxisInfo): void; /** The shown reply's similarities: each code carries its number. */ emotions?: Record<string, number> }): React.ReactElement | null {
   if (width < 40 || height < 40) return null;
   const cx = width / 2;
@@ -498,7 +449,7 @@ export function BloomAxisOverlay({ width, height, onAxis, emotions }: { width: n
           <button
             key={a.id}
             className="cm_overlay_code"
-            style={{ left: x, top: y, color: a.color }}
+            style={{ left: x, top: y, color: a.color, transform: petalLabelTransform(x, width) }}
             title={`${a.name}${emotions ? `, similarity ${num}` : ""} — ${a.description}`}
             aria-label={`${a.name}${emotions ? `, similarity ${num}` : ""}`}
             onClick={() => onAxis(a)}

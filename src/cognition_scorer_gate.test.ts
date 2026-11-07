@@ -24,8 +24,6 @@ import basisJson from "./vendor/cognition/data/basis_v0.json";
 import currentBasisJson from "./vendor/cognition/data/basis_v1.json";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 import fixture from "./fixtures/cognition_gate_vectors.json";
-import { interpretWave, LEAN, LEAN_STRONGLY, TILT } from "./cognitive_monitor";
-import { readingFromScore } from "./cognition_adapter";
 
 const basis = basisJson as unknown as FrozenBasis;
 
@@ -49,8 +47,8 @@ function scoreOf(id: string, opts?: Parameters<typeof createScorer>[1]) {
  * anything below this never lights the mood dot; the petal is visually
  * negligible. The gate must push noise-level texts under it. */
 const PANEL_DOMINANT_FLOOR = 0.18;
-/** interpretWave's "lean strongly toward" threshold — the reading the
- * operator experiences as a confident verdict. */
+/** A gated emotion this high read as a confident verdict (the v0 defect:
+ * storm caution at 0.882); the gate must keep topic-only caution under it. */
 const STRONG_LEAN = 0.75;
 
 describe("fixture sanity (embedding space, not hand-written numbers)", () => {
@@ -143,22 +141,6 @@ describe("contract (additive only)", () => {
       for (const e of basis.emotions) {
         const gated = (out.emotionEvidence ?? 0) * Math.max(0, Math.min(1, Math.tanh((out.emotionSims[e] - mu) / scale)));
         expect(out.emotions[e]).toBeCloseTo(gated, 12);
-      }
-    }
-  });
-
-  it("on every real fixture and both bases, the sentence's words match the measured number (never a confident verb on a small one)", () => {
-    for (const b of [basis, currentBasisJson as unknown as FrozenBasis]) {
-      for (const c of cases.values()) {
-        const out = createScorer(b, { embedderId: b.embedder_id }).score(c.vector);
-        const reading = readingFromScore(out);
-        const top = Math.max(...b.emotions.map((e) => (reading.emotions as Record<string, number>)[e]));
-        const sentence = interpretWave(reading);
-        if (top >= LEAN_STRONGLY) expect(sentence, c.id).toMatch(/lean strongly toward/);
-        else if (top >= LEAN) expect(sentence, c.id).toMatch(/lean toward/);
-        else if (top >= TILT) expect(sentence, c.id).toMatch(/tilt mildly toward/);
-        else expect(sentence, c.id).toMatch(/are closest to/);
-        if (top < LEAN_STRONGLY) expect(sentence, c.id).not.toMatch(/strongly/);
       }
     }
   });

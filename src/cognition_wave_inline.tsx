@@ -4,7 +4,8 @@
  * (co-designed component, c2242: nine registers incl. GRAVITY, morph-gated
  * breath, settledness-gated valence vignette, optional effort column); this
  * app owns the FEED (embed → scorer → register values), the header, the
- * interpretation sentence, the DOM 3-letter code overlay, and scroll-follow.
+ * DOM 3-letter code overlay with each value, and scroll-follow. No sentence
+ * comments on the values (operator 2026-11-07).
  *
  * SCROLL-FOLLOW (operator): scrolling the chat up retunes the monitor to the
  * mood AT that message — the drawer reports the newest assistant reply
@@ -28,7 +29,7 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { isUsableVector, readingFromScore } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, dominantEmotion, MonitorInfoModal, ReadingLine, readingTitle, simText, ToneRow, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, conductCell, conductNow, dominantEmotion, MonitorInfoModal, simText, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -64,9 +65,8 @@ interface ScoredText {
   scores: Record<string, number>;
   emotions?: Record<string, number>;
   novelty?: number;
-  /** The abstention gate's diagnostics (adversarial finding 2026-08-01:
-   * dropping these made honest-quiet pixel-identical to broken — the panel
-   * now SAYS why a bloom is flat). */
+  /** The abstention gate's diagnostics, kept with the reading (readingFromScore);
+   * the display prints each register's similarity instead. */
   emotionEvidence?: number;
   emotionMaxSim?: number;
 }
@@ -90,8 +90,19 @@ export interface CognitionWaveInlineProps {
    * object re-mints per render — identity dedup triple-counted turns). */
   effortKey?: string | null;
   /** The turn's tool calls (name + ok when known) — the gauge's ACT/RIG
-   * inputs. */
+   * inputs (toolCallsOf). */
   tools?: ConductToolCall[] | null;
+}
+
+/** A turn's tool calls for the conduct gauge, from the turn report: every
+ * `tool_details` entry (with `ok` from its `success`, served by the visit
+ * lane's ledger fold since 2026-07-18; absent = unknown, never ok), then the
+ * `tools_ran` names no detail covers. null when the turn ran none. */
+export function toolCallsOf(detail: { tools_ran?: string[]; tool_details?: Array<{ name: string; success?: boolean }> }): ConductToolCall[] | null {
+  const details = detail.tool_details ?? [];
+  const calls: ConductToolCall[] = details.map((t) => (typeof t.success === "boolean" ? { name: t.name, ok: t.success } : { name: t.name }));
+  for (const name of detail.tools_ran ?? []) if (!details.some((t) => t.name === name)) calls.push({ name });
+  return calls.length ? calls : null;
 }
 
 /** "Embeddings are not configured on this gateway, …" + the console page that sets the route.
@@ -305,6 +316,8 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // sends all nine explicitly; a register the basis lacks sits on the inner ring, its label "—").
   const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
+  /** Each conduct code's value and reason, shared by the code row and the axis window. */
+  const conduct = useMemo(() => Object.fromEntries(CONDUCT_AXES.map((a) => [a.id, conductCell(gaugeAxes.find((g) => g.id === a.id), effort, tools)])), [gaugeAxes, effort, tools]);
   const calibration = calibratedOn ? basisProvenanceNote(calibratedOn) : null;
 
   // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
@@ -340,10 +353,8 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
       {!folded ? (
         // TWO WIDGETS SIDE BY SIDE (operator 2026-07-15 23:41/23:50):
         // (a) the mood/state bloom; (b) FOCUS & EFFORT — the mechanical
-        // facts of the shown turn. The sentence, the right-hand legend
-        // and the old fact-card are gone (the in-bloom codes carry the
-        // hover explanations). Slot (b) is an interim app-side widget;
-        // uic's kit component swaps in when it ships (commons#2469).
+        // facts of the latest turn. No sentence, no right-hand legend, no
+        // fact-card: every code carries its value, hover and click explain.
         <div className="cm_body" ref={bodyRef}>
           <div className="cm_canvas_box" style={{ width: pairSize }}>
             {status === "live" && current ? <>
@@ -354,12 +365,8 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
               {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
             </div>}
-            {/* The five tone channels, signed (both poles speak), and the reading sentence: the
-              * tone, and always the closest register with its similarity. */}
-            {status === "live" && current ? <>
-              <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} />
-              <ReadingLine sample={current} title={readingTitle(current.emotionMaxSim, calibration)} />
-            </> : null}
+            {/* The five tone channels, each with its signed score (both poles show). */}
+            {status === "live" && current ? <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} /> : null}
           </div>
           {/* Slot (b): uic's AfConductGauge v2.1 "THE STANCE" (posture
             * figure — breath+head size=effort, strokes=tools with violet
@@ -376,17 +383,17 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             <AfConductGauge facts={effort ?? null} tools={tools ?? null} baseline={baseline} size={pairSize} labels={false} onAxes={setGaugeAxes} />
             <div className="cm_gauge_codes">
               {CONDUCT_AXES.map((a) => {
-                const live = gaugeAxes.find((g) => g.id === a.id);
+                const cell = conduct[a.id];
                 return (
                   <button
                     key={a.id}
                     className="cm_gauge_code"
                     style={{ color: a.color }}
-                    title={`${a.name} — ${a.description}${live?.text && live.text !== "—" ? ` NOW: ${live.text}.` : ""}${live?.reason ? ` (${live.reason})` : ""}`}
+                    title={`${a.name}. ${conductNow(cell)} ${a.description}`}
                     onClick={() => setModalAxis(a)}
                   >
                     {a.code}
-                    <span className="cm_gauge_val">{live?.short ?? ""}</span>
+                    <span className="cm_gauge_val">{cell?.short ?? ""}</span>
                   </button>
                 );
               })}
@@ -395,7 +402,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </div>
       ) : null}
 
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} emotions={current?.emotions} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} scores={current?.scores} emotions={current?.emotions} conduct={conduct} /> : null}
     </div>
   );
 }

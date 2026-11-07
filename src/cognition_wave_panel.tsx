@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal, ReadingLine, readingTitle, type AxisInfo } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -230,10 +230,14 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
           <div className="cw_bloom">
             {/* Same input and labels as the chat monitor: every register, its number beside it;
               * no edge tint (operator 2026-11-07). Before his first utterance every petal sits on
-              * the inner ring and every number reads "—". */}
-            <div style={{ position: "relative", width: 300, height: 300 }}>
-              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={300} />
-              <BloomAxisOverlay width={300} height={300} onAxis={(a) => setModalAxis(a)} emotions={current?.emotions ?? {}} />
+              * the inner ring and every number reads "—". Under it, the same tone row: each
+              * channel's signed score (no sentence comments on the values, operator 2026-11-07). */}
+            <div className="cw_bloom_col" style={{ width: 300 }}>
+              <div style={{ position: "relative", width: 300, height: 300 }}>
+                <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={300} />
+                <BloomAxisOverlay width={300} height={300} onAxis={(a) => setModalAxis(a)} emotions={current?.emotions ?? {}} />
+              </div>
+              {current ? <ToneRow scores={current.scores} onAxis={(a) => setModalAxis(a)} /> : null}
             </div>
           </div>
 
@@ -290,9 +294,6 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
                     wandering {current.novelty.toFixed(2)}
                   </span>
                 ) : null}
-                {/* The same reading sentence as the chat monitor: the tone, and always the
-                  * closest register with its similarity. */}
-                <ReadingLine sample={current} className="cw_quiet cw_reading_line" title={readingTitle(current.emotionMaxSim, calibration)} />
               </div>
               {current.request ? (
                 <div className="cw_turn_block cw_turn_request">

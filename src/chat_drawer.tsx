@@ -33,7 +33,7 @@ import { screenDiaryFences } from "./flow_lane";
 import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
-import { CognitionWaveInline } from "./cognition_wave_inline";
+import { CognitionWaveInline, toolCallsOf } from "./cognition_wave_inline";
 import { turnPulse, type TurnPulse } from "./turn_pulse";
 import { TurnPulseBars } from "./turn_pulse_bars";
 import {
@@ -988,17 +988,16 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     return null;
   }, [messages]);
 
-  /** The latest turn's tool calls for the conduct gauge (name only — the
-   * probe carries no per-call ok flag; the gauge treats unknown honestly).
-   * Same newest-assistant-only rule as latestEffort: never an older turn's
-   * calls presented as this turn's. */
+  /** The latest turn's tool calls for the conduct gauge (name, and ok from
+   * each tool_details `success` when served — toolCallsOf). Same newest-
+   * assistant-only rule as latestEffort: never an older turn's calls
+   * presented as this turn's. */
   const latestTools = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role !== "assistant") continue;
       const d = messages[i].detail;
       if (!d) return null;
-      const names = (d.tool_details ?? []).map((t) => ({ name: t.name })).concat((d.tools_ran ?? []).filter((n) => !(d.tool_details ?? []).some((t) => t.name === n)).map((name) => ({ name })));
-      return names.length ? names : null;
+      return toolCallsOf(d);
     }
     return null;
   }, [messages]);
