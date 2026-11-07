@@ -4,10 +4,11 @@
  * The open/close rules run on a fake scheduler, so every timing is exact.
  */
 import React from "react";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { createExplainerController, EXPLAIN_DELAY_MS, ExplainedCode, ExplainerCard, type ExplainVia } from "./code_explainer";
+import { createExplainerController, EXPLAIN_DELAY_MS, ExplainedCode, ExplainerCard, scrollMovesAnchor, type ExplainVia } from "./code_explainer";
 
 function rig() {
   let now = 0;
@@ -132,5 +133,26 @@ describe("the code and its card", () => {
     expect(html).toContain('<dt class="af-tooltip__label">This reply</dt><dd class="af-tooltip__value">0.06</dd>');
     expect(html).toContain('<p class="af-tooltip__note">Similarity, on one scale.</p>');
     expect(renderToStaticMarkup(<ExplainerCard content={{ ...content, note: undefined }} />)).not.toContain("af-tooltip__note");
+  });
+});
+
+describe("scrollMovesAnchor: only a scroll that moves the code closes its card", () => {
+  const anchor = { id: "code" };
+  const ancestor = { contains: (n: unknown) => n === anchor };
+  const elsewhere = { contains: () => false };
+  it("the page or a scrolling ancestor of the code: close", () => {
+    expect(scrollMovesAnchor(ancestor, anchor)).toBe(true);
+  });
+  it("a scroll elsewhere (the live ledger or chat auto-scrolling): stay open", () => {
+    expect(scrollMovesAnchor(elsewhere, anchor)).toBe(false);
+    expect(scrollMovesAnchor(null, anchor)).toBe(false);
+    expect(scrollMovesAnchor({}, anchor)).toBe(false);
+    expect(scrollMovesAnchor(ancestor, null)).toBe(false);
+  });
+  it("the component closes on scroll through this rule, not on every scroll", () => {
+    const src = readFileSync(new URL("./code_explainer.tsx", import.meta.url), "utf8");
+    expect(src).toMatch(/if \(scrollMovesAnchor\(e\.target as Node \| null, anchorRef\.current\)\) ctl\.dismiss\(\);/);
+    expect(src).toMatch(/window\.addEventListener\("scroll", onScroll, true\);/);
+    expect(src).not.toMatch(/addEventListener\("scroll", mine/);
   });
 });

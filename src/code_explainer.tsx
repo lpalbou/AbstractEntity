@@ -6,7 +6,9 @@
  * A code is a focusable label, never a button. Its card opens after EXPLAIN_DELAY_MS of mouse
  * hover, after the same delay on keyboard focus, and on a touch screen after a long-press of the
  * same length (a phone has no hover). It closes when the mouse leaves the code, on blur, on
- * Escape, on scroll or resize, and on any press elsewhere; one card is open at a time.
+ * Escape, on resize, on any press elsewhere, and on a scroll that moves the code (the page or
+ * one of its scrolling ancestors), never on a scroll elsewhere (the ledger and the chat
+ * auto-scroll in live mode); one card is open at a time.
  *
  * Why not the kit's AfTooltip: it runs on one document-wide binding with a fixed 200 ms delay
  * (kit components acquire it), ignores touch by design, and cannot be opened from code, so a
@@ -142,6 +144,12 @@ export const ExplainerCard = React.forwardRef<HTMLDivElement, { content: Explain
   );
 });
 
+/** Whether a scroll on `target` moves the anchored code: the document or an element that
+ * contains it does; a scroll elsewhere (a live ledger or chat auto-scrolling) does not. */
+export function scrollMovesAnchor(target: { contains?(other: unknown): boolean } | null | undefined, anchor: unknown): boolean {
+  return Boolean(anchor && target && typeof target.contains === "function" && target.contains(anchor));
+}
+
 /** Closes the open card, so a second one never stacks on the first. */
 let closeOpenCard: (() => void) | null = null;
 
@@ -170,14 +178,17 @@ export function ExplainedCode({ explain, className, style, children }: { explain
         ctl.dismiss();
       }
     };
+    const onScroll = (e: Event) => {
+      if (scrollMovesAnchor(e.target as Node | null, anchorRef.current)) ctl.dismiss();
+    };
     document.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey, true);
-    window.addEventListener("scroll", mine, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", mine);
     return () => {
       document.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("scroll", mine, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", mine);
       if (closeOpenCard === mine) closeOpenCard = null;
     };

@@ -23,7 +23,7 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* The conduct codes' values ("40.1s", "44+1", "n/a") never wrap either. */
+/* The conduct codes' values ("40.1s", "44+1", "1m35s") never wrap either. */
 .cm_gauge_codes .cm_gauge_val {
   white-space: nowrap;
 }
@@ -75,9 +75,13 @@
   font-weight: 400;
   color: var(--text-secondary);
 }
-/* A label is a span now: centre the code over its number as the button did. */
-.cm_overlay_code.cm_explained {
+/* A label is a span now: centre the code over its number as the button did; tight line boxes
+ * (line-height 1, the type floor's size kept) so neighbouring petal labels do not overlap at a
+ * 147 px bloom (360 px phone). */
+.cm_overlay_code.cm_explained,
+.cm_overlay_code.cm_explained .cm_overlay_num {
   text-align: center;
+  line-height: 1;
 }
 /* The conduct row spans the whole gauge box (no side padding) so four values such as
  * "1m35s 1 120+12 1/1" fit a 147 px box at the 14 px touch type floor. */

@@ -355,7 +355,8 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         // TWO WIDGETS SIDE BY SIDE (operator 2026-07-15 23:41/23:50):
         // (a) the mood/state bloom; (b) FOCUS & EFFORT — the mechanical
         // facts of the latest turn. No sentence, no right-hand legend, no
-        // fact-card: every code carries its value, hover and click explain.
+        // fact-card: every code carries its value; a 300 ms hover (a
+        // long-press on touch) opens its card.
         <div className="cm_body" ref={bodyRef}>
           <div className="cm_canvas_box" style={{ width: pairSize }}>
             {status === "live" && current ? <>
