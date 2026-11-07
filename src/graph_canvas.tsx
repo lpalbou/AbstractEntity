@@ -20,9 +20,12 @@
  * owns truth: everything drawn derives from the fold at the scrub seq.
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { FoldState, NodeState, StandingState } from "./stream_fold";
+import { ADMISSION_LABELS } from "./stream_types";
+import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, type RecallClass } from "./recall_emphasis";
+import "./graph_canvas.css";
 import { nodeLabel, shapeLabel, summaryLabel } from "./node_label";
 import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
@@ -111,6 +114,12 @@ const ADMISSION_COLORS: Record<string, string> = {
   stimulus: "#59c2d8",
   both: "#6fd8b0",
 };
+
+/** Recall ring per class (the legend's three words): present by right =
+ * the identity gold, from continuity = the continuity violet, matched =
+ * the stimulus cyan. "both" reads as matched (the ledger's grouping) and
+ * never takes the diary green — green is WARMTH on this canvas. */
+const RECALL_RING_ADMISSION: Record<RecallClass, string> = { self: "self", stm: "stm", matched: "stimulus" };
 
 /** Structural ("born linked") edges are TYPED and DIRECTIONAL. The type
  * used to be a dash pattern — indistinguishable at graph alpha (operator
@@ -345,7 +354,16 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layoutRef = useRef<Map<string, LayoutNode>>(new Map());
   const cameraRef = useRef<Camera>({ x: 0, y: 0, zoom: 1.05 });
-  const stateRef = useRef({ fold, temporal, scrubSeq, selectedId, searchIds });
+  // RECALL HIGHLIGHT (operator 2026-11-07): the beat active at the scrub
+  // position lights its shelf through the SAME emphasis/dim mechanism as
+  // hover; released when the turn's answer lands or the next recall
+  // replaces it (recall_emphasis.ts). A recall line picked in the ledger
+  // (selection "beat:…") lights that beat. Recomputed per fold change,
+  // never per frame.
+  const recall = useMemo(() => canvasRecall(fold, scrubSeq, selectedId), [fold, scrubSeq, selectedId]);
+  const stateRef = useRef({ fold, temporal, scrubSeq, selectedId, searchIds, recall });
+  /** Last frame time the recall drove the emphasis (ease-out pacing). */
+  const recallDriveAtRef = useRef<number | null>(null);
   const hoverRef = useRef<string | null>(null);
   /** Per-element eased dim factors (hover-card show/hide transition). */
   const dimAnimRef = useRef<Map<string, number>>(new Map());
@@ -369,7 +387,7 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
    * for the node's lifetime (and persisted): permanent spatial memory. */
   const seatRef = useRef<{ seats: Map<string, number>; next: number }>({ seats: new Map(), next: 0 });
 
-  stateRef.current = { fold, temporal, scrubSeq, selectedId, searchIds };
+  stateRef.current = { fold, temporal, scrubSeq, selectedId, searchIds, recall };
   onSelectRef.current = onSelect;
 
   // FIT-TO-EMPHASIS (graph-access wave, 2026-07-12): when the OPERATOR's
@@ -496,7 +514,7 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
 
     const frame = () => {
       if (disposed) return;
-      const { fold, temporal, scrubSeq, selectedId, searchIds } = stateRef.current;
+      const { fold, temporal, scrubSeq, selectedId, searchIds, recall } = stateRef.current;
       const layout = layoutRef.current;
       const sim = simRef.current;
 
@@ -704,10 +722,20 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
       // node's REAL closest company, not the whole graph lit up.
       const NEIGHBOR_CAP = 14;
       let emphasis: Set<string> | null = null;
-      if (searchIds) {
+      const focus = hoverRef.current ?? selectedId;
+      // ONE mechanism, ordered triggers (recall_emphasis.emphasisDriver):
+      // lens/search/topic filter > hovered/selected node > current recall.
+      const driver = emphasisDriver({
+        filter: searchIds !== null,
+        hover: hoverRef.current !== null && layout.has(hoverRef.current),
+        selected: selectedId !== null && layout.has(selectedId),
+        recall: recall !== null,
+      });
+      if (driver === "filter") {
         emphasis = searchIds;
-      } else {
-        const focus = hoverRef.current ?? selectedId;
+      } else if (driver === "recall" && recall) {
+        emphasis = recall.ids;
+      } else if (driver === "focus") {
         if (focus && layout.has(focus)) {
           emphasis = new Set([focus]);
           const weighted: Array<{ id: string; w: number }> = [];
@@ -733,7 +761,10 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
       const now = performance.now();
       const dtSec = Math.min(0.1, Math.max(0.001, (now - lastFrameTsRef.current) / 1000));
       lastFrameTsRef.current = now;
-      const DIM_RAMP_PER_SEC = 1 / 0.5; // full 1→0.08 sweep in 0.5s
+      // Hover keeps its 0.5 s sweep; a recall eases in AND out over 0.6 s
+      // (the release keeps the arrival pace for one ramp after it stops).
+      if (driver === "recall") recallDriveAtRef.current = now;
+      const DIM_RAMP_PER_SEC = 1 / dimRampSec(now, recallDriveAtRef.current);
       const anim = dimAnimRef.current;
       const easedDim = (key: string, target: number): number => {
         const cur = anim.get(key) ?? 1;
@@ -982,7 +1013,9 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
         // count. A record selected 300 times over a life but not recently
         // shows no bloom; size already carries its lifetime weight. Drawn
         // UNDER the fill so the kind color stays crisp.
-        const warmth = nodeWarmth(temporal.records.get(node.id) ?? 0);
+        // While a recall is lit, the warm bloom steps back so the recall
+        // rings carry the moment (green = warmth must not fight them).
+        const warmth = nodeWarmth(temporal.records.get(node.id) ?? 0) * (driver === "recall" ? 0.35 : 1);
         if (!isGhost && warmth > 0.02) {
           const bloomR = r * (1.7 + warmth * 1.5);
           const glow = ctx.createRadialGradient(p.x, p.y, r * 0.6, p.x, p.y, bloomR);
@@ -1025,6 +1058,20 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
           if (feeling.bonds.length > 0) drawHalo(p.x, p.y, r + (feeling.scars.length ? 10.5 : 7), rgbaOf(CANVAS_THEME.bond, 0.9));
         }
         if (isSelected || isHover) drawHalo(p.x, p.y, r + 6, rgbaOf(CANVAS_THEME.text, 0.75));
+        // Recall ring: WHY this memory is on the shelf — a solid ring in
+        // the class colour (the dashed halos above stay pin/feeling/
+        // selection marks). Shown while the recall is lit (also under a
+        // hover, dimmed with its node); a lens or a selection hides it.
+        const recallClass = recall && driver !== "filter" && !(selectedId !== null && layout.has(selectedId)) ? recall.classes.get(node.id) : undefined;
+        if (recallClass) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r + 2.6, 0, Math.PI * 2);
+          ctx.strokeStyle = ADMISSION_COLORS[RECALL_RING_ADMISSION[recallClass]];
+          ctx.globalAlpha = 0.95 * dim;
+          ctx.lineWidth = 1.7;
+          ctx.stroke();
+          ctx.globalAlpha = dim;
+        }
 
         // Node labels (laurent dm#30/37/39/46/54): the cursor's AREA OF
         // INFLUENCE at any zoom, plus the HOVERED node itself (dm#54 pt3:
@@ -1161,6 +1208,12 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
   }, []);
 
   const hoverNode = hoverCard ? fold.nodes.get(hoverCard.id) ?? null : null;
+  // The recall line shows while the recall is what the canvas lights (a
+  // lens/search or a selection takes over — the Inspector's rule).
+  const selectionIsNode = selectedId !== null && (fold.nodes.has(selectedId) || selectedId.startsWith("standing:"));
+  const recallShown = recall !== null && searchIds === null && !selectionIsNode;
+  const recallLabelOf = (id: string): string | null => (recall ? recall.labels.get(id) ?? null : null);
+  const recallLegend = recallShown && recall ? recallLegendParts(recall) : null;
   const hoverStanding = hoverCard && !hoverNode && hoverCard.id.startsWith("standing:")
     ? fold.standings.get(hoverCard.id.slice("standing:".length)) ?? null
     : null;
@@ -1209,6 +1262,12 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
                     ? `${(temporal.records.get(hoverNode.id) ?? 0).toFixed(1)} now (recent selections; decays)`
                     : "cold (not recently selected)"}
                 </span>
+                {recallLabelOf(hoverNode.id) ? (
+                  <>
+                    <span>recalled</span>
+                    <span>this turn — {ADMISSION_LABELS[recallLabelOf(hoverNode.id) ?? ""] ?? recallLabelOf(hoverNode.id)}</span>
+                  </>
+                ) : null}
                 <span>scope</span>
                 <span>{hoverNode.scope}</span>
                 <span>born</span>
@@ -1243,6 +1302,19 @@ export function GraphCanvas({ fold, temporal, scrubSeq, selectedId, searchIds, f
               <div className="gc_hc_hint">click to open in Detail</div>
             </>
           ) : null}
+        </div>
+      ) : null}
+      {recallLegend ? (
+        <div className="gc_recall_legend" role="status" aria-live="polite">
+          <span className="gc_rl_head">{recallLegend.head}</span>
+          {recallLegend.parts.length ? <span className="gc_rl_colon">:</span> : null}
+          {recallLegend.parts.map((part, i) => (
+            <span key={part.cls} className="gc_rl_part">
+              <i className={`gc_rl_ring gc_rl_${part.cls}`} aria-hidden="true" />
+              {part.text}
+              {i < recallLegend.parts.length - 1 ? <span className="gc_rl_sep" aria-hidden="true">·</span> : null}
+            </span>
+          ))}
         </div>
       ) : null}
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the

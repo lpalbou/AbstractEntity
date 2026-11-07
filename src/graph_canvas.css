@@ -1,0 +1,99 @@
+/* Graph canvas overlays owned by graph_canvas.tsx (recall line, topic
+ * notes). Kept out of entity.css so the canvas owns its own surface. */
+
+/* RECALL LINE (operator 2026-11-07): what the canvas lights right now —
+ * "50 memories recalled for this turn: 6 present by right · …". A quiet
+ * strip under the lens row; it never takes the pointer (hover and pan go
+ * through to the canvas). */
+.gc_recall_legend {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(760px, calc(100% - 32px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 6px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.35;
+  pointer-events: none;
+  animation: gc_rl_in 0.6s ease-out;
+}
+
+.gc_rl_head {
+  color: var(--text);
+}
+
+.gc_rl_colon {
+  margin-left: -5px;
+  color: var(--text);
+}
+
+.gc_rl_part {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.gc_rl_sep {
+  margin-left: 1px;
+  opacity: 0.7;
+}
+
+/* The ring swatch mirrors the canvas ring: a solid circle outline in the
+ * class colour (same tokens the canvas resolves). */
+.gc_rl_ring {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.7px solid currentColor;
+  box-sizing: border-box;
+}
+
+.gc_rl_self {
+  color: var(--adm-self);
+}
+
+.gc_rl_stm {
+  color: var(--adm-stm);
+}
+
+.gc_rl_matched {
+  color: var(--adm-stimulus);
+}
+
+@keyframes gc_rl_in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc_recall_legend {
+    animation: none;
+  }
+}
+
+/* Phone-width canvas: the lens row is a single strip at the top; the
+ * recall line sits under it, full width. */
+@container entity-canvas (max-width: 859.98px) {
+  .gc_recall_legend {
+    top: 46px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: none;
+  }
+}
