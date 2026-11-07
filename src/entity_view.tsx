@@ -48,7 +48,7 @@ import { HealthPanel } from "./health_panel";
 import { Inspector } from "./inspector";
 import { LedgerPanel } from "./ledger_panel";
 import { Timeline } from "./timeline";
-import { foldUpToIndex, type FoldCache } from "./stream_fold";
+import { foldUpToIndex, lastLifeChangeSeq, type FoldCache } from "./stream_fold";
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
 import { activeRuledPhase, dayCauseLine, deriveLifeState, type ClientVisitSignal } from "./entity_state";
@@ -1369,6 +1369,23 @@ export function EntityView(): React.ReactElement {
   // ------------------------------------------------------------- the fold
 
   const effectiveIndex = live ? envelopes.length - 1 : scrubIndex;
+
+  // The newest change to the entity, settled for 2 s so a burst (one tick
+  // forms several memories) refreshes once. Surfaces that read the gateway
+  // rather than the stream key on it.
+  const lifeChange = useMemo(() => lastLifeChangeSeq(envelopes), [envelopes]);
+  const [lifeRevision, setLifeRevision] = useState<number | null>(null);
+  /** The side tab on screen (null: none) — the card reads only while shown. */
+  const [openTab, setOpenTab] = useState<string | null>(null);
+  useEffect(() => {
+    const t = window.setTimeout(() => setLifeRevision(lifeChange), 2000);
+    return () => window.clearTimeout(t);
+  }, [lifeChange]);
+  useEffect(() => {
+    // The header's state, loop and cognition follow the live stream at
+    // once instead of at the next 15 s poll.
+    if (live && lifeRevision !== null) refreshEntityTruth();
+  }, [lifeRevision, live, refreshEntityTruth]);
   const scrubSeq = effectiveIndex >= 0 && envelopes[effectiveIndex] ? envelopes[effectiveIndex].seq : 0;
 
   // BACKWARD scrub is a full refold (state-at-T semantics) — debounce it
@@ -2372,6 +2389,7 @@ export function EntityView(): React.ReactElement {
           defaultTab="ledger"
           emphasizedTab={avatarChat ? "chat" : undefined}
           activeTab={requestedTab ? `${requestedTab.tab}#${requestedTab.nonce}` : undefined}
+          onActiveTab={setOpenTab}
           tabs={[
             // Gateway tabs mount only for a VERIFIED browser (F14: the
             // ChatDrawer's visit poll + substrate fetch fired from behind
@@ -2414,7 +2432,7 @@ export function EntityView(): React.ReactElement {
                     id: "card",
                     icon: "🪪",
                     title: "Card",
-                    content: <IdentityCardContent baseUrl={gatewayUrl.trim().replace(/\/+$/, "")} entity={entityName} fold={fold} />,
+                    content: <IdentityCardContent baseUrl={gatewayUrl.trim().replace(/\/+$/, "")} entity={entityName} fold={fold} revision={lifeRevision} shown={openTab === "card"} />,
                   },
                 ] as SideTab[])
               : []),

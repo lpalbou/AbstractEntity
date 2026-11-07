@@ -46,9 +46,12 @@ export interface SideTabsProps {
   activeTab?: string | null;
   /** Optional focused presentation; the saved technical pane width is retained. */
   emphasizedTab?: string;
+  /** Told which tab is open (null: none), so a tab that reads the gateway
+   * can refresh only while someone looks at it. */
+  onActiveTab?(id: string | null): void;
 }
 
-export function SideTabs({ tabs, defaultTab, activeTab: controlledTab, emphasizedTab }: SideTabsProps): React.ReactElement {
+export function SideTabs({ tabs, defaultTab, activeTab: controlledTab, emphasizedTab, onActiveTab }: SideTabsProps): React.ReactElement {
   const narrow = useAfMedia(AF_MEDIA.md);
   // Two slots (side_tabs_state.ts): the docked layout's persisted choice and
   // the drawer's own state (starts closed, never persisted).
@@ -66,6 +69,9 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab, emphasize
     );
   });
   const active = activeSideTab(tabState, narrow);
+  useEffect(() => {
+    onActiveTab?.(active);
+  }, [active, onActiveTab]);
   const setActive = (next: string | null) => {
     if (next === null) dispatch({ type: "close", narrow });
     else dispatch({ type: "request", id: next, narrow });

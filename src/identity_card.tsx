@@ -13,7 +13,7 @@
  * HE resolved them.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { FoldState } from "./stream_fold";
 import { fetchDiaryEntry, gatewayReadHeaders } from "./stream_source";
@@ -219,21 +219,60 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** The card as drawer content (maintainer's layout ruling: a drawer, not
- * a top button). Fetches on mount — drawers mount children only while
- * open, so expansion IS the fetch trigger. */
-export function IdentityCardContent({ baseUrl, entity, fold }: { baseUrl: string; entity: string; fold: FoldState | null }): React.ReactElement {
+ * a top button). Fetches on mount, and again whenever `revision` moves —
+ * the newest change to the entity on the live stream — keeping the card
+ * on screen while the new one is read (no "reading…" flash). */
+/** Read the card when it is on screen and it has not been read yet for
+ * this entity at this revision of its life. */
+export function cardNeedsRead(last: { key: string; revision: number | null } | null, key: string, revision: number | null, shown: boolean): boolean {
+  if (!shown) return false;
+  return !(last !== null && last.key === key && last.revision === revision);
+}
+
+export function IdentityCardContent({
+  baseUrl,
+  entity,
+  fold,
+  revision = null,
+  shown = true,
+}: {
+  baseUrl: string;
+  entity: string;
+  fold: FoldState | null;
+  revision?: number | null;
+  /** On screen: a hidden card does not re-read; it catches up when shown. */
+  shown?: boolean;
+}): React.ReactElement {
   const [state, setState] = useState<CardState>({ phase: "loading" });
+  const readRef = useRef<{ key: string; revision: number | null } | null>(null);
 
   useEffect(() => {
+    // Another entity is another card: never show the previous one, and
+    // read it afresh even if it was read before.
+    readRef.current = null;
+    setState({ phase: "loading" });
+  }, [baseUrl, entity]);
+
+  useEffect(() => {
+    const key = `${baseUrl}|${entity}`;
+    if (!cardNeedsRead(readRef.current, key, revision, shown)) return;
     let cancelled = false;
     fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/card`), { headers: gatewayReadHeaders({ Accept: "application/json" }) })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((card: EntityCard) => !cancelled && setState({ phase: "ready", card }))
-      .catch((e) => !cancelled && setState({ phase: "error", message: String((e as Error).message || e) }));
+      .then((card: EntityCard) => {
+        if (cancelled) return;
+        // Recorded only once read: a read cut short (tab closed, entity
+        // switched) is read again next time.
+        readRef.current = { key, revision };
+        setState({ phase: "ready", card });
+      })
+      // A failed REFRESH keeps the card already shown; only a first read
+      // that fails says so.
+      .catch((e) => !cancelled && setState((prev) => (prev.phase === "ready" ? prev : { phase: "error", message: String((e as Error).message || e) })));
     return () => {
       cancelled = true;
     };
-  }, [baseUrl, entity]);
+  }, [baseUrl, entity, revision, shown]);
 
   if (state.phase === "loading") return <div className="ev_status">reading the card…</div>;
   if (state.phase === "error") {
