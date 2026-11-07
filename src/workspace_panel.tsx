@@ -36,6 +36,7 @@ import { IdentitySettings } from "./identity_settings";
 import { TrackRecordPanel } from "./track_record_panel";
 import { ListenerVoiceSettings } from "./entity_voice";
 import { SETTINGS_GROUPS, settingsSection, settingsSectionOptions, type SettingsSection } from "./settings_sections";
+import { escapeClosesSettings, isKitPopoverTarget, sectionMounted, unsavedSections, unsavedSentence } from "./settings_guard";
 import {
   AfChip,
   AfModal,
@@ -107,22 +108,64 @@ export function SettingsPanel({
   initialSection = "mind",
   onClose,
 }: SettingsPanelProps): React.ReactElement {
-  const [tab, setTab] = useState<SettingsSection>(initialSection);
+  const [tab, setTabState] = useState<SettingsSection>(initialSection);
+  const [visited, setVisited] = useState<ReadonlySet<SettingsSection>>(() => new Set([initialSection]));
+  const setTab = useCallback((next: SettingsSection) => {
+    setTabState(next);
+    setVisited((v) => (v.has(next) ? v : new Set([...v, next])));
+  }, []);
   const { section, group } = settingsSection(tab);
   const titleId = `${useId().replace(/:/g, "")}-section`;
   const mainRef = useRef<HTMLDivElement>(null);
 
-  // A new section starts at its top (desktop: the page column scrolls; phone: the sheet does).
+  // Unsaved drafts (settings_guard.ts): kept across sections, asked about on close.
+  const [dirty, setDirty] = useState<Partial<Record<SettingsSection, boolean>>>({});
+  const markDirty = useCallback(
+    (id: SettingsSection) => (d: boolean) => setDirty((prev) => (Boolean(prev[id]) === d ? prev : { ...prev, [id]: d })),
+    [],
+  );
+  const onSkillsDirty = useMemo(() => markDirty("skills"), [markDirty]);
+  const onPromptDirty = useMemo(() => markDirty("prompt"), [markDirty]);
+  const unsaved = unsavedSections(dirty);
+  const [confirming, setConfirming] = useState(false);
+  const requestClose = useRef<() => void>(() => {});
+  requestClose.current = () => (unsaved.length > 0 ? setConfirming(true) : onClose());
+
+  // A new section starts at its top (the page column scrolls, on a phone too).
   useEffect(() => {
     const main = mainRef.current;
-    const sheet = main?.closest(".af-modal");
-    for (const el of [main, sheet]) if (el && typeof el.scrollTo === "function") el.scrollTo({ top: 0 });
+    if (main && typeof main.scrollTo === "function") main.scrollTo({ top: 0 });
   }, [tab]);
+
+  // Escape closes Settings only when nothing inside handled it (an open dropdown closes alone).
+  // Bubble phase on window: the dropdown's own handler runs first and marks the key handled.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!escapeClosesSettings(e)) return;
+      e.preventDefault();
+      requestClose.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Focus inside a kit dropdown list (rendered in document.body) stays there: stopped at the
+  // window, before the kit modal's document-level trap would pull it back into the dialog.
+  useEffect(() => {
+    const keep = (e: FocusEvent) => {
+      if (isKitPopoverTarget(e.target)) e.stopPropagation();
+    };
+    window.addEventListener("focusin", keep, true);
+    return () => window.removeEventListener("focusin", keep, true);
+  }, []);
+
+  const mounted = (id: SettingsSection) => sectionMounted(id, tab, visited);
 
   return (
     <AfModal
       open
-      onClose={onClose}
+      onClose={() => requestClose.current()}
+      closeOnEscape={false}
       size="wide"
       // In the app's tree (like the dialog it replaces): the #root-scoped touch
       // targets and type floors keep applying to everything inside.
@@ -154,6 +197,7 @@ export function SettingsPanel({
                 >
                   <Icon name={s.icon} size={16} aria-hidden="true" />
                   <span>{s.label}</span>
+                  {dirty[s.id] ? <span className="stg_nav_dirty" role="img" aria-label="unsaved changes" title="Unsaved changes" /> : null}
                 </button>
               ))}
             </div>
@@ -165,6 +209,7 @@ export function SettingsPanel({
               value={tab}
               options={settingsSectionOptions()}
               onChange={(next) => setTab(next as SettingsSection)}
+              searchable={false}
               ariaLabel="Settings section"
               className="stg_jump_select"
             />
@@ -191,17 +236,50 @@ export function SettingsPanel({
                 />
               ) : null}
               {tab === "voice" ? <VoiceTab baseUrl={baseUrl} onOpenIdentity={() => setTab("identity")} /> : null}
-              {tab === "identity" ? <IdentitySettings baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+              {mounted("identity") ? (
+                <div hidden={tab !== "identity"} data-panel="identity">
+                  <IdentitySettings baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} />
+                </div>
+              ) : null}
               {tab === "record" ? <TrackRecordPanel baseUrl={baseUrl} entity={entity} entityName={entityName} /> : null}
               {tab === "files" ? <FilesTab baseUrl={baseUrl} entity={entity} /> : null}
               {tab === "mounts" ? <MountsTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
               {tab === "tools" ? <ToolsTab baseUrl={baseUrl} entity={entity} token={token} /> : null}
-              {tab === "skills" ? <SkillsTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
-              {tab === "prompt" ? <PromptTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} /> : null}
+              {mounted("skills") ? (
+                <div hidden={tab !== "skills"} data-panel="skills">
+                  <SkillsTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} onDirtyChange={onSkillsDirty} />
+                </div>
+              ) : null}
+              {mounted("prompt") ? (
+                <div hidden={tab !== "prompt"} data-panel="prompt">
+                  <PromptTab baseUrl={baseUrl} entity={entity} entityName={entityName} token={token} onDirtyChange={onPromptDirty} />
+                </div>
+              ) : null}
             </div>
           </section>
         </div>
       </div>
+      <AfModal
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        size="narrow"
+        portal={false}
+        className="stg_confirm"
+        closeLabel="Keep editing"
+        title="Discard unsaved changes?"
+        footer={
+          <>
+            <button type="button" className="af-setting-btn" data-action="keep-editing" data-af-autofocus onClick={() => setConfirming(false)}>
+              Keep editing
+            </button>
+            <button type="button" className="af-setting-btn stg_btn_danger" data-action="discard-close" onClick={onClose}>
+              Discard and close
+            </button>
+          </>
+        }
+      >
+        <p className="stg_confirm_text">{unsavedSentence(unsaved)}</p>
+      </AfModal>
     </AfModal>
   );
 }
@@ -291,7 +369,7 @@ function MindTab({
       {staleLoop ? (
         <p className="stg_callout stg_callout_warn" role="note">
           <Icon name="warning" size={16} aria-hidden="true" />
-          <span>Its own time still uses the previous mind until its next day; restart it to switch now.</span>
+          <span>His own time still uses the previous mind until his next day; restart it to switch now.</span>
         </p>
       ) : null}
       <AfSettingsGroup title="Model" help="Every change saves itself. “Gateway default” follows the gateway's text model.">
@@ -332,7 +410,7 @@ function VoiceTab({ baseUrl, onOpenIdentity }: { baseUrl: string; onOpenIdentity
     <div className="stg_stack">
       <p className="stg_callout" role="note">
         <Icon name="user" size={16} aria-hidden="true" />
-        <span>The voice it speaks with is part of its identity.</span>
+        <span>The voice he speaks with is part of his identity.</span>
         <button type="button" className="af-setting-btn stg_callout_action" data-action="open-identity" onClick={onOpenIdentity}>
           Open Identity
         </button>
@@ -494,7 +572,7 @@ function MountsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
         title="Granted folders"
         help={
           <>
-            Each appears to {entityName} as <code>mounts/&lt;name&gt;/</code> with its mode; a read-only mount refuses its writes structurally.
+            Each appears to {entityName} as <code>mounts/&lt;name&gt;/</code> with its mode; a read-only mount refuses his writes structurally.
           </>
         }
       >
@@ -521,7 +599,7 @@ function MountsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
                   className="af-setting-btn stg_btn_danger"
                   data-action="remove-mount"
                   disabled={busy}
-                  title="Remove this grant (its tools lose it on their next call)"
+                  title="Remove this grant (his tools lose it on their next call)"
                   onClick={() => save(mounts.filter((x) => x.name !== m.name))}
                 >
                   Remove
@@ -553,7 +631,7 @@ function MountsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
           />
         </AfSettingRow>
         <AfSettingRow label="Access">
-          <AfSelect value={newMode} options={MOUNT_MODE_OPTIONS} onChange={(v) => setNewMode(v as "ro" | "rw")} ariaLabel="Access" />
+          <AfSelect value={newMode} options={MOUNT_MODE_OPTIONS} onChange={(v) => setNewMode(v as "ro" | "rw")} searchable={false} ariaLabel="Access" />
         </AfSettingRow>
         <div className="stg_actions">
           <button
@@ -672,11 +750,14 @@ function PromptTab({
   entity,
   entityName,
   token,
+  onDirtyChange,
 }: {
   baseUrl: string;
   entity: string;
   entityName: string;
   token: string | null;
+  /** Unsaved layer edits (the modal asks before closing over them). */
+  onDirtyChange?(dirty: boolean): void;
 }): React.ReactElement {
   const [info, setInfo] = useState<PromptLayerInfo | null>(null);
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
@@ -722,13 +803,19 @@ function PromptTab({
       .finally(() => setBusy(false));
   };
 
+  const dirty =
+    info !== null &&
+    draft !== null &&
+    layerKeys(info).some((key) => {
+      const live = info.layers[key]?.source === "overlay" ? info.layers[key].text : "";
+      return (draft[key] ?? "") !== live;
+    });
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
   if (error && !info) return <ErrorLine text={error} />;
   if (!info || !draft) return <Reading />;
-
-  const dirty = layerKeys(info).some((key) => {
-    const live = info.layers[key]?.source === "overlay" ? info.layers[key].text : "";
-    return (draft[key] ?? "") !== live;
-  });
 
   return (
     <div className="stg_stack">
@@ -875,7 +962,20 @@ export function foldSkillsSelection(
  * code), trust verdicts verbatim, and a whole-document save through the
  * marker-first PUT — a typo'd or blocked skill is visible the moment it
  * is written, never a silent no-op. */
-function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; entity: string; entityName: string; token: string | null }): React.ReactElement {
+function SkillsTab({
+  baseUrl,
+  entity,
+  entityName,
+  token,
+  onDirtyChange,
+}: {
+  baseUrl: string;
+  entity: string;
+  entityName: string;
+  token: string | null;
+  /** Unsaved selection changes (the modal asks before closing over them). */
+  onDirtyChange?(dirty: boolean): void;
+}): React.ReactElement {
   const [data, setData] = useState<EntitySkillsResolved | null>(null);
   const [patches, setPatches] = useState<MatrixPatch[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -887,6 +987,10 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
       .then(setData)
       .catch((e: Error) => setError(e.message));
   }, [baseUrl, entity]);
+
+  useEffect(() => {
+    onDirtyChange?.(patches.length > 0);
+  }, [patches.length, onDirtyChange]);
 
   const save = () => {
     if (!data) return;
@@ -936,10 +1040,12 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
           What {entityName} is taught beyond his capability map — skills selected here ride his sessions per phase (Grant),
           stay off (Deny), or follow the framework default (Default = not selected). Saving writes <code>skills.yaml</code> in
           his home, marker-first: the change is a visible moment in his biography. Trust verdicts come from the shelf's gate
-          verbatim — a blocked skill renders blocked, never silently skipped. Delivery into his prompts lands with runtime's
-          composition slot (in flight); until then a selection is standing config.
+          verbatim — a blocked skill renders blocked, never silently skipped.
         </p>
       </MoreAbout>
+      <p className="stg_quiet" data-testid="skills-standing-config">
+        Delivery into his prompts lands with runtime's composition slot (in flight); until then a selection is standing config.
+      </p>
       {deliveredMap.length > 0 || hostOnly.length > 0 ? (
         <div className="stg_notes wsp_skills_audience">
           {deliveredMap.length > 0 ? (
@@ -983,21 +1089,16 @@ function SkillsTab({ baseUrl, entity, entityName, token }: { baseUrl: string; en
         />
       </div>
       {verdicts.length > 0 ? (
-        <details className="stg_more wsp_skills_verdicts">
-          <summary>
-            <Icon name="warning" size={14} aria-hidden="true" />
-            <span>Gate verdicts (server verbatim)</span>
-            <span className="stg_count">{verdicts.length}</span>
-            <Icon name="chevronDown" size={14} className="stg_more_chevron" aria-hidden="true" />
-          </summary>
-          <ul className="stg_more_body">
+        <div className="stg_notes wsp_skills_verdicts" role="note" data-testid="skills-verdicts">
+          <span className="wsp_aud_unmet">⚠ gate verdicts (server verbatim)</span>
+          <ul className="stg_verdicts">
             {verdicts.map((v, i) => (
               <li key={i}>
                 <code>{JSON.stringify(v)}</code>
               </li>
             ))}
           </ul>
-        </details>
+        </div>
       ) : null}
       <div className="stg_savebar">
         <button type="button" className="af-setting-btn stg_btn_primary" data-action="save-skills" onClick={save} disabled={busy || patches.length === 0}>
@@ -1064,6 +1165,21 @@ function ToolsTab({ baseUrl, entity, token }: { baseUrl: string; entity: string;
   if (!policy || !draft) return <Reading />;
 
   return <ToolGrantsView policy={policy} draft={draft} error={error} saved={saved} busyCell={busyCell} onToggle={toggle} />;
+}
+
+/** A tool name that may wrap only after its underscores ("recent_<wbr>memories"), never mid-word. */
+export function breakAtUnderscores(name: string): React.ReactNode {
+  const parts = name.split("_");
+  return parts.map((part, i) => (
+    <React.Fragment key={i}>
+      {part}
+      {i < parts.length - 1 ? (
+        <>
+          _<wbr />
+        </>
+      ) : null}
+    </React.Fragment>
+  ));
 }
 
 /** One tool switch flipped: the next draft and the PUT body — the touched
@@ -1138,7 +1254,7 @@ export function ToolGrantsView({
             {policy.all_tools.map((tool) => (
               <tr key={tool}>
                 <td>
-                  <code>{tool}</code> {tier1.has(tool) ? <span className="wsp_tier1" title="his read-only cognition lane (memory + book reads — no reach into the world)">●</span> : null}
+                  <code>{breakAtUnderscores(tool)}</code> {tier1.has(tool) ? <span className="wsp_tier1" title="his read-only cognition lane (memory + book reads — no reach into the world)">●</span> : null}
                   {/* THE RISK BADGE (tool-tiers round): renders ONLY what the
                     * gateway serves — a derived band with its words. A tool
                     * the server has not vetted says so; nothing is guessed

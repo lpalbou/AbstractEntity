@@ -10,7 +10,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { SETTINGS_GROUPS, SETTINGS_SECTIONS, settingsSection, settingsSectionOptions, type SettingsSection } from "./settings_sections";
-import { SettingsPanel, layerLabel } from "./workspace_panel";
+import { SettingsPanel, breakAtUnderscores, layerLabel } from "./workspace_panel";
+import { escapeClosesSettings, isKitPopoverTarget, sectionMounted, unsavedSections, unsavedSentence } from "./settings_guard";
 
 function panel(section: SettingsSection): string {
   return renderToStaticMarkup(
@@ -140,5 +141,93 @@ describe("layout: side list on desktop, the select on a phone", () => {
     const sizes = [...css.matchAll(/font-size:\s*([^;}]+)/g)].map((m) => m[1].trim());
     expect(sizes.length).toBeGreaterThan(10);
     expect(sizes.filter((v) => !v.includes("var(--ent-type-floor"))).toEqual([]);
+  });
+});
+
+// ------------------------------------------------ review fixes (2026-11-07, adversarial review)
+
+describe("keyboard and focus inside the modal", () => {
+  it("a focus inside a kit dropdown list is left alone; anything else is not", () => {
+    const inList = { closest: (sel: string) => (sel === ".af-select-popover" ? {} : null) };
+    const elsewhere = { closest: () => null };
+    expect(isKitPopoverTarget(inList as unknown as EventTarget)).toBe(true);
+    expect(isKitPopoverTarget(elsewhere as unknown as EventTarget)).toBe(false);
+    expect(isKitPopoverTarget(null)).toBe(false);
+    expect(isKitPopoverTarget({} as EventTarget)).toBe(false);
+  });
+
+  it("Escape asks to close only when no inner layer handled it", () => {
+    expect(escapeClosesSettings({ key: "Escape", defaultPrevented: false })).toBe(true);
+    expect(escapeClosesSettings({ key: "Escape", defaultPrevented: true })).toBe(false);
+    expect(escapeClosesSettings({ key: "Enter", defaultPrevented: false })).toBe(false);
+  });
+
+  it("the kit modal's own Escape is off (it runs before a dropdown sees the key); the app listens after, on window", () => {
+    const src = fs.readFileSync(path.join(__dirname, "workspace_panel.tsx"), "utf8");
+    expect(src).toContain("closeOnEscape={false}");
+    expect(src).toContain('window.addEventListener("keydown", onKey);');
+    expect(src).toContain('window.addEventListener("focusin", keep, true);');
+  });
+
+  it("the section picker and the mount access are plain lists (no search box to lose focus to)", () => {
+    expect(panel("mounts")).toMatch(/role="combobox"[^>]*aria-label="Access"/);
+    expect(panel("mind")).toMatch(/role="combobox"[^>]*aria-label="Settings section"/);
+  });
+});
+
+describe("unsaved drafts", () => {
+  it("draft sections stay mounted once opened; the others only while open", () => {
+    const visited = new Set<SettingsSection>(["identity", "prompt", "files"]);
+    expect(sectionMounted("identity", "mind", visited)).toBe(true);
+    expect(sectionMounted("prompt", "mind", visited)).toBe(true);
+    expect(sectionMounted("skills", "mind", visited)).toBe(false);
+    expect(sectionMounted("files", "mind", visited)).toBe(false);
+    expect(sectionMounted("files", "files", visited)).toBe(true);
+  });
+
+  it("names the sections with unsaved changes, in navigation order", () => {
+    expect(unsavedSections({ prompt: true, skills: true, mind: false })).toEqual(["skills", "prompt"]);
+    expect(unsavedSentence(["skills", "prompt"])).toBe("Skills and Prompt have changes that are not saved. Closing now drops them.");
+    expect(unsavedSentence(["prompt"])).toBe("Prompt has changes that are not saved. Closing now drops them.");
+    expect(unsavedSentence([])).toBe("");
+  });
+
+  it("a draft section is wrapped so it can hide instead of unmounting", () => {
+    const html = panel("identity");
+    expect(html).toMatch(/<div data-panel="identity">/);
+    expect(html).not.toContain("Discard unsaved changes?");
+  });
+});
+
+describe("words and wrapping", () => {
+  it("the one-line intros speak of the entity as he", () => {
+    for (const s of SETTINGS_SECTIONS) expect(s.lede("Castor"), s.id).not.toMatch(/\b(it|its)\b/);
+  });
+
+  it("a tool name may wrap only after its underscores", () => {
+    expect(renderToStaticMarkup(<code>{breakAtUnderscores("recent_memories")}</code>)).toBe("<code>recent_<wbr/>memories</code>");
+    expect(renderToStaticMarkup(<code>{breakAtUnderscores("recall")}</code>)).toBe("<code>recall</code>");
+  });
+
+  it("skills: gate verdicts and the standing-config caveat are shown, not folded", () => {
+    const src = fs.readFileSync(path.join(__dirname, "workspace_panel.tsx"), "utf8");
+    const at = src.indexOf('data-testid="skills-verdicts"');
+    expect(at).toBeGreaterThan(0);
+    expect(src.lastIndexOf("<details", at)).toBeLessThan(src.lastIndexOf("</MoreAbout>", at));
+    const caveat = src.indexOf('data-testid="skills-standing-config"');
+    expect(caveat).toBeGreaterThan(src.indexOf('<MoreAbout title="How skills work">'));
+    expect(caveat).toBeGreaterThan(src.indexOf("</MoreAbout>", src.indexOf('<MoreAbout title="How skills work">')));
+  });
+});
+
+describe("phone: the section picker stays reachable", () => {
+  const css = fs.readFileSync(path.join(__dirname, "settings_modal.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const phone = css.slice(css.indexOf("@media (max-width: 767.98px)"));
+  const block = (sel: string) => new RegExp(`(^|\\n)\\s*${sel.replace(/\./g, "\\.")} \\{([^}]*)\\}`).exec(phone)?.[2] ?? "";
+  it("the picker is sticky at the top of the page column, which is the one scroller", () => {
+    expect(block(".stg_jump")).toMatch(/position:\s*sticky/);
+    expect(block(".stg_jump")).toMatch(/top:\s*0/);
+    expect(block(".stg_main")).toMatch(/overflow-y:\s*auto/);
+    expect(block(".stg_modal.af-modal")).toMatch(/overflow:\s*hidden/);
   });
 });

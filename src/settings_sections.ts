@@ -28,26 +28,26 @@ export const SETTINGS_GROUPS: SettingsGroupMeta[] = [
     id: "mind",
     label: "Mind & voice",
     sections: [
-      { id: "mind", label: "Mind", icon: "sparkle", lede: (n) => `The model ${n} thinks with, in visits and in its own time.` },
-      { id: "voice", label: "Voice", icon: "speaker", lede: (n) => `How you hear ${n} and how your voice reaches it, in this browser.` },
+      { id: "mind", label: "Mind", icon: "sparkle", lede: (n) => `The model ${n} thinks with, in visits and in his own time.` },
+      { id: "voice", label: "Voice", icon: "speaker", lede: (n) => `How you hear ${n} and how your voice reaches him, in this browser.` },
     ],
   },
   {
     id: "identity",
     label: "Identity & record",
     sections: [
-      { id: "identity", label: "Identity", icon: "user", lede: (n) => `How ${n} looks and the voice it speaks with, saved together.` },
-      { id: "record", label: "Track record", icon: "activity", lede: (n) => `What ${n} has done, how far it is trusted for each kind of task, and whom it has met.` },
+      { id: "identity", label: "Identity", icon: "user", lede: (n) => `How ${n} looks and the voice he speaks with, saved together.` },
+      { id: "record", label: "Track record", icon: "activity", lede: (n) => `What ${n} has done, how far he is trusted for each kind of task, and whom he has met.` },
     ],
   },
   {
     id: "workspace",
     label: "Workspace",
     sections: [
-      { id: "files", label: "Files", icon: "folder", lede: (n) => `Browse ${n}'s home workspace and read its files.` },
-      { id: "mounts", label: "Mounts", icon: "database", lede: (n) => `Extra folders ${n} may reach beside its home, read-only or read and write.` },
-      { id: "tools", label: "Tools", icon: "wrench", lede: (n) => `Which tools ${n} holds in each phase of its life. Each switch applies at once.` },
-      { id: "skills", label: "Skills", icon: "book", lede: (n) => `What ${n} is taught beyond its capability map, phase by phase.` },
+      { id: "files", label: "Files", icon: "folder", lede: (n) => `Browse ${n}'s home workspace and read his files.` },
+      { id: "mounts", label: "Mounts", icon: "database", lede: (n) => `Extra folders ${n} may reach beside his home, read-only or read and write.` },
+      { id: "tools", label: "Tools", icon: "wrench", lede: (n) => `Which tools ${n} holds in each phase of his life. Each switch applies at once.` },
+      { id: "skills", label: "Skills", icon: "book", lede: (n) => `What ${n} is taught beyond his capability map, phase by phase.` },
     ],
   },
   {

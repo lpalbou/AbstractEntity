@@ -10,11 +10,11 @@
   height: min(860px, 90dvh);
   background: var(--bg-primary);
 }
-.stg_modal .af-modal__header {
+.stg_modal > .af-modal__header {
   background: var(--bg-primary);
   padding-block: 12px;
 }
-.stg_modal .af-modal__body {
+.stg_modal > .af-modal__body {
   padding: 0;
   display: flex;
   min-height: 0;
@@ -573,6 +573,11 @@
 .stg_matrix tbody tr:hover td {
   background: var(--ui-overlay-bg-hover, rgba(255, 255, 255, 0.03));
 }
+/* Tool names break at their underscores (a <wbr> after each), never mid-word. */
+.stg .stg_matrix td:first-child code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
 .stg_notes {
   display: flex;
   flex-direction: column;
@@ -581,6 +586,29 @@
   border: 1px solid var(--ui-border-1);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
+}
+
+/* A section with unsaved changes is marked in the side list. */
+.stg_nav_dirty {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warning);
+  flex: none;
+}
+.stg_confirm_text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: max(calc(13.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.5;
+}
+.stg_verdicts {
+  margin: 0;
+  padding-left: 18px;
+}
+.stg_verdicts code {
+  word-break: break-all;
 }
 
 /* The kit panels inside take the page's width (they cap themselves at 640 px elsewhere). */
@@ -592,23 +620,34 @@
 
 /* -------------------------------------------------------------- phones */
 @media (max-width: 767.98px) {
+  /* The sheet itself does not scroll here (the kit's phone default): the page column does, under
+   * a sticky section picker, so the picker stays reachable on a long section. */
   .stg_modal.af-modal {
     height: var(--vh-full, 100vh);
+    overflow: hidden;
   }
-  .stg_modal .af-modal__body {
-    display: block;
+  .stg_modal > .af-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
   }
   .stg {
-    display: block;
+    display: flex;
+    flex-direction: column;
   }
   .stg_nav {
     display: none;
   }
   .stg_main {
-    overflow: visible;
+    flex: 1 1 auto;
+    overflow-y: auto;
   }
   .stg_jump {
     display: block;
+    position: sticky;
+    top: 0;
+    z-index: 2;
     padding: 12px 16px;
     border-bottom: 1px solid var(--ui-border-1);
     background: var(--bg-primary);
@@ -634,5 +673,16 @@
   }
   .stg_mount .stg_btn_danger {
     margin-left: 26px;
+  }
+  /* The discard question stays a small centred dialog, not a full-screen sheet. */
+  .af-modal-backdrop:has(> .stg_confirm) {
+    padding: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  .stg_confirm.af-modal {
+    height: auto;
+    border: 1px solid var(--ui-border-2);
+    border-radius: var(--radius-lg);
   }
 }
