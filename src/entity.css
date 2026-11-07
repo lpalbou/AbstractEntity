@@ -747,6 +747,10 @@ body {
   position: sticky;
   bottom: 4px;
   z-index: 2;
+  /* It floats over the rows: opaque, or its words overprint theirs. */
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
 
 .el_quiet_note:hover {

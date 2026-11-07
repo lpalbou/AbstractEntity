@@ -122,6 +122,19 @@ function weaveSummary(group: WeaveGroup, items: IndexedLine[]): { title: string;
   };
 }
 
+/** Distance from the bottom that still counts as "at the bottom". */
+const FOLLOW_SLACK_PX = 80;
+
+/** The live follow after a scroll event. At the bottom it follows; only a
+ * scroll that moved UP (the reader) detaches it. Lines landing grow the
+ * list without moving it and our own jump to the bottom only moves down,
+ * so judging by the distance alone detached a follow nobody had left. */
+export function followAfterScroll(following: boolean, m: { gap: number; top: number; lastTop: number }): boolean {
+  if (m.gap <= FOLLOW_SLACK_PX) return true;
+  if (m.top < m.lastTop) return false;
+  return following;
+}
+
 export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   const { envelopes, scrubIndex, showQuiet } = props;
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -196,24 +209,30 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   useEffect(() => {
     const el = listRef.current;
     if (!el || !props.live) return;
-    // Only the READER detaches the follow: a scroll that moved UP. Landing
-    // lines grow the list without a scroll event and our own jump to the
-    // bottom only moves down; judging by the distance to the bottom raced
-    // the landing lines and detached a follow nobody had left.
     const onScroll = () => {
-      if (el.scrollHeight - el.scrollTop - el.clientHeight <= 80) {
-        stickRef.current = true;
-        setMissedBelow(0);
-      } else if (el.scrollTop < lastTopRef.current) {
-        stickRef.current = false;
-      }
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickRef.current = followAfterScroll(stickRef.current, { gap, top: el.scrollTop, lastTop: lastTopRef.current });
+      if (stickRef.current && gap <= FOLLOW_SLACK_PX) setMissedBelow(0);
       lastTopRef.current = el.scrollTop;
     };
+    const toBottom = () => {
+      el.scrollTop = el.scrollHeight;
+      lastTopRef.current = el.scrollTop;
+    };
+    // The drawer hides inactive tabs with display:none, where scrolling is
+    // a no-op: opening the Ledger tab must land on the newest line, not on
+    // wherever the hidden list was left (adversarial review 2026-11-07).
+    const revealed = new ResizeObserver(() => {
+      if (stickRef.current && el.clientHeight > 0) toBottom();
+    });
     stickRef.current = true;
-    el.scrollTop = el.scrollHeight;
-    lastTopRef.current = el.scrollTop;
+    toBottom();
+    revealed.observe(el);
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    return () => {
+      revealed.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
   }, [props.live]);
   useEffect(() => {
     // Runs on every visible LINE (a weave grows in place, its row count

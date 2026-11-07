@@ -63,47 +63,68 @@ function clip(text: string, max = 96): string {
 
 /** Derived rhythm lines (maintainer, 2026-07-08 16:31: "the ledger really
  * doesn't say anything about what's happening during own time"): the
- * stream has no explicit day/tick markers, but every envelope carries
- * run_id/turn_id — boundaries BETWEEN consecutive envelopes are the
- * day and tick structure of his own time, derived, never invented.
+ * stream has no explicit day/tick markers, but its envelopes carry the
+ * run and the turn they belong to. The day and tick structure of his own
+ * time is derived from those stamps, never invented.
  *
- * Only envelopes that carry a run_id take part, and `prev` is the last
- * EARLIER envelope that carried one (`foldLedgerLines` tracks it). Recall
- * events between them carry a turn_id but no run_id; comparing against
- * those announced "a day of his own begins" before every tick (operator
- * report 2026-11-07). */
-export function boundaryLines(env: ReplayEnvelope, prev: ReplayEnvelope | null): LedgerLine[] {
-  const run = String(env.run_id || "");
-  const turn = String(env.turn_id || "");
-  if (!run) return [];
-  const prevRun = String(prev?.run_id || "");
-  const prevTurn = String(prev?.turn_id || "");
-  const out: LedgerLine[] = [];
+ * Own time: the last run-stamped envelope's run is an own-time run (the
+ * runtime's rule: `chat-owntime-…` / `owntime-…`), or the operator's
+ * personal-time start marker came after it. A tick starts at the first
+ * envelope of a new turn — the recall trace that opens it carries the turn
+ * in `need.turn_id`. Turns restart at 1 each day (one session per day),
+ * so turn 1 opens a day, and the reflection turn (`t-reflect-…`) closes
+ * it. Each boundary is announced once (operator report 2026-11-07: the
+ * old run-change rule repeated "a day of his own begins" before every
+ * tick and put each tick marker mid-tick). */
+export interface RhythmState {
+  ownTime: boolean;
+  /** Last own-time turn a boundary was derived for. */
+  turn: string | null;
+}
+
+export const RHYTHM_START: RhythmState = { ownTime: false, turn: null };
+
+const OWN_TIME_RUN = /^(chat-)?owntime-/;
+const OWN_TIME_STARTS = new Set(["personal_started", "own_time_started"]);
+
+function envelopeTurn(env: ReplayEnvelope): string {
+  if (env.turn_id) return String(env.turn_id);
+  if (env.family === "trace") return String((env.payload as unknown as TracePayload).need?.turn_id || "");
+  return "";
+}
+
+export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: LedgerLine[]; state: RhythmState } {
+  let ownTime = state.ownTime;
+  if (env.run_id) ownTime = OWN_TIME_RUN.test(String(env.run_id));
+  else if (env.family === "host" && OWN_TIME_STARTS.has(String((env.payload as unknown as HostPayload).kind))) ownTime = true;
+  if (!ownTime) {
+    return { lines: [], state: state.ownTime || state.turn !== null ? RHYTHM_START : state };
+  }
+  const turn = envelopeTurn(env);
+  if (!turn || turn === state.turn) {
+    return { lines: [], state: state.ownTime ? state : { ownTime: true, turn: state.turn } };
+  }
   const base = {
     seq: env.seq,
     family: "boundary",
     observed_at: env.observed_at,
     trace_id: null,
-    turn_id: env.turn_id ?? null,
+    turn_id: turn,
     subject_id: null,
     tone: "boundary",
   };
-  const isOwnTime = run.includes("owntime");
-  if (run && run !== prevRun && isOwnTime) {
-    const at = String(env.observed_at || "").slice(11, 16);
-    out.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
-  }
-  if (turn && turn !== prevTurn && (run === prevRun || isOwnTime)) {
-    if (turn === "t-reflect") {
-      out.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
-    } else {
-      const n = turn.match(/^t-0*(\d+)$/)?.[1];
-      if (n && isOwnTime) {
-        out.push({ ...base, title: `— tick ${n} —`, detail: "" });
-      }
+  const lines: LedgerLine[] = [];
+  const n = turn.match(/^t-0*(\d+)$/)?.[1];
+  if (turn.startsWith("t-reflect")) {
+    lines.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
+  } else if (n) {
+    if (n === "1") {
+      const at = String(env.observed_at || "").slice(11, 16);
+      lines.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
     }
+    lines.push({ ...base, title: `— tick ${n} —`, detail: "" });
   }
-  return out;
+  return { lines, state: { ownTime: true, turn } };
 }
 
 /** One ledger line and the envelope index it belongs to (boundary lines
@@ -116,12 +137,13 @@ export interface IndexedLine {
 /** The ledger's incremental fold over the envelope array. */
 export interface LedgerLineFold {
   lines: IndexedLine[];
-  /** Envelopes covered, and the seqs at both ends of that prefix. */
+  /** Envelopes covered, and the envelope OBJECTS at both ends of that
+   * prefix: a live append keeps them, a new source (another entity, a
+   * dropped file with the same seq layout) does not. */
   count: number;
-  firstSeq: number | null;
-  tailSeq: number | null;
-  /** Index of the last covered envelope carrying a run_id (-1: none). */
-  lastRunIndex: number;
+  first: ReplayEnvelope | null;
+  tail: ReplayEnvelope | null;
+  rhythm: RhythmState;
 }
 
 /** Extend `prev` with the envelopes it has not covered yet, or rebuild
@@ -131,29 +153,24 @@ export interface LedgerLineFold {
  * left the live ledger frozen at its first load while the timeline kept
  * counting (operator report 2026-11-07). An unchanged input returns `prev`. */
 export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEnvelope[]): LedgerLineFold {
-  const firstSeq = envelopes.length > 0 ? envelopes[0].seq : null;
+  const first = envelopes.length > 0 ? envelopes[0] : null;
   const intact =
     prev !== null &&
-    prev.firstSeq === firstSeq &&
+    prev.first === first &&
     prev.count <= envelopes.length &&
-    (prev.count === 0 || envelopes[prev.count - 1].seq === prev.tailSeq);
+    (prev.count === 0 || envelopes[prev.count - 1] === prev.tail);
   if (intact && prev.count === envelopes.length) return prev;
   const from = intact ? prev.count : 0;
   const lines = intact ? prev.lines.slice() : [];
-  let lastRunIndex = intact ? prev.lastRunIndex : -1;
+  let rhythm = intact ? prev.rhythm : RHYTHM_START;
   for (let i = from; i < envelopes.length; i++) {
     const env = envelopes[i];
-    for (const b of boundaryLines(env, lastRunIndex >= 0 ? envelopes[lastRunIndex] : null)) lines.push({ line: b, index: i });
+    const step = rhythmStep(rhythm, env);
+    rhythm = step.state;
+    for (const b of step.lines) lines.push({ line: b, index: i });
     lines.push({ line: ledgerLine(env), index: i });
-    if (env.run_id) lastRunIndex = i;
   }
-  return {
-    lines,
-    count: envelopes.length,
-    firstSeq,
-    tailSeq: envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : null,
-    lastRunIndex,
-  };
+  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm };
 }
 
 function displayTitle(env: ReplayEnvelope, fallback: string): string {
