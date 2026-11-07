@@ -85,7 +85,8 @@ describe("what he is doing now", () => {
     const episode = env(10, "binding", { turn_id: "t-0001", display: { kind: "episode", graph_id: "ex:episode-1" } });
     const recall = env(12, "trace", { payload: { need: { turn_id: "t-0002", participants: ["entity:nerin"] } } });
     expect(nowState([episode, recall])).toMatchObject({ kind: "thinking", turn: "t-0002", withSomeone: false });
-    expect(nowState([recall, { ...episode, seq: 13 } as ReplayEnvelope])).toMatchObject({ kind: "moment", graphId: "ex:episode-1" });
+    expect(nowState([recall, { ...episode, seq: 13 } as ReplayEnvelope])).toMatchObject({ kind: "moment", graphId: "ex:episode-1", ownTime: false });
+    expect(nowState([{ ...episode, run_id: "chat-owntime-20261107T155639" } as ReplayEnvelope])).toMatchObject({ kind: "moment", ownTime: true });
     const visit = env(14, "trace", { payload: { need: { turn_id: "t-0001", participants: ["person:admin", "entity:nerin"] } } });
     expect(nowState([episode, visit])).toMatchObject({ kind: "thinking", withSomeone: true });
     expect(nowState([])).toEqual({ kind: "none" });
@@ -94,9 +95,9 @@ describe("what he is doing now", () => {
   it("his lookups are counted in his rounds; a quoted older moment makes the count a floor", async () => {
     const { lookupWords, lookupsIn } = await import("./now_line");
     const plain = ["entity:nerin:", "cue", "", "nerin (thinking, unspoken):", "[used tool: web_search]", "[used tool: web_search]", "", "(what the tools returned:)", "[web_search] results", "", "nerin (thinking, unspoken):", "[used tool: fetch_url]", "", "(what the tools returned:)", "page", "", "nerin:", "My answer."].join("\n");
-    expect(lookupWords(lookupsIn(plain, "nerin"))).toBe("2 web searches, 1 page read");
+    expect(lookupWords(lookupsIn(plain, "nerin"))).toBe("2 web searches, 1 page fetch");
     const quoted = ["entity:nerin:", "cue", "", "nerin (thinking, unspoken):", "[used tool: read_memory]", "", "(what the tools returned:)", "[read_memory]", "Full words of memory #1:", "", "entity:nerin:", "old cue", "", "nerin (thinking, unspoken):", "[used tool: web_search]", "", "nerin:", "My answer."].join("\n");
-    expect(lookupWords(lookupsIn(quoted, "nerin"))).toBe("at least 1 memory reread");
+    expect(lookupWords(lookupsIn(quoted, "nerin"))).toBe("at least 1 memory lookup");
     expect(lookupWords({ items: [], partial: false })).toBe("no lookups");
   });
 });

@@ -88,7 +88,7 @@ export interface RhythmState {
 
 export const RHYTHM_START: RhythmState = { ownTime: false, turn: null, closed: false };
 
-const OWN_TIME_RUN = /^(chat-)?owntime-/;
+export const OWN_TIME_RUN = /^(chat-)?owntime-/;
 
 function envelopeTurn(env: ReplayEnvelope): string {
   if (env.turn_id) return String(env.turn_id);

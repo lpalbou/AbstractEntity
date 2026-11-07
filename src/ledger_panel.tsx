@@ -8,6 +8,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { AF_MEDIA, AfMemoryHintChip, useAfMedia } from "@abstractframework/ui-kit";
 
+import { isDiaryGraphId } from "./stream_fold";
+
 import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
 import type { ReplayEnvelope } from "./stream_types";
 
@@ -441,7 +443,15 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
         <div
           key={`${line.seq}-${rowIdx}`}
           className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""} ${target ? "el_row_open" : ""}`}
-          title={target ? (target.startsWith("beat:") ? "Open what came to mind at this moment" : "Open this memory in Detail") : undefined}
+          title={
+            target
+              ? target.startsWith("beat:")
+                ? "Open what came to mind at this moment"
+                : isDiaryGraphId(target)
+                  ? "Open this diary entry in Detail — reading it is recorded in his biography"
+                  : "Open this memory in Detail"
+              : undefined
+          }
           onClick={() => {
             props.onJump(index);
             if (target) props.onSelectSubject(target);

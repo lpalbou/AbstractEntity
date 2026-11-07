@@ -2800,6 +2800,84 @@ body {
   background: var(--bg-panel);
 }
 
+/* The time panel (operator 2026-11-07): lanes of defining events above
+   the scrub bar, one grid so each lane lines up with the bar; transport
+   on the right. */
+.entity_timeline.et_grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+}
+
+.et_lane_label {
+  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.et_lane_count {
+  margin-left: 6px;
+  color: var(--text-dim);
+}
+
+.et_time_label {
+  color: var(--text-dim);
+}
+
+.et_lane {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-dim) 8%, transparent);
+}
+
+.et_mark {
+  position: absolute;
+  top: 1px;
+  width: 3px;
+  height: 10px;
+  margin-left: -1px;
+  padding: 0;
+  border: none;
+  border-radius: 1px;
+  cursor: pointer;
+}
+
+.et_mark:hover,
+.et_mark:focus-visible {
+  top: -1px;
+  height: 14px;
+  width: 4px;
+  outline: 1px solid var(--text);
+  z-index: 1;
+}
+
+.et_mark_future {
+  opacity: 0.3;
+}
+
+.et_icon_back {
+  display: inline-flex;
+  transform: scaleX(-1);
+}
+
+.et_icon_pair {
+  display: inline-flex;
+  letter-spacing: -6px;
+}
+
+.et_icon_pair svg + svg {
+  margin-left: -8px;
+}
+
+.et_btn svg {
+  display: block;
+}
+
 /* Transport cluster grouped right (operator 2026-07-15); a hairline
  * separates it from the track so the slider reads as the protagonist. */
 .et_right {
@@ -6046,6 +6124,15 @@ body {
     flex-wrap: wrap;
     border-left: none;
     padding-left: 0;
+  }
+  .entity_timeline.et_grid {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+  .entity_timeline.et_grid > span:empty {
+    display: none;
+  }
+  .entity_timeline.et_grid .et_right {
+    grid-column: 1 / -1;
   }
   .et_pos {
     min-width: 0;

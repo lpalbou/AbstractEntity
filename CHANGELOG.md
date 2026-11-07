@@ -54,10 +54,17 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- **A time panel that shows his life's defining moments.** The bar at the bottom is taller: above
+  the scrub bar, one lane each for the moments he lived, his diary entries, lessons, world-model
+  revisions and dreams, every mark where it happened; hovering a mark says what it is and when, and
+  clicking it moves time there and opens it. Play, pause and the step buttons sit together on the
+  right, and the position reads as a time.
 - **See what he is doing now.** Above the ledger, a line says whether he is thinking (which tick,
   since when) or when his last moment ended and what he looked up in it (web searches, pages read,
   memories reread), with a link to open it. Every ledger line opens what it is about in Detail: a
-  memory opens the memory, a recall opens what came to mind at that moment.
+  memory opens the memory (opening a diary entry is recorded in his biography, and the line says
+  so), a recall opens what came to mind at that moment. A turn that never finished is not shown as
+  thinking.
 - **A world model reads as his understanding of something.** The Detail tab now opens a world
   model with what it is about: when it first formed, how many times it was revised and by whom
   (him, or the sleep pass gathering evidence), when it was last updated, the evidence behind it and

@@ -16,7 +16,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-import { clockUtc, turnLabel } from "./ledger_lines";
+import { clockUtc, OWN_TIME_RUN, turnLabel } from "./ledger_lines";
 import type { ReplayEnvelope, TracePayload } from "./stream_types";
 import type { VerbatimSource } from "./verbatim_modal";
 import { parseExchange, splitUnspokenThinking } from "./verbatim_parse";
@@ -24,7 +24,7 @@ import { readRecordWords } from "./verbatim_view";
 
 export type NowState =
   | { kind: "thinking"; since: string; turn: string; withSomeone: boolean }
-  | { kind: "moment"; at: string; turn: string; graphId: string }
+  | { kind: "moment"; at: string; turn: string; graphId: string; ownTime: boolean }
   | { kind: "none" };
 
 export function nowState(envelopes: ReplayEnvelope[]): NowState {
@@ -43,7 +43,13 @@ export function nowState(envelopes: ReplayEnvelope[]): NowState {
   }
   if (moment) {
     const d = moment.display as { graph_id?: string; record_id?: string } | undefined;
-    return { kind: "moment", at: moment.observed_at, turn: String(moment.turn_id || ""), graphId: String(d?.graph_id || d?.record_id || (moment.payload as { record_id?: string }).record_id || "") };
+    return {
+      kind: "moment",
+      at: moment.observed_at,
+      turn: String(moment.turn_id || ""),
+      graphId: String(d?.graph_id || d?.record_id || (moment.payload as { record_id?: string }).record_id || ""),
+      ownTime: OWN_TIME_RUN.test(String(moment.run_id || "")),
+    };
   }
   return { kind: "none" };
 }
@@ -78,13 +84,19 @@ export function lookupsIn(verbatim: string, entity: string): { items: Array<{ to
   return { items: [...counts.entries()].map(([tool, count]) => ({ tool, count })), partial };
 }
 
+/** Each "[used tool: …]" line is a lookup he made, whether or not it
+ * found anything — so the words name attempts, not results. */
 const TOOL_WORDS: Record<string, [string, string]> = {
   web_search: ["web search", "web searches"],
-  fetch_url: ["page read", "pages read"],
-  read_memory: ["memory reread", "memories reread"],
+  fetch_url: ["page fetch", "page fetches"],
+  read_memory: ["memory lookup", "memory lookups"],
   search_memory: ["memory search", "memory searches"],
-  diary_read: ["diary entry reread", "diary entries reread"],
+  diary_read: ["diary lookup", "diary lookups"],
 };
+
+/** A turn that formed no moment for this long did not finish (failed,
+ * stopped, paused) — it is not shown as thinking. */
+export const STALE_TURN_MS = 10 * 60_000;
 
 export function lookupWords({ items, partial }: { items: Array<{ tool: string; count: number }>; partial: boolean }): string {
   if (items.length === 0) return partial ? "lookups not counted (his record quotes older moments)" : "no lookups";
@@ -108,7 +120,7 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
   }, []);
   const momentId = state.kind === "moment" ? state.graphId : "";
   useEffect(() => {
-    if (!momentId || !source) return;
+    if (!live || !momentId || !source) return;
     let cancelled = false;
     // An episode record: a pure read (no access recorded).
     readRecordWords(source, momentId, "episode")
@@ -118,9 +130,19 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [momentId, source?.baseUrl, source?.entity]);
+  }, [live, momentId, source?.baseUrl, source?.entity]);
 
   if (!live || state.kind === "none") return null;
+  if (state.kind === "thinking" && clock - Date.parse(state.since) > STALE_TURN_MS) {
+    return (
+      <div className="now_line" role="status">
+        <span className="now_dot now_dot_idle" aria-hidden="true" />
+        <span>
+          A turn began at {clockUtc(state.since)} UTC ({ago(state.since, clock)}) and formed no moment — it did not finish (stopped, paused or failed).
+        </span>
+      </div>
+    );
+  }
   if (state.kind === "thinking") {
     const tick = turnLabel(state.turn, !state.withSomeone);
     return (
@@ -136,7 +158,7 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
       </div>
     );
   }
-  const tick = turnLabel(state.turn, true);
+  const tick = turnLabel(state.turn, state.ownTime);
   return (
     <div className="now_line" role="status">
       <span className="now_dot now_dot_idle" aria-hidden="true" />

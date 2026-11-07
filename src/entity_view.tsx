@@ -537,23 +537,31 @@ export function EntityView(): React.ReactElement {
     if (!live || sourceKind !== "gateway" || !entityName) return;
     const base = gatewayUrl.trim().replace(/\/+$/, "");
     let busy = false;
+    let cancelled = false; // this effect's run ended (left live, switched entity)
     const check = async () => {
       if (busy) return;
       busy = true;
       try {
         const held = envelopesRef.current;
         const last = held.length > 0 ? held[held.length - 1].seq : 0;
-        const silentMs = Date.now() - (lastEnvelopeAtRef.current ?? 0);
+        const heardAt = lastEnvelopeAtRef.current ?? 0;
+        const silentMs = Date.now() - heardAt;
         if (silentMs < LIVE_STALL_MS) return;
-        const missing = (await fetchReplay(base, entityName, last)).filter((e) => e.seq > last);
-        if (missing.length === 0) return;
-        console.warn(`#FALLBACK live tail silent for ${Math.round(silentMs / 1000)} s while the gateway had ${missing.length} newer event(s): caught up and reconnected`);
-        setEnvelopes((prev) => {
-          const next = mergeEnvelopes(prev, missing);
-          if (next !== prev) setScrubIndex(next.length - 1);
-          return next;
-        });
-        startTail(base, entityName, missing[missing.length - 1].seq);
+        // From the start of the last held seq's base: a gateway marker
+        // written during the stall can carry a fraction of a seq the page
+        // already holds; the merge drops what is already held.
+        const fetched = await fetchReplay(base, entityName, Math.max(0, Math.floor(last) - 1));
+        // Act only if nothing moved meanwhile: still this live run, and the
+        // tail did not deliver while we asked (activity resuming is not a
+        // stall).
+        if (cancelled || (lastEnvelopeAtRef.current ?? 0) !== heardAt) return;
+        const next = mergeEnvelopes(envelopesRef.current, fetched);
+        if (next === envelopesRef.current) return;
+        const added = next.length - envelopesRef.current.length;
+        console.warn(`#FALLBACK live tail silent for ${Math.round(silentMs / 1000)} s while the gateway had ${added} event(s) the page lacked: caught up and reconnected`);
+        setEnvelopes(next);
+        setScrubIndex(next.length - 1);
+        startTail(base, entityName, next[next.length - 1].seq);
       } catch {
         // the next check tries again; the header shows the tail's own state
       } finally {
@@ -561,7 +569,10 @@ export function EntityView(): React.ReactElement {
       }
     };
     const timer = window.setInterval(check, LIVE_CHECK_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [live, sourceKind, entityName, gatewayUrl, startTail]);
 
   useEffect(() => {
@@ -2632,6 +2643,19 @@ export function EntityView(): React.ReactElement {
               setLiveStatus(null);
             }
             setScrubIndex(i);
+          }}
+          onOpenEvent={(i, recordId) => {
+            // A mark on the time panel: go there and open what formed.
+            setPlaying(false);
+            if (live) {
+              tailRef.current?.close();
+              tailRef.current = null;
+              setLive(false);
+              setLiveStatus(null);
+            }
+            setScrubIndex(i);
+            setSelectedId(recordId);
+            setRequestedTab({ tab: "detail", nonce: Date.now() });
           }}
           onTogglePlay={() => setPlaying((v) => !v)}
           onSpeed={setSpeed}
