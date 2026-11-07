@@ -1186,13 +1186,17 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               connection: brain === "driver" && publicVisit.error ? "disconnected" : "connected",
               replaying: props.visible === false || hydrating || (brain === "driver" ? publicVisit.loading : !flowView && busy === "turn"),
               listening: voice.voice_ptt_recording || voice.voice_ptt_busy,
-              speaking: voice.tts_playback.status === "playing", preferences: avatarPrefs.preferences,
+              speaking: voice.tts_speaking, preferences: avatarPrefs.preferences,
               onPreferencesChange: avatarPrefs.setPreferences, onAttendedChange: setAvatarAttended,
               onCue: (cue) => { void playConversationCue(cue).catch((e: Error) => setNote(e.message)); },
               narrate: voicePrefs.read_aloud === true && voice.tts_supported,
               onNarrate: (m) => { void voice.toggle_tts(String(m.id), m.content); },
               onInterruptSpeech: interruptAvatarSpeech, onReplyContext: setReplyContext,
             }}
+            messageProps={voice.tts_supported ? {
+              onSpeakToggle: (m) => void voice.toggle_tts(String(m.id || ""), m.content),
+              getSpeakState: (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle"),
+            } : undefined}
           /> : <ChatMessageList
             messages={messages}
             onDetail={setDetailTurn}

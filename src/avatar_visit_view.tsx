@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { ActivityAvatar, type AvatarPose } from "@abstractframework/ui-kit";
-import { WorkflowInteractionPanel, publicApprovalRequest, AvatarConversation, conversationState, type WorkflowInteraction, type AvatarConversationOptions, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
+import { WorkflowInteractionPanel, publicApprovalRequest, AvatarConversation, conversationState, type WorkflowInteraction, type AvatarConversationOptions, type AvatarConversationProps, type ChatMessage, type ConversationAttention } from "./vendor/abstractchat/conversation";
 import { screenDiaryFences } from "./flow_lane";
 import { IdentityAvatar, type IdentityLook } from "./identity_avatar";
 import { publicVisitHistoryOmitted, visitAttention, visitAvatarStatus } from "./avatar_visit";
@@ -16,6 +16,8 @@ export function AvatarVisitView(props: {
   busy: string;
   draft: string;
   options: Omit<AvatarConversationOptions, "avatar" | "status" | "attention">;
+  /** Read-aloud on the live line and on the answer: the same speaker the chat list shows. */
+  messageProps?: AvatarConversationProps["messageProps"];
   onAnswer(wait: VisitPublicWait, answer: string): Promise<unknown>;
   onDecision(wait: VisitPublicWait, approved: boolean): Promise<unknown>;
   onError(message: string): void;
@@ -51,6 +53,7 @@ export function AvatarVisitView(props: {
   return <>
     {publicVisitHistoryOmitted(props.state) ? <p className="cd_note cd_avatar_history_notice" role="status">Some earlier exchanges are not shown in this view.</p> : null}
     <AvatarConversation {...props.options} avatar={props.look ? <IdentityAvatar look={props.look} pose={pose} size={320} label={`${props.entityName} — ${state}`} onError={onAvatarError} /> : <ActivityAvatar design="watch-hover" pose={pose} size={320} active animated label={`${props.entityName} — ${state}`} onError={onAvatarError} />} status={status} attention={attention} messages={props.messages} attended={Boolean(props.draft.trim())}
+    messageProps={props.messageProps}
     interactionId={interaction?.id || ""}
     interaction={interaction ? <WorkflowInteractionPanel interaction={interaction} variant="conversation" onReviewTechnical={props.options.onTechnicalView} /> : null} />
   </>;

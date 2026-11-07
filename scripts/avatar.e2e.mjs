@@ -110,6 +110,8 @@ try {
   await composer.fill("Investigate the supported format");
   await send.click();
   await page.locator(".pc-avatar-conversation__line").getByText(update.text, { exact: true }).waitFor({ timeout: 10_000 });
+  assert.equal(await page.locator(".pc-avatar-conversation").getByRole("button", { name: "Speak (TTS)", exact: true }).count(), 1, "the live line has its own read-aloud button");
+  assert.equal(await page.locator(".pc-avatar-conversation .af-voice-mic").count(), 0, "the avatar view uses the composer microphone only");
   assert(!(await page.locator(".chat_drawer").innerText()).includes("PRIVATE"));
   assert(await composer.isEnabled(), "the avatar composer remains available during owned work");
   await composer.fill("Keep CSV format");
