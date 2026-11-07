@@ -12,8 +12,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 - **Every text renders its Markdown.** Ledger rows, the Now line, the Book, Lessons and World,
   the identity card, world-model cards and their sources, Health, the turn panel, the meet reader
-  and the entities list show bold, italics, code and links instead of raw markers; no image in
-  any text outside the chat is loaded. Ledger rows no longer cut record text: they clamp to three
+  and the entities list show bold, italics, code and links instead of raw markers. No image in
+  his words, the chat or a visitor's message is ever loaded (the Docs assistant's answers are the
+  one exception, until the kit offers the setting). Ledger rows no longer cut record text: they clamp to three
   lines, a click opens the memory, and a row with nothing to open shows its whole text on hover.
 - **Graph hover cards say what a memory is**: its title, its full summary once known, then the
   facts. A topic keeps its place and colour while its members stay mostly the same; when the
