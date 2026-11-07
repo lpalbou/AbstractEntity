@@ -92,8 +92,8 @@ export const CONDUCT_AXES: AxisInfo[] = [
  */
 export function evidenceNote(evidence: number | undefined): string | null {
   if (typeof evidence !== "number" || !Number.isFinite(evidence)) return null;
-  if (evidence <= 0.02) return "quiet — his words sit near no emotional register";
-  if (evidence < 0.35) return "faint — weak emotional evidence, petals damped";
+  if (evidence <= 0.02) return "very weak evidence — his words sit far from every emotional register; the shape is indicative only";
+  if (evidence < 0.35) return "faint evidence — the shape is indicative";
   return null;
 }
 
@@ -127,14 +127,15 @@ export function evidenceTitle(evidence: number | undefined, maxSim: number | und
     typeof evidence === "number" ? `evidence ${evidence.toFixed(2)}` : null,
     typeof maxSim === "number" ? `nearest-register similarity ${maxSim.toFixed(2)}` : null,
   ].filter(Boolean).join(", ");
-  return `The evidence gate: petals show only when his words land near SOME register prototype in embedding space${nums ? ` (${nums})` : ""}. A quiet bloom is honest abstention — far-from-every-register words show nothing rather than a confident wrong reading.${calibration ? ` ${calibration}` : ""}`;
+  return `The evidence: how close his words land to the nearest emotional register in embedding space${nums ? ` (${nums})` : ""}. The bloom always shows the shape of his words across the registers; weak evidence means that shape is indicative only.${calibration ? ` ${calibration}` : ""}`;
 }
 
 export interface WaveSampleLike {
   emotions?: Record<string, number>;
   scores?: Record<string, number>;
   novelty?: number;
-  /** The emotion gate's evidence (0..1): below 0.35 a named emotion is marked faint. */
+  /** The evidence (0..1) beside the shape: below 0.35 the named register is marked faint, at
+   * 0.02 or less very weak. It qualifies the reading, never hides it. */
   emotionEvidence?: number;
 }
 
@@ -227,7 +228,8 @@ export function toneReading(scores: Record<string, number> | undefined, omit: re
 
 const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/** The dominant emotion (id + value) or null when the shape is flat. */
+/** The leading register (id + value), however small; null only when nothing was read. The
+ * monitor always shows the signal (operator 2026-11-07) — strength is said, never a cutoff. */
 export function dominantEmotion(emotions: Record<string, number> | undefined): { axis: AxisInfo; value: number } | null {
   if (!emotions) return null;
   let best: { axis: AxisInfo; value: number } | null = null;
@@ -235,21 +237,23 @@ export function dominantEmotion(emotions: Record<string, number> | undefined): {
     const v = Math.max(0, emotions[axis.id] ?? 0);
     if (!best || v > best.value) best = { axis, value: v };
   }
-  return best && best.value >= 0.18 ? best : null;
+  return best && best.value > 0 ? best : null;
 }
 
 /**
  * PRE-COMPUTED MEANING: a deterministic, rule-based verbalization of the scores (never the
  * text). It describes the WORDS' expressive character, never inner state. Rules:
  * - the tone clause speaks the channels that sit in the outer tails (TONE_CUTOFFS), both poles;
- * - an emotion is named only when it clears the gate (>= 0.18 after the evidence gate), with
- *   strength-honest verbs and "(faint evidence)" when the gate's evidence is below 0.35;
+ * - the leading register is ALWAYS named when anything was read (operator 2026-11-07: "there
+ *   will always be some signal and I want to see it all the time"), with strength-honest verbs
+ *   (faintly / mildly / lean / strongly) and the evidence as a qualifier: "(faint evidence)"
+ *   below 0.35, "(very weak evidence)" at 0.02 or less;
  * - ONE rule against contradiction: when an emotion is named, warmth is not spoken (the named
  *   emotion already carries the valence) and no second valence clause is added. Scope: valence is
  *   the only dimension both instruments measure; urgency, reflection, structure and certainty
  *   describe the phrasing alongside any emotion (e.g. calm with very urgent phrasing is two
  *   readings, not a contradiction the scores could settle), so they are not suppressed;
- * - no emotion: the tone IS the reading ("… — no clear emotion"); no tone scores at all: say so.
+ * - nothing read at all (no emotion values): the tone IS the reading ("… — no clear emotion").
  * Pure + tested.
  */
 export function interpretWave(sample: WaveSampleLike | null): string {
@@ -259,15 +263,16 @@ export function interpretWave(sample: WaveSampleLike | null): string {
   const ranked = EMOTION_AXES.map((axis) => ({ axis, v: Math.max(0, emotions[axis.id] ?? 0) })).sort((a, b) => b.v - a.v);
   const top = ranked[0];
   const second = ranked[1];
-  const named = Boolean(top && top.v >= 0.18);
+  const named = Boolean(top && top.v > 0);
 
   const tone = toneReading(scores, named ? ["warmth"] : []);
-  const faint = typeof sample.emotionEvidence === "number" && Number.isFinite(sample.emotionEvidence) && sample.emotionEvidence < 0.35;
+  const ev = typeof sample.emotionEvidence === "number" && Number.isFinite(sample.emotionEvidence) ? sample.emotionEvidence : null;
+  const evidenceWord = ev === null ? "" : ev <= 0.02 ? " (very weak evidence)" : ev < 0.35 ? " (faint evidence)" : "";
   const emotionClause = (): string | null => {
     if (!named) return null;
-    const verb = top.v >= 0.75 ? "lean strongly toward" : top.v >= 0.45 ? "lean toward" : "tilt mildly toward";
+    const verb = top.v >= 0.75 ? "lean strongly toward" : top.v >= 0.45 ? "lean toward" : top.v >= 0.18 ? "tilt mildly toward" : "tilt faintly toward";
     const thread = second && second.v >= 0.2 && second.v >= top.v * 0.6 ? ` with a thread of ${second.axis.name} (${second.axis.code})` : "";
-    return `the words ${verb} ${top.axis.name} (${top.axis.code})${thread}${faint ? " (faint evidence)" : ""}`;
+    return `the words ${verb} ${top.axis.name} (${top.axis.code})${thread}${evidenceWord}`;
   };
 
   const clauses: string[] = [];
@@ -358,15 +363,16 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis:
                 language you see before reading a number.
               </p>
               <p>
-                <strong>A flat bloom is usually honest abstention, not a fault:</strong> an evidence gate scales every
-                register by how near the words land to ANY register prototype — words far from every register show
-                NOTHING rather than a confident wrong reading. The tone still reads: the five channels under the bloom
+                <strong>The bloom always shows the shape</strong> of his words across the registers — which lead, and by
+                how much. Beside it, the <strong>evidence</strong> says how close the words land to any register at all:
+                when it is weak, the sentence says so ("faint" or "very weak evidence") and the shape is indicative only,
+                never a confident reading. The tone reads too: the five channels under the bloom
                 (WAR warmth, TSN tension, REF reflection, STR structure, CER certainty) are signed, so both poles speak
                 (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
                 associative, assured or hedging). A channel speaks only when the reply sits in the outer 3% of a reference set
                 on that side ("+" or "−"; "++" or "−−" for the outer 1%); "·" is typical. The reference set is{" "}
                 {TONE_CUTOFFS.reference.label}: what this home embedded, not a general corpus. The sentence says the
-                strongest ones and adds an emotion only when one clears the gate.
+                strongest ones and always names the leading register, with how strong it is and how good the evidence is.
               </p>
               <p>
                 RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing

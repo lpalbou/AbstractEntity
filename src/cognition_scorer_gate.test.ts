@@ -24,6 +24,7 @@ import basisJson from "./vendor/cognition/data/basis_v0.json";
 import currentBasisJson from "./vendor/cognition/data/basis_v1.json";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 import fixture from "./fixtures/cognition_gate_vectors.json";
+import { interpretWave } from "./cognitive_monitor";
 
 const basis = basisJson as unknown as FrozenBasis;
 
@@ -129,6 +130,25 @@ describe("contract (additive only)", () => {
     expect(legacy.emotions.joy).toBeGreaterThan(0.3);
     expect(gated.emotions.joy).toBeLessThan(legacy.emotions.joy);
     expect(legacy.emotionEvidence).toBe(1);
+  });
+
+  it("emotionsShape is the ungated shape, and the gated emotions are evidence × shape", () => {
+    for (const id of ["benign_travel_reply", "fearful_control", "joy_control"]) {
+      const out = scoreOf(id);
+      const legacy = scoreOf(id, { abstention: { floor: -1 } });
+      for (const e of basis.emotions) {
+        expect(out.emotionsShape[e]).toBeCloseTo(legacy.emotions[e], 12);
+        expect(out.emotions[e]).toBeCloseTo((out.emotionEvidence ?? 0) * out.emotionsShape[e], 12);
+      }
+    }
+  });
+
+  it("the monitor shows the benign reply's shape, qualified as weak evidence — never a confident verdict", () => {
+    const out = scoreOf("benign_travel_reply");
+    const sentence = interpretWave({ emotions: out.emotionsShape, scores: out.scores, emotionEvidence: out.emotionEvidence });
+    expect(sentence).toMatch(/the words (tilt faintly|tilt mildly|lean) toward/i);
+    expect(sentence).toMatch(/\((faint|very weak) evidence\)/);
+    expect(sentence).not.toMatch(/strongly/);
   });
 
   it("channel scores are untouched by the gate", () => {

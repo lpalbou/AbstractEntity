@@ -63,10 +63,21 @@ describe("interpretWave (the pre-computed meaning)", () => {
     expect(interpretWave(null)).toContain("Nothing scored yet");
   });
 
-  it("typical channels and no emotion read as typical phrasing, naming no register", () => {
+  it("a small signal is still named — the monitor always shows it (operator 2026-11-07)", () => {
     const text = interpretWave({ emotions: { joy: 0.05, calm: 0.1 }, scores: { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 } });
+    expect(text).toBe("The words tilt faintly toward calm (CAL).");
+  });
+
+  it("only when nothing was read at all does the sentence say no clear emotion", () => {
+    const text = interpretWave({ emotions: { joy: 0, calm: 0 }, scores: { warmth: 0.6, tension: 0.1, reflection: -0.5, structure: 0.2, certainty: -0.2 } });
     expect(text).toBe("Typical phrasing, no tone stands out — no clear emotion.");
-    expect(text).not.toContain("JOY");
+  });
+
+  it("weak evidence qualifies the reading, never hides it", () => {
+    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0 })).toBe("The words lean toward fear (FEA) (very weak evidence).");
+    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0.02 })).toContain("(very weak evidence)");
+    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0.1 })).toContain("(faint evidence)");
+    expect(interpretWave({ emotions: { fear: 0.5 }, scores: {}, emotionEvidence: 0.35 })).not.toMatch(/evidence\)/);
   });
 
   it("missing scores never read as neutral: the tone is said to be unread", () => {
@@ -138,18 +149,19 @@ describe("interpretWave (the pre-computed meaning)", () => {
 });
 
 describe("dominantEmotion", () => {
-  it("returns the top axis above threshold, null when flat", () => {
+  it("returns the leading axis however small; null only when nothing was read", () => {
     expect(dominantEmotion({ joy: 0.5, calm: 0.2 })?.axis.code).toBe("JOY");
-    expect(dominantEmotion({ joy: 0.1 })).toBeNull();
+    expect(dominantEmotion({ joy: 0.1 })?.axis.code).toBe("JOY");
+    expect(dominantEmotion({ joy: 0, calm: 0 })).toBeNull();
     expect(dominantEmotion(undefined)).toBeNull();
   });
 });
 
 describe("evidenceNote / evidenceTitle (the abstention gate, said)", () => {
-  it("full abstention reads quiet; the low band reads faint; real reach says nothing", () => {
-    expect(evidenceNote(0)).toContain("quiet");
-    expect(evidenceNote(0.02)).toContain("quiet");
-    expect(evidenceNote(0.2)).toContain("faint");
+  it("no reach reads very weak; the low band reads faint; real reach says nothing", () => {
+    expect(evidenceNote(0)).toContain("very weak evidence");
+    expect(evidenceNote(0.02)).toContain("very weak evidence");
+    expect(evidenceNote(0.2)).toContain("faint evidence");
     expect(evidenceNote(0.35)).toBeNull();
     expect(evidenceNote(0.9)).toBeNull();
   });
@@ -165,11 +177,12 @@ describe("evidenceNote / evidenceTitle (the abstention gate, said)", () => {
     }
   });
 
-  it("the title carries the live numbers when present and names abstention as design", () => {
+  it("the title carries the live numbers and says the shape is always shown", () => {
     const t = evidenceTitle(0.04, 0.12);
     expect(t).toContain("evidence 0.04");
     expect(t).toContain("similarity 0.12");
-    expect(t.toLowerCase()).toContain("honest abstention");
+    expect(t).toContain("always shows the shape");
+    expect(t.toLowerCase()).not.toContain("abstention");
     // Absent diagnostics → no dangling number clause (the "(basis v1)"
     // provenance parenthetical is prose, not a number).
     const bare = evidenceTitle(undefined, undefined);

@@ -23,6 +23,9 @@ export interface FrozenBasis {
 export interface ScoreOutput {
   scores: Record<string, number>;
   emotions: Record<string, number>;
+  /** The relative register shape in [0,1] BEFORE the evidence gate (additive,
+   * 2026-11-07): what the monitor displays; `emotions` = evidence × this. */
+  emotionsShape: Record<string, number>;
   novelty: number;
   /** Raw whitened-space similarity of the NEAREST emotion prototype —
    * the abstention gate's input (additive diagnostic, 2026-07-18). */

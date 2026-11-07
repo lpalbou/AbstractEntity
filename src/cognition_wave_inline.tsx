@@ -27,6 +27,7 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
+import { displayEmotions } from "./cognition_adapter";
 import { basisProvenanceNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceTitle, MonitorInfoModal, ReadingLine, ToneRow, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
@@ -285,7 +286,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         throw new Error(`The reply's embedding model (${res.model}) differs from the entity's pinned model.`);
       }
       const scored = scorerRef.current!.score(vec);
-      return { scores: scored.scores, emotions: scored.emotions, novelty: scored.novelty,
+      return { scores: scored.scores, emotions: displayEmotions(scored), novelty: scored.novelty,
         emotionEvidence: scored.emotionEvidence, emotionMaxSim: scored.emotionMaxSim };
     }, (entry) => {
       setCurrent(entry); setStatus("live"); setNote(null);

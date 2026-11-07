@@ -47,7 +47,7 @@ const fold = foldEnvelopes([episode("ex:a", "first moment"), episode("ex:b", "se
 
 /** A scorer that returns fixed scores — the widget's contract, faked. */
 const okScorer: Scorer = {
-  score: () => ({ scores: { warmth: 0.5, tension: -0.2 }, emotions: { calm: 0.8 }, novelty: 0.1 }),
+  score: () => ({ scores: { warmth: 0.5, tension: -0.2 }, emotions: { calm: 0.1 }, emotionsShape: { calm: 0.8 }, novelty: 0.1, emotionEvidence: 0.125 }),
   reset: () => {},
 };
 
@@ -71,6 +71,9 @@ describe("cognition adapter", () => {
     const out = await scoreEntityUtterances("http://x", "castor", fold, okScorer);
     expect(out.samples.length).toBe(2);
     expect(out.samples[0].scores.warmth).toBe(0.5);
+    // The monitor shows the shape before the gate, with the evidence beside it (operator 2026-11-07).
+    expect(out.samples[0].emotions).toEqual({ calm: 0.8 });
+    expect(out.samples[0].emotionEvidence).toBe(0.125);
     expect(out.samples[0].text).toBeTruthy(); // includeText default
     expect(out.embedderId).toBe("qwen3-0.6b");
     vi.restoreAllMocks();

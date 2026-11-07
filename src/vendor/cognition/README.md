@@ -18,7 +18,10 @@ all live in the kit now, co-designed via c2229→c2242).
   All emotion values scale by `clamp01((maxSim − floor)/ramp)` with
   floor = ramp = the basis's own `emotion_scale`; a text near NO prototype
   shows an empty bloom (the monitor's absent-not-zero honesty rule).
-  Additive outputs: `emotionMaxSim`, `emotionEvidence`. Regression tests +
+  Additive outputs: `emotionMaxSim`, `emotionEvidence`; since 2026-11-07 also
+  `emotionsShape` (the shape before the gate), which the monitor displays
+  ALWAYS, with the evidence as a qualifier (operator: always see the signal).
+  `emotions` (gated) is unchanged. Regression tests +
   frozen live-embedding fixtures: `src/cognition_scorer_gate.test.ts`,
   `src/fixtures/cognition_gate_vectors.json`.
 - `core.js` (+ `.d.ts`) — the framework-free vocab + physics core. Now used

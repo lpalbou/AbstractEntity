@@ -42,6 +42,18 @@ export interface WaveScore {
    * pixel-identical to a broken read (adversarial finding 2026-08-01). */
   emotionEvidence?: number;
   emotionMaxSim?: number;
+  /** The relative register shape before the evidence gate (scorer additive
+   * output, 2026-11-07) — what the monitor displays. */
+  emotionsShape?: Record<string, number>;
+}
+
+/** What the monitor draws and names: the register shape before the gate,
+ * always (operator 2026-11-07: "there will always be some signal and I want
+ * to see it all the time"); the evidence travels beside it as a qualifier.
+ * A scorer without the shape is the wrong vendored copy — fail loudly. */
+export function displayEmotions(scored: WaveScore): Record<string, number> {
+  if (!scored.emotionsShape) throw new Error("The cognition scorer returned no emotion shape — update src/vendor/cognition.");
+  return scored.emotionsShape;
 }
 export interface Scorer {
   score(vector: number[]): WaveScore;
@@ -140,7 +152,7 @@ export async function scoreEntityUtterances(
           source: u.source,
           seq: u.seq,
           scores: scored.scores,
-          emotions: scored.emotions,
+          emotions: displayEmotions(scored),
           novelty: scored.novelty,
           emotionEvidence: scored.emotionEvidence,
           emotionMaxSim: scored.emotionMaxSim,
