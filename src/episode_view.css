@@ -1,0 +1,193 @@
+/* A lived moment (episode_view.tsx): the facts and the summary first, then
+ * the exchange, then "How he got there" folded. Calm proportional reading
+ * in the Detail look; every colour is a theme token, so the light and dark
+ * themes both hold; nothing is wider than the panel on a phone. */
+
+.ep_h {
+  margin: 0 0 6px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.ep_summary,
+.ep_section {
+  margin-top: 14px;
+}
+
+.ep_summary_text {
+  margin: 0;
+  padding: 8px 11px;
+  border-left: 3px solid var(--ea-accent, #e8a54a);
+  background: color-mix(in srgb, var(--ea-accent, #e8a54a) 8%, transparent);
+  border-radius: 4px;
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* His summary is his own words (Markdown): a heading in it reads at the
+ * summary's size, never as a page heading. */
+.ep_summary_text > :first-child {
+  margin-top: 0;
+}
+.ep_summary_text > :last-child {
+  margin-bottom: 0;
+}
+.ep_summary_text :is(h1, h2, h3, h4, h5, h6) {
+  font-size: inherit;
+  margin: 0;
+}
+
+.ep_summary_note {
+  margin: 5px 0 0;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.45;
+}
+
+.ep_exchange {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ep_turn {
+  border-left: 2px solid var(--line);
+  padding-left: 10px;
+  min-width: 0;
+}
+
+.ep_turn_self {
+  border-left-color: var(--ea-accent, #e8a54a);
+}
+
+.ep_who {
+  display: inline-block;
+  margin-bottom: 3px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.ep_turn_self .ep_who {
+  color: var(--ea-accent, #e8a54a);
+}
+
+.ep_md {
+  overflow-wrap: anywhere;
+}
+
+.ep_md pre,
+.ep_md pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------- how he got there */
+
+/* No fill of its own: the lookup cards' fold fades into the panel colour. */
+.ep_how {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+}
+
+.ep_how_head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-primary, inherit);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ep_how_head:focus-visible {
+  outline: 2px solid var(--ea-accent, #e8a54a);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.ep_chev {
+  width: 1em;
+  color: var(--text-dim);
+}
+
+.ep_how_line {
+  margin: 0 0 2px;
+  color: var(--text-dim);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.5;
+}
+
+.ep_how_body {
+  margin-top: 8px;
+}
+
+.ep_round + .ep_round {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.ep_round_head {
+  margin-bottom: 8px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/* His thinking: set apart, never readable as something he said aloud. */
+.ep_thinking,
+.ep_unmatched {
+  margin: 0 0 10px;
+  padding: 8px 11px;
+  border-left: 2px dashed color-mix(in srgb, var(--text-dim) 60%, transparent);
+  background: color-mix(in srgb, var(--text-dim) 7%, transparent);
+  border-radius: 4px;
+  font-style: italic;
+  min-width: 0;
+}
+
+.ep_thinking_label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.ep_not_run {
+  margin: 0 0 10px;
+  color: var(--text-dim);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.5;
+}
+
+/* The turn panel's lookup cards sit inside the fold at full width. */
+.ep_how .tp_tool {
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.ep_exact_bar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ep_exact {
+  margin: 0;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

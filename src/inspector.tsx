@@ -19,6 +19,8 @@ import { SectionDisclosure } from "./section_disclosure";
 import { DreamDetail } from "./dream_detail";
 import { WorldModelView } from "./world_model_view";
 import { readRecordWords, VerbatimTurns } from "./verbatim_view";
+import { EpisodeDetail } from "./episode_view";
+import { isDiaryShaped } from "./episode_parse";
 
 /** Rows listed before "(…) N more" — every one stays one click away. */
 const PARTNERS_SHOWN = 8;
@@ -196,8 +198,10 @@ function NodeCard({
 
   const bornDate = node.born_at ? node.born_at.slice(0, 16).replace("T", " ") : null;
 
-  const recordFacts = (
+  // `extra`: rows a kind adds first (an episode's moment and lookups).
+  const renderFacts = (extra?: React.ReactNode): React.ReactNode => (
       <dl className="ei_facts">
+        {extra}
         {speakers.length > 0 ? (
           <>
             <dt>with</dt>
@@ -255,6 +259,12 @@ function NodeCard({
         ) : null}
       </dl>
   );
+  const recordFacts = renderFacts();
+
+  // A lived moment reads facts and summary first, then the exchange, then
+  // how he got there (operator 2026-11-07). Never for a diary-shaped record:
+  // reading one is recorded in his biography.
+  const episode = node.kind === "episode" && !node.bookkeeping && !isDiaryShaped(node) && verbatimSource ? verbatimSource : null;
 
   return (
     <div className="ei_card">
@@ -266,9 +276,10 @@ function NodeCard({
         </span>
         {admissionBadge(node.last_admission)}
       </div>
+      {episode ? <EpisodeDetail node={node} source={episode} renderFacts={renderFacts} onSpeakers={setSpeakers} /> : null}
       {/* The kind badge sits directly above — a "lesson:" prefix here said
         * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
-      <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
+      {episode ? null : <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>}
       {node.digest_method ? (
         <p
           className="ei_digest_method"
@@ -281,7 +292,7 @@ function NodeCard({
         * verbatim, links") — every fact in one labeled grid, the date
         * beside the seq (pt5: "it should have a clear date"), the
         * interlocutor as a field once the verbatim reports it. */}
-      {node.kind === "world_model" ? null : recordFacts}
+      {node.kind === "world_model" || episode ? null : recordFacts}
       {/* THE WORDS (operator dm#28): no button between the click and the
         * verbatim — the Detail tab IS the reading surface. Only relation
         * rows and engine bookkeeping carry no words to show. */}
@@ -292,7 +303,7 @@ function NodeCard({
         </SectionDisclosure>
       ) : null}
       {node.kind === "dream" && verbatimSource ? <DreamDetail fold={fold} dream={node} source={verbatimSource} onSelect={onSelect} /> : null}
-      {node.kind !== "relation" && !node.bookkeeping ? (
+      {node.kind !== "relation" && !node.bookkeeping && !episode ? (
         verbatimSource ? (
           node.kind === "dream" ? (
             <SectionDisclosure id="dream_summary" title="The sleep pass's summary">
