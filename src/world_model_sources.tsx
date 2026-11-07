@@ -24,6 +24,7 @@ import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { parseExchange, parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./verbatim_parse";
 import { readRecordWords, VerbatimTurns, Words } from "./verbatim_view";
 import type { VerbatimSource } from "./verbatim_modal";
+import { WordsLine } from "./words_line";
 
 export interface CardSource {
   graphId: string;
@@ -153,10 +154,14 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
     <div className="wm_source">
       {time ? <span className="book_time">{time}</span> : null}
       <div className="wm_source_body">
-        {words.phase === "loading" ? <span className="wm_source_note">reading his words…</span> : null}
+        {words.phase === "loading" ? (
+          <span className="wm_source_note">
+            <WordsLine text="reading his words…" inline />
+          </span>
+        ) : null}
         {words.phase === "none" ? (
           <span className="wm_source_note">
-            {words.message}{" "}
+            <WordsLine text={words.message} inline />{" "}
             {words.retry || diary ? (
               <button className="wm_more" onClick={() => (diary ? void openDiary() : setAttempt((n) => n + 1))}>
                 try again
@@ -166,7 +171,9 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
         ) : null}
         {words.phase === "diary" ? (
           <>
-            <span className="wm_source_text">{title}</span>{" "}
+            <span className="wm_source_text">
+              <WordsLine text={title} inline />
+            </span>{" "}
             <button className="wm_more" onClick={() => void openDiary()} title="Open this diary entry — recorded as a visible read in his stream, like the Book">
               (…) open the entry
             </button>
@@ -181,7 +188,11 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
             ) : (
               <>
                 <Words text={restBlocksAsText(words.lead)} className="ev_markdown wm_source_text" />
-                {words.titleOnly ? <span className="wm_source_note">this memory keeps only these words</span> : null}
+                {words.titleOnly ? (
+                  <span className="wm_source_note">
+                    <WordsLine text="this memory keeps only these words" inline />
+                  </span>
+                ) : null}
               </>
             )}
             {words.full !== words.lead ? (
@@ -212,7 +223,9 @@ function ReferenceRow({ item, source, onSelect }: { item: CardSource; source: Ve
     <div className="wm_source wm_reference">
       {time ? <span className="book_time">{time}</span> : null}
       <div className="wm_source_body">
-        <span className="wm_ref_title">{title}</span>{" "}
+        <span className="wm_ref_title">
+          <WordsLine text={title} inline />
+        </span>{" "}
         <button className="wm_more" onClick={() => setOpen(true)} title={isDiarySource(item) ? "Show the entry (opening it is recorded in his stream)" : "Show his words"}>
           (…) {isDiarySource(item) ? "the entry" : "his words"}
         </button>

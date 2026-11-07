@@ -1,0 +1,52 @@
+/* Short texts drawn by the shared renderer (words_line.tsx): the words take
+   their container's type, colour and weight, so a ledger row, a chip or a
+   card title reads as before, with the Markdown rendered. The renderer
+   draws blocks; these rules only remove the paragraph spacing and, for
+   `inline`, flow the words in the surrounding line. Nothing is clipped. */
+
+.pc-md.wl_line,
+.pc-md.wl_inline {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  overflow-wrap: break-word;
+}
+
+/* A block text: its blocks touch the container's edges, and stand a small
+   step apart from each other. */
+.pc-md.wl_line > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.pc-md.wl_line > * + * {
+  margin-top: 0.5em;
+}
+
+/* A heading inside a short text is the text's own emphasis, not a page
+   heading: the container's size, bold. */
+.pc-md:is(.wl_line, .wl_inline) :is(h1, h2, h3, h4, h5) {
+  font-size: inherit;
+  font-weight: 700;
+}
+
+/* Inline: the words flow in the sentence or row around them (a chip, a
+   title beside a marker or a button). Lists, quotes and code blocks stay
+   blocks — there is no faithful way to flow them. */
+.pc-md.wl_inline,
+.pc-md.wl_inline > .pc-md_p,
+.pc-md.wl_inline > :is(h1, h2, h3, h4, h5) {
+  display: inline;
+  margin: 0;
+}
+
+.pc-md.wl_inline > :is(.pc-md_p, h1, h2, h3, h4, h5) + :is(.pc-md_p, h1, h2, h3, h4, h5)::before {
+  content: " ";
+}
+
+/* A paragraph text that replaced a <p> (the renderer's <div> cannot sit in
+   one) keeps a paragraph's spacing; any class that sets a margin wins
+   (zero specificity). */
+:where(.wl_p) {
+  margin-block: 1em;
+}

@@ -12,6 +12,7 @@ import { isDiaryGraphId } from "./stream_fold";
 
 import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
 import type { ReplayEnvelope } from "./stream_types";
+import { fromLink, WordsLine } from "./words_line";
 
 export interface LedgerPanelProps {
   envelopes: ReplayEnvelope[];
@@ -370,7 +371,8 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           <React.Fragment key={key}>
             <div
               className={`el_row el_tone_${weaveTone} el_weave ${reached ? "" : "el_row_future"}`}
-              onClick={() => {
+              onClick={(e) => {
+                if (fromLink(e)) return;
                 setExpandedWeaves((prev) => {
                   const next = new Set(prev);
                   if (next.has(key)) next.delete(key);
@@ -383,7 +385,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
               <TimeCell iso={first.line.observed_at} hint={rowHint(first.line.seq, last.line.seq, first.line.turn_id, first.line.observed_at, first.own)} />
               <div className="el_row_body">
                 <div className="el_title">
-                  {summary.title} {expanded ? "▾" : "▸"}
+                  <WordsLine text={summary.title} inline /> {expanded ? "▾" : "▸"}
                   {first.line.trace_id ? (
                     <button
                       className="el_open_btn"
@@ -397,7 +399,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                   ) : null}
                 </div>
                 <div className="el_detail" title={weaveMembers(items)}>
-                  {summary.detail}
+                  <WordsLine text={summary.detail} inline />
                 </div>
               </div>
             </div>
@@ -406,14 +408,17 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                   <div
                     key={`${key}-${i}`}
                     className={`el_row el_tone_usage el_weave_member ${index <= scrubIndex ? "" : "el_row_future"}`}
-                    onClick={() => {
+                    onClick={(e) => {
+                      if (fromLink(e)) return;
                       props.onJump(index);
                       if (line.subject_id) props.onSelectSubject(line.subject_id);
                     }}
                   >
                     <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, own)} />
                     <div className="el_row_body">
-                      <div className="el_detail">{line.detail}</div>
+                      <div className="el_detail">
+                        <WordsLine text={line.detail} />
+                      </div>
                     </div>
                   </div>
                 ))
@@ -431,10 +436,16 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           <div
             key={`b-${line.seq}-${rowIdx}`}
             className={`el_row el_boundary ${reached ? "" : "el_row_future"}`}
-            onClick={() => props.onJump(index)}
+            onClick={(e) => !fromLink(e) && props.onJump(index)}
           >
-            <div className="el_boundary_title">{line.title}</div>
-            {line.detail ? <div className="el_boundary_detail">{line.detail}</div> : null}
+            <div className="el_boundary_title">
+              <WordsLine text={line.title} />
+            </div>
+            {line.detail ? (
+              <div className="el_boundary_detail">
+                <WordsLine text={line.detail} />
+              </div>
+            ) : null}
           </div>
         );
       }
@@ -452,15 +463,22 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                   : "Open this memory in Detail"
               : undefined
           }
-          onClick={() => {
+          onClick={(e) => {
+            if (fromLink(e)) return;
             props.onJump(index);
             if (target) props.onSelectSubject(target);
           }}
         >
           <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, renderItem.item.own)} />
           <div className="el_row_body">
-            <div className="el_title">{line.title}</div>
-            {line.detail ? <div className="el_detail">{line.detail}</div> : null}
+            <div className="el_title">
+              <WordsLine text={line.title} />
+            </div>
+            {line.detail ? (
+              <div className="el_detail">
+                <WordsLine text={line.detail} />
+              </div>
+            ) : null}
             {line.hint && line.subject_id ? (
               // G1's render half on the biography itself (plan c2596:
               // "the hint of writing must carry the direct link").
@@ -485,13 +503,15 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
     <div className="entity_ledger">
       {props.loadingNote ? (
         <div className="el_loading_note" title="His life is still streaming in — this ledger is a partial view until the counter disappears.">
-          ⏳ {props.loadingNote} — partial view while his life streams in
+          <WordsLine text={`⏳ ${props.loadingNote} — partial view while his life streams in`} />
         </div>
       ) : null}
       <LedgerKey showQuiet={showQuiet} />
       <div className="el_list" ref={listRef}>
         {windowed.hiddenBefore > 0 ? (
-          <div className="el_window_note">{windowed.hiddenBefore} earlier lines — scrub the timeline to bring them into view</div>
+          <div className="el_window_note">
+            <WordsLine text={`${windowed.hiddenBefore} earlier lines — scrub the timeline to bring them into view`} />
+          </div>
         ) : null}
         {windowed.rows.map((renderItem, rowIdx) => {
           const day = dayUtc(rowStamp(renderItem));
@@ -506,7 +526,11 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
             row
           );
         })}
-        {windowed.hiddenAfter > 0 ? <div className="el_window_note">{windowed.hiddenAfter} later lines</div> : null}
+        {windowed.hiddenAfter > 0 ? (
+          <div className="el_window_note">
+            <WordsLine text={`${windowed.hiddenAfter} later lines`} />
+          </div>
+        ) : null}
         {props.live && missedBelow > 0 ? (
           <button
             className="el_window_note el_quiet_note el_follow_pill"
@@ -533,7 +557,9 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
               filter. Click to show them.
             </button>
           ) : (
-            <div className="el_empty">No events yet.</div>
+            <div className="el_empty">
+              <WordsLine text="No events yet." />
+            </div>
           )
         ) : null}
       </div>

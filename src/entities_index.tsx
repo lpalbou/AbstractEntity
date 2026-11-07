@@ -28,6 +28,7 @@ import { CreateEntityForm } from "./create_entity_form";
 import { activeRuledPhase, deriveLifeState } from "./entity_state";
 import { rosterHeadActions, rosterMode, type RosterMode } from "./roster_empty";
 import { createRosterLoader, type RosterCard, type RosterLoader, type RosterTile } from "./roster_tiles";
+import { WordsLine } from "./words_line";
 import {
   fetchEntityState,
   gatewayReadHeaders,
@@ -85,10 +86,9 @@ export function EmptyRoster({ onCreate }: { onCreate(): void }): React.ReactElem
       <h3 id="eix_empty_title" className="eix_empty_title">
         No entities yet
       </h3>
-      <p className="eix_empty_text">
-        An entity is an AI companion with a lasting memory of its own. Give it a name, and it remembers what you talk about, keeps a
-        diary and grows over time. You can talk with it and watch what it remembers.
-      </p>
+      <div className="eix_empty_text wl_p">
+        <WordsLine text="An entity is an AI companion with a lasting memory of its own. Give it a name, and it remembers what you talk about, keeps a diary and grows over time. You can talk with it and watch what it remembers." />
+      </div>
       <div className="eix_empty_actions">
         <button type="button" className="eix_primary_btn" onClick={onCreate} data-testid="eix-create-first">
           Create your first entity
@@ -129,7 +129,12 @@ function interestsOf(card: RosterCard | null): string[] {
 /** What stands in for the list while there is no list: the loading line,
  * or the empty state (which steps aside while the creation form is open). */
 export function RosterStatus({ mode, showCreate, onCreate }: { mode: RosterMode; showCreate: boolean; onCreate(): void }): React.ReactElement | null {
-  if (mode === "loading") return <p className="eix_note">Loading your entities…</p>;
+  if (mode === "loading")
+    return (
+      <div className="eix_note wl_p">
+        <WordsLine text="Loading your entities…" />
+      </div>
+    );
   if (mode === "empty" && !showCreate) return <EmptyRoster onCreate={onCreate} />;
   return null;
 }
@@ -172,12 +177,14 @@ export function RosterCardBody({ card }: { card: RosterCard | null }): React.Rea
           <span className="eix_upto_label">into lately</span>
           {interests.map((g, i) => (
             <span key={i} className="eix_interest">
-              {g}
+              <WordsLine text={g} inline />
             </span>
           ))}
         </div>
       ) : (
-        <p className="eix_note">no interests recorded yet</p>
+        <div className="eix_note wl_p">
+          <WordsLine text="no interests recorded yet" />
+        </div>
       )}
       {sleep && (sleep.sleeps ?? 0) > 0 ? (
         <div className="eix_meta">
@@ -432,14 +439,24 @@ export function EntitiesIndex({
 
       {authNeeded ? (
         <div className="eix_signin">
-          <p>This gateway requires a sign-in to list its entities.</p>
+          <div className="wl_p">
+            <WordsLine text="This gateway requires a sign-in to list its entities." />
+          </div>
           <button className="eix_create_btn" onClick={() => onConnect?.()}>
             🔑 connect to the gateway
           </button>
         </div>
       ) : null}
-      {error ? <p className="eix_error">{error}</p> : null}
-      {note ? <p className="eix_error">{note}</p> : null}
+      {error ? (
+        <div className="eix_error wl_p">
+          <WordsLine text={error} />
+        </div>
+      ) : null}
+      {note ? (
+        <div className="eix_error wl_p">
+          <WordsLine text={note} />
+        </div>
+      ) : null}
       <RosterStatus mode={mode} showCreate={showCreate} onCreate={openCreate} />
 
       <div className="eix_grid">
@@ -503,9 +520,9 @@ export function EntitiesIndex({
                     <span className="eix_sk eix_sk_meta eix_sk_last" aria-hidden="true" />
                   </>
                 ) : cardStatus === "failed" ? (
-                  <p className="eix_note eix_card_note" title={cardError}>
-                    {CARD_FAILED_NOTE}
-                  </p>
+                  <div className="eix_note eix_card_note wl_p" title={cardError}>
+                    <WordsLine text={CARD_FAILED_NOTE} />
+                  </div>
                 ) : (
                   <RosterCardBody card={card} />
                 )}
@@ -590,10 +607,9 @@ export function EntitiesIndex({
       {mode === "list" ? (
         <details className="eix_howto">
           <summary>How this works</summary>
-          <p className="eix_footer">
-            Watching never changes an entity: the list, states and cards on this page are read-only. The controls (personal time,
-            sleep) go through the gateway and show up as visible events in each entity&apos;s life.
-          </p>
+          <div className="eix_footer wl_p">
+            <WordsLine text="Watching never changes an entity: the list, states and cards on this page are read-only. The controls (personal time, sleep) go through the gateway and show up as visible events in each entity's life." />
+          </div>
         </details>
       ) : null}
     </div>

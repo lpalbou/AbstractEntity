@@ -23,10 +23,10 @@
 
 import React, { useEffect, useState } from "react";
 
-import { Markdown } from "@abstractframework/panel-chat";
-
 import { foldEnvelopes, type NodeState } from "./stream_fold";
 import { fetchRecordVerbatim, fetchReplay, listEntities } from "./stream_source";
+import { Words } from "./verbatim_view";
+import { WordsLine } from "./words_line";
 
 export interface MeetReaderProps {
   baseUrl: string;
@@ -131,13 +131,21 @@ export function MeetReader({ baseUrl, visitId, onClose, onOpenEntity }: MeetRead
           </button>
         </div>
         <div className="mr_contract">
-          One conversation, {state.phase === "ready" ? state.legs.length : "…"} perspective{state.phase === "ready" && state.legs.length === 1 ? "" : "s"} — each
-          life remembers the moment its own way; the streams never merge. Private diary thoughts about it are theirs and absent by
-          construction. Who-said-which-line arrives with the door's stamped transcript (v1) — never guessed from prose.
+          <WordsLine
+            text={`One conversation, ${state.phase === "ready" ? state.legs.length : "…"} perspective${state.phase === "ready" && state.legs.length === 1 ? "" : "s"} — each life remembers the moment its own way; the streams never merge. Private diary thoughts about it are theirs and absent by construction. Who-said-which-line arrives with the door's stamped transcript (v1) — never guessed from prose.`}
+          />
         </div>
         <div className="ev_body mr_body">
-          {state.phase === "loading" ? <div className="ev_status">{state.note}</div> : null}
-          {state.phase === "error" ? <div className="ev_status ev_status_error">{state.message}</div> : null}
+          {state.phase === "loading" ? (
+            <div className="ev_status">
+              <WordsLine text={state.note} />
+            </div>
+          ) : null}
+          {state.phase === "error" ? (
+            <div className="ev_status ev_status_error">
+              <WordsLine text={state.message} />
+            </div>
+          ) : null}
           {state.phase === "ready" ? (
             <div className="mr_columns">
               {state.legs.map((leg) => (
@@ -159,11 +167,17 @@ export function MeetReader({ baseUrl, visitId, onClose, onOpenEntity }: MeetRead
                         </span>
                         {m.node.born_at ? <span className="mr_moment_at">{String(m.node.born_at).slice(0, 19)}</span> : null}
                       </div>
-                      {m.node.title ? <div className="mr_moment_title">{m.node.title}</div> : null}
+                      {m.node.title ? (
+                        <div className="mr_moment_title">
+                          <WordsLine text={m.node.title} />
+                        </div>
+                      ) : null}
                       {m.text ? (
-                        <Markdown text={m.text} className="ev_markdown" />
+                        <Words text={m.text} className="ev_markdown" />
                       ) : (
-                        <div className="mr_moment_none">no verbatim served — the digest above is the honest summary</div>
+                        <div className="mr_moment_none">
+                          <WordsLine text="no verbatim served — the digest above is the honest summary" />
+                        </div>
                       )}
                     </div>
                   ))}

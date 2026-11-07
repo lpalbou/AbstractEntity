@@ -44,6 +44,7 @@ import {
   type MeetOpenResult,
   type MeetStatusResult,
 } from "./stream_source";
+import { WordsLine } from "./words_line";
 
 export interface MeetConsoleProps {
   baseUrl: string;
@@ -247,15 +248,12 @@ export function MeetConsole({ baseUrl, token, onClose, onReadMeet, presetA, pres
         {/* --------------------------------------------------- setup */}
         {phase.name === "setup" || phase.name === "opening" ? (
           <div className="mc_setup">
-            <p className="mc_intro">
-              Convene entities into one conversation — the destination is a group of two or more talking together. You steer it —
-              every line you send is authored by YOU (no entity is ever recorded saying your words); each entity answers in its own
-              voice, in its own home. Same gateway only (cross-door meets wait on the federation transport).
-            </p>
-            <p className="mc_hint mc_pairwise_note">
-              The gateway's current transport is pairwise, so you convene <strong>two at a time</strong> today. Group meets (a
-              roster + round-robin relay) land when the door grows an N-party open.
-            </p>
+            <div className="mc_intro">
+              <WordsLine text="Convene entities into one conversation — the destination is a group of two or more talking together. You steer it — every line you send is authored by YOU (no entity is ever recorded saying your words); each entity answers in its own voice, in its own home. Same gateway only (cross-door meets wait on the federation transport)." />
+            </div>
+            <div className="mc_hint mc_pairwise_note wl_p">
+              <WordsLine text="The gateway's current transport is pairwise, so you convene **two at a time** today. Group meets (a roster + round-robin relay) land when the door grows an N-party open." />
+            </div>
             <div className="mc_pickers">
               <label className="mc_picker">
                 <span>First</span>
@@ -281,12 +279,18 @@ export function MeetConsole({ baseUrl, token, onClose, onReadMeet, presetA, pres
                 </select>
               </label>
             </div>
-            {error ? <p className="mc_error">{error}</p> : null}
+            {error ? (
+              <div className="mc_error">
+                <WordsLine text={error} />
+              </div>
+            ) : null}
             <button className="mc_open_btn" onClick={doOpen} disabled={phase.name === "opening" || !entityA || !entityB}>
               {phase.name === "opening" ? "opening both legs…" : "open the meet"}
             </button>
             {phase.name === "opening" ? (
-              <p className="mc_hint">Summoning both entities under one visit — this can wait for an own-time loop to yield.</p>
+              <div className="mc_hint wl_p">
+                <WordsLine text="Summoning both entities under one visit — this can wait for an own-time loop to yield." />
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -313,22 +317,36 @@ export function MeetConsole({ baseUrl, token, onClose, onReadMeet, presetA, pres
               {transcript.map((row) => (
                 <div key={row.id} className={`mc_row mc_row_${row.kind} mc_side_${row.side}`}>
                   {row.kind === "note" ? (
-                    <div className="mc_note">{row.text}</div>
+                    <div className="mc_note">
+                      <WordsLine text={row.text} />
+                    </div>
                   ) : (
                     <>
                       <div className="mc_row_head">
                         <span className="mc_who">{row.who}</span>
                         {typeof row.turnN === "number" ? <span className="mc_turn">turn {row.turnN}</span> : null}
                       </div>
-                      <div className="mc_text">{row.text}</div>
+                      <div className="mc_text">
+                        <WordsLine text={row.text} />
+                      </div>
                     </>
                   )}
                 </div>
               ))}
-              {relaying ? <div className="mc_row mc_row_note"><div className="mc_note">relaying — {nameOf(opener)} speaks, then {nameOf(opener === "a" ? "b" : "a")} answers…</div></div> : null}
+              {relaying ? (
+                <div className="mc_row mc_row_note">
+                  <div className="mc_note">
+                    <WordsLine text={`relaying — ${nameOf(opener)} speaks, then ${nameOf(opener === "a" ? "b" : "a")} answers…`} />
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            {error ? <p className="mc_error mc_error_inline">{error}</p> : null}
+            {error ? (
+              <div className="mc_error mc_error_inline">
+                <WordsLine text={error} />
+              </div>
+            ) : null}
 
             {/* The shared panel-chat composer (rounded multiline default). The
               * steering line keeps its multiline-first rule: ⌘/Ctrl+Enter
@@ -385,7 +403,9 @@ export function MeetConsole({ baseUrl, token, onClose, onReadMeet, presetA, pres
         {/* --------------------------------------------------- closed */}
         {phase.name === "closed" ? (
           <div className="mc_setup">
-            <p className="mc_intro">{phase.note}</p>
+            <div className="mc_intro">
+              <WordsLine text={phase.note} />
+            </div>
             <div className="mc_closed_actions">
               {onReadMeet ? (
                 <button className="mc_open_btn" onClick={() => onReadMeet(phase.visitId)}>

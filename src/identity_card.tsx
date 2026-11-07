@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { FoldState } from "./stream_fold";
 import { fetchDiaryEntry, gatewayReadHeaders } from "./stream_source";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
+import { WordsLine } from "./words_line";
 import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 /** Namespace prefixes double as icons — the maintainer's read: the prefix
@@ -172,7 +173,7 @@ function QuestionLine({ item, icon, baseUrl, entity }: { item: unknown; icon: st
   }, [contentFree, entryId, baseUrl, entity]);
   return (
     <div className="ic_line">
-      {icon} {words ?? statement}
+      {icon} <WordsLine text={words ?? statement} inline />
       {words ? <span className="ic_q_src" title={`His own words, read through the diary door (${statement})`}> — his entry, verbatim</span> : null}
     </div>
   );
@@ -300,8 +301,9 @@ export function IdentityCardContent({
   if (state.phase === "error") {
     return (
       <div className="ev_status ev_status_error">
-        Could not read the card: {state.message}.{" "}
-        {/HTTP 40[13]/.test(state.message) ? "Sign in to the gateway again, then reopen the card." : "The card endpoint needs a gateway with the 0009 build."}
+        <WordsLine
+          text={`Could not read the card: ${state.message}. ${/HTTP 40[13]/.test(state.message) ? "Sign in to the gateway again, then reopen the card." : "The card endpoint needs a gateway with the 0009 build."}`}
+        />
       </div>
     );
   }
@@ -389,7 +391,9 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
                 {v.name?.replace(/[_-]+/g, " ")}
                 {v.value_class === "core" ? <span className="ic_core"> core</span> : null}
               </span>
-              <span className="ic_statement">{v.statement}</span>
+              <span className="ic_statement">
+                <WordsLine text={v.statement ?? ""} inline />
+              </span>
             </div>
           ))}
         </Section>
@@ -397,7 +401,9 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
       {card.identity?.purposes?.length ? (
         <Section title="Purposes">
           {card.identity.purposes.map((v, i) => (
-            <div key={i} className="ic_line">{v.statement}</div>
+            <div key={i} className="ic_line">
+              <WordsLine text={v.statement ?? ""} />
+            </div>
           ))}
         </Section>
       ) : null}
@@ -416,7 +422,11 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
                     {f.negative > 0 ? <span className="ic_feeling_net ei_feeling_neg">−{f.negative}</span> : null}
                     {f.bonded ? <span className="ic_mark ic_mark_bond">bond</span> : null}
                   </div>
-                  {reason ? <div className="ic_feeling_reason">“{reason}”</div> : null}
+                  {reason ? (
+                    <div className="ic_feeling_reason">
+                      <WordsLine text={`“${reason}”`} />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -435,7 +445,11 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
                     {f.positive > 0 ? <span className="ic_feeling_net ei_feeling_pos">+{f.positive}</span> : null}
                     {f.scarred ? <span className="ic_mark ic_mark_scar">scar</span> : null}
                   </div>
-                  {reason ? <div className="ic_feeling_reason">“{reason}”</div> : null}
+                  {reason ? (
+                    <div className="ic_feeling_reason">
+                      <WordsLine text={`“${reason}”`} />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -443,10 +457,9 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
         ) : null}
       </div>
       {mood && typeof mood.net === "number" ? (
-        <p className="ic_window_note">
-          current mood is a window ({mood.window_events ?? "recent"} recent feeling events, net {mood.net >= 0 ? `+${mood.net}` : mood.net}) — never a
-          frozen point.
-        </p>
+        <div className="ic_window_note wl_p">
+          <WordsLine text={`current mood is a window (${mood.window_events ?? "recent"} recent feeling events, net ${mood.net >= 0 ? `+${mood.net}` : mood.net}) — never a frozen point.`} />
+        </div>
       ) : null}
 
       {/* SUBJECTIVE REPUTATION (maintainer, 2026-07-08 22:29: each entity's
@@ -477,13 +490,17 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
                     {s.bonds.length > 0 ? <span className="ic_mark ic_mark_bond">bond</span> : null}
                     {s.scars.length > 0 ? <span className="ic_mark ic_mark_scar">scar</span> : null}
                   </div>
-                  {latest ? <div className="ic_feeling_reason">“{latest}”</div> : null}
+                  {latest ? (
+                    <div className="ic_feeling_reason">
+                      <WordsLine text={`“${latest}”`} />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
-            <p className="ic_window_note">
-              his own accumulated perception, from lived interactions — the personal layer beside the environment's collective record.
-            </p>
+            <div className="ic_window_note wl_p">
+              <WordsLine text="his own accumulated perception, from lived interactions — the personal layer beside the environment's collective record." />
+            </div>
           </Section>
         );
       })() : null}
@@ -498,13 +515,17 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
         {openQuestions.length ? (
           openQuestions.map((q, i) => <QuestionLine key={questionKeys[i]} item={q} icon="❓" baseUrl={baseUrl} entity={entity} />)
         ) : (
-          <p className="ic_window_note">none right now — open questions form when something he met stays unanswered (they are wake reasons: curiosity that can rouse his own time).</p>
+          <div className="ic_window_note wl_p">
+            <WordsLine text="none right now — open questions form when something he met stays unanswered (they are wake reasons: curiosity that can rouse his own time)." />
+          </div>
         )}
       </Section>
       {card.questions?.resolved?.length ? (
         <Section title="Questions he resolved">
           {card.questions.resolved.map((q, i) => (
-            <div key={i} className="ic_line ic_resolved">✅ {asText(q)}</div>
+            <div key={i} className="ic_line ic_resolved">
+              ✅ <WordsLine text={asText(q)} inline />
+            </div>
           ))}
         </Section>
       ) : null}
@@ -512,16 +533,22 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
         {openProblems.length ? (
           openProblems.map((p, i) => <QuestionLine key={problemKeys[i]} item={p} icon="⚠️" baseUrl={baseUrl} entity={entity} />)
         ) : (
-          <p className="ic_window_note">none right now — a tension is something WRONG that needs fixing (distinct from a question); it forms when he names a problem and stands until repaired.</p>
+          <div className="ic_window_note wl_p">
+            <WordsLine text="none right now — a tension is something WRONG that needs fixing (distinct from a question); it forms when he names a problem and stands until repaired." />
+          </div>
         )}
       </Section>
       <Section title="Interests">
         {interests.length ? (
           interests.map((d, i) => (
-            <div key={i} className="ic_line">🌱 {asText(d)}</div>
+            <div key={i} className="ic_line">
+              🌱 <WordsLine text={asText(d)} inline />
+            </div>
           ))
         ) : (
-          <p className="ic_window_note">none yet — interests are self-grown direction, elected in his own reflections.</p>
+          <div className="ic_window_note wl_p">
+            <WordsLine text="none yet — interests are self-grown direction, elected in his own reflections." />
+          </div>
         )}
       </Section>
 
@@ -531,7 +558,7 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
             const line = momentLine(m as Record<string, unknown>);
             return (
               <div key={i} className="ic_line ic_moment">
-                <span className="ic_moment_icon">{line.icon}</span> {line.text}
+                <span className="ic_moment_icon">{line.icon}</span> <WordsLine text={line.text} inline />
                 {line.when ? <span className="ei_feeling_when">{line.when}</span> : null}
               </div>
             );
@@ -553,7 +580,9 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
         </Section>
       ) : null}
 
-      <p className="ic_footer_note">A pure read — being described never strengthens his memories (engine-pinned).</p>
+      <div className="ic_footer_note wl_p">
+        <WordsLine text="A pure read — being described never strengthens his memories (engine-pinned)." />
+      </div>
     </div>
   );
 }

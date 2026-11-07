@@ -49,6 +49,7 @@ import {
   formatFileSize,
 } from "@abstractframework/ui-kit";
 import "./settings_modal.css";
+import { WordsLine } from "./words_line";
 
 import {
   getEntityPrompt,
@@ -220,7 +221,9 @@ export function SettingsPanel({
               <h3 className="stg_page_title" id={titleId}>
                 {section.label}
               </h3>
-              <p className="stg_page_lede">{section.lede(entityName)}</p>
+              <div className="stg_page_lede">
+                <WordsLine text={section.lede(entityName)} />
+              </div>
             </header>
             <div className="stg_page_body">
               {tab === "mind" ? (

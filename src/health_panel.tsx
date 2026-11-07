@@ -16,6 +16,7 @@ import { computeHealthMetrics } from "./health_metrics";
 import { computePhaseTime, humanDuration, PHASE_LABELS, type LifePhase } from "./phase_time";
 import { gatewayReadHeaders, type EntityFootprint } from "./stream_source";
 import type { FoldState } from "./stream_fold";
+import { fromLink, WordsLine } from "./words_line";
 import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 /** The DRIVE bars (laurent, focused room seq 2: "an entity should always
@@ -72,7 +73,11 @@ export function DriveGroups({
           >
             <span className="hp_group_size">{size}</span>
             <span className="hp_group_family">{family}s circle one theme</span>
-            {theme ? <span className="hp_group_theme">“{theme.length > 72 ? `${theme.slice(0, 71)}…` : theme}”</span> : null}
+            {theme ? (
+              <span className="hp_group_theme">
+                <WordsLine text={`“${theme}”`} inline />
+              </span>
+            ) : null}
           </div>
         );
       })}
@@ -180,7 +185,7 @@ function DriveBars({
           className="hp_drive_note"
           title="Drives are the DRIVERS of his cognition (laurent dm#82): standing questions and unexplored interests are what his days arise from — work on tasks, personal time exploring, or sleep with these as wake reasons. A rich desk is healthy, not an alarm; if days stop arising while this stands, the loop's day gate is the gap to report."
         >
-          {pressured.join(" · ")} stand on his desk — the pull his days arise from
+          <WordsLine text={`${pressured.join(" · ")} stand on his desk — the pull his days arise from`} />
         </div>
       ) : null}
       <div className="hp_drive_row" title={`Open questions: ${effective.open} · resolved: ${effective.resolved}. A resolves= election on a later entry moves a question here — his own act, engine-verified.`}>
@@ -205,7 +210,9 @@ function DriveBars({
             </span>
           </>
         ) : (
-          <span className="hp_drive_num hp_drive_empty">none yet — questions form when something he met stays unanswered</span>
+          <span className="hp_drive_num hp_drive_empty">
+            <WordsLine text="none yet — questions form when something he met stays unanswered" inline />
+          </span>
         )}
       </div>
       <div
@@ -260,10 +267,9 @@ function PhaseTimeBar({ fold }: { fold: FoldState }): React.ReactElement | null 
     return (
       <div className="hp_section">
         <div className="hp_section_head"><span>time by phase</span></div>
-        <p className="hp_empty">
-          Not enough phase markers yet to divide his time — home-direct sessions write none, and a young life has few
-          transitions. This fills in as he is summoned, sleeps, and takes personal time.
-        </p>
+        <div className="hp_empty">
+          <WordsLine text="Not enough phase markers yet to divide his time — home-direct sessions write none, and a young life has few transitions. This fills in as he is summoned, sleeps, and takes personal time." />
+        </div>
       </div>
     );
   }
@@ -449,14 +455,18 @@ export function HealthPanel({ fold, onSelect, footprint, counts, cognition, cogn
           <div className="hp_bar_fill" style={{ width: pct(m.top5Share) }} />
         </div>
         {m.top5.length === 0 ? (
-          <p className="hp_empty">Nothing recalled yet — recall concentration is undefined.</p>
+          <div className="hp_empty">
+            <WordsLine text="Nothing recalled yet — recall concentration is undefined." />
+          </div>
         ) : (
           <ul className="hp_top">
             {m.top5.map((r) => (
               <li key={r.id}>
-                <button className="ei_link" onClick={() => onSelect(r.id)} title="Focus this record">
+                <button className="ei_link" onClick={(e) => !fromLink(e) && onSelect(r.id)} title="Focus this record">
                   <span className={`ei_kind ei_kind_${r.kind}`}>{r.kind}</span>
-                  <span className="hp_top_title">{r.title}</span>
+                  <span className="hp_top_title">
+                    <WordsLine text={r.title} inline />
+                  </span>
                 </button>
                 <span className="hp_top_count">{r.count}×</span>
               </li>
@@ -549,15 +559,14 @@ export function HealthPanel({ fold, onSelect, footprint, counts, cognition, cogn
             )}
           </div>
           {footprint.warnings && footprint.warnings.length > 0 ? (
-            <div className="hp_disk_warn">{footprint.warnings.join(" · ")}</div>
+            <div className="hp_disk_warn">
+              <WordsLine text={footprint.warnings.join(" · ")} />
+            </div>
           ) : null}
         </div>
       ) : (
         <div className="hp_gap">
-          On-disk footprint (the MB before/after a doctoring pass) is not in the
-          stream — it comes from the gateway's footprint endpoint, which this
-          gateway is not serving yet (it lights up on the next serve restart).
-          Not estimated here.
+          <WordsLine text="On-disk footprint (the MB before/after a doctoring pass) is not in the stream — it comes from the gateway's footprint endpoint, which this gateway is not serving yet (it lights up on the next serve restart). Not estimated here." />
         </div>
       )}
     </div>

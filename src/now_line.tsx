@@ -21,6 +21,7 @@ import type { ReplayEnvelope, TracePayload } from "./stream_types";
 import type { VerbatimSource } from "./verbatim_modal";
 import { parseExchange, splitUnspokenThinking } from "./verbatim_parse";
 import { readRecordWords } from "./verbatim_view";
+import { WordsLine } from "./words_line";
 
 export type NowState =
   | { kind: "thinking"; since: string; turn: string; withSomeone: boolean }
@@ -139,7 +140,7 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
       <div className="now_line" role="status">
         <span className="now_dot now_dot_idle" aria-hidden="true" />
         <span>
-          A turn began at {clockUtc(state.since)} UTC ({ago(state.since, clock)}) and no moment has formed since.
+          <WordsLine text={`A turn began at ${clockUtc(state.since)} UTC (${ago(state.since, clock)}) and no moment has formed since.`} inline />
         </span>
       </div>
     );
@@ -150,10 +151,9 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
       <div className="now_line now_thinking" role="status">
         <span className="now_dot" aria-hidden="true" />
         <span>
-          <strong>Thinking</strong>
-          {tick ? ` — ${tick}` : ""}, since {clockUtc(state.since)} UTC ({ago(state.since, clock)}).{" "}
+          <WordsLine text={`**Thinking**${tick ? ` — ${tick}` : ""}, since ${clockUtc(state.since)} UTC (${ago(state.since, clock)}).`} inline />{" "}
           <span className="now_note">
-            {state.withSomeone ? "His answer appears when it is ready." : "What he looks up and his answer appear when this tick ends."}
+            <WordsLine text={state.withSomeone ? "His answer appears when it is ready." : "What he looks up and his answer appear when this tick ends."} inline />
           </span>
         </span>
       </div>
@@ -164,9 +164,7 @@ export function NowLine({ envelopes, live, source, onOpen }: { envelopes: Replay
     <div className="now_line" role="status">
       <span className="now_dot now_dot_idle" aria-hidden="true" />
       <span>
-        <strong>Last moment</strong>
-        {tick ? ` — ${tick}` : ""} ended {clockUtc(state.at)} UTC ({ago(state.at, clock)})
-        {lookups?.graphId === state.graphId ? ` · ${lookups.words}` : ""}.{" "}
+        <WordsLine text={`**Last moment**${tick ? ` — ${tick}` : ""} ended ${clockUtc(state.at)} UTC (${ago(state.at, clock)})${lookups?.graphId === state.graphId ? ` · ${lookups.words}` : ""}.`} inline />{" "}
         <button className="el_open_btn" onClick={() => onOpen(state.graphId)}>
           open →
         </button>

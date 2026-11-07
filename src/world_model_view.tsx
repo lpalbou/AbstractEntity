@@ -29,6 +29,7 @@ import type { FoldState, NodeState } from "./stream_fold";
 import type { VerbatimSource } from "./verbatim_modal";
 import { readRecordWords, Words } from "./verbatim_view";
 import { MemoryRows, sourcesFromIds, type CardSource } from "./world_model_sources";
+import { WordsLine } from "./words_line";
 
 export type CardShape =
   | { kind: "floor"; format: "v2" | "v1"; name: string; count: number | null; first: string | null; last: string | null; kinds: string | null; threads: string[]; feeling: string | null }
@@ -153,12 +154,12 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
   return (
     <div className="wmv">
       {viewingOld ? (
-        <p className="wmv_banner">
-          This is revision {index + 1} of {chain.length}, replaced since.{" "}
+        <div className="wmv_banner">
+          <WordsLine text={`This is revision ${index + 1} of ${chain.length}, replaced since.`} inline />{" "}
           <button className="wm_open" onClick={() => onSelect(latest.id)}>
             open the current card →
           </button>
-        </p>
+        </div>
       ) : null}
       <dl className="wmv_facts">
         <dt>first formed</dt>
@@ -186,7 +187,7 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
             <dd>
               {floor.threads.map((t) => (
                 <span key={t} className="wmv_thread">
-                  {t}
+                  <WordsLine text={t} inline />
                 </span>
               ))}
             </dd>
@@ -195,7 +196,9 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
         {floor?.feeling ? (
           <>
             <dt>feeling</dt>
-            <dd>{floor.feeling.replace(/^Standing feeling:\s*/, "")}</dd>
+            <dd>
+              <WordsLine text={floor.feeling.replace(/^Standing feeling:\s*/, "")} />
+            </dd>
           </>
         ) : null}
         <dt>type</dt>
@@ -204,26 +207,37 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
 
       <section className="wmv_section">
         <h4 className="wmv_head">Understanding of {name}</h4>
-        {read.state === "loading" ? <p className="ei_note">reading the card…</p> : null}
+        {read.state === "loading" ? (
+          <div className="ei_note wl_p">
+            <WordsLine text="reading the card…" />
+          </div>
+        ) : null}
         {read.state === "failed" ? (
-          <p className="wmv_empty">
-            The card could not be read just now ({read.message}).{" "}
+          <div className="wmv_empty">
+            <WordsLine text={`The card could not be read just now (${read.message}).`} inline />{" "}
             <button className="wm_more" onClick={() => setAttempt((n) => n + 1)}>
               try again
             </button>
-          </p>
+          </div>
         ) : null}
         {shape?.kind === "floor" ? (
-          <p className="wmv_empty">
-            No understanding of {name} has been written yet. This card is evidence the sleep pass gathered without a model
-            {floor?.count != null ? ` (${floor.count} lived memories)` : ""}; nothing in this home writes an understanding from it today.
-          </p>
+          <div className="wmv_empty">
+            <WordsLine
+              text={`No understanding of ${name} has been written yet. This card is evidence the sleep pass gathered without a model${floor?.count != null ? ` (${floor.count} lived memories)` : ""}; nothing in this home writes an understanding from it today.`}
+            />
+          </div>
         ) : null}
         {shape?.kind === "prose" ? (
           <>
-            <p className="wmv_as_of">The card's own words, as of {stamp(card.born_at)} — this gateway does not say who wrote them.</p>
+            <div className="wmv_as_of">
+              <WordsLine text={`The card's own words, as of ${stamp(card.born_at)} — this gateway does not say who wrote them.`} />
+            </div>
             <Words text={shape.lead} className="ev_markdown wmv_understanding" />
-            {shape.since ? <p className="wmv_since">{shape.since}</p> : null}
+            {shape.since ? (
+              <div className="wmv_since">
+                <WordsLine text={shape.since} />
+              </div>
+            ) : null}
           </>
         ) : null}
       </section>
@@ -232,11 +246,11 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
 
       <section className="wmv_section">
         <h4 className="wmv_head">Where it comes from</h4>
-        <p className="wmv_note">
-          The memories its revisions link ({sources.length}
-          {floor?.count != null && floor.count > sources.length ? ` of the ${floor.count} it counts — each revision links its most recent ones` : ""}); open one to read
-          his words.
-        </p>
+        <div className="wmv_note">
+          <WordsLine
+            text={`The memories its revisions link (${sources.length}${floor?.count != null && floor.count > sources.length ? ` of the ${floor.count} it counts — each revision links its most recent ones` : ""}); open one to read his words.`}
+          />
+        </div>
         <MemoryRows items={sources} source={source} onSelect={onSelect} collapsed />
       </section>
     </div>
@@ -271,19 +285,19 @@ function RevisionStep({ node, previous, index, isCurrent, open, source, onSelect
   const shape = read.state === "ready" ? read.shape : null;
   const before = prev.state === "ready" ? prev.shape : null;
   let what: React.ReactNode = null;
-  if (open && read.state === "failed") what = <span className="wmv_unknown">could not be read just now</span>;
-  else if (shape?.kind === "floor") {
-    const added = before?.kind === "floor" && before.count != null && shape.count != null ? shape.count - before.count : null;
+  if (open && read.state === "failed")
     what = (
-      <span>
-        evidence gathered by the sleep pass{shape.count != null ? ` — ${shape.count} memories` : ""}
-        {added != null && added > 0 ? ` (+${added})` : ""}
+      <span className="wmv_unknown">
+        <WordsLine text="could not be read just now" inline />
       </span>
     );
+  else if (shape?.kind === "floor") {
+    const added = before?.kind === "floor" && before.count != null && shape.count != null ? shape.count - before.count : null;
+    what = <WordsLine text={`evidence gathered by the sleep pass${shape.count != null ? ` — ${shape.count} memories` : ""}${added != null && added > 0 ? ` (+${added})` : ""}`} />;
   } else if (shape?.kind === "prose") {
     const same = before?.kind === "prose" && before.lead === shape.lead;
     what = same ? (
-      <span>same words, more evidence{shape.since ? ` — ${shape.since}` : ""}</span>
+      <WordsLine text={`same words, more evidence${shape.since ? ` — ${shape.since}` : ""}`} />
     ) : (
       <Words text={shape.lead} className="ev_markdown wmv_step_words" />
     );

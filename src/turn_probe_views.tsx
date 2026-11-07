@@ -37,6 +37,7 @@ import {
   type ToolResultView,
 } from "./turn_probe_parse";
 import "./turn_probe.css";
+import { WordsLine } from "./words_line";
 
 /** Render-safe text for server-shaped fields (an object as a React child
  * crashed the app once, React #31). */
@@ -132,7 +133,9 @@ function ListingRow({ line }: { line: ListingLine }): React.ReactElement {
           <span className="tp_tag">#{h.tag}</span>
           {h.date ? <span className="tp_dim">{h.date.replace("T", " ")}</span> : null}
         </div>
-        <div className="tp_hit_text">{h.text}</div>
+        <div className="tp_hit_text">
+          <WordsLine text={h.text} />
+        </div>
         <div className="tp_hit_origin">
           {h.origin}
           {h.reread ? <span> · diary entry {h.reread}</span> : null}
@@ -151,22 +154,46 @@ function ListingRow({ line }: { line: ListingLine }): React.ReactElement {
           </span>
           {b.date ? <span className="tp_dim">{b.date.replace("T", " ")}</span> : null}
         </div>
-        <div className="tp_hit_text">{b.gist}</div>
+        <div className="tp_hit_text">
+          <WordsLine text={b.gist} />
+        </div>
         <div className="tp_hit_origin">his book · entry {b.entryId}</div>
       </li>
     );
   }
-  if (line.type === "heading") return <li className="tp_listing_heading">{line.text}</li>;
-  if (line.type === "note") return <li className="tp_listing_note">{line.text}</li>;
-  return <li className="tp_listing_text">{line.text}</li>;
+  if (line.type === "heading")
+    return (
+      <li className="tp_listing_heading">
+        <WordsLine text={line.text} />
+      </li>
+    );
+  if (line.type === "note")
+    return (
+      <li className="tp_listing_note">
+        <WordsLine text={line.text} />
+      </li>
+    );
+  return (
+    <li className="tp_listing_text">
+      <WordsLine text={line.text} />
+    </li>
+  );
 }
 
 function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
   switch (v.type) {
     case "failed":
-      return <div className="tp_failed_text">{v.text}</div>;
+      return (
+        <div className="tp_failed_text">
+          <WordsLine text={v.text} />
+        </div>
+      );
     case "empty":
-      return <p className="tp_quiet">The tool returned no text.</p>;
+      return (
+        <div className="tp_quiet">
+          <WordsLine text="The tool returned no text." />
+        </div>
+      );
     case "web":
       return (
         <Fold label="(…) all results">
@@ -176,7 +203,11 @@ function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
                 <ExternalLink className="tp_web_title" href={r.url}>
                   {r.title || r.url}
                 </ExternalLink>
-                {r.snippet ? <div className="tp_web_snippet">{r.snippet}</div> : null}
+                {r.snippet ? (
+                  <div className="tp_web_snippet">
+                    <WordsLine text={r.snippet} />
+                  </div>
+                ) : null}
                 <div className="tp_web_host">{linkHost(r.url)}</div>
               </li>
             ))}
@@ -184,7 +215,11 @@ function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
         </Fold>
       );
     case "web_none":
-      return <p className="tp_quiet">The search found nothing for “{v.query}”.</p>;
+      return (
+        <div className="tp_quiet">
+          <WordsLine text={`The search found nothing for “${v.query}”.`} />
+        </div>
+      );
     case "page":
       return (
         <>
@@ -198,11 +233,9 @@ function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
             <Words text={v.content} className="ev_markdown tp_md" />
           </Fold>
           {v.truncation ? (
-            <p className="tp_quiet">
-              {v.cap
-                ? `The page is longer: he was given its first ${v.cap.toLocaleString()} characters.`
-                : `The page was cut: ${v.truncation}`}
-            </p>
+            <div className="tp_quiet">
+              <WordsLine text={v.cap ? `The page is longer: he was given its first ${v.cap.toLocaleString()} characters.` : `The page was cut: ${v.truncation}`} />
+            </div>
           ) : null}
         </>
       );
@@ -254,7 +287,9 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
           <span className="tp_verb">{ask.verb}</span>{" "}
           {ask.object !== null ? (
             ask.form === "quote" ? (
-              <span className="tp_query">“{ask.object}”</span>
+              <span className="tp_query">
+                <WordsLine text={`“${ask.object}”`} inline />
+              </span>
             ) : ask.form === "link" ? (
               <ExternalLink className="tp_link" href={ask.object}>
                 {ask.object}
@@ -264,7 +299,9 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
             ) : ask.form === "count" ? (
               <span className="tp_dim">({ask.object})</span>
             ) : (
-              <span className="tp_dim">— {ask.object}</span>
+              <span className="tp_dim">
+                <WordsLine text={`— ${ask.object}`} inline />
+              </span>
             )
           ) : null}
         </div>
@@ -277,7 +314,9 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
           {ask.extra.map(([k, v]) => (
             <div key={k} className="tp_arg">
               <dt>{k}</dt>
-              <dd>{v}</dd>
+              <dd>
+                <WordsLine text={v} />
+              </dd>
             </div>
           ))}
         </dl>
@@ -287,7 +326,11 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
           <span className="tp_rawarg">{ask.raw}</span>
         </div>
       ) : null}
-      {ask.note ? <div className="tp_args tp_dim">{ask.note}</div> : null}
+      {ask.note ? (
+        <div className="tp_args tp_dim">
+          <WordsLine text={ask.note} />
+        </div>
+      ) : null}
       {view && result !== null ? (
         <div className="tp_result">
           <div className="tp_result_line">
@@ -309,10 +352,9 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
       ) : (
         // Honest absence, never accusation: the tool ran; older gateways
         // or a ledger-read hiccup serve no result text for the turn.
-        <p className="tp_quiet tp_result">
-          Ran — the result text is not served for this turn (an older gateway, a ledger-read hiccup, or nothing to show).
-          That alone is not a failed lookup.
-        </p>
+        <div className="tp_quiet tp_result">
+          <WordsLine text="Ran — the result text is not served for this turn (an older gateway, a ledger-read hiccup, or nothing to show). That alone is not a failed lookup." />
+        </div>
       )}
     </article>
   );
@@ -380,7 +422,9 @@ export function SystemPromptView({ prompt }: { prompt: string }): React.ReactEle
               <span className="tp_chev" aria-hidden="true">
                 {open[i] ? "▾" : "▸"}
               </span>
-              <span className="tp_psec_title">{s.title}</span>
+              <span className="tp_psec_title">
+                <WordsLine text={s.title} inline />
+              </span>
               <span className="tp_dim">{s.body ? `${s.body.split(/\s+/).length.toLocaleString()} words` : "empty"}</span>
             </button>
             {open[i] && s.body ? <PromptWords text={s.body} /> : null}
@@ -459,20 +503,33 @@ export function ContextMemory({ m, source }: { m: TurnMemory; source: VerbatimSo
     <article className="tp_mem">
       <div className="tp_mem_head">
         <span className={`ei_kind ei_kind_${kind}`}>{kind}</span>
-        <span className="tp_mem_title">{title.text ? `${title.text}${title.cut ? "…" : ""}` : tag ? `#${tag}` : "a memory"}</span>
+        <span className="tp_mem_title">
+          <WordsLine text={title.text ? `${title.text}${title.cut ? "…" : ""}` : tag ? `#${tag}` : "a memory"} inline />
+        </span>
         {tag ? <span className="tp_tag">#{tag}</span> : null}
       </div>
       {digest.text && !(shown && words.phase === "ready") ? (
         <div className="tp_mem_digest">
-          {digest.text}
-          {digest.cut ? "…" : ""}
+          <WordsLine text={`${digest.text}${digest.cut ? "…" : ""}`} />
         </div>
       ) : null}
-      {shown && words.phase === "loading" ? <p className="tp_quiet">reading his words…</p> : null}
-      {shown && words.phase === "error" ? <p className="tp_quiet tp_failed_label">{words.message}</p> : null}
+      {shown && words.phase === "loading" ? (
+        <div className="tp_quiet">
+          <WordsLine text="reading his words…" />
+        </div>
+      ) : null}
+      {shown && words.phase === "error" ? (
+        <div className="tp_quiet tp_failed_label">
+          <WordsLine text={words.message} />
+        </div>
+      ) : null}
       {shown && words.phase === "ready" ? (
         <div className="tp_mem_full">
-          {words.note ? <p className="ei_verbatim_note">{words.note}</p> : null}
+          {words.note ? (
+            <div className="ei_verbatim_note wl_p">
+              <WordsLine text={words.note} />
+            </div>
+          ) : null}
           <VerbatimTurns text={words.text} entity={source.entity} />
         </div>
       ) : null}

@@ -12,16 +12,17 @@
  *   (a standard reason is attached server-side; the read still lands as
  *   a visible diary_read moment in the stream — truth, not friction).
  *
- * Rendering uses the shared panel-chat Markdown component (abstractuic);
- * structured content (YAML/JSON) is fenced so it reads as code.
+ * Rendering uses the shared panel-chat Markdown component (abstractuic)
+ * through `Words`, so no image in the words ever loads; structured content
+ * (YAML/JSON) is fenced so it reads as code.
  */
 
 import React, { useEffect, useState } from "react";
 
-import { Markdown } from "@abstractframework/panel-chat";
-
 import { fetchDiaryEntry, fetchRecordVerbatim, type DiaryTrailEpisode, type RecordVerbatim } from "./stream_source";
 import type { NodeState } from "./stream_fold";
+import { Words } from "./verbatim_view";
+import { fromLink, WordsLine } from "./words_line";
 
 export interface VerbatimSource {
   baseUrl: string;
@@ -65,15 +66,19 @@ function TrailRow({ ep, onOpen }: { ep: DiaryTrailEpisode; onOpen(graphId: strin
   const date = (ep.observed_at || "").slice(0, 16).replace("T", " ");
   const label = ep.title || ep.graph_id.slice(0, 28);
   return ep.verbatim_available ? (
-    <button className="ev_trail_row" onClick={() => onOpen(ep.graph_id, label)} title="Open this conversation's verbatim">
+    <button className="ev_trail_row" onClick={(e) => !fromLink(e) && onOpen(ep.graph_id, label)} title="Open this conversation's verbatim">
       <span className={`ei_kind ei_kind_${ep.kind || "episode"}`}>{ep.kind || "episode"}</span>
-      <span className="ev_trail_title">{label}</span>
+      <span className="ev_trail_title">
+        <WordsLine text={label} inline />
+      </span>
       {date ? <span className="ev_trail_date">{date}</span> : null}
     </button>
   ) : (
     <div className="ev_trail_row ev_trail_row_static" title="No verbatim is served for this record">
       <span className={`ei_kind ei_kind_${ep.kind || "episode"}`}>{ep.kind || "episode"}</span>
-      <span className="ev_trail_title">{label}</span>
+      <span className="ev_trail_title">
+        <WordsLine text={label} inline />
+      </span>
       {date ? <span className="ev_trail_date">{date}</span> : null}
     </div>
   );
@@ -205,14 +210,18 @@ export function VerbatimModal({ node, source, diaryReason, onClose }: VerbatimMo
               <button className="ev_trail_back" onClick={() => setEpisodeView(null)}>
                 ← back to the entry
               </button>
-              <div className="ev_trail_open_title">{episodeView.title}</div>
+              <div className="ev_trail_open_title">
+                <WordsLine text={episodeView.title} />
+              </div>
               {episodeView.state.phase === "loading" ? <div className="ev_status">reading…</div> : null}
               {episodeView.state.phase === "error" ? (
-                <div className={`ev_status ${episodeView.state.unavailable ? "" : "ev_status_error"}`}>{episodeView.state.message}</div>
+                <div className={`ev_status ${episodeView.state.unavailable ? "" : "ev_status_error"}`}>
+                  <WordsLine text={episodeView.state.message} />
+                </div>
               ) : null}
               {episodeView.state.phase === "ready" ? (
                 <>
-                  <Markdown text={episodeView.state.verbatim.text} className="ev_markdown" />
+                  <Words text={episodeView.state.verbatim.text} className="ev_markdown" />
                   <div className="ev_meta">
                     {episodeView.state.verbatim.created_at ? <span>{episodeView.state.verbatim.created_at.slice(0, 19)}</span> : null}
                     <span>lossless verbatim — the words that led to the entry</span>
@@ -223,11 +232,19 @@ export function VerbatimModal({ node, source, diaryReason, onClose }: VerbatimMo
           ) : (
             <>
               {state.phase === "loading" ? <div className="ev_status">reading…</div> : null}
-              {state.phase === "error" ? <div className={`ev_status ${state.unavailable ? "" : "ev_status_error"}`}>{state.message}</div> : null}
+              {state.phase === "error" ? (
+                <div className={`ev_status ${state.unavailable ? "" : "ev_status_error"}`}>
+                  <WordsLine text={state.message} />
+                </div>
+              ) : null}
               {state.phase === "ready" ? (
                 <>
-                  {state.note ? <div className="ev_note">{state.note}</div> : null}
-                  <Markdown text={presentText(state.verbatim.text, state.verbatim.content_type, node.kind)} className="ev_markdown" />
+                  {state.note ? (
+                    <div className="ev_note">
+                      <WordsLine text={state.note} />
+                    </div>
+                  ) : null}
+                  <Words text={presentText(state.verbatim.text, state.verbatim.content_type, node.kind)} className="ev_markdown" />
                   <div className="ev_meta">
                     {state.verbatim.turn_id ? <span>turn {state.verbatim.turn_id}</span> : null}
                     {state.verbatim.run_id ? <span>{state.verbatim.run_id}</span> : null}
@@ -241,10 +258,9 @@ export function VerbatimModal({ node, source, diaryReason, onClose }: VerbatimMo
                   {node.diary && !state.trail ? (
                     <div className="ev_trail">
                       <div className="ev_trail_head">provenance</div>
-                      <p className="wsp_quiet ev_trail_absent">
-                        No trail is served for this entry — either the gateway does not yet serve provenance links (a door restart
-                        surfaces them) or this entry formed before trails existed. Its verbatim origins are not reachable from here yet.
-                      </p>
+                      <div className="wsp_quiet ev_trail_absent">
+                        <WordsLine text="No trail is served for this entry — either the gateway does not yet serve provenance links (a door restart surfaces them) or this entry formed before trails existed. Its verbatim origins are not reachable from here yet." />
+                      </div>
                     </div>
                   ) : null}
                   {state.trail ? (
@@ -269,7 +285,11 @@ export function VerbatimModal({ node, source, diaryReason, onClose }: VerbatimMo
                           ))}
                         </>
                       ) : null}
-                      {state.trail.warning ? <div className="ev_trail_warn">{state.trail.warning}</div> : null}
+                      {state.trail.warning ? (
+                        <div className="ev_trail_warn">
+                          <WordsLine text={state.trail.warning} />
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </>

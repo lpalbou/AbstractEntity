@@ -22,6 +22,7 @@ import React, { useMemo, useState } from "react";
 import { KIND_COLORS } from "./graph_canvas";
 import type { FoldState, NodeState } from "./stream_fold";
 import { shapeLabel, summaryLabel } from "./node_label";
+import { fromLink, WordsLine } from "./words_line";
 
 function fmtDate(iso: string): string {
   if (!iso) return "";
@@ -46,7 +47,7 @@ function RecordCard({ node, onSelect, kindWord }: { node: NodeState; onSelect(id
   return (
     <button
       className={`lw_card ${node.closed ? "lw_card_closed" : ""}`}
-      onClick={() => onSelect(node.id)}
+      onClick={(e) => !fromLink(e) && onSelect(node.id)}
       title={node.closed ? `Superseded (${node.closed.reason || node.closed.kind}) — click to inspect; its replacement stands elsewhere` : `Open this ${kindWord} in the Detail inspector`}
     >
       <span className="lw_dot" style={{ background: KIND_COLORS[node.kind] ?? KIND_COLORS.unknown }} aria-hidden="true" />
@@ -54,7 +55,9 @@ function RecordCard({ node, onSelect, kindWord }: { node: NodeState; onSelect(id
         {/* laurent dm#84: "do not show 'lesson:' for each card... just show
           * the lesson" — the panel header + dot color already carry the
           * kind; shapeLabel strips the type prefix (and gist: residue). */}
-        <span className="lw_title">{shapeLabel(node.title || "") || `(untitled ${kindWord})`}</span>
+        <span className="lw_title">
+          <WordsLine text={shapeLabel(node.title || "") || `(untitled ${kindWord})`} inline />
+        </span>
         <span className="lw_meta">
           {fmtDate(node.born_at)}
           {node.selected_count > 0 ? ` · recalled ${node.selected_count}×` : " · never recalled yet"}
@@ -88,11 +91,9 @@ export function LessonsPanel({ fold, onSelect }: { fold: FoldState; onSelect(id:
         <span className="lw_sub">what he has learned — {lessons.length === 0 ? "none yet" : `${lessons.length} lesson${lessons.length === 1 ? "" : "s"}`}</span>
       </div>
       {lessons.length === 0 ? (
-        <p className="lw_empty">
-          No lessons yet. Lessons form when reflection or a sleep pass distills an experience into a keepable practice
-          ("what I'd do differently") — they then compete for recall like any memory. An empty shelf this early is
-          normal, not a fault.
-        </p>
+        <div className="lw_empty wl_p">
+          <WordsLine text={`No lessons yet. Lessons form when reflection or a sleep pass distills an experience into a keepable practice ("what I'd do differently") — they then compete for recall like any memory. An empty shelf this early is normal, not a fault.`} />
+        </div>
       ) : (
         <div className="lw_list">
           {lessons.map((n) => (
@@ -149,10 +150,12 @@ function WorldCard({ fold, node, onSelect }: { fold: FoldState; node: NodeState;
 
   return (
     <div className={`lw_wcard ${node.closed ? "lw_card_closed" : ""}`}>
-      <button className="lw_wcard_head" onClick={() => onSelect(node.id)} title="Open in the Detail inspector">
+      <button className="lw_wcard_head" onClick={(e) => !fromLink(e) && onSelect(node.id)} title="Open in the Detail inspector">
         <span className="lw_dot" style={{ background: KIND_COLORS[node.kind] ?? KIND_COLORS.unknown }} aria-hidden="true" />
         <span className="lw_text">
-          <span className="lw_title">{summary || node.title || "(untitled card)"}</span>
+          <span className="lw_title">
+            <WordsLine text={summary || node.title || "(untitled card)"} inline />
+          </span>
           <span className="lw_meta">
             {fmtDate(node.born_at)}
             {node.selected_count > 0 ? ` · recalled ${node.selected_count}×` : " · never recalled yet"}
@@ -175,10 +178,10 @@ function WorldCard({ fold, node, onSelect }: { fold: FoldState; node: NodeState;
               {sources.map((s, i) => (
                 <li key={i}>
                   <span className="lw_prov_rel">
-                    {s.direction} {s.relation}
+                    <WordsLine text={`${s.direction} ${s.relation}`} inline />
                   </span>
-                  <button className="lw_prov_link" onClick={() => onSelect(s.id)} title="Open this source memory in the Detail inspector">
-                    {s.title.length > 70 ? `${s.title.slice(0, 69)}…` : s.title}
+                  <button className="lw_prov_link" onClick={(e) => !fromLink(e) && onSelect(s.id)} title="Open this source memory in the Detail inspector">
+                    <WordsLine text={s.title} inline />
                   </button>
                 </li>
               ))}
@@ -214,24 +217,18 @@ export function WorldPanel({ fold, onSelect }: { fold: FoldState; onSelect(id: s
           his orientation cards — {cards.length === 0 ? "none yet" : `${live.length} live${superseded.length ? ` · ${superseded.length} superseded` : ""}`}
         </span>
       </div>
-      <p className="lw_framing">
-        One card per "something" he understands — a person, a place, a concept, a system. The card is the distilled
-        working model (what would remain if everything else vanished); "why he thinks this" unfolds its provenance —
-        the memories behind the claim, each one click away. Sleep maintains the cards; his own revisions refine them.
-      </p>
+      <div className="lw_framing wl_p">
+        <WordsLine text={`One card per "something" he understands — a person, a place, a concept, a system. The card is the distilled working model (what would remain if everything else vanished); "why he thinks this" unfolds its provenance — the memories behind the claim, each one click away. Sleep maintains the cards; his own revisions refine them.`} />
+      </div>
       {narrowBreadth ? (
-        <p className="lw_note">
-          These are all people/agents he's met — cards for <em>concepts, places, systems</em> form once he elects topics in
-          reflection ("what did this day circle around?"), which shipped 2026-07-19. Breadth accumulates <strong>forward</strong>
-          as he lives days on the new loop, not retroactively — the refinement chain you see here is working; the world widens
-          from here.
-        </p>
+        <div className="lw_note wl_p">
+          <WordsLine text={`These are all people/agents he's met — cards for *concepts, places, systems* form once he elects topics in reflection ("what did this day circle around?"), which shipped 2026-07-19. Breadth accumulates **forward** as he lives days on the new loop, not retroactively — the refinement chain you see here is working; the world widens from here.`} />
+        </div>
       ) : null}
       {cards.length === 0 ? (
-        <p className="lw_empty">
-          No world cards yet. They form during sleep passes once his lived episodes give the consolidation something to
-          orient on — put him to sleep after a few sessions and look again.
-        </p>
+        <div className="lw_empty wl_p">
+          <WordsLine text="No world cards yet. They form during sleep passes once his lived episodes give the consolidation something to orient on — put him to sleep after a few sessions and look again." />
+        </div>
       ) : (
         <div className="lw_list">
           {live.map((n) => (
@@ -239,7 +236,9 @@ export function WorldPanel({ fold, onSelect }: { fold: FoldState; onSelect(id: s
           ))}
           {superseded.length > 0 ? (
             <>
-              <div className="lw_divider">superseded (his older understanding — kept, never erased)</div>
+              <div className="lw_divider">
+                <WordsLine text="superseded (his older understanding — kept, never erased)" />
+              </div>
               {superseded.map((n) => (
                 <WorldCard key={n.id} fold={fold} node={n} onSelect={onSelect} />
               ))}

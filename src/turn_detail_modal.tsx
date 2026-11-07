@@ -27,6 +27,7 @@ import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 import type { VerbatimSource } from "./verbatim_modal";
 import { MEMORY_DIGEST_CAP, MEMORY_TITLE_CAP, servedExcerpt, summarizeTools } from "./turn_probe_parse";
 import { ContextMemory, safeText, SystemPromptView, ToolCall, whyLabel, type ToolDetail } from "./turn_probe_views";
+import { WordsLine } from "./words_line";
 
 export interface TurnDetailModalProps {
   turn: ChatTurnResult;
@@ -162,11 +163,15 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
             <>
               <section>
                 {memories.length === 0 ? (
-                  <p className="tdm_quiet">
-                    {turn.memories === undefined
-                      ? "Which memories entered this turn is not served here: only a turn sent from this page carries them (a rejoined or reloaded conversation keeps its tools only)."
-                      : "No memories beyond his identity core entered this turn."}
-                  </p>
+                  <div className="tdm_quiet">
+                    <WordsLine
+                      text={
+                        turn.memories === undefined
+                          ? "Which memories entered this turn is not served here: only a turn sent from this page carries them (a rejoined or reloaded conversation keeps its tools only)."
+                          : "No memories beyond his identity core entered this turn."
+                      }
+                    />
+                  </div>
                 ) : (
                   memories.map((m, i) => <ContextMemory key={m.record_id || m.graph_id || m.tag || i} m={m} source={source} />)
                 )}
@@ -184,11 +189,15 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
                   Formed this turn <span className="tdm_count">{formedList.length + diaryList.length}</span>
                 </h4>
                 {formedList.length === 0 && diaryList.length === 0 ? (
-                  <p className="tdm_quiet">
-                    {turn.records_formed === undefined && turn.diary_entries === undefined
-                      ? "What this turn formed is not served here (only a turn sent from this page carries it)."
-                      : "Nothing formed (the turn did not complete a memory)."}
-                  </p>
+                  <div className="tdm_quiet">
+                    <WordsLine
+                      text={
+                        turn.records_formed === undefined && turn.diary_entries === undefined
+                          ? "What this turn formed is not served here (only a turn sent from this page carries it)."
+                          : "Nothing formed (the turn did not complete a memory)."
+                      }
+                    />
+                  </div>
                 ) : (
                   <ul className="tdm_list">
                     {formedList.map((id) => (
@@ -225,19 +234,23 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
             <section>
               {claimVerdict.fabricated ? (
                 <div className="tdm_fabricated" title="The reply's prose claims a lookup; the driver-authored record shows zero tools ran. The claimed evidence was never fetched.">
-                  ⚠ The reply claims a lookup, but no tools ran this turn — the claimed evidence was not fetched.
+                  <WordsLine text="⚠ The reply claims a lookup, but no tools ran this turn — the claimed evidence was not fetched." />
                   {claimVerdict.claims.slice(0, 3).map((c, i) => (
                     <div key={i} className="tdm_claim_snippet">
-                      “{c.snippet}”
+                      <WordsLine text={`“${c.snippet}”`} />
                     </div>
                   ))}
                 </div>
               ) : null}
               {tools.length === 0 ? (
-                <p className="tdm_quiet">No lookups — the reply came from context alone.</p>
+                <div className="tdm_quiet">
+                  <WordsLine text="No lookups — the reply came from context alone." />
+                </div>
               ) : (
                 <>
-                  <p className="tp_tools_summary">{summarizeTools(tools)}</p>
+                  <div className="tp_tools_summary">
+                    <WordsLine text={summarizeTools(tools)} />
+                  </div>
                   {tools.map((t, i) => (
                     <ToolCall key={i} t={t} />
                   ))}
@@ -248,7 +261,9 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
                   <h4 className="tdm_h">Notices</h4>
                   <ul className="tdm_list tdm_notices">
                     {notices.map((n, i) => (
-                      <li key={i}>{safeText(n)}</li>
+                      <li key={i}>
+                        <WordsLine text={safeText(n)} />
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -261,10 +276,9 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
               {systemPrompt ? (
                 <SystemPromptView prompt={systemPrompt} />
               ) : (
-                <p className="tdm_quiet">
-                  The system prompt is not served for this turn — when it rides the turn response, the exact prompt sent
-                  to the model shows here.
-                </p>
+                <div className="tdm_quiet">
+                  <WordsLine text="The system prompt is not served for this turn — when it rides the turn response, the exact prompt sent to the model shows here." />
+                </div>
               )}
             </section>
           ) : null}

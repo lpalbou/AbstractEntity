@@ -25,6 +25,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { selectDiaryEntries, type BookEntry } from "./book_reader_select";
 import type { FoldState, NodeState } from "./stream_fold";
 import { VerbatimModal, type VerbatimSource } from "./verbatim_modal";
+import { fromLink, WordsLine } from "./words_line";
 
 export interface BookReaderProps {
   fold: FoldState;
@@ -87,9 +88,9 @@ export function BookReader({ fold, verbatimSource, focus = null }: BookReaderPro
         </span>
       </div>
       {entries.length === 0 ? (
-        <p className="book_empty">
-          Nothing in the book yet. The diary is what he ELECTS to keep — it fills as he writes, never automatically.
-        </p>
+        <div className="book_empty wl_p">
+          <WordsLine text="Nothing in the book yet. The diary is what he ELECTS to keep — it fills as he writes, never automatically." />
+        </div>
       ) : (
         <div className="book_list" ref={listRef}>
           {byDay.map((group) => (
@@ -104,7 +105,7 @@ export function BookReader({ fold, verbatimSource, focus = null }: BookReaderPro
                     data-entry={e.node.id}
                     className={`book_entry ${e.sealed ? "book_entry_sealed" : ""} ${e.node.id === focusRow ? "book_entry_focus" : ""}`}
                     disabled={!openable}
-                    onClick={() => openable && setOpen(e.node)}
+                    onClick={(ev) => !fromLink(ev) && openable && setOpen(e.node)}
                     title={
                       e.sealed
                         ? "A private entry — the words are sealed (sole-author). Only the act of writing it is visible."
@@ -114,7 +115,9 @@ export function BookReader({ fold, verbatimSource, focus = null }: BookReaderPro
                     }
                   >
                     {time ? <span className="book_time">{time}</span> : null}
-                    <span className="book_entry_title">{e.sealed ? "a private entry" : e.node.title || "an entry"}</span>
+                    <span className="book_entry_title">
+                      <WordsLine text={e.sealed ? "a private entry" : e.node.title || "an entry"} inline />
+                    </span>
                     {e.sealed ? <span className="book_seal">sealed</span> : null}
                   </button>
                 );
