@@ -67,25 +67,27 @@ function clip(text: string, max = 96): string {
  * run and the turn they belong to. The day and tick structure of his own
  * time is derived from those stamps, never invented.
  *
- * Own time: the last run-stamped envelope's run is an own-time run (the
- * runtime's rule: `chat-owntime-…` / `owntime-…`), or the operator's
- * personal-time start marker came after it. A tick starts at the first
- * envelope of a new turn — the recall trace that opens it carries the turn
- * in `need.turn_id`. Turns restart at 1 each day (one session per day),
- * so turn 1 opens a day, and the reflection turn (`t-reflect-…`) closes
- * it. Each boundary is announced once (operator report 2026-11-07: the
- * old run-change rule repeated "a day of his own begins" before every
- * tick and put each tick marker mid-tick). */
+ * Own time is read from two structured stamps, latest wins: a run-stamped
+ * envelope (the runtime's rule: an own-time run is `chat-owntime-…` /
+ * `owntime-…`) and a recall's participants (the entity alone is his own
+ * time, anyone with him is a visit). A tick starts at the first
+ * envelope of a new turn — the recall trace that opens it carries the
+ * turn in `need.turn_id`. Turns restart at 1 each day (one session per
+ * day), so turn 1 opens a day; the first reflection turn (`t-reflect…`,
+ * the runtime writes several) closes it, once. Operator report
+ * 2026-11-07: the old run-change rule repeated "a day of his own begins"
+ * before every tick and put each tick marker mid-tick. */
 export interface RhythmState {
   ownTime: boolean;
   /** Last own-time turn a boundary was derived for. */
   turn: string | null;
+  /** The day's close was already announced. */
+  closed: boolean;
 }
 
-export const RHYTHM_START: RhythmState = { ownTime: false, turn: null };
+export const RHYTHM_START: RhythmState = { ownTime: false, turn: null, closed: false };
 
 const OWN_TIME_RUN = /^(chat-)?owntime-/;
-const OWN_TIME_STARTS = new Set(["personal_started", "own_time_started"]);
 
 function envelopeTurn(env: ReplayEnvelope): string {
   if (env.turn_id) return String(env.turn_id);
@@ -93,16 +95,26 @@ function envelopeTurn(env: ReplayEnvelope): string {
   return "";
 }
 
+/** Whether this envelope says he is (true) or is not (false) in his own
+ * time; null when it says nothing. */
+function ownTimeStamp(env: ReplayEnvelope): boolean | null {
+  if (env.run_id) return OWN_TIME_RUN.test(String(env.run_id));
+  if (env.family === "trace") {
+    const who = (env.payload as unknown as TracePayload).need?.participants;
+    if (!Array.isArray(who) || who.length === 0) return null;
+    return who.length === 1 && String(who[0]).startsWith("entity:");
+  }
+  return null;
+}
+
 export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: LedgerLine[]; state: RhythmState } {
-  let ownTime = state.ownTime;
-  if (env.run_id) ownTime = OWN_TIME_RUN.test(String(env.run_id));
-  else if (env.family === "host" && OWN_TIME_STARTS.has(String((env.payload as unknown as HostPayload).kind))) ownTime = true;
+  const ownTime = ownTimeStamp(env) ?? state.ownTime;
   if (!ownTime) {
-    return { lines: [], state: state.ownTime || state.turn !== null ? RHYTHM_START : state };
+    return { lines: [], state: state === RHYTHM_START ? state : RHYTHM_START };
   }
   const turn = envelopeTurn(env);
   if (!turn || turn === state.turn) {
-    return { lines: [], state: state.ownTime ? state : { ownTime: true, turn: state.turn } };
+    return { lines: [], state: state.ownTime ? state : { ...state, ownTime: true } };
   }
   const base = {
     seq: env.seq,
@@ -114,17 +126,20 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
     tone: "boundary",
   };
   const lines: LedgerLine[] = [];
+  let closed = state.closed;
   const n = turn.match(/^t-0*(\d+)$/)?.[1];
   if (turn.startsWith("t-reflect")) {
-    lines.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
+    if (!closed) lines.push({ ...base, title: "— he closes the day —", detail: "looking back over what he lived (reflection)" });
+    closed = true;
   } else if (n) {
     if (n === "1") {
       const at = String(env.observed_at || "").slice(11, 16);
       lines.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
+      closed = false;
     }
     lines.push({ ...base, title: `— tick ${n} —`, detail: "" });
   }
-  return { lines, state: { ownTime: true, turn } };
+  return { lines, state: { ownTime: true, turn, closed } };
 }
 
 /** One ledger line and the envelope index it belongs to (boundary lines

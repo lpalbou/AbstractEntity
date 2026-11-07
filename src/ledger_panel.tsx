@@ -135,6 +135,49 @@ export function followAfterScroll(following: boolean, m: { gap: number; top: num
   return following;
 }
 
+interface FollowRefs {
+  stick: { current: boolean };
+  lastTop: { current: number };
+}
+
+type ScrollList = Pick<HTMLElement, "scrollTop" | "scrollHeight" | "clientHeight" | "addEventListener" | "removeEventListener">;
+
+function jumpToBottom(el: ScrollList, lastTop: FollowRefs["lastTop"]): void {
+  el.scrollTop = el.scrollHeight;
+  lastTop.current = el.scrollTop;
+}
+
+/** Live follow on the ledger list: start at the bottom, judge each scroll
+ * with `followAfterScroll`, and land on the newest line whenever the list
+ * is revealed — the drawer hides inactive tabs with display:none, where
+ * scrolling is a no-op, so opening the Ledger tab otherwise showed
+ * wherever the hidden list was left (adversarial review 2026-11-07).
+ * Returns the detach function. */
+export function attachLiveFollow(
+  el: ScrollList,
+  refs: FollowRefs,
+  onAtBottom: () => void,
+  Observer: typeof ResizeObserver = ResizeObserver,
+): () => void {
+  const onScroll = () => {
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    refs.stick.current = followAfterScroll(refs.stick.current, { gap, top: el.scrollTop, lastTop: refs.lastTop.current });
+    if (refs.stick.current && gap <= FOLLOW_SLACK_PX) onAtBottom();
+    refs.lastTop.current = el.scrollTop;
+  };
+  const revealed = new Observer(() => {
+    if (refs.stick.current && el.clientHeight > 0) jumpToBottom(el, refs.lastTop);
+  });
+  refs.stick.current = true;
+  jumpToBottom(el, refs.lastTop);
+  revealed.observe(el as unknown as Element);
+  el.addEventListener("scroll", onScroll, { passive: true });
+  return () => {
+    revealed.disconnect();
+    el.removeEventListener("scroll", onScroll);
+  };
+}
+
 export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   const { envelopes, scrubIndex, showQuiet } = props;
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -209,30 +252,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   useEffect(() => {
     const el = listRef.current;
     if (!el || !props.live) return;
-    const onScroll = () => {
-      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-      stickRef.current = followAfterScroll(stickRef.current, { gap, top: el.scrollTop, lastTop: lastTopRef.current });
-      if (stickRef.current && gap <= FOLLOW_SLACK_PX) setMissedBelow(0);
-      lastTopRef.current = el.scrollTop;
-    };
-    const toBottom = () => {
-      el.scrollTop = el.scrollHeight;
-      lastTopRef.current = el.scrollTop;
-    };
-    // The drawer hides inactive tabs with display:none, where scrolling is
-    // a no-op: opening the Ledger tab must land on the newest line, not on
-    // wherever the hidden list was left (adversarial review 2026-11-07).
-    const revealed = new ResizeObserver(() => {
-      if (stickRef.current && el.clientHeight > 0) toBottom();
-    });
-    stickRef.current = true;
-    toBottom();
-    revealed.observe(el);
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      revealed.disconnect();
-      el.removeEventListener("scroll", onScroll);
-    };
+    return attachLiveFollow(el, { stick: stickRef, lastTop: lastTopRef }, () => setMissedBelow(0));
   }, [props.live]);
   useEffect(() => {
     // Runs on every visible LINE (a weave grows in place, its row count
@@ -245,8 +265,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
     const el = listRef.current;
     if (!el) return;
     if (stickRef.current) {
-      el.scrollTop = el.scrollHeight;
-      lastTopRef.current = el.scrollTop;
+      jumpToBottom(el, lastTopRef);
       setMissedBelow(0);
     } else if (landed > 0) {
       setMissedBelow((n) => n + landed);
