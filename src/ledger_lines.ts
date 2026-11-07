@@ -66,11 +66,16 @@ function clip(text: string, max = 96): string {
  * stream has no explicit day/tick markers, but every envelope carries
  * run_id/turn_id — boundaries BETWEEN consecutive envelopes are the
  * day and tick structure of his own time, derived, never invented.
- * Pure per (prev, env): the ledger cache stays incremental. */
+ *
+ * Only envelopes that carry a run_id take part, and `prev` is the last
+ * EARLIER envelope that carried one (`foldLedgerLines` tracks it). Recall
+ * events between them carry a turn_id but no run_id; comparing against
+ * those announced "a day of his own begins" before every tick (operator
+ * report 2026-11-07). */
 export function boundaryLines(env: ReplayEnvelope, prev: ReplayEnvelope | null): LedgerLine[] {
   const run = String(env.run_id || "");
   const turn = String(env.turn_id || "");
-  if (!run && !turn) return [];
+  if (!run) return [];
   const prevRun = String(prev?.run_id || "");
   const prevTurn = String(prev?.turn_id || "");
   const out: LedgerLine[] = [];
@@ -99,6 +104,56 @@ export function boundaryLines(env: ReplayEnvelope, prev: ReplayEnvelope | null):
     }
   }
   return out;
+}
+
+/** One ledger line and the envelope index it belongs to (boundary lines
+ * share their envelope's index). */
+export interface IndexedLine {
+  line: LedgerLine;
+  index: number;
+}
+
+/** The ledger's incremental fold over the envelope array. */
+export interface LedgerLineFold {
+  lines: IndexedLine[];
+  /** Envelopes covered, and the seqs at both ends of that prefix. */
+  count: number;
+  firstSeq: number | null;
+  tailSeq: number | null;
+  /** Index of the last covered envelope carrying a run_id (-1: none). */
+  lastRunIndex: number;
+}
+
+/** Extend `prev` with the envelopes it has not covered yet, or rebuild
+ * when the covered prefix changed (a retrograde host marker inserted
+ * mid-array, a new source). Every change returns a NEW `lines` array: the
+ * panel's filters are memoized on its identity, and appending in place
+ * left the live ledger frozen at its first load while the timeline kept
+ * counting (operator report 2026-11-07). An unchanged input returns `prev`. */
+export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEnvelope[]): LedgerLineFold {
+  const firstSeq = envelopes.length > 0 ? envelopes[0].seq : null;
+  const intact =
+    prev !== null &&
+    prev.firstSeq === firstSeq &&
+    prev.count <= envelopes.length &&
+    (prev.count === 0 || envelopes[prev.count - 1].seq === prev.tailSeq);
+  if (intact && prev.count === envelopes.length) return prev;
+  const from = intact ? prev.count : 0;
+  const lines = intact ? prev.lines.slice() : [];
+  let lastRunIndex = intact ? prev.lastRunIndex : -1;
+  for (let i = from; i < envelopes.length; i++) {
+    const env = envelopes[i];
+    for (const b of boundaryLines(env, lastRunIndex >= 0 ? envelopes[lastRunIndex] : null)) lines.push({ line: b, index: i });
+    lines.push({ line: ledgerLine(env), index: i });
+    if (env.run_id) lastRunIndex = i;
+  }
+  return {
+    lines,
+    count: envelopes.length,
+    firstSeq,
+    tailSeq: envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : null,
+    lastRunIndex,
+  };
 }
 
 function displayTitle(env: ReplayEnvelope, fallback: string): string {

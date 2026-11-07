@@ -4,6 +4,19 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The ledger follows the entity live again.** In live mode the ledger kept showing only what
+  had loaded when the page opened, while the timeline went on counting, so an entity's personal
+  time looked stuck on its first recall. Every new line now appears as it lands: the diary entries
+  it writes, the moments it lives, the memories it holds in mind, its feelings and dreams.
+- **Personal time reads as one day with numbered ticks.** "A day of his own begins" no longer
+  repeats before every tick; each day opens once and each tick is marked once.
+- **The ledger stays at the bottom while you watch.** It no longer stops following on its own
+  when many lines land at once; only scrolling up stops it, and the "new lines below" button
+  counts the rows you will actually see.
+- Long reflection turn ids fit on one line in the ledger (the full id shows on hover).
+
 ## [0.11.2] - 2026-11-07
 
 On `@abstractframework/ui-kit` ^0.9.16 (AbstractUIC 0.10.3, with `IdentityPanel` and the avatar frame-rate fix) and

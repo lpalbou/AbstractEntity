@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { AfMemoryHintChip } from "@abstractframework/ui-kit";
 
-import { boundaryLines, ledgerLine, type LedgerLine } from "./ledger_lines";
+import { foldLedgerLines, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
 import type { ReplayEnvelope } from "./stream_types";
 
 export interface LedgerPanelProps {
@@ -37,12 +37,6 @@ export interface LedgerPanelProps {
  * envelopes; unbounded DOM rows jank the browser long before the fold
  * does (adversarial scale review 2.2). The window slides with the scrub. */
 const RENDER_WINDOW = 600;
-
-interface IndexedLine {
-  line: LedgerLine;
-  /** Envelope index this line belongs to (boundaries share their envelope's). */
-  index: number;
-}
 
 /** A render item: one line, or a collapsed BURST of same-kind lines.
  * ONE recall deposits one `selected` event per shelf record AND one
@@ -131,41 +125,13 @@ function weaveSummary(group: WeaveGroup, items: IndexedLine[]): { title: string;
 export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   const { envelopes, scrubIndex, showQuiet } = props;
   const listRef = useRef<HTMLDivElement | null>(null);
-  // Incremental line cache: envelopes normally append; retrograde HOST
-  // markers can INSERT mid-array (the merge in entity_view). The cache
-  // validates the TAIL SEQ of its covered prefix — a mid-array insert
-  // shifts indices, so covered-tail mismatch forces a rebuild (code
-  // adversary F2: the old first-seq-only check re-appended a duplicate
-  // row and left every cached jump index after the insert off by one).
-  const lineCacheRef = useRef<{ lines: IndexedLine[]; firstSeq: number | null; count: number; tailSeq: number | null }>({
-    lines: [],
-    firstSeq: null,
-    count: 0,
-    tailSeq: null,
-  });
-
+  // Incremental line fold (ledger_lines.foldLedgerLines): appends extend
+  // it, a mid-array host-marker insert rebuilds it, and every change
+  // yields a NEW lines array so the memos below see the live tail.
+  const foldRef = useRef<LedgerLineFold | null>(null);
   const lines: IndexedLine[] = useMemo(() => {
-    const cache = lineCacheRef.current;
-    const firstSeq = envelopes.length > 0 ? envelopes[0].seq : null;
-    const coveredTail = cache.count > 0 && cache.count <= envelopes.length ? envelopes[cache.count - 1].seq : null;
-    const append = (from: number) => {
-      for (let i = from; i < envelopes.length; i++) {
-        const prev = i > 0 ? envelopes[i - 1] : null;
-        for (const b of boundaryLines(envelopes[i], prev)) cache.lines.push({ line: b, index: i });
-        cache.lines.push({ line: ledgerLine(envelopes[i]), index: i });
-      }
-      cache.count = envelopes.length;
-      cache.tailSeq = envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : null;
-    };
-    const intact = cache.firstSeq === firstSeq && cache.count <= envelopes.length && (cache.count === 0 || coveredTail === cache.tailSeq);
-    if (!intact) {
-      cache.lines = [];
-      cache.firstSeq = firstSeq;
-      append(0);
-    } else {
-      append(cache.count);
-    }
-    return cache.lines;
+    foldRef.current = foldLedgerLines(foldRef.current, envelopes);
+    return foldRef.current.lines;
   }, [envelopes]);
 
   const visible = useMemo(() => {
@@ -224,33 +190,49 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   // up detaches; the pill below re-attaches. `.el_row_current` cannot carry
   // this job — weave rows and boundary rows have no current marker.
   const stickRef = useRef(true);
+  const lastTopRef = useRef(0);
+  const seenRef = useRef({ rows: renderItems.length, showQuiet });
   const [missedBelow, setMissedBelow] = useState(0);
   useEffect(() => {
     const el = listRef.current;
     if (!el || !props.live) return;
+    // Only the READER detaches the follow: a scroll that moved UP. Landing
+    // lines grow the list without a scroll event and our own jump to the
+    // bottom only moves down; judging by the distance to the bottom raced
+    // the landing lines and detached a follow nobody had left.
     const onScroll = () => {
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
-      stickRef.current = atBottom;
-      if (atBottom) setMissedBelow(0);
+      if (el.scrollHeight - el.scrollTop - el.clientHeight <= 80) {
+        stickRef.current = true;
+        setMissedBelow(0);
+      } else if (el.scrollTop < lastTopRef.current) {
+        stickRef.current = false;
+      }
+      lastTopRef.current = el.scrollTop;
     };
+    stickRef.current = true;
+    el.scrollTop = el.scrollHeight;
+    lastTopRef.current = el.scrollTop;
     el.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
     return () => el.removeEventListener("scroll", onScroll);
   }, [props.live]);
   useEffect(() => {
+    // Runs on every visible LINE (a weave grows in place, its row count
+    // does not move); the pill counts ROWS, what the reader will see. A
+    // filter toggle is not a landing: it only resyncs the count.
+    const seen = seenRef.current;
+    const landed = seen.showQuiet === showQuiet ? renderItems.length - seen.rows : 0;
+    seenRef.current = { rows: renderItems.length, showQuiet };
     if (!props.live) return;
     const el = listRef.current;
     if (!el) return;
     if (stickRef.current) {
       el.scrollTop = el.scrollHeight;
+      lastTopRef.current = el.scrollTop;
       setMissedBelow(0);
-    } else {
-      setMissedBelow((n) => n + 1);
+    } else if (landed > 0) {
+      setMissedBelow((n) => n + landed);
     }
-    // renderItems.length moves on every landed line (weaves fold in place —
-    // their growth still bumps the summary row, so counting items is honest
-    // enough for "something landed below").
-  }, [renderItems.length, props.live]);
+  }, [visible.length, renderItems.length, showQuiet, props.live]);
 
   return (
     <div className="entity_ledger">
@@ -348,7 +330,11 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
             >
               <div className="el_row_meta">
                 <span className="el_seq">{line.seq}</span>
-                {line.turn_id ? <span className="el_turn">{line.turn_id}</span> : null}
+                {line.turn_id ? (
+                  <span className="el_turn" title={line.turn_id}>
+                    {line.turn_id}
+                  </span>
+                ) : null}
               </div>
               <div className="el_row_body">
                 <div className="el_title">{line.title}</div>
