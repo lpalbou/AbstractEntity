@@ -38,6 +38,19 @@ All notable changes to `@abstractframework/entity` are recorded here.
   keeps the exact text one click away. The same layout is used wherever a whole exchange is
   shown (the world model's sources, a memory opened from a turn). Nothing new is ever read from
   a diary-shaped record.
+- **Every Detail card is informative first.** Clicking any memory, a recall or a feeling now
+  shows what it is first — its title, its kind in plain words ("A lesson he drew", "A diary entry
+  — a question he left open", "One of his values", "An engine act — the engine's own
+  bookkeeping, not a memory") and its summary in full when the app has one (words born as the
+  whole record, or the summary a recall carried) — then its facts in one grid, then the rest one
+  click away: its words as saved, how he feels about it, what it was used with, the night's
+  signals, each list foldable on every width. A recall card says how many memories he
+  considered, how many came to mind and entered his context, and what it was for, before the
+  lists; a feeling card names what it is toward and keeps both sides before every event. A dream
+  says what the night moved before what it touched. A diary entry's words are no longer read
+  when its card opens: they open on a click that says the read is recorded in his biography.
+  Every title, list row, reason and summary goes through the shared Markdown renderer, so their
+  bold, headings and lists render (a mark the saved title cut open stays as it was saved).
 - **The Cognitive Monitor shows every value.** Each petal of the bloom is the similarity of his
   words to that emotional register, with its number printed beside it, on one fixed scale for
   every reply: the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out.

@@ -1,0 +1,161 @@
+/* The Detail tab's cards (record_detail.tsx): what it is first, the facts,
+ * then folded sections. Every colour is a theme token, so the light and
+ * dark themes both hold; nothing is wider than the panel on a phone. */
+
+/* One line of Markdown (a title, a list row, a reason): the shared
+ * renderer's blocks laid out inline at the surrounding size — the words
+ * and their marks are never touched, only their layout. */
+.pc-md.md_line {
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+}
+.pc-md.md_line > *,
+.pc-md.md_line :is(p, h1, h2, h3, h4, h5, h6, ul, ol, li, blockquote, figure) {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+  border: none;
+}
+.pc-md.md_line :is(h1, h2, h3, h4, h5, h6) {
+  font-weight: inherit;
+}
+.pc-md.md_line > * + *::before,
+.pc-md.md_line li + li::before {
+  content: " ";
+}
+.pc-md.md_line :is(ul, ol) {
+  list-style: none;
+}
+.pc-md.md_line pre {
+  display: inline;
+  white-space: pre-wrap;
+}
+
+/* What it is. */
+.rd_kind {
+  margin: -4px 0 8px;
+  color: var(--text-dim);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.45;
+}
+
+.rd_key {
+  margin: 0 0 4px;
+  padding: 8px 11px;
+  border-left: 3px solid var(--ea-accent, #e8a54a);
+  background: color-mix(in srgb, var(--ea-accent, #e8a54a) 8%, transparent);
+  border-radius: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rd_key_line {
+  margin: 0;
+  font-size: max(calc(12.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.5;
+}
+
+.rd_key .rd_key_line + * {
+  margin-top: 8px;
+}
+
+.rd_summary {
+  overflow-wrap: anywhere;
+}
+.rd_summary > :first-child {
+  margin-top: 0;
+}
+.rd_summary > :last-child {
+  margin-bottom: 0;
+}
+.rd_summary pre,
+.rd_summary pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rd_note {
+  margin: 4px 0 8px;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.45;
+}
+
+.rd_cue_label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.rd_reason {
+  display: inline;
+}
+.rd_reason > :first-child {
+  display: inline;
+  margin-left: 0.3em;
+}
+
+/* A list row that opens a record: its words wrap, never cut. */
+.ei_link.rd_row_link {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* ------------------------------------------------------------ folds */
+
+.rd_fold {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+
+.rd_fold_head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-primary, inherit);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rd_fold_head:focus-visible {
+  outline: 2px solid var(--ea-accent, #e8a54a);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.rd_chev {
+  width: 1em;
+  color: var(--text-dim);
+}
+
+.rd_fold_title {
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.rd_fold_summary {
+  color: var(--text-dim);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.rd_fold_body {
+  padding: 4px 0 6px;
+  min-width: 0;
+}

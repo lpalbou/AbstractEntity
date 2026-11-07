@@ -37,6 +37,8 @@ export interface RecordWords {
   text: string;
   note: string | null;
   turnId: string | null;
+  /** Born as words: these are all the words the record has (its digest). */
+  born: boolean;
 }
 
 /** One read per record at a time: the sources list and the card's words
@@ -60,10 +62,16 @@ export function cachedWordsAnswer(cached: Record<string, string> | null, graphId
   return "turn_id" in cached || isDiaryShaped({ kind, graph_id: graphId });
 }
 
+/** A cached copy as words: a born-as-words record is cached with its note
+ * (an ordinary one with an empty note). */
+export function wordsFromCache(cached: Record<string, string>): RecordWords {
+  return { text: cached.text || "", note: cached.note || null, turnId: cached.turn_id || null, born: Boolean(cached.note) };
+}
+
 async function readRecordWordsOnce(source: VerbatimSource, graphId: string, kind: string | undefined): Promise<RecordWords> {
   const key = textCacheKey(source.baseUrl, source.entity, `verbatim:${graphId}`);
   const cached = await getCachedText(key);
-  if (cached && cachedWordsAnswer(cached, graphId, kind)) return { text: cached.text || "", note: cached.note || null, turnId: cached.turn_id || null };
+  if (cached && cachedWordsAnswer(cached, graphId, kind)) return wordsFromCache(cached);
   const v = await fetchRecordVerbatim(source.baseUrl, source.entity, graphId);
   const note = v.born_digest
     ? kind === "world_model"
@@ -74,7 +82,7 @@ async function readRecordWordsOnce(source: VerbatimSource, graphId: string, kind
   const turnId = typeof v.turn_id === "string" && v.turn_id ? v.turn_id : null;
   // Other readers keep their own fields on the same entry (created_at).
   if (text) void putCachedText(key, { ...(cached ?? {}), text, note: note ?? "", turn_id: turnId ?? "", created_at: String(v.created_at ?? cached?.created_at ?? "") });
-  return { text, note, turnId };
+  return { text, note, turnId, born: Boolean(v.born_digest) };
 }
 
 /** Tool output reads as written (its line breaks and indents matter). */

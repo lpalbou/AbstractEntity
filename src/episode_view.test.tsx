@@ -58,7 +58,7 @@ const facts = (extra: React.ReactNode) => <dl className="ei_facts">{extra}<dt>bo
 
 describe("the episode's Detail", () => {
   it("leads with what kind of moment it was, its lookups, the facts, then the summary, then the exchange", () => {
-    const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: OWN, note: null, turnId: "t-0006" } }} renderFacts={facts} />);
+    const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: OWN, note: null, turnId: "t-0006", born: false } }} renderFacts={facts} />);
     const order = ["A moment of his own time", "<dt>moment</dt><dd>his own time · tick 6</dd>", "<dt>lookups</dt><dd>2 — he searched the web once and read a diary entry · one more did not run</dd>", "<dt>born</dt>", "Summary", "ADB attributes the weaker outlook", "The exchange", "His own time began with", "nerin answered", "How he got there"];
     let at = -1;
     for (const piece of order) {
@@ -73,7 +73,7 @@ describe("the episode's Detail", () => {
 
   it("shows the record's full summary once a recall served it, in place of the title", () => {
     const digest = "person:admin: welcome to our world, how are you? nerin: Thank you—I'm here, attentive, and glad to meet you. How are you?";
-    const html = renderToStaticMarkup(<EpisodeBody node={node({ digest })} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: "t-0001" } }} renderFacts={facts} />);
+    const html = renderToStaticMarkup(<EpisodeBody node={node({ digest })} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: "t-0001", born: false } }} renderFacts={facts} />);
     expect(html).toContain("Thank you—I&#x27;m here, attentive, and glad to meet you. How are you?");
     expect(html).toContain("The summary saved with the record, as it was saved.");
     expect(html).not.toContain("ADB attributes");
@@ -82,7 +82,7 @@ describe("the episode's Detail", () => {
   });
 
   it("names who spoke the way the heading does", () => {
-    const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: null } }} renderFacts={facts} />);
+    const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: null, born: false } }} renderFacts={facts} />);
     expect(html).toContain("A conversation with admin");
     expect(html).toContain(">admin said<");
     expect(html).not.toContain("person:admin said");
@@ -201,10 +201,13 @@ describe("the Detail tab", () => {
   });
 
   it("never treats a diary-shaped record as a moment to read, nor an exported file", () => {
-    expect(detail(node({ graph_id: "ex:diary-86444591ec14d1d97" }))).not.toContain("A lived moment");
-    expect(detail(node({ diary: true }))).not.toContain("A lived moment");
+    for (const html of [detail(node({ graph_id: "ex:diary-86444591ec14d1d97" })), detail(node({ diary: true }))]) {
+      expect(html).not.toContain("The exchange");
+      expect(html).toContain("His words in the book");
+      expect(html).toContain("not read until you open them");
+    }
     const exported = detail(node(), false);
-    expect(exported).not.toContain("A lived moment");
-    expect(exported).toContain("Verbatim reads need a connected gateway");
+    expect(exported).not.toContain("The exchange");
+    expect(exported).toContain("The words as saved");
   });
 });

@@ -8,22 +8,34 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-import type { BeatState, FeelingEvent, FoldState, NodeState, StandingState } from "./stream_fold";
+import type { BeatState, FoldState, NodeState } from "./stream_fold";
 import type { TemporalActivation } from "./temporal_activation";
 import { ADMISSION_LABELS } from "./stream_types";
-import { fetchDiaryEntry } from "./stream_source";
 import { shapeLabel } from "./node_label";
-import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
 import { SectionDisclosure } from "./section_disclosure";
-import { DreamDetail } from "./dream_detail";
 import { WorldModelView } from "./world_model_view";
-import { readRecordWords, VerbatimTurns } from "./verbatim_view";
 import { EpisodeDetail } from "./episode_view";
 import { isDiaryShaped } from "./episode_parse";
+import { ClosedNotice, FeelingEventList, Peaks, RecordDetail, StandingDetail, WordsLine } from "./record_detail";
+import { Words } from "./verbatim_view";
+import { beatTurnWords, recallLine, standingLine } from "./record_detail_parts";
 
 /** Rows listed before "(…) N more" — every one stays one click away. */
 const PARTNERS_SHOWN = 8;
+
+/** A list section's head: what it is, and what is inside (DESIGN §12's
+ * disclosure, foldable on every width and remembered per viewer, so the
+ * key information and facts above stay first). */
+function Head({ title, summary }: { title: string; summary: string }): React.ReactElement {
+  return (
+    <>
+      {title}
+      <span className="rd_fold_summary"> · {summary}</span>
+    </>
+  );
+}
+
 
 export interface InspectorProps {
   fold: FoldState;
@@ -44,118 +56,12 @@ function admissionBadge(admission: string | null): React.ReactElement | null {
   return <span className={`ei_badge ei_adm_${admission}`}>{ADMISSION_LABELS[admission] ?? admission}</span>;
 }
 
-/** The full feeling history (maintainer round 2 item 2): every valence
- * event with sign, magnitude, reason, and time — expandable, collapsed by
- * default to the summary chips. */
-function FeelingEvents({ events }: { events: FeelingEvent[] }): React.ReactElement | null {
-  const [open, setOpen] = useState(false);
-  if (events.length === 0) return null;
-  return (
-    <div className="ei_feelings">
-      <button className="ei_link" onClick={() => setOpen((v) => !v)}>
-        {open ? "hide" : "show"} all {events.length} feeling event{events.length === 1 ? "" : "s"}
-      </button>
-      {open ? (
-        <div className="ei_feeling_list">
-          {[...events].reverse().map((ev, i) => (
-            <div key={`${ev.seq}-${i}`} className="ei_feeling_row">
-              <span className={`ei_feeling_sign ${ev.sign >= 0 ? "ei_feeling_pos" : "ei_feeling_neg"}`}>
-                {ev.kind === "appraisal" ? `${ev.sign >= 0 ? "+" : "−"}${ev.magnitude}` : ev.kind}
-              </span>
-              <span className="ei_feeling_body">
-                {ev.reason || "no reason recorded"}
-                <span className="ei_feeling_when">
-                  seq {ev.seq}
-                  {ev.observed_at ? ` · ${ev.observed_at.slice(5, 16).replace("T", " ")}` : ""}
-                </span>
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** The verbatim INLINE in the Detail tab (operator dm#28: "directly put
- * the verbatim of the node… remove the unnecessary button"). Texts go
- * through the shared text cache (immutable book entries / write-once
- * artifacts): a diary entry marks the biography ON ITS FIRST read only —
- * cache hits never touch the door (the read-flood lesson). Honest states:
- * loading, the text, born-digest notes, or the reason there is none. */
 export { parseVerbatimTurns, splitUnspokenThinking, type VerbatimTurn } from "./verbatim_parse";
 
-function InlineVerbatim({
-  node,
-  source,
-  onSpeakers,
-  plain = false,
-}: {
-  node: NodeState;
-  source: VerbatimSource;
-  /** Words that are not Markdown, shown as written, without the born-digest note. */
-  plain?: boolean;
-  /** Reports the exchange's OTHER participants up to the card's metadata
-   * panel (dm#54 pt5) — fires once per fetch. */
-  onSpeakers?(speakers: string[]): void;
-}): React.ReactElement {
-  const [state, setState] = useState<{ phase: "loading" } | { phase: "ready"; text: string; note: string | null } | { phase: "none"; message: string }>({
-    phase: "loading",
-  });
-  useEffect(() => {
-    let cancelled = false;
-    setState({ phase: "loading" });
-    (async () => {
-      try {
-        if (node.diary && node.entry_id) {
-          const ck = textCacheKey(source.baseUrl, source.entity, `diary:${node.entry_id}`);
-          let cached = await getCachedText(ck);
-          if (!cached) {
-            const entry = await fetchDiaryEntry(source.baseUrl, source.entity, node.entry_id, "operator review (detail)");
-            cached = { text: String(entry.text ?? entry.gist ?? "") };
-            if (cached.text) void putCachedText(ck, cached);
-          }
-          if (!cancelled) {
-            setState({
-              phase: "ready",
-              text: cached.text || "",
-              note: "His diary entry, served through the operator door — the first read landed as a visible moment in his biography; later reads come from the local cache.",
-            });
-          }
-          return;
-        }
-        const words = await readRecordWords(source, node.graph_id ?? node.id, node.kind);
-        if (!cancelled) setState({ phase: "ready", text: words.text, note: words.note });
-      } catch (e) {
-        if (cancelled) return;
-        const err = e as Error & { status?: number };
-        setState({
-          phase: "none",
-          message:
-            err.status === 404
-              ? "No verbatim exists for this memory — the digest above is the honest summary (the record genuinely carries no stored words)."
-              : `Verbatim unavailable: ${err.message}`,
-        });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // Field deps, never the source OBJECT (blink forensics: an inline
-    // parent literal re-fired this per render — loading-flash loop).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node.id, node.graph_id, node.entry_id, node.diary, node.kind, source.baseUrl, source.entity]);
-
-  if (state.phase === "loading") return <p className="ei_note">reading his words…</p>;
-  if (state.phase === "none") return <p className="ei_note">{state.message}</p>;
-  return (
-    <div className="ei_verbatim_inline">
-      {state.note && !plain ? <p className="ei_verbatim_note">{state.note}</p> : null}
-      <VerbatimTurns text={state.text} entity={source.entity} onSpeakers={onSpeakers} plain={plain} />
-    </div>
-  );
-}
-
+/** A record's card, informative first (operator 2026-11-07): what it is
+ * and its facts, then its words and the rest one click away
+ * (record_detail.tsx; a lived moment: episode_view.tsx; a world model:
+ * world_model_view.tsx). */
 function NodeCard({
   fold,
   node,
@@ -171,27 +77,7 @@ function NodeCard({
   verbatimSource: VerbatimSource | null;
   onOpenMeet?(visitId: string): void;
 }): React.ReactElement {
-  const partners = useMemo(() => {
-    const rows: Array<{ id: string; title: string; count: number }> = [];
-    for (const e of fold.edges.values()) {
-      const other = e.a === node.id ? e.b : e.b === node.id ? e.a : null;
-      if (!other) continue;
-      const otherNode = fold.nodes.get(other);
-      rows.push({ id: other, title: otherNode?.title || other.slice(0, 18), count: e.count });
-    }
-    rows.sort((a, b) => b.count - a.count);
-    return rows;
-  }, [fold, node]);
-  const [allPartners, setAllPartners] = useState(false);
-  useEffect(() => setAllPartners(false), [node.id]);
-
-  // Feelings ABOUT this record (valence targets may be record ids).
-  const feeling = useMemo(() => {
-    const byGraph = node.graph_id ? fold.standings.get(node.graph_id) : undefined;
-    return byGraph ?? fold.standings.get(node.id);
-  }, [fold, node]);
-
-  // The interlocutor(s), reported by the verbatim parser (dm#54 pt5:
+  // The interlocutor(s), reported by the words' reader (dm#54 pt5:
   // "person:admin" belongs in a metadata field, not the scrolling text).
   const [speakers, setSpeakers] = useState<string[]>([]);
   useEffect(() => setSpeakers([]), [node.id]);
@@ -257,6 +143,15 @@ function NodeCard({
             <dd>~{node.token_estimate} tokens</dd>
           </>
         ) : null}
+        {node.digest_method ? (
+          <>
+            <dt>written by</dt>
+            <dd title="Digest provenance — who wrote this record's words: mechanical-v1/v2 = the driver's floor (never marker-only), mechanical-flow-v1 = the flow brain's mechanical digest; entity prose carries no method. Mechanical digests are repairable debt (the consent set governs re-digestion).">
+              {node.digest_method}
+              {node.digest_method.startsWith("mechanical") ? " (mechanical, repairable)" : ""}
+            </dd>
+          </>
+        ) : null}
       </dl>
   );
   const recordFacts = renderFacts();
@@ -265,6 +160,7 @@ function NodeCard({
   // how he got there (operator 2026-11-07). Never for a diary-shaped record:
   // reading one is recorded in his biography.
   const episode = node.kind === "episode" && !node.bookkeeping && !isDiaryShaped(node) && verbatimSource ? verbatimSource : null;
+  const worldModel = node.kind === "world_model";
 
   return (
     <div className="ei_card">
@@ -276,125 +172,55 @@ function NodeCard({
         </span>
         {admissionBadge(node.last_admission)}
       </div>
-      {episode ? <EpisodeDetail node={node} source={episode} renderFacts={renderFacts} onSpeakers={setSpeakers} /> : null}
-      {/* The kind badge sits directly above — a "lesson:" prefix here said
-        * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
-      {episode ? null : <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>}
-      {node.digest_method ? (
-        <p
-          className="ei_digest_method"
-          title="Digest provenance — who wrote this record's words: mechanical-v1/v2 = the driver's floor (never marker-only), mechanical-flow-v1 = the flow brain's mechanical digest; entity prose carries no method. Mechanical digests are repairable debt (the consent set governs re-digestion)."
-        >
-          digest: <code>{node.digest_method}</code>{node.digest_method.startsWith("mechanical") ? " — mechanical, repairable" : ""}
-        </p>
-      ) : null}
-      {/* METADATA PANEL FIRST (dm#54 pt6: "clear metadata panel, clear
-        * verbatim, links") — every fact in one labeled grid, the date
-        * beside the seq (pt5: "it should have a clear date"), the
-        * interlocutor as a field once the verbatim reports it. */}
-      {node.kind === "world_model" || episode ? null : recordFacts}
-      {/* THE WORDS (operator dm#28): no button between the click and the
-        * verbatim — the Detail tab IS the reading surface. Only relation
-        * rows and engine bookkeeping carry no words to show. */}
-      {node.kind === "world_model" && verbatimSource ? <WorldModelView fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
-      {node.kind === "world_model" ? (
-        <SectionDisclosure id="wm_record" title="Record details">
-          {recordFacts}
-        </SectionDisclosure>
-      ) : null}
-      {node.kind === "dream" && verbatimSource ? <DreamDetail fold={fold} dream={node} source={verbatimSource} onSelect={onSelect} /> : null}
-      {node.kind !== "relation" && !node.bookkeeping && !episode ? (
-        verbatimSource ? (
-          node.kind === "dream" ? (
-            <SectionDisclosure id="dream_summary" title="The sleep pass's summary">
-              <p className="ei_note">A mechanical summary that quotes titles cut short — what the night touched is listed above in full.</p>
-              <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} plain />
-            </SectionDisclosure>
-          ) : node.kind === "world_model" ? null : (
-            <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
-          )
-        ) : (
-          <p className="ei_note">Verbatim reads need a connected gateway (this is an exported file).</p>
-        )
-      ) : null}
-      {node.signals && node.signals.length > 0 && !(node.kind === "dream" && verbatimSource) ? (
-        <SectionDisclosure id="night" className="ei_night" title="The night moved" sectionTitle="The night's telemetry (wave-5 dream signals): what the sleep pass MOVED — structure decided what enters; the felt tint only COLORS it (a read of his accumulated feelings, never a deposit). Machine acts carry no tint by design.">
-          <ul className="ei_signals">
-            {node.signals.map((s, i) => {
-              const tone = String(s.felt?.tone || "");
-              const toneClass = tone === "warm" ? "ei_sig_warm" : tone === "sore" ? "ei_sig_sore" : tone === "mixed" ? "ei_sig_mixed" : "";
-              const kindWord = String(s.kind || "signal").replace(/_/g, " ");
-              return (
-                <li key={i} className={`ei_signal ${toneClass}`}>
-                  <span className="ei_sig_kind" title={`${s.kind || "signal"}${s.phase ? ` · phase: ${s.phase}` : ""}${s.act ? ` · act: ${s.act}` : ""}`}>
-                    {kindWord}
-                  </span>
-                  {s.fragment ? <span className="ei_sig_frag">{s.fragment}</span> : null}
-                  {tone ? (
-                    <span
-                      className="ei_sig_felt"
-                      title={`Felt ${tone}${typeof s.felt?.weight === "number" ? ` (weight ${s.felt.weight})` : ""}${s.felt?.scarred ? " · a scar stands" : ""}${s.felt?.bonded ? " · a bond stands" : ""} — accumulated feeling READ by the night, coloring this line only.`}
-                    >
-                      {tone}
-                      {s.felt?.scarred ? " ⚑" : ""}
-                      {s.felt?.bonded ? " ♥" : ""}
-                    </span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </SectionDisclosure>
-      ) : null}
-      {node.closed ? (
-        <div className="ei_closed">
-          <strong>{node.closed.kind === "supersede" ? "Superseded" : "Retracted"}</strong> — {node.closed.reason}
-          {node.closed.replacement_ids.length > 0 ? (
-            <div className="ei_replacements">
-              replaced by{" "}
-              {node.closed.replacement_ids.map((rid) => {
-                const row = fold.graph_to_row.get(rid) ?? rid;
-                const target = fold.nodes.get(row);
-                return (
-                  <button key={rid} className="ei_link" onClick={() => onSelect(row)}>
-                    {target?.title || rid.slice(0, 22)}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {episode ? (
+        <EpisodeDetail node={node} source={episode} renderFacts={renderFacts} onSpeakers={setSpeakers} />
+      ) : worldModel ? (
+        <>
+          <h3 className="ei_title">{shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
+          {verbatimSource ? <WorldModelView fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
+          <SectionDisclosure id="wm_record" title="Record details">
+            {recordFacts}
+          </SectionDisclosure>
+        </>
+      ) : (
+        <RecordDetail fold={fold} node={node} source={verbatimSource} renderFacts={renderFacts} onSelect={onSelect} onSpeakers={setSpeakers} />
+      )}
+      {episode || worldModel ? <ClosedNotice fold={fold} node={node} onSelect={onSelect} /> : null}
+      <RecordTail fold={fold} node={node} onSelect={onSelect} signals={!(node.kind === "dream" && verbatimSource)} />
+    </div>
+  );
+}
+
+/** The rest of a record: feelings about it, what it was used with, the
+ * night's signals — each folded. */
+function RecordTail({ fold, node, onSelect, signals = true }: { fold: FoldState; node: NodeState; onSelect(id: string): void; signals?: boolean }): React.ReactElement {
+  const partners = useMemo(() => {
+    const rows: Array<{ id: string; title: string; count: number }> = [];
+    for (const e of fold.edges.values()) {
+      const other = e.a === node.id ? e.b : e.b === node.id ? e.a : null;
+      if (!other) continue;
+      const otherNode = fold.nodes.get(other);
+      rows.push({ id: other, title: otherNode?.title || other, count: e.count });
+    }
+    rows.sort((a, b) => b.count - a.count);
+    return rows;
+  }, [fold, node]);
+  const [allPartners, setAllPartners] = useState(false);
+  useEffect(() => setAllPartners(false), [node.id]);
+  const feeling = useMemo(() => (node.graph_id ? fold.standings.get(node.graph_id) : undefined) ?? fold.standings.get(node.id), [fold, node]);
+  return (
+    <>
       {feeling ? (
-        <SectionDisclosure id="feeling" title="How it feels about this">
-          <div className="ei_channels">
-            <div className="ei_channel ei_channel_pos">
-              <span className="ei_channel_value">+{feeling.positive}</span>
-              <span className="ei_channel_label">{feeling.positive_count} positive</span>
-            </div>
-            <div className="ei_channel ei_channel_neg">
-              <span className="ei_channel_value">−{feeling.negative}</span>
-              <span className="ei_channel_label">{feeling.negative_count} negative</span>
-            </div>
-          </div>
-          {feeling.bonds.map((b) => (
-            <div key={b.event_id} className="ei_peak ei_peak_bond">
-              <strong>Bond</strong> (magnitude {b.magnitude}) — {b.reason || "no reason recorded"}
-            </div>
-          ))}
-          {feeling.scars.map((s) => (
-            <div key={s.event_id} className="ei_peak ei_peak_scar">
-              <strong>Scar</strong> (magnitude {s.magnitude}) — {s.reason || "no reason recorded"}
-            </div>
-          ))}
-          <FeelingEvents events={feeling.events} />
+        <SectionDisclosure id="feeling" narrow title={<Head title="How he feels about this" summary={standingLine(feeling)} />}>
+          <Peaks standing={feeling} />
+          <FeelingEventList events={feeling.events} />
         </SectionDisclosure>
       ) : null}
       {partners.length > 0 ? (
-        <SectionDisclosure id="partners" title="Used together with">
+        <SectionDisclosure id="partners" narrow title={<Head title="Used together with" summary={`${partners.length} ${partners.length === 1 ? "memory" : "memories"}`} />}>
           {(allPartners ? partners : partners.slice(0, PARTNERS_SHOWN)).map((p) => (
             <button key={p.id} className="ei_link ei_partner" onClick={() => onSelect(p.id)}>
-              <span>{p.title}</span>
+              <WordsLine text={shapeLabel(p.title) || p.title} />
               <span className="ei_count">×{p.count}</span>
             </button>
           ))}
@@ -405,115 +231,95 @@ function NodeCard({
           ) : null}
         </SectionDisclosure>
       ) : null}
-    </div>
+      {signals && node.signals && node.signals.length > 0 ? (
+        <SectionDisclosure id="night" narrow className="ei_night" title={<Head title="The night's signals" summary={`${node.signals.length} ${node.signals.length === 1 ? "signal" : "signals"}`} />}>
+          <ul className="ei_signals">
+            {node.signals.map((s, i) => {
+              const tone = String(s.felt?.tone || "");
+              const toneClass = tone === "warm" ? "ei_sig_warm" : tone === "sore" ? "ei_sig_sore" : tone === "mixed" ? "ei_sig_mixed" : "";
+              return (
+                <li key={i} className={`ei_signal ${toneClass}`}>
+                  <span className="ei_sig_kind">{String(s.kind || "signal").replace(/_/g, " ")}</span>
+                  {s.fragment ? <WordsLine text={s.fragment} className="ei_sig_frag" /> : null}
+                  {tone ? <span className="ei_sig_felt">felt {tone}{s.felt?.scarred ? " · a scar stands" : ""}{s.felt?.bonded ? " · a bond stands" : ""}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </SectionDisclosure>
+      ) : null}
+    </>
   );
 }
 
-function StandingCard({ standing }: { standing: StandingState }): React.ReactElement {
-  const net = standing.positive - standing.negative;
-  return (
-    <div className="ei_card">
-      <div className="ei_kind_row">
-        <span className="ei_kind ei_kind_standing">standing</span>
-      </div>
-      <h3 className="ei_title">{standing.target_id}</h3>
-      <div className="ei_channels">
-        <div className="ei_channel ei_channel_pos">
-          <span className="ei_channel_value">+{standing.positive}</span>
-          <span className="ei_channel_label">{standing.positive_count} positive</span>
-        </div>
-        <div className="ei_channel ei_channel_neg">
-          <span className="ei_channel_value">−{standing.negative}</span>
-          <span className="ei_channel_label">{standing.negative_count} negative</span>
-        </div>
-        <div className="ei_channel">
-          <span className="ei_channel_value">{net >= 0 ? `+${net}` : `${net}`}</span>
-          <span className="ei_channel_label">net</span>
-        </div>
-      </div>
-      <p className="ei_note">Both channels stay visible: a hundred small joys and one deep wound are both true.</p>
-      {standing.bonds.map((b) => (
-        <div key={b.event_id} className="ei_peak ei_peak_bond">
-          <strong>Bond</strong> (magnitude {b.magnitude}) — {b.reason || "no reason recorded"}
-        </div>
-      ))}
-      {standing.scars.map((s) => (
-        <div key={s.event_id} className="ei_peak ei_peak_scar">
-          <strong>Scar</strong> (magnitude {s.magnitude}) — {s.reason || "no reason recorded"}
-        </div>
-      ))}
-      {standing.healed_count > 0 ? (
-        <div className="ei_peak ei_peak_healed">
-          {standing.healed_count} scar{standing.healed_count === 1 ? "" : "s"} healed — the wound became a lesson.
-        </div>
-      ) : null}
-      {standing.broken_count > 0 ? (
-        <div className="ei_peak ei_peak_scar">{standing.broken_count} bond{standing.broken_count === 1 ? "" : "s"} broken.</div>
-      ) : null}
-      <FeelingEvents events={standing.events} />
-    </div>
-  );
-}
+// ----------------------------------------------------------- a recall
 
-function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; onSelect(id: string): void }): React.ReactElement {
+const ADMISSION_ORDER = ["self", "stm", "both", "stimulus"];
+
+function RecallDetail({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; onSelect(id: string): void }): React.ReactElement {
   const groups = useMemo(() => {
     const byLabel: Record<string, string[]> = {};
-    for (const [rid, label] of Object.entries(beat.admissions)) {
-      (byLabel[label] ??= []).push(rid);
-    }
+    for (const [rid, label] of Object.entries(beat.admissions)) (byLabel[label] ??= []).push(rid);
     return byLabel;
   }, [beat]);
-
-  const [allDropped, setAllDropped] = useState(false);
-  useEffect(() => setAllDropped(false), [beat]);
-  const order = ["self", "stm", "both", "stimulus"];
+  const turn = beatTurnWords(beat.turn_id);
+  const rowTitle = (rid: string) => {
+    const node = fold.nodes.get(rid);
+    return node?.redacted ? "a diary entry (private)" : node?.title || rid;
+  };
   return (
     <div className="ei_card">
       <div className="ei_kind_row">
         <span className="ei_kind ei_kind_beat">recall</span>
-        {beat.turn_id ? <span className="ei_badge">{beat.turn_id}</span> : null}
       </div>
-      <h3 className="ei_title">{beat.cue_text ? `“${beat.cue_text}”` : "The self read (no cue)"}</h3>
+      <h3 className="ei_title">What came to mind</h3>
+      <p className="rd_kind">A recall — the memories his mind reached for at one moment</p>
+      <div className="rd_key">
+        <p className="rd_key_line">{recallLine(beat)}</p>
+        {beat.cue_text ? (
+          <div className="rd_cue">
+            <span className="rd_cue_label">What it was for</span>
+            <Words text={beat.cue_text} className="ev_markdown rd_summary" />
+          </div>
+        ) : (
+          <p className="rd_note">The self read: no words prompted it.</p>
+        )}
+      </div>
       <dl className="ei_facts">
         <dt>considered</dt>
         <dd>{beat.candidate_count}</dd>
-        <dt>on the shelf</dt>
+        <dt>came to mind</dt>
         <dd>{beat.selected.length}</dd>
         <dt>entered context</dt>
-        <dd>{beat.committed ? `${beat.used_record_ids.length}${beat.prompt_token_estimate ? ` (~${beat.prompt_token_estimate} tokens)` : ""}` : "not committed"}</dd>
+        <dd>{beat.committed ? `${beat.used_record_ids.length}${beat.prompt_token_estimate ? ` (~${beat.prompt_token_estimate} tokens)` : ""}` : "not recorded"}</dd>
+        {turn ? (
+          <>
+            <dt>when</dt>
+            <dd>{turn}</dd>
+          </>
+        ) : null}
       </dl>
-      {order.map((label) => {
+      {ADMISSION_ORDER.map((label) => {
         const ids = groups[label];
         if (!ids || ids.length === 0) return null;
         return (
-          <SectionDisclosure key={label} id={`admission:${label}`} headClassName={`ei_adm_head ei_adm_${label}`} title={ADMISSION_LABELS[label] ?? label}>
-            {ids.map((rid) => {
-              const node = fold.nodes.get(rid);
-              return (
-                <button key={rid} className="ei_link" onClick={() => onSelect(rid)}>
-                  {node?.redacted ? "a diary entry (private)" : node?.title || rid.slice(0, 22)}
-                </button>
-              );
-            })}
+          <SectionDisclosure key={label} id={`admission:${label}`} narrow headClassName={`ei_adm_head ei_adm_${label}`} title={<Head title={ADMISSION_LABELS[label] ?? label} summary={`${ids.length} ${ids.length === 1 ? "memory" : "memories"}`} />}>
+            {ids.map((rid) => (
+              <button key={rid} className="ei_link rd_row_link" onClick={() => onSelect(rid)}>
+                <WordsLine text={shapeLabel(rowTitle(rid)) || rowTitle(rid)} />
+              </button>
+            ))}
           </SectionDisclosure>
         );
       })}
       {beat.dropped.length > 0 ? (
-        <SectionDisclosure id="dropped" title="Considered but dropped">
-          {(allDropped ? beat.dropped : beat.dropped.slice(0, PARTNERS_SHOWN)).map((d, i) => {
-            const node = fold.nodes.get(d.record_id);
-            return (
-              <div key={`${d.record_id}-${i}`} className="ei_dropped">
-                <span>{node?.redacted ? "a diary entry" : node?.title || d.record_id.slice(0, 18)}</span>
-                <span className="ei_reason">{d.reason ?? ""}</span>
-              </div>
-            );
-          })}
-          {beat.dropped.length > PARTNERS_SHOWN ? (
-            <button className="wm_more" onClick={() => setAllDropped((v) => !v)}>
-              {allDropped ? `show the first ${PARTNERS_SHOWN}` : `(…) ${beat.dropped.length - PARTNERS_SHOWN} more`}
-            </button>
-          ) : null}
+        <SectionDisclosure id="dropped" narrow title={<Head title="Considered but left out" summary={`${beat.dropped.length} ${beat.dropped.length === 1 ? "memory" : "memories"}`} />}>
+          {beat.dropped.map((d, i) => (
+            <div key={`${d.record_id}-${i}`} className="ei_dropped">
+              <WordsLine text={shapeLabel(rowTitle(d.record_id)) || rowTitle(d.record_id)} />
+              <span className="ei_reason">{d.reason ? String(d.reason).replace(/_/g, " ") : ""}</span>
+            </div>
+          ))}
         </SectionDisclosure>
       ) : null}
     </div>
@@ -521,24 +327,23 @@ function BeatCard({ fold, beat, onSelect }: { fold: FoldState; beat: BeatState; 
 }
 
 export function Inspector({ fold, temporal, scrubSeq, selectedId, onSelect, verbatimSource, onOpenMeet }: InspectorProps): React.ReactElement {
-  // Maintainer ruling (2026-07-08 00:59): the operator reads without
-  // ceremony — and dm#28 removed even the button: the verbatim renders
-  // INLINE in the card (InlineVerbatim). Diary reads still land as
-  // visible diary_read moments in the stream on their FIRST read (the
-  // text cache serves later reads without touching the door).
+  // An ordinary record's words are read with the card (a pure read); a
+  // diary entry's only on the operator's click, which lands as a visible
+  // diary_read moment in his biography on its FIRST read (the text cache
+  // serves later reads without touching the door).
   const content = useMemo(() => {
     if (selectedId?.startsWith("beat:")) {
       // A ledger recall line: what came to mind at that moment.
       const beat = fold.beats.get(selectedId.slice("beat:".length));
-      if (beat) return <BeatCard fold={fold} beat={beat} onSelect={onSelect} />;
+      if (beat) return <RecallDetail fold={fold} beat={beat} onSelect={onSelect} />;
     } else if (selectedId?.startsWith("standing:")) {
       const standing = fold.standings.get(selectedId.slice("standing:".length));
-      if (standing) return <StandingCard standing={standing} />;
+      if (standing) return <StandingDetail fold={fold} standing={standing} onSelect={onSelect} />;
     } else if (selectedId) {
       const node = fold.nodes.get(selectedId) ?? fold.nodes.get(fold.graph_to_row.get(selectedId) ?? "");
       if (node) return <NodeCard fold={fold} node={node} temporal={temporal} onSelect={onSelect} verbatimSource={verbatimSource} onOpenMeet={onOpenMeet} />;
       const standing = fold.standings.get(selectedId);
-      if (standing) return <StandingCard standing={standing} />;
+      if (standing) return <StandingDetail fold={fold} standing={standing} onSelect={onSelect} />;
     }
     // No selection: show the beat active at the scrub position.
     let active: BeatState | null = null;
@@ -546,7 +351,7 @@ export function Inspector({ fold, temporal, scrubSeq, selectedId, onSelect, verb
       const beat = fold.beats.get(tid);
       if (beat && beat.first_seq <= scrubSeq) active = beat;
     }
-    if (active) return <BeatCard fold={fold} beat={active} onSelect={onSelect} />;
+    if (active) return <RecallDetail fold={fold} beat={active} onSelect={onSelect} />;
     return <div className="ei_empty">Click a memory in the graph, or scrub to a recall.</div>;
   }, [fold, temporal, scrubSeq, selectedId, onSelect, verbatimSource, onOpenMeet]);
 
