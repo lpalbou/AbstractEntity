@@ -173,6 +173,8 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
   };
 
   const current = samples && idx >= 0 && samples[idx] ? samples[idx] : null;
+
+  const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
   const scoring = phase.name === "scoring";
 
   return (
@@ -230,7 +232,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
               * no edge tint (operator 2026-11-07). Before his first utterance every petal sits on
               * the inner ring and every number reads "—". */}
             <div style={{ position: "relative", width: 300, height: 300 }}>
-              <AfCognitionBloom scores={bloomScoresOf(current?.emotions)} options={{ labels: false, vignette: false }} size={300} />
+              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={300} />
               <BloomAxisOverlay width={300} height={300} onAxis={(a) => setModalAxis(a)} emotions={current?.emotions ?? {}} />
             </div>
           </div>

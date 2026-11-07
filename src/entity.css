@@ -537,26 +537,6 @@ body {
   opacity: 1;
   text-shadow: 0 0 8px currentColor;
 }
-.cm_axes {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
-  flex: 0 0 auto;
-}
-.cm_axis_row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  background: none;
-  border: none;
-  cursor: help;
-  padding: 1px 4px;
-  text-align: left;
-}
-.cm_axis_row:hover .cm_axis_name {
-  color: var(--text);
-}
 .cm_axis_code {
   font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));

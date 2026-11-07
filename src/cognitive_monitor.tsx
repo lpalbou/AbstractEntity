@@ -86,8 +86,8 @@ export const CONDUCT_AXES: AxisInfo[] = [
  * continuous values — we just represent the value, however small it is"; then chose this zoom over
  * the full −1..+1, which left ordinary replies 2–3 px apart): the kit's inner ring is RADAR_MIN, the
  * outer edge RADAR_MAX, linear in between; it spans every similarity measured on real replies. */
-export const RADAR_MIN = -0.25;
-export const RADAR_MAX = 0.75;
+const RADAR_MIN = -0.25;
+const RADAR_MAX = 0.75;
 
 /** Where a register's similarity sits on the radar (0 = inner ring, 1 = outer edge). Nothing is
  * centred or rescaled per reply; a value beyond the scale sits on that edge (its number is still
@@ -475,27 +475,6 @@ export function channelNow(channel: string, value: number | undefined): string {
   return `This reply: ${(value as number).toFixed(2)}, ${where}.`;
 }
 
-/** The compact axis list beside the diagram: code + name, hover for the
- * description, click for the modal. */
-export function AxisList({ emotions, onAxis }: { emotions: Record<string, number> | undefined; onAxis(axis: AxisInfo): void }): React.ReactElement {
-  return (
-    <div className="cm_axes" role="list" aria-label="Monitor axes">
-      {EMOTION_AXES.map((a) => {
-        const sim = emotions?.[a.id];
-        const v = radarValue(sim);
-        const said = typeof sim === "number" && Number.isFinite(sim) ? `, similarity ${simText(sim)}` : "";
-        return (
-          <button key={a.id} className="cm_axis_row" role="listitem" title={`${a.name}${said} — ${a.description}`} onClick={() => onAxis(a)}>
-            <span className="cm_axis_code" style={{ color: a.color, opacity: 0.55 + 0.45 * v }}>
-              {a.code}
-            </span>
-            <span className="cm_axis_name">{a.name}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 /** Petal-anchor overlay: the 3-letter codes AT their petal positions over
  * the canvas (DOM, not canvas — native tooltips + click-to-explain). The
