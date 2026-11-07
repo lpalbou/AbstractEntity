@@ -6,9 +6,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { AfMemoryHintChip } from "@abstractframework/ui-kit";
+import { AF_MEDIA, AfMemoryHintChip, useAfMedia } from "@abstractframework/ui-kit";
 
-import { foldLedgerLines, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
+import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
 import type { ReplayEnvelope } from "./stream_types";
 
 export interface LedgerPanelProps {
@@ -85,6 +85,18 @@ function groupPairRuns(visible: IndexedLine[]): RenderItem[] {
   return out;
 }
 
+/** The stamp a row is dated by (a weave: its first line). */
+function rowStamp(item: RenderItem): string {
+  return item.kind === "line" ? item.item.line.observed_at : item.items[0].line.observed_at;
+}
+
+/** Every distinct member of a weave, in full (the row's hover). */
+function weaveMembers(items: IndexedLine[]): string {
+  const all: string[] = [];
+  for (const it of items) for (const m of it.line.members ?? [it.line.detail]) if (m && !all.includes(m)) all.push(m);
+  return all.join("\n");
+}
+
 function weaveSummary(group: WeaveGroup, items: IndexedLine[]): { title: string; detail: string } {
   if (group === "repeat") {
     // Count distinct details ("operator — book" x12, "… cognition
@@ -120,6 +132,77 @@ function weaveSummary(group: WeaveGroup, items: IndexedLine[]): { title: string;
     title: `🔦 Used — ${members.length} memor${members.length === 1 ? "y" : "ies"} served this moment`,
     detail: list,
   };
+}
+
+/** A row's time: the clock on screen; the date, tick and event number on
+ * hover and for screen readers (touch has no hover — the row's own text
+ * and the date separators carry what a reader needs). */
+function TimeCell({ iso, hint }: { iso: string; hint: string }): React.ReactElement {
+  return (
+    <div className="el_row_meta" title={hint}>
+      <time className="el_time" dateTime={iso} aria-hidden="true">
+        {clockUtc(iso)}
+      </time>
+      <span className="sr_only">{hint}</span>
+    </div>
+  );
+}
+
+/** What each colour means, in plain words (operator 2026-11-07: "the
+ * colour code is not explained"). The tones are ledger_lines' `tone`. */
+const LEDGER_KEY: Array<{ tone: string; label: string }> = [
+  { tone: "formation", label: "memory formed or changed" },
+  { tone: "usage", label: "memories drawn on" },
+  { tone: "context", label: "came to mind, held in mind" },
+  { tone: "feeling", label: "feeling" },
+  { tone: "revision", label: "memory revised" },
+  { tone: "session", label: "visits, phases, actions" },
+];
+
+const KEY_OPEN_STORAGE = "entity.ledger.keyOpen";
+
+function LedgerKey(props: { showQuiet: boolean }): React.ReactElement {
+  const narrow = useAfMedia(AF_MEDIA.md);
+  const items = props.showQuiet ? [...LEDGER_KEY, { tone: "quiet", label: "audit detail" }] : LEDGER_KEY;
+  // Your last choice wins; until you make one it is open on a wide screen
+  // and folded on a phone.
+  const [stored, setStored] = useState<boolean | null>(() => {
+    try {
+      const v = localStorage.getItem(KEY_OPEN_STORAGE);
+      return v === null ? null : v === "1";
+    } catch {
+      return null;
+    }
+  });
+  const open = stored ?? !narrow;
+  return (
+    <details
+      className="el_key"
+      open={open}
+      onToggle={(e) => {
+        const next = (e.currentTarget as HTMLDetailsElement).open;
+        if (next === open) return;
+        setStored(next);
+        try {
+          localStorage.setItem(KEY_OPEN_STORAGE, next ? "1" : "0");
+        } catch {
+          // a remembered fold is a convenience only
+        }
+      }}
+    >
+      <summary>Colour key · times are UTC</summary>
+      <div className="el_key_items" aria-label="What the colours mean">
+        {items.map((k) => (
+          <span key={k.tone} className={`el_key_item el_tone_${k.tone}`}>
+            <span className="el_key_dot" aria-hidden="true" />
+            {k.label}
+          </span>
+        ))}
+        <span className="el_key_item el_key_mark">— day · tick —</span>
+        <span className="el_key_item el_key_note">hover a time: its date, tick and event number</span>
+      </div>
+    </details>
+  );
 }
 
 /** Distance from the bottom that still counts as "at the bottom". */
@@ -272,6 +355,109 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
     }
   }, [visible.length, renderItems.length, showQuiet, props.live]);
 
+  const renderRow = (renderItem: RenderItem, rowIdx: number): React.ReactElement => {
+      if (renderItem.kind === "weave") {
+        const { key, group, items } = renderItem;
+        const expanded = expandedWeaves.has(key);
+        const first = items[0];
+        const last = items[items.length - 1];
+        const reached = first.index <= scrubIndex;
+        const summary = weaveSummary(group, items);
+        const weaveTone = group === "repeat" ? first.line.tone : "usage";
+        return (
+          <React.Fragment key={key}>
+            <div
+              className={`el_row el_tone_${weaveTone} el_weave ${reached ? "" : "el_row_future"}`}
+              onClick={() => {
+                setExpandedWeaves((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+              }}
+              title={expanded ? "Collapse the pairings" : "Expand to see each pairing"}
+            >
+              <TimeCell iso={first.line.observed_at} hint={rowHint(first.line.seq, last.line.seq, first.line.turn_id, first.line.observed_at, first.own)} />
+              <div className="el_row_body">
+                <div className="el_title">
+                  {summary.title} {expanded ? "▾" : "▸"}
+                </div>
+                <div className="el_detail" title={weaveMembers(items)}>
+                  {summary.detail}
+                </div>
+              </div>
+            </div>
+            {expanded
+              ? items.map(({ line, index, own }, i) => (
+                  <div
+                    key={`${key}-${i}`}
+                    className={`el_row el_tone_usage el_weave_member ${index <= scrubIndex ? "" : "el_row_future"}`}
+                    onClick={() => {
+                      props.onJump(index);
+                      if (line.subject_id) props.onSelectSubject(line.subject_id);
+                    }}
+                  >
+                    <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, own)} />
+                    <div className="el_row_body">
+                      <div className="el_detail">{line.detail}</div>
+                    </div>
+                  </div>
+                ))
+              : null}
+          </React.Fragment>
+        );
+      }
+      const { line, index } = renderItem.item;
+      const reached = index <= scrubIndex;
+      const isCurrent = index === scrubIndex && line.family !== "boundary";
+      if (line.family === "boundary") {
+        // Day/tick rhythm rows: centered, no meta column — the shape
+        // of his own time, readable at a glance.
+        return (
+          <div
+            key={`b-${line.seq}-${rowIdx}`}
+            className={`el_row el_boundary ${reached ? "" : "el_row_future"}`}
+            onClick={() => props.onJump(index)}
+          >
+            <div className="el_boundary_title">{line.title}</div>
+            {line.detail ? <div className="el_boundary_detail">{line.detail}</div> : null}
+          </div>
+        );
+      }
+      return (
+        <div
+          key={`${line.seq}-${rowIdx}`}
+          className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""}`}
+          onClick={() => {
+            props.onJump(index);
+            if (line.subject_id) props.onSelectSubject(line.subject_id);
+          }}
+        >
+          <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, renderItem.item.own)} />
+          <div className="el_row_body">
+            <div className="el_title">{line.title}</div>
+            {line.detail ? <div className="el_detail">{line.detail}</div> : null}
+            {line.hint && line.subject_id ? (
+              // G1's render half on the biography itself (plan c2596:
+              // "the hint of writing must carry the direct link").
+              // uic's chip — rule zero structural (click-to-open, no
+              // resolve-on-display); the transport is the Detail tab,
+              // whose inline verbatim already reads through the diary
+              // door with cache + marker honesty (dm#28 surface).
+              <AfMemoryHintChip
+                label="reopen his words"
+                entryId={line.hint.entry_id}
+                kind={line.hint.kind}
+                title={`Open this entry in the Detail tab (book key ${line.hint.entry_id})`}
+                onOpen={() => props.onSelectSubject(line.subject_id)}
+              />
+            ) : null}
+          </div>
+        </div>
+      );
+  };
+
   return (
     <div className="entity_ledger">
       {props.loadingNote ? (
@@ -279,121 +465,22 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           ⏳ {props.loadingNote} — partial view while his life streams in
         </div>
       ) : null}
+      <LedgerKey showQuiet={showQuiet} />
       <div className="el_list" ref={listRef}>
         {windowed.hiddenBefore > 0 ? (
           <div className="el_window_note">{windowed.hiddenBefore} earlier lines — scrub the timeline to bring them into view</div>
         ) : null}
         {windowed.rows.map((renderItem, rowIdx) => {
-          if (renderItem.kind === "weave") {
-            const { key, group, items } = renderItem;
-            const expanded = expandedWeaves.has(key);
-            const first = items[0];
-            const last = items[items.length - 1];
-            const reached = first.index <= scrubIndex;
-            const summary = weaveSummary(group, items);
-            const weaveTone = group === "repeat" ? first.line.tone : "usage";
-            return (
-              <React.Fragment key={key}>
-                <div
-                  className={`el_row el_tone_${weaveTone} el_weave ${reached ? "" : "el_row_future"}`}
-                  onClick={() => {
-                    setExpandedWeaves((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(key)) next.delete(key);
-                      else next.add(key);
-                      return next;
-                    });
-                  }}
-                  title={expanded ? "Collapse the pairings" : "Expand to see each pairing"}
-                >
-                  <div className="el_row_meta">
-                    <span className="el_seq">
-                      {first.line.seq}–{last.line.seq}
-                    </span>
-                  </div>
-                  <div className="el_row_body">
-                    <div className="el_title">
-                      {summary.title} {expanded ? "▾" : "▸"}
-                    </div>
-                    <div className="el_detail">{summary.detail}</div>
-                  </div>
-                </div>
-                {expanded
-                  ? items.map(({ line, index }, i) => (
-                      <div
-                        key={`${key}-${i}`}
-                        className={`el_row el_tone_usage el_weave_member ${index <= scrubIndex ? "" : "el_row_future"}`}
-                        onClick={() => {
-                          props.onJump(index);
-                          if (line.subject_id) props.onSelectSubject(line.subject_id);
-                        }}
-                      >
-                        <div className="el_row_meta">
-                          <span className="el_seq">{line.seq}</span>
-                        </div>
-                        <div className="el_row_body">
-                          <div className="el_detail">{line.detail}</div>
-                        </div>
-                      </div>
-                    ))
-                  : null}
-              </React.Fragment>
-            );
-          }
-          const { line, index } = renderItem.item;
-          const reached = index <= scrubIndex;
-          const isCurrent = index === scrubIndex && line.family !== "boundary";
-          if (line.family === "boundary") {
-            // Day/tick rhythm rows: centered, no meta column — the shape
-            // of his own time, readable at a glance.
-            return (
-              <div
-                key={`b-${line.seq}-${rowIdx}`}
-                className={`el_row el_boundary ${reached ? "" : "el_row_future"}`}
-                onClick={() => props.onJump(index)}
-              >
-                <div className="el_boundary_title">{line.title}</div>
-                {line.detail ? <div className="el_boundary_detail">{line.detail}</div> : null}
-              </div>
-            );
-          }
-          return (
-            <div
-              key={`${line.seq}-${rowIdx}`}
-              className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""}`}
-              onClick={() => {
-                props.onJump(index);
-                if (line.subject_id) props.onSelectSubject(line.subject_id);
-              }}
-            >
-              <div className="el_row_meta">
-                <span className="el_seq">{line.seq}</span>
-                {line.turn_id ? (
-                  <span className="el_turn" title={line.turn_id}>
-                    {line.turn_id}
-                  </span>
-                ) : null}
-              </div>
-              <div className="el_row_body">
-                <div className="el_title">{line.title}</div>
-                {line.detail ? <div className="el_detail">{line.detail}</div> : null}
-                {line.hint && line.subject_id ? (
-                  // G1's render half on the biography itself (plan c2596:
-                  // "the hint of writing must carry the direct link").
-                  // uic's chip — rule zero structural (click-to-open, no
-                  // resolve-on-display); the transport is the Detail tab,
-                  // whose inline verbatim already reads through the diary
-                  // door with cache + marker honesty (dm#28 surface).
-                  <AfMemoryHintChip
-                    label="reopen his words"
-                    entryId={line.hint.entry_id}
-                    kind={line.hint.kind}
-                    title={`Open this entry in the Detail tab (book key ${line.hint.entry_id})`}
-                    onOpen={() => props.onSelectSubject(line.subject_id)}
-                  />
-                ) : null}
-              </div>
-            </div>
+          const day = dayUtc(rowStamp(renderItem));
+          const prevDay = rowIdx > 0 ? dayUtc(rowStamp(windowed.rows[rowIdx - 1])) : "";
+          const row = renderRow(renderItem, rowIdx);
+          return day && day !== prevDay ? (
+            <React.Fragment key={`d-${day}-${rowIdx}`}>
+              <div className="el_date">{dayLabelUtc(rowStamp(renderItem))}</div>
+              {row}
+            </React.Fragment>
+          ) : (
+            row
           );
         })}
         {windowed.hiddenAfter > 0 ? <div className="el_window_note">{windowed.hiddenAfter} later lines</div> : null}

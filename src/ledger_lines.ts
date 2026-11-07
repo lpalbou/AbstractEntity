@@ -140,13 +140,65 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
     closed = true;
   } else if (n) {
     if (n === "1") {
-      const at = String(env.observed_at || "").slice(11, 16);
-      lines.push({ ...base, title: "— a day of his own begins —", detail: at ? `${at} UTC · he is alone with his time` : "he is alone with his time" });
+      lines.push({ ...base, title: "— a day of his own begins —", detail: "he is alone with his time" });
       closed = false;
     }
-    lines.push({ ...base, title: `— tick ${n} —`, detail: "" });
+    const at = clockUtc(env.observed_at);
+    lines.push({ ...base, title: `— tick ${n} —`, detail: at ? `${at} UTC` : "" });
   }
   return { lines, state: { ownTime: true, turn, closed } };
+}
+
+/** Parse a journal stamp; one without a zone is UTC (never local time). */
+function parseStamp(iso: string | null | undefined): number {
+  const raw = String(iso || "").trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, "$1T$2");
+  const zoned = /T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(raw) ? `${raw}Z` : raw;
+  return /^\d{4}-\d{2}-\d{2}T/.test(zoned) ? Date.parse(zoned) : NaN;
+}
+
+/** "14:07" (or "14:07:12") in UTC from an ISO stamp; "" when unreadable. */
+export function clockUtc(iso: string | null | undefined, seconds = false): string {
+  const t = parseStamp(iso);
+  if (!Number.isFinite(t)) return "";
+  return new Date(t).toISOString().slice(11, seconds ? 19 : 16);
+}
+
+/** "2026-11-07" in UTC, the key a date separator compares; "" when unreadable. */
+export function dayUtc(iso: string | null | undefined): string {
+  const t = parseStamp(iso);
+  return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : "";
+}
+
+/** "Sat 7 Nov 2026" (UTC) for a date separator; "" when unreadable. */
+export function dayLabelUtc(iso: string | null | undefined): string {
+  const t = parseStamp(iso);
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t);
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()];
+  const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  return `${wd} ${d.getUTCDate()} ${mo} ${d.getUTCFullYear()}`;
+}
+
+/** A turn id in human words: in his own time "tick 3", in a visit "turn 3",
+ * a reflection "reflection", anything else as written. */
+export function turnLabel(turn: string | null | undefined, ownTime = true): string {
+  const t = String(turn || "");
+  const n = t.match(/^t-0*(\d+)$/)?.[1];
+  if (n) return ownTime ? `tick ${n}` : `turn ${n}`;
+  if (t.startsWith("t-reflect")) return "reflection";
+  return t;
+}
+
+/** What a row's time stands for: the date and second, the tick or turn,
+ * and the journal event number(s) behind it. */
+export function rowHint(fromSeq: number, toSeq: number | null, turn: string | null | undefined, iso: string | null | undefined, ownTime = true): string {
+  const parts: string[] = [];
+  const at = clockUtc(iso, true);
+  if (at) parts.push(`${dayLabelUtc(iso)}, ${at} UTC`);
+  const label = turnLabel(turn, ownTime);
+  if (label) parts.push(label);
+  parts.push(toSeq !== null && toSeq !== fromSeq ? `events #${fromSeq}–${toSeq}` : `event #${fromSeq}`);
+  return parts.join(" · ");
 }
 
 /** One ledger line and the envelope index it belongs to (boundary lines
@@ -154,6 +206,8 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
 export interface IndexedLine {
   line: LedgerLine;
   index: number;
+  /** In his own time when this line's envelope landed (ticks), else a visit (turns). */
+  own?: boolean;
 }
 
 /** The ledger's incremental fold over the envelope array. */
@@ -189,8 +243,8 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
     const env = envelopes[i];
     const step = rhythmStep(rhythm, env);
     rhythm = step.state;
-    for (const b of step.lines) lines.push({ line: b, index: i });
-    lines.push({ line: ledgerLine(env), index: i });
+    for (const b of step.lines) lines.push({ line: b, index: i, own: rhythm.ownTime });
+    lines.push({ line: ledgerLine(env), index: i, own: rhythm.ownTime });
   }
   return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm };
 }

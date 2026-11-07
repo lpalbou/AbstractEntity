@@ -19,7 +19,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
   no longer shows through the rows beneath it.
 - Opening another recorded life with the same event numbers no longer keeps the previous one's
   lines in the ledger.
-- Long reflection turn ids fit on one line in the ledger (the full id shows on hover).
+- **The Card and the header follow the entity live.** The Card tab used to show the card as it
+  was when the tab first opened; it now reads it again a moment after the entity changes (a new
+  memory, diary entry, feeling or a visit/phase moment), only while the tab is open, and catches up
+  when you open it. The header's state, phase and spend refresh on the same moments instead of
+  waiting for their 15-second check.
+- **The ledger reads by time.** Each row shows when it happened (UTC), with the date at the start
+  of every day; hovering a time shows its date, its tick (or visit turn) and its event number. A
+  colour key names the six colours, all taken from the theme so they stay readable in light and
+  dark; it can be folded, and stays as you left it. Grouped "memories drawn on" rows read in two
+  lines (hover for every memory, click for each event), and each tick line says when it started.
 
 ## [0.11.2] - 2026-11-07
 

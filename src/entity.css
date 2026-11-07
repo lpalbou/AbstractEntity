@@ -2191,23 +2191,6 @@ body {
   gap: 1px;
 }
 
-.el_seq {
-  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-}
-
-.el_turn {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  opacity: 0.8;
-  /* Reflection turn ids run ~50 characters; one clipped line, the full id
-     on hover (they wrapped into six lines and pushed the entry aside). */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .el_row_body {
   min-width: 0;
 }
@@ -2223,6 +2206,94 @@ body {
   overflow-wrap: break-word;
 }
 
+/* The ledger's colour key and time column. */
+.el_key {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+}
+
+.el_key_item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.el_key_dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.el_key_item.el_tone_formation .el_key_dot { color: var(--memory); }
+.el_key_item.el_tone_usage .el_key_dot { color: var(--ea-accent); }
+.el_key_item.el_tone_context .el_key_dot { color: var(--adm-both); }
+.el_key_item.el_tone_feeling .el_key_dot { color: var(--standing); }
+.el_key_item.el_tone_revision .el_key_dot { color: var(--scar); }
+.el_key_item.el_tone_session .el_key_dot { color: var(--text); }
+.el_key_item.el_tone_quiet .el_key_dot { color: var(--text-dim); }
+
+.el_key_note {
+  font-style: italic;
+}
+
+.el_key summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.el_key[open] summary {
+  margin-bottom: 2px;
+}
+
+.el_key_items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.el_key_mark {
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+/* A calendar day starts (UTC): the clock column alone would run backwards
+   across days. */
+.el_date {
+  padding: 8px 12px 2px;
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sr_only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.el_time {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+  cursor: help;
+}
+
+/* A grouped row's member list reads in two lines; expanding shows each. */
+.el_weave .el_detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .el_tone_formation .el_title {
   color: var(--memory);
 }
@@ -2231,8 +2302,11 @@ body {
   color: var(--ea-accent);
 }
 
+/* Six colours, all theme tokens (contrast holds in every theme): recall
+   and context are one step (what came to mind, what he held), so they
+   share green; visits/phases/actions read in the plain text colour. */
 .el_tone_recall .el_title {
-  color: var(--adm-stimulus);
+  color: var(--adm-both);
 }
 
 .el_tone_context .el_title {
@@ -2244,11 +2318,11 @@ body {
 }
 
 .el_tone_revision .el_title {
-  color: #d8a0a0;
+  color: var(--scar);
 }
 
 .el_tone_session .el_title {
-  color: var(--identity);
+  color: var(--text);
 }
 
 .el_tone_quiet .el_title {
@@ -4691,7 +4765,7 @@ body {
   border-bottom: none;
 }
 .el_boundary_title {
-  color: var(--ea-accent);
+  color: var(--text-dim);
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   letter-spacing: 0.06em;
   opacity: 0.85;

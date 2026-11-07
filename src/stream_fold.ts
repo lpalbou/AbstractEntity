@@ -1076,6 +1076,22 @@ function tryHostRetrogradeRecovery(envelopes: ReplayEnvelope[], cache: FoldCache
   return { state: cache.state, index: target, last_seq: target >= 0 ? envelopes[target].seq : -1 };
 }
 
+/** Families that change what the entity IS (memories, diary, feelings,
+ * closures, lifecycle markers) — not recall bookkeeping (`event`, `trace`,
+ * `snapshot`). */
+const LIFE_CHANGE_FAMILIES = new Set(["binding", "valence", "closure", "host"]);
+
+/** The seq of the newest envelope that changed the entity, or null. The
+ * surfaces that read the gateway instead of the stream (the card, the
+ * header state) refresh when it moves (operator 2026-11-07: "I could only
+ * see the new information after a refresh"). */
+export function lastLifeChangeSeq(envelopes: ReplayEnvelope[]): number | null {
+  for (let i = envelopes.length - 1; i >= 0; i--) {
+    if (LIFE_CHANGE_FAMILIES.has(envelopes[i].family)) return envelopes[i].seq;
+  }
+  return null;
+}
+
 export function foldUpToIndex(envelopes: ReplayEnvelope[], uptoIndex: number, cache: FoldCache | null): FoldCache {
   const target = Math.min(uptoIndex, envelopes.length - 1);
   const extendable =
