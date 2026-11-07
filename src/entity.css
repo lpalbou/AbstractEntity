@@ -2208,9 +2208,6 @@ body {
 
 /* The ledger's colour key and time column. */
 .el_key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--line);
   font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
@@ -2232,15 +2229,54 @@ body {
 
 .el_key_item.el_tone_formation .el_key_dot { color: var(--memory); }
 .el_key_item.el_tone_usage .el_key_dot { color: var(--ea-accent); }
-.el_key_item.el_tone_recall .el_key_dot { color: var(--text); }
 .el_key_item.el_tone_context .el_key_dot { color: var(--adm-both); }
 .el_key_item.el_tone_feeling .el_key_dot { color: var(--standing); }
-.el_key_item.el_tone_revision .el_key_dot { color: #d8a0a0; }
-.el_key_item.el_tone_session .el_key_dot { color: #e2836f; }
+.el_key_item.el_tone_revision .el_key_dot { color: var(--scar); }
+.el_key_item.el_tone_session .el_key_dot { color: var(--text); }
 .el_key_item.el_tone_quiet .el_key_dot { color: var(--text-dim); }
 
 .el_key_note {
   font-style: italic;
+}
+
+.el_key summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.el_key[open] summary {
+  margin-bottom: 2px;
+}
+
+.el_key_items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.el_key_mark {
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+/* A calendar day starts (UTC): the clock column alone would run backwards
+   across days. */
+.el_date {
+  padding: 8px 12px 2px;
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sr_only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .el_time {
@@ -2266,8 +2302,11 @@ body {
   color: var(--ea-accent);
 }
 
+/* Six colours, all theme tokens (contrast holds in every theme): recall
+   and context are one step (what came to mind, what he held), so they
+   share green; visits/phases/actions read in the plain text colour. */
 .el_tone_recall .el_title {
-  color: var(--text);
+  color: var(--adm-both);
 }
 
 .el_tone_context .el_title {
@@ -2279,13 +2318,11 @@ body {
 }
 
 .el_tone_revision .el_title {
-  color: #d8a0a0;
+  color: var(--scar);
 }
 
-/* Distinct from the usage orange and the formation blue: the colour key
-   names each tone, so no two may read alike (operator 2026-11-07). */
 .el_tone_session .el_title {
-  color: #e2836f;
+  color: var(--text);
 }
 
 .el_tone_quiet .el_title {
@@ -4728,7 +4765,7 @@ body {
   border-bottom: none;
 }
 .el_boundary_title {
-  color: var(--ea-accent);
+  color: var(--text-dim);
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   letter-spacing: 0.06em;
   opacity: 0.85;

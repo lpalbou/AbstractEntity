@@ -24,10 +24,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
   memory, diary entry, feeling or a visit/phase moment), only while the tab is open, and catches up
   when you open it. The header's state, phase and spend refresh on the same moments instead of
   waiting for their 15-second check.
-- **The ledger reads by time.** Each row shows when it happened (UTC); hovering the time shows the
-  event number and the tick. A colour key names what each colour means, the colours are all
-  distinct, grouped "memories drawn on" rows read in two lines (click to see each one), and each
-  tick line says when it started.
+- **The ledger reads by time.** Each row shows when it happened (UTC), with the date at the start
+  of every day; hovering a time shows its date, its tick (or visit turn) and its event number. A
+  colour key names the six colours, all taken from the theme so they stay readable in light and
+  dark (it folds to one line on a phone). Grouped "memories drawn on" rows read in two lines, with
+  the whole list on hover and each one on click, and each tick line says when it started.
 
 ## [0.11.2] - 2026-11-07
 

@@ -127,6 +127,9 @@ describe("live ledger fold", () => {
       env(51, "valence", "460c9a9a-visit", "t-reflect-feel-460c9a9a-0", { kind: "appraisal", sign: 1, magnitude: 2 }),
     ];
     expect(titles(visit)).toEqual([]);
+    // ...and their lines know they are a visit's (the hover says "turn", not "tick").
+    expect(foldLedgerLines(null, visit).lines.every((l) => l.own === false)).toBe(true);
+    expect(foldLedgerLines(null, journal()).lines.filter((l) => l.line.seq === 86)[0].own).toBe(true);
     // ...and a summon after personal time ends it.
     expect(titles([...journal(), host(170, "summon", "visit-run-2"), visitRecall(171, "t-0001")])).toHaveLength(3);
   });
@@ -279,14 +282,21 @@ class FakeObserver {
 
 describe("ledger times", () => {
   it("rows read as UTC clock times; the numbers live in the hover", async () => {
-    const { clockUtc, rowHint, turnLabel } = await import("./ledger_lines");
+    const { clockUtc, dayLabelUtc, dayUtc, rowHint, turnLabel } = await import("./ledger_lines");
+    expect(dayUtc("2026-11-07T23:59:59-02:00")).toBe("2026-11-08");
+    expect(dayLabelUtc("2026-07-24T17:01:24+00:00")).toBe("Fri 24 Jul 2026");
     expect(clockUtc("2026-11-07T12:05:07.665849+00:00")).toBe("12:05");
     expect(clockUtc("2026-11-07T14:05:07+02:00", true)).toBe("12:05:07");
     expect(clockUtc("")).toBe("");
+    expect(clockUtc("2026-11-07T12:05:07")).toBe("12:05"); // no zone: UTC, never local time
+    expect(clockUtc("2026-11-07")).toBe("");
+    expect(clockUtc("12")).toBe("");
     expect(turnLabel("t-0003")).toBe("tick 3");
+    expect(turnLabel("t-0003", false)).toBe("turn 3");
     expect(turnLabel("t-reflect-owntime-20261107T115925")).toBe("reflection");
-    expect(rowHint(2178, 2518, "t-0001", "2026-11-07T14:07:12+00:00")).toBe("events #2178–2518 · tick 1 · 14:07:12 UTC");
-    expect(rowHint(2647, null, null, "2026-11-07T14:07:12+00:00")).toBe("event #2647 · 14:07:12 UTC");
+    expect(rowHint(2178, 2518, "t-0001", "2026-11-07T14:07:12+00:00")).toBe("Sat 7 Nov 2026, 14:07:12 UTC · tick 1 · events #2178–2518");
+    expect(rowHint(15, null, "t-0001", "2026-11-07T11:53:38+00:00", false)).toBe("Sat 7 Nov 2026, 11:53:38 UTC · turn 1 · event #15");
+    expect(rowHint(2647, null, null, "2026-11-07T14:07:12+00:00")).toBe("Sat 7 Nov 2026, 14:07:12 UTC · event #2647");
   });
 
   it("a tick line says when it started", () => {
