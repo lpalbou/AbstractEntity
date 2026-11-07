@@ -25,7 +25,7 @@ import type { ChatTurnResult } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 import type { VerbatimSource } from "./verbatim_modal";
-import { summarizeTools } from "./turn_probe_parse";
+import { MEMORY_DIGEST_CAP, MEMORY_TITLE_CAP, servedExcerpt, summarizeTools } from "./turn_probe_parse";
 import { ContextMemory, safeText, SystemPromptView, ToolCall, whyLabel, type ToolDetail } from "./turn_probe_views";
 
 export interface TurnDetailModalProps {
@@ -86,15 +86,21 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
   const claimVerdict = toolClaimVerdict(turn.reply, turn.tools_ran);
 
   const contextText = (): string => {
-    const lines = [`# Context — ${turn.turn_id ?? "this turn"} (${memories.length} memories)`, ""];
+    const lines = [
+      `# Context — ${turn.turn_id ?? "this turn"} (${memories.length} memories)`,
+      "Each memory as the turn report serves it: its title and digest, ending with \"…\" where the report cut them. Open a card for its full words.",
+      "",
+    ];
     for (const m of memories) {
-      lines.push(`## ${safeText(m.kind) || "memory"} — ${safeText(m.title) || safeText(m.tag) || m.graph_id || "?"}`);
+      const title = servedExcerpt(safeText(m.title), MEMORY_TITLE_CAP);
+      lines.push(`## ${safeText(m.kind) || "memory"} — ${title.text ? title.text + (title.cut ? "…" : "") : safeText(m.tag) || m.graph_id || "?"}`);
       const meta = [`why: ${whyLabel(m)}`];
       if (m.born_at) meta.push(`born ${safeText(m.born_at).slice(0, 16)}`);
       if (m.origin) meta.push(`origin ${safeText(m.origin)}`);
       meta.push(`used ${m.global_count ?? 0}×`, `~${m.tokens ?? "?"} tok`);
       lines.push(meta.join(" · "));
-      if (m.digest) lines.push(safeText(m.digest));
+      const digest = servedExcerpt(safeText(m.digest), MEMORY_DIGEST_CAP);
+      if (digest.text) lines.push(digest.text + (digest.cut ? "…" : ""));
       lines.push("");
     }
     return lines.join("\n");

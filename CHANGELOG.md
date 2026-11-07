@@ -19,9 +19,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
   web results as titles, snippets and links, a page with its title and text, memory search hits
   as rows, failures marked clearly, with long results folded and the exact text one click away.
   The system prompt opens as titled sections (who he is, his values, his diary, then the
-  framework's instructions) and copy still copies it exactly. Every memory in the context can be
-  opened to its full words; a diary entry opens only when you click, and says that this read is
-  recorded in his biography.
+  framework's instructions, and anything else as "Other instructions") and copy still copies it
+  exactly. Every memory in the context can be opened to its full words; a diary entry opens only
+  when you click, and the button says whether that opening is recorded in his biography. The
+  Context tab's copy button copies each memory's title and excerpt as the turn report gives them,
+  marked "…" where they were cut. No picture in a page, a tool result or the prompt is ever loaded.
 - **The ledger follows the entity live again.** In live mode the ledger kept showing only what
   had loaded when the page opened, while the timeline went on counting, so an entity's personal
   time looked stuck on its first recall. Every new line now appears as it lands: the diary entries

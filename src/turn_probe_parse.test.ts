@@ -56,6 +56,7 @@ describe("what a tool call asked", () => {
       form: "quote",
       extra: [],
       raw: null,
+      note: null,
     });
     const page = describeToolAsk("fetch_url", '{"url": "https://aiweekly.co/ai-news-today"}');
     expect(page.object).toBe("https://aiweekly.co/ai-news-today");
@@ -74,9 +75,26 @@ describe("what a tool call asked", () => {
     expect(describeToolAsk("list_files", "")).toMatchObject({ object: "the whole workspace", form: "plain" });
   });
 
-  it("shows a cut JSON excerpt as served, never half-parsed", () => {
-    const cut = '{"path": "notes.md", "content": "a long fi…';
-    expect(describeToolAsk("write_file", cut)).toMatchObject({ object: null, raw: cut });
+  it("shows the visit lane's cut JSON excerpt as served, never half-parsed, and says how it was cut", () => {
+    const cut = ('{"path": "notes.md", "content": "' + "a".repeat(400)).slice(0, 200) + "…";
+    expect(describeToolAsk("write_file", cut)).toEqual({
+      verb: "Wrote a file in his workspace",
+      object: null,
+      form: "plain",
+      extra: [],
+      raw: cut,
+      note: "the arguments as recorded (visit turns keep their first 200 characters)",
+    });
+  });
+
+  it("claims a cut only where the record was cut", () => {
+    // a chat-turn body that merely starts with "{" is the asked-for thing, not a cut excerpt
+    expect(describeToolAsk("search_memory", "{curly notes}")).toMatchObject({ object: "{curly notes}", raw: null, note: null });
+    // chat turns keep the body's first 120 characters, unmarked
+    const long = "q".repeat(120);
+    expect(describeToolAsk("web_search", long)).toMatchObject({ object: long, note: "the argument as recorded (chat turns keep its first 120 characters)" });
+    expect(describeToolAsk("web_search", "q".repeat(119)).note).toBeNull();
+    expect(describeToolAsk("read_file", "p".repeat(120)).note).toBeNull();
   });
 
   it("names an unknown tool and lists its arguments", () => {
@@ -151,7 +169,7 @@ describe("what a tool call returned", () => {
     // an undated record keeps its row (memory_reader dates by observed_at[:10], possibly empty)
     const undated = readToolResult("recent_memories", "Your trail through the last 2 days (newest first):\n- #ab12cd34 [dream  - dream - proposals, unconfirmed] two memories side by side");
     expect(undated).toMatchObject({ type: "listing", lines: [{ type: "hit", hit: { tag: "ab12cd34", kind: "dream", date: "", origin: "dream - proposals, unconfirmed", text: "two memories side by side" } }] });
-    expect(readToolResult("search_memory", "search_memory needs words to look for").type).toBe("text");
+    expect(readToolResult("search_memory", "search_memory needs words to look for (write them in the block body)").type).toBe("failed");
   });
 
   it("reads a workspace file with its path", () => {
@@ -244,8 +262,9 @@ describe("the system prompt", () => {
     expect(parseSystemPrompt("Just words.")).toEqual({ envelope: null, sections: [{ title: "System prompt", raw: "Just words.", body: "Just words.", identity: false }] });
     const rewritten = `${PRELUDE}\n\nAn operator-written contract.\n\nYou can also use a few tools.`;
     const p = parseSystemPrompt(rewritten);
-    expect(p.sections.map((s) => s.title)).toEqual(["Who he is", "Values, in order of precedence", "Purposes", "Traits", "Limits", "Diary, the last 3 entries", "The tools he can use"]);
-    expect(p.sections[5].body).toBe("- [note @ 2026-11-07] Completed a first world-news survey.\n\nAn operator-written contract.");
+    expect(p.sections.map((s) => s.title)).toEqual(["Who he is", "Values, in order of precedence", "Purposes", "Traits", "Limits", "Diary, the last 3 entries", "Other instructions", "The tools he can use"]);
+    expect(p.sections[5].body).toBe("- [note @ 2026-11-07] Completed a first world-news survey.");
+    expect(p.sections[6].body).toBe("An operator-written contract.");
     expect(p.sections.map((s) => s.raw).join("")).toBe(rewritten);
   });
 });
@@ -279,6 +298,71 @@ describe("context memories", () => {
     expect(isDiaryMemory({ kind: "diary", graph_id: "x-1" })).toBe(true);
     expect(isDiaryMemory({ kind: "episode", graph_id: "entity:nerin:diary-c14d1d97" })).toBe(true);
     expect(isDiaryMemory({ kind: "episode", graph_id: "episode-diaryish-1" })).toBe(false);
+  });
+});
+
+describe("an operator's paragraph and the identity cue", () => {
+  it("file a rewritten visit paragraph as its own section, never under the contract before it", () => {
+    const prompt = `${PRELUDE}\n\nThe block above is your identity.\n\nReply in the language of the current request.\n\nOperator: you may rest between visits.\n\nYou can also use a few tools.\n\nNever invent.\ndishonesty your memory cannot repair later.\n\nA capability note nobody knows.`;
+    const p = parseSystemPrompt(prompt);
+    expect(p.sections.slice(6).map((s) => [s.title, s.body])).toEqual([
+      ["How a conversation works", "The block above is your identity.\n\nReply in the language of the current request."],
+      ["Other instructions", "Operator: you may rest between visits."],
+      ["The tools he can use", "You can also use a few tools.\n\nNever invent.\ndishonesty your memory cannot repair later."],
+      ["Other instructions", "A capability note nobody knows."],
+    ]);
+    expect(p.sections.map((s) => s.raw).join("")).toBe(prompt);
+  });
+
+  it("give the identity cue its own section, not Limits", () => {
+    const prompt = PRELUDE.replace("DIARY (last 3):", "Your voice changed on 2026-11-06 by admin: now alloy.\nDIARY (last 3):");
+    const p = parseSystemPrompt(prompt);
+    const limits = p.sections.find((s) => s.title === "Limits");
+    expect(limits?.body).toBe("1. Report failures as they happened.");
+    expect(p.sections.find((s) => s.title === "How he looks and sounds now")?.body).toBe("Your voice changed on 2026-11-06 by admin: now alloy.");
+    expect(p.sections.map((s) => s.raw).join("")).toBe(prompt);
+  });
+});
+
+describe("failures our code writes", () => {
+  // Each string as its producer writes it (abstractruntime identity/tools.py, memory_reader.py).
+  const FAILURES: Array<[string, string]> = [
+    ["fetch_url", "(fetch_url needs a URL)"],
+    ["fetch_url", "(fetch_url needs an http(s) URL; got 'ftp://x')"],
+    ["fetch_url", "(could not read https://x.y: 403 Forbidden)"],
+    ["fetch_url", "(read https://x.y but found no readable text)"],
+    ["read_memory", "(the read_memory tool is not enabled in this session)"],
+    ["search_memory", "(the search_memory tool is not enabled in this session)"],
+    ["feelings_about", "(the feelings_about tool is not enabled in this session)"],
+    ["recent_memories", "(the recent_memories tool is not enabled in this session)"],
+    ["write_file", "(the write_file tool is not enabled in this session)"],
+    ["execute_command", "(the execute_command tool is not enabled in this session)"],
+    ["diary_read", "(the diary_read call failed: no such entry)"],
+    ["search_memory", "(your memory could not be searched right now: locked - try again)"],
+    ["recent_memories", "(your memory could not be read right now: locked - try again)"],
+    ["recent_memories", 'recent_memories could not read the window "soon" - write nothing (last 2 days), or a window like 12h, 3d, today, week'],
+    ["recent_memories", "recent_memories needs a window larger than zero (e.g. 12h, 3d)"],
+    ["read_memory", "read_memory needs the #tag shown beside a memory in your MEMORIES list"],
+    ["read_memory", "#7741db98 is ambiguous: 2 memories share that tail (a, b). Recall one of them first."],
+    ["read_memory", "No memory with tag #deadbeef exists in your home. Tags visible to you right now: (none this turn)."],
+    ["read_memory", "(the memory's full words could not be loaded: gone)"],
+    ["feelings_about", "(feelings_about needs a target - the body is namespace:name, e.g. person:laurent)"],
+    ["feelings_about", "(the feelings story is unavailable on this engine)"],
+    ["feelings_about", "(feelings_about failed: boom)"],
+    ["diary_read", "No entry matches 'diary_x'. Your book's entry ids are:\n- diary_1"],
+    ["execute_command", "execute_command needs the command as the block body"],
+    ["execute_command", "refused: rm without a target"],
+  ];
+  it.each(FAILURES)("%s: %s reads as did not work", (name, text) => {
+    expect(readToolResult(name, text, true).type).toBe("failed");
+  });
+
+  it("a tool's ordinary answer is not a failure, and an empty one says so", () => {
+    expect(readToolResult("diary_list", "Your diary is empty so far.").type).toBe("text");
+    expect(readToolResult("execute_command", "exit 0\nok").type).toBe("text");
+    expect(readToolResult("read_memory", "(the search_memory tool is not enabled in this session)").type).toBe("text");
+    expect(readToolResult("web_search", "")).toEqual({ type: "empty" });
+    expect(readToolResult("web_search", "  \n")).toEqual({ type: "empty" });
   });
 });
 

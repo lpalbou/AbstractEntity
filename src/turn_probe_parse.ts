@@ -54,8 +54,10 @@ export interface ToolAsk {
   /** Other arguments, as written. */
   extra: Array<[string, string]>;
   /** The argument text as served, when it could not be read as arguments
-   * (a cut JSON excerpt): shown as is, never half-parsed. */
+   * (the visit lane's cut JSON excerpt): shown as is, never half-parsed. */
   raw: string | null;
+  /** How the recorded argument was shortened, when the record says so. */
+  note: string | null;
 }
 
 function argValue(v: unknown): string {
@@ -63,20 +65,22 @@ function argValue(v: unknown): string {
   return typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
 }
 
+/** The visit lane keeps `json.dumps(arguments)` up to 200 characters and
+ * ends a longer one with "…" (abstractgateway entity_visits
+ * `_TOOL_ARG_EXCERPT_CHARS`). The chat lane keeps the block body's first
+ * 120 characters, with no mark (abstractruntime chat.py tool round,
+ * `[:120]`) — except read_file/write_file, whose recorded arg is the path. */
+export const VISIT_ARG_CHARS = 200;
+export const CHAT_ARG_CHARS = 120;
+
 /** What a call asked, from its name and its served `arg`: a JSON object of
- * arguments (visit lane) or the block body (hosted lane). */
+ * arguments (visit lane) or the block body (chat lane). */
 export function describeToolAsk(name: string, arg: string | undefined): ToolAsk {
   const spec = TOOL_ASKS[name];
   const text = String(arg ?? "").trim();
   const verb = spec ? spec.verb : `Used the tool ${name}`;
   const form: AskForm = spec ? spec.form : "plain";
-  const absent = (extra: Array<[string, string]>, raw: string | null = null): ToolAsk => ({
-    verb,
-    object: spec?.empty ?? null,
-    form: "plain",
-    extra,
-    raw,
-  });
+  const absent = (extra: Array<[string, string]>): ToolAsk => ({ verb, object: spec?.empty ?? null, form: "plain", extra, raw: null, note: null });
   if (text.startsWith("{")) {
     let args: Record<string, unknown> | null = null;
     try {
@@ -85,16 +89,22 @@ export function describeToolAsk(name: string, arg: string | undefined): ToolAsk 
     } catch {
       args = null;
     }
-    // A cut excerpt (the gateway ends it with "…") is shown as served.
-    if (!args) return absent([], text);
-    const key = spec?.key;
-    const value = key && key in args ? argValue(args[key]).trim() : "";
-    const extra = Object.entries(args)
-      .filter(([k]) => k !== key)
-      .map(([k, v]) => [k, argValue(v)] as [string, string]);
-    return value ? { verb, object: value, form, extra, raw: null } : absent(extra);
+    if (args) {
+      const key = spec?.key;
+      const value = key && key in args ? argValue(args[key]).trim() : "";
+      const extra = Object.entries(args)
+        .filter(([k]) => k !== key)
+        .map(([k, v]) => [k, argValue(v)] as [string, string]);
+      return value ? { verb, object: value, form, extra, raw: null, note: null } : absent(extra);
+    }
+    // The visit lane's cut excerpt: its length plus the gateway's "…".
+    if (text.endsWith("…") && text.length === VISIT_ARG_CHARS + 1) {
+      return { verb, object: null, form: "plain", extra: [], raw: text, note: `the arguments as recorded (visit turns keep their first ${VISIT_ARG_CHARS} characters)` };
+    }
   }
-  return text ? { verb, object: text, form, extra: [], raw: null } : absent([]);
+  if (!text) return absent([]);
+  const chatCut = text.length === CHAT_ARG_CHARS && name !== "read_file" && name !== "write_file";
+  return { verb, object: text, form, extra: [], raw: null, note: chatCut ? `the argument as recorded (chat turns keep its first ${CHAT_ARG_CHARS} characters)` : null };
 }
 
 // ---------------------------------------------------------- the result
@@ -131,6 +141,7 @@ export type ListingLine =
   | { type: "text"; text: string };
 
 export type ToolResultView =
+  | { type: "empty" }
   | { type: "failed"; text: string }
   | { type: "web"; query: string; results: WebResult[] }
   | { type: "web_none"; query: string }
@@ -224,17 +235,46 @@ export function parseFileRead(text: string): ToolResultView | null {
   return m ? { type: "file", path: m[1], size: m[2], content: m[3] } : null;
 }
 
-/** A call that did not work, as our own code words it in the result:
- * `execute_tool_elections` ("(the <name> call failed: …)") and
- * `_run_fetch_url` ("(could not read <url>: …)"). */
+/** How our own code words a call that did not work, per tool (exact
+ * strings or prefixes, from the producers):
+ * - every tool: execute_tool_elections "(the <name> call failed: …)";
+ *   tools.py executors "(the <name> tool is not enabled in this session)".
+ * - fetch_url: tools.py `_run_fetch_url` "(fetch_url needs a URL)",
+ *   "(fetch_url needs an http(s) URL; got …)", "(could not read <url>: …)",
+ *   "(read <url> but found no readable text)".
+ * - search_memory / recent_memories / read_memory: memory_reader.py
+ *   "search_memory needs words to look for…", "(your memory could not be
+ *   searched right now: …)", "(your memory could not be read right now: …)",
+ *   "recent_memories could not read the window …", "recent_memories needs a
+ *   window larger than zero…", "read_memory needs the #tag…", "#<tag> is
+ *   ambiguous: …", "No memory with tag #…", "(the memory's full words could
+ *   not be loaded: …)".
+ * - feelings_about: memory_reader.py `feelings_about_text` "(feelings_about
+ *   needs a target…", "(the feelings story is unavailable on this
+ *   engine)", "(feelings_about failed: …)".
+ * - diary_read: tools.py `_resolve_entry_id` "No entry matches …".
+ * - execute_command: tools.py `_run_execute_command` "execute_command needs
+ *   the command…" and every "refused: …". */
+const TOOL_FAILURES: Record<string, RegExp[]> = {
+  fetch_url: [/^\(fetch_url needs a URL\)$/, /^\(fetch_url needs an http\(s\) URL; got /, /^\(could not read \S+: /, /^\(read \S+ but found no readable text\)$/],
+  search_memory: [/^search_memory needs words to look for/, /^\(your memory could not be searched right now: /],
+  recent_memories: [/^recent_memories could not read the window /, /^recent_memories needs a window larger than zero/, /^\(your memory could not be read right now: /],
+  read_memory: [/^read_memory needs the #tag/, /^#\S+ is ambiguous: /, /^No memory with tag #/, /^\(the memory's full words could not be loaded: /, /^\(your memory could not be read right now: /],
+  feelings_about: [/^\(feelings_about needs a target/, /^\(the feelings story is unavailable on this engine\)$/, /^\(feelings_about failed: /],
+  diary_read: [/^No entry matches /],
+  execute_command: [/^execute_command needs the command/, /^refused: /],
+};
+
 export function isFailureText(name: string, text: string): boolean {
-  return text.startsWith(`(the ${name} call failed: `) || (name === "fetch_url" && /^\(could not read \S+: /.test(text));
+  if (text.startsWith(`(the ${name} call failed: `) || text === `(the ${name} tool is not enabled in this session)`) return true;
+  return (TOOL_FAILURES[name] ?? []).some((re) => re.test(text));
 }
 
 /** What came back, by the tool that produced it. */
 export function readToolResult(name: string, result: string, success?: boolean): ToolResultView {
   const text = String(result ?? "");
   if (success === false || isFailureText(name, text)) return { type: "failed", text };
+  if (text.trim() === "") return { type: "empty" };
   const parsed =
     name === "web_search"
       ? parseWebSearch(text)
@@ -285,87 +325,134 @@ const PRELUDE_HEADINGS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^STANDING \(top (\d+) by \|net\|\):$/, (m) => `Standing feelings, the strongest ${m[1]}`],
 ];
 
+// prelude.py: the identity cue (digital_identity.identity_change_cue) is
+// one sentence with no heading, fitted after LIMITS; it opens with one of
+// these words.
+const IDENTITY_CUE = /^(You were given your look|Your look and voice changed |Your voice changed |Your look changed |Your identity was recorded again )/;
+
 // The paragraphs compose_system_base (chat.py) and the hosted turn add,
-// by the first words of the constant that writes each: CONTRACT_PARAGRAPH,
+// by the first words of the constant that writes each and, where the
+// constant is fixed text, its last words (so an operator's rewritten or
+// added paragraph after it is never filed under it): CONTRACT_PARAGRAPH,
 // VISIT_OWN_TIME_PARAGRAPH (chat.py), TOOLS_CONTRACT_PARAGRAPH,
-// WORKSPACE_CONTRACT_PARAGRAPH, EXECUTE_CONTRACT_PARAGRAPH (tools.py),
-// the narrowed-grant line, the capability map file's heading
+// WORKSPACE_CONTRACT_PARAGRAPH, EXECUTE_CONTRACT_PARAGRAPH (tools.py), the
+// narrowed-grant line, the capability map file's heading
 // (<home>/capability_map.md), OWN_TIME_CONTRACT (life.py), the operator
 // block, and the hosted turn's presence / MEMORIES / FEELINGS blocks.
-const PARAGRAPH_MARKERS: Array<[string, string, boolean]> = [
-  // [first words, title, the heading line is dropped from the body]
-  ["The block above is your identity.", "How a conversation works", false],
-  ["One more thing that is true about your life", "His own time between visits", false],
-  ["You can also use a few tools", "The tools he can use", false],
-  ["You also have a workspace", "His workspace", false],
-  ["This phase also grants you execute_command", "Running programs", false],
-  ["(of the tools described above, this phase of your life grants:", "Tools this phase grants", false],
-  ["# How your memory works", "How his memory works", false],
-  ["This is your own time.", "His own time", false],
-  ["STANDING INSTRUCTIONS FROM YOUR OPERATOR:", "Standing instructions from his operator", true],
-  ["(present with you:", "Who is present", false],
-  ["MEMORIES (what this moment reminds you of", "Memories this turn", true],
-  ["FEELINGS (what already stands in you toward", "Feelings this turn", true],
+// An operator overlay (system_prompt.yaml) may replace the conversation
+// and visit paragraphs (chat.py compose_system_base): their words are then
+// unknown here and show as "Other instructions".
+const PARAGRAPH_MARKERS: Array<{ start: string; title: string; dropHead?: boolean; end?: string }> = [
+  { start: "The block above is your identity.", title: "How a conversation works", end: "Reply in the language of the current request." },
+  { start: "One more thing that is true about your life", title: "His own time between visits", end: "never claim you cease to exist between\nconversations." },
+  { start: "You can also use a few tools", title: "The tools he can use", end: "dishonesty your memory cannot repair later." },
+  { start: "You also have a workspace", title: "His workspace", end: "inside each mount; a read-only mount refuses writes." },
+  { start: "This phase also grants you execute_command", title: "Running programs", end: "Output comes back to you like any tool result." },
+  { start: "(of the tools described above, this phase of your life grants:", title: "Tools this phase grants", end: " are refused)" },
+  { start: "# How your memory works", title: "How his memory works" },
+  { start: "This is your own time.", title: "His own time", end: "observation as care, not judgement." },
+  { start: "STANDING INSTRUCTIONS FROM YOUR OPERATOR:", title: "Standing instructions from his operator", dropHead: true },
+  { start: "(present with you:", title: "Who is present", end: ")" },
+  { start: "MEMORIES (what this moment reminds you of", title: "Memories this turn", dropHead: true },
+  { start: "FEELINGS (what already stands in you toward", title: "Feelings this turn", dropHead: true, end: "(to see WHY you feel any of these: the feelings_about tool)" },
 ];
+
+const OTHER = "Other instructions";
+const CLOSE_TAG = "\n</identity_prelude>";
 
 function dropFirstLine(s: string): string {
   const i = s.indexOf("\n");
   return i < 0 ? "" : s.slice(i + 1);
 }
 
+interface Cut {
+  at: number;
+  title: string;
+  identity: boolean;
+  dropHead: boolean;
+  /** Where its known words end (text after it, before the next cut, is
+   * another section). */
+  endAt?: number;
+}
+
 /** The prompt cut into titled sections. Every character belongs to exactly
- * one section; text no reader knows stays in the section it follows (or in
- * one "System prompt" section when nothing is recognised). */
+ * one section; text no reader knows becomes its own "Other instructions"
+ * section (or one "System prompt" section when nothing is recognised). */
 export function parseSystemPrompt(text: string): ParsedPrompt {
   const prompt = String(text ?? "");
-  const cuts: Array<{ at: number; title: string; identity: boolean; dropHead: boolean; envelopeOpen?: boolean; envelopeClose?: number }> = [];
+  const cuts: Cut[] = [];
   let envelope: Record<string, string> | null = null;
   let rest = 0;
+  let openLen = 0;
 
   const open = /^<identity_prelude ([^>\n]*)>\n/.exec(prompt);
-  const closeAt = open ? prompt.indexOf("\n</identity_prelude>") : -1;
+  const closeAt = open ? prompt.indexOf(CLOSE_TAG) : -1;
   if (open && closeAt > 0) {
     envelope = {};
     for (const a of open[1].matchAll(/(\w+)="([^"]*)"/g)) envelope[a[1]] = a[2];
-    cuts.push({ at: 0, title: "Who he is", identity: true, dropHead: false, envelopeOpen: true });
-    let pos = open[0].length;
+    openLen = open[0].length;
+    cuts.push({ at: 0, title: "Who he is", identity: true, dropHead: false });
+    let pos = openLen;
+    let afterHeading = false;
     for (const line of prompt.slice(pos, closeAt).split("\n")) {
+      let matched = false;
       for (const [re, title] of PRELUDE_HEADINGS) {
         const m = re.exec(line);
-        if (m) cuts.push({ at: pos, title: title(m), identity: true, dropHead: true });
+        if (m) {
+          cuts.push({ at: pos, title: title(m), identity: true, dropHead: true });
+          matched = true;
+        }
       }
+      if (matched) afterHeading = true;
+      else if (afterHeading && IDENTITY_CUE.test(line)) cuts.push({ at: pos, title: "How he looks and sounds now", identity: true, dropHead: false });
       pos += line.length + 1;
     }
-    rest = closeAt + "\n</identity_prelude>".length;
-    cuts[cuts.length - 1].envelopeClose = rest;
+    rest = closeAt + CLOSE_TAG.length;
+    cuts[cuts.length - 1].endAt = rest;
   }
 
-  const found: Array<{ at: number; title: string; dropHead: boolean }> = [];
-  for (const [words, title, dropHead] of PARAGRAPH_MARKERS) {
+  const found: Cut[] = [];
+  for (const m of PARAGRAPH_MARKERS) {
     let at = -1;
-    if (prompt.startsWith(words, rest) && rest === 0) at = 0;
+    if (rest === 0 && prompt.startsWith(m.start)) at = 0;
     else {
-      const i = prompt.indexOf("\n\n" + words, rest);
+      const i = prompt.indexOf("\n\n" + m.start, rest);
       if (i >= 0) at = i + 2;
     }
-    if (at >= 0) found.push({ at, title, dropHead });
+    if (at < 0) continue;
+    let endAt: number | undefined;
+    if (m.end) {
+      const e = prompt.indexOf(m.end, at);
+      if (e >= 0) endAt = e + m.end.length;
+    }
+    found.push({ at, title: m.title, identity: false, dropHead: Boolean(m.dropHead), endAt });
   }
   found.sort((a, b) => a.at - b.at);
   if (cuts.length === 0 && (found.length === 0 || found[0].at > 0)) cuts.push({ at: 0, title: "System prompt", identity: false, dropHead: false });
-  for (const f of found) cuts.push({ at: f.at, title: f.title, identity: false, dropHead: f.dropHead });
+  cuts.push(...found);
 
-  const sections: PromptSection[] = cuts.map((c, i) => {
-    const end = i + 1 < cuts.length ? cuts[i + 1].at : prompt.length;
+  // Words between a section's known end and the next section: their own.
+  const all: Cut[] = [];
+  cuts.forEach((c, i) => {
+    const next = i + 1 < cuts.length ? cuts[i + 1].at : prompt.length;
+    if (c.endAt !== undefined && c.endAt < next && prompt.slice(c.endAt, next).trim() !== "") {
+      all.push({ ...c, endAt: undefined });
+      const gap = prompt.slice(c.endAt, next);
+      const lead = gap.length - gap.trimStart().length;
+      // the separator before the unknown words stays with the section before
+      all.push({ at: c.endAt + lead, title: OTHER, identity: false, dropHead: false });
+    } else {
+      all.push({ ...c, endAt: undefined });
+    }
+  });
+
+  const sections: PromptSection[] = all.map((c, i) => {
+    const end = i + 1 < all.length ? all[i + 1].at : prompt.length;
     const raw = prompt.slice(c.at, end);
     let body = raw;
-    if (c.envelopeClose !== undefined) {
-      // The closing tag ends the prelude's last section; what follows it
-      // (before the next known paragraph) is kept, shown after it.
-      const close = c.envelopeClose - c.at;
-      const after = raw.slice(close).trim();
-      body = raw.slice(0, close - "\n</identity_prelude>".length) + (after ? "\n\n" + after : "");
-    }
-    if (c.envelopeOpen) body = body.slice(open![0].length);
+    if (c.at === 0 && openLen) body = body.slice(openLen);
+    const close = body.indexOf(CLOSE_TAG);
+    if (close >= 0) body = body.slice(0, close) + body.slice(close + CLOSE_TAG.length);
     if (c.dropHead) body = dropFirstLine(body);
     return { title: c.title, raw, body: body.trim(), identity: c.identity };
   });

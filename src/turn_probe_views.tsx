@@ -4,6 +4,9 @@
  *
  * - ToolCall: what was asked, in words; what came back, structured when our
  *   own code wrote it in a known shape (turn_probe_parse.ts), Markdown
+ *   through the shared `Words` (no image in a page, a tool result or the
+ *   prompt is ever loaded: a same-origin image URL could read a diary
+ *   record through the session proxy, and that read is recorded)
  *   otherwise; success or failure at a glance; long results fold behind
  *   "(…)" and the exact text he was given is one click away.
  * - SystemPromptView: the prompt's sections, titled and foldable, his
@@ -14,11 +17,11 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Markdown } from "@abstractframework/panel-chat";
 
 import type { TurnMemory } from "./stream_source";
 import type { VerbatimSource } from "./verbatim_modal";
-import { readRecordWords, VerbatimTurns } from "./verbatim_view";
+import { getCachedText, textCacheKey } from "./text_cache";
+import { readRecordWords, VerbatimTurns, Words } from "./verbatim_view";
 import {
   describeToolAsk,
   isDiaryMemory,
@@ -100,6 +103,8 @@ function resultSummary(v: ToolResultView, chars: number): string {
   switch (v.type) {
     case "failed":
       return "did not work";
+    case "empty":
+      return "no result";
     case "web":
       return `${v.results.length} ${v.results.length === 1 ? "result" : "results"}`;
     case "web_none":
@@ -160,6 +165,8 @@ function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
   switch (v.type) {
     case "failed":
       return <div className="tp_failed_text">{v.text}</div>;
+    case "empty":
+      return <p className="tp_quiet">The tool returned no text.</p>;
     case "web":
       return (
         <Fold label="(…) all results">
@@ -188,7 +195,7 @@ function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
             <span className="tp_web_host">{linkHost(v.url)}</span>
           </div>
           <Fold label="(…) all he read of the page">
-            <Markdown text={v.content} images="link" className="ev_markdown tp_md" />
+            <Words text={v.content} className="ev_markdown tp_md" />
           </Fold>
           {v.truncation ? (
             <p className="tp_quiet">
@@ -223,7 +230,7 @@ function ResultBody({ v }: { v: ToolResultView }): React.ReactElement {
     default:
       return (
         <Fold>
-          <Markdown text={v.text} images="link" className="ev_markdown tp_md" />
+          <Words text={v.text} className="ev_markdown tp_md" />
         </Fold>
       );
   }
@@ -236,11 +243,12 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
   const view = useMemo(() => (result === null ? null : readToolResult(name, result, t.success)), [name, result, t.success]);
   const [exact, setExact] = useState(false);
   const failed = view?.type === "failed";
+  const empty = view?.type === "empty";
   return (
     <article className={`tp_tool ${failed ? "tp_tool_failed" : ""}`}>
       <header className="tp_tool_head">
-        <span className={`tp_status ${failed ? "tp_status_failed" : view ? "tp_status_ok" : ""}`} aria-hidden="true">
-          {failed ? "✗" : view ? "✓" : "•"}
+        <span className={`tp_status ${failed ? "tp_status_failed" : view && !empty ? "tp_status_ok" : ""}`} aria-hidden="true">
+          {failed ? "✗" : view && !empty ? "✓" : "•"}
         </span>
         <div className="tp_ask">
           <span className="tp_verb">{ask.verb}</span>{" "}
@@ -276,14 +284,14 @@ export function ToolCall({ t }: { t: ToolDetail }): React.ReactElement {
       ) : null}
       {ask.raw !== null ? (
         <div className="tp_args">
-          <span className="tp_dim">asked with (as recorded, cut short by the gateway): </span>
           <span className="tp_rawarg">{ask.raw}</span>
         </div>
       ) : null}
+      {ask.note ? <div className="tp_args tp_dim">{ask.note}</div> : null}
       {view && result !== null ? (
         <div className="tp_result">
           <div className="tp_result_line">
-            <span className={failed ? "tp_failed_label" : "tp_ok_label"}>{failed ? "It did not work" : "Came back"}</span>
+            <span className={failed ? "tp_failed_label" : empty ? "tp_dim" : "tp_ok_label"}>{failed ? "It did not work" : empty ? "Ran" : "Came back"}</span>
             {!failed ? <span className="tp_dim"> · {resultSummary(view, result.length)}</span> : null}
             <span className="tp_spacer" />
             <button className="tp_more" onClick={() => setExact((v) => !v)} title="The result text exactly as he was given it">
@@ -328,7 +336,7 @@ function PromptWords({ text }: { text: string }): React.ReactElement {
             <span className="tp_fence_open">```</span>
           </pre>
         ) : (
-          <Markdown key={i} text={p.text} images="link" className="ev_markdown tp_md" />
+          <Words key={i} text={p.text} className="ev_markdown tp_md" />
         ),
       )}
     </div>
@@ -396,6 +404,17 @@ export function whyLabel(m: TurnMemory): string {
   return WHY_LABEL[m.admission ?? ""] ?? (safeText(m.why) || "recalled");
 }
 
+/** The memory card's open button. A diary entry opened through the gateway
+ * is recorded in his biography; readRecordWords answers from this
+ * browser's copy when it has one, and then no read is made — the label
+ * says which (unknown counts as recorded). */
+export function memoryActionLabel(o: { diary: boolean; cached: boolean | null; phase: FullWords["phase"]; shown: boolean }): string {
+  if (o.phase === "ready") return o.shown ? "fold" : o.diary ? "(…) the diary entry again (no new read)" : "(…) his full words";
+  const recorded = o.cached ? "already opened in this browser — no new read is recorded" : "opening it is recorded in his biography";
+  if (o.phase === "error") return o.diary ? `try again — ${recorded}` : "try again";
+  return o.diary ? `(…) open the diary entry — ${recorded}` : "(…) his full words";
+}
+
 type FullWords = { phase: "idle" } | { phase: "loading" } | { phase: "ready"; text: string; note: string | null } | { phase: "error"; message: string };
 
 export function ContextMemory({ m, source }: { m: TurnMemory; source: VerbatimSource }): React.ReactElement {
@@ -405,6 +424,18 @@ export function ContextMemory({ m, source }: { m: TurnMemory; source: VerbatimSo
   const diary = isDiaryMemory({ kind, graph_id: graphId });
   const [words, setWords] = useState<FullWords>({ phase: "idle" });
   const [shown, setShown] = useState(false);
+  // A local check only (this browser's text cache), never a gateway read.
+  const [cached, setCached] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!diary || !graphId) return;
+    let live = true;
+    getCachedText(textCacheKey(source.baseUrl, source.entity, `verbatim:${graphId}`))
+      .then((c) => live && setCached(Boolean(c)))
+      .catch(() => live && setCached(null));
+    return () => {
+      live = false;
+    };
+  }, [diary, graphId, source.baseUrl, source.entity]);
   const activation = m.activation ?? {};
   const total = typeof activation.total === "number" ? activation.total : null;
   const title = servedExcerpt(safeText(m.title), MEMORY_TITLE_CAP);
@@ -452,13 +483,7 @@ export function ContextMemory({ m, source }: { m: TurnMemory; source: VerbatimSo
             onClick={unfold}
             title={diary ? "Opening a diary entry is recorded in his biography, like the Book" : "His full words, as recorded"}
           >
-            {shown && words.phase === "ready"
-              ? "fold"
-              : words.phase === "error"
-                ? "try again"
-                : diary
-                  ? "(…) open the diary entry — this read is recorded in his biography"
-                  : "(…) his full words"}
+            {memoryActionLabel({ diary, cached, phase: words.phase, shown })}
           </button>
         ) : (
           <span className="tp_dim">This memory has no record address, so its full words cannot be opened here.</span>
