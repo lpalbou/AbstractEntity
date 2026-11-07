@@ -27,8 +27,8 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **The ledger reads by time.** Each row shows when it happened (UTC), with the date at the start
   of every day; hovering a time shows its date, its tick (or visit turn) and its event number. A
   colour key names the six colours, all taken from the theme so they stay readable in light and
-  dark (it folds to one line on a phone). Grouped "memories drawn on" rows read in two lines, with
-  the whole list on hover and each one on click, and each tick line says when it started.
+  dark; it can be folded, and stays as you left it. Grouped "memories drawn on" rows read in two
+  lines (hover for every memory, click for each event), and each tick line says when it started.
 
 ## [0.11.2] - 2026-11-07
 

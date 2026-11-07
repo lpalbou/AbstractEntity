@@ -289,6 +289,7 @@ describe("ledger times", () => {
     expect(clockUtc("2026-11-07T14:05:07+02:00", true)).toBe("12:05:07");
     expect(clockUtc("")).toBe("");
     expect(clockUtc("2026-11-07T12:05:07")).toBe("12:05"); // no zone: UTC, never local time
+    expect(clockUtc("2026-11-07 12:05:07+00:00")).toBe("12:05"); // space-separated form
     expect(clockUtc("2026-11-07")).toBe("");
     expect(clockUtc("12")).toBe("");
     expect(turnLabel("t-0003")).toBe("tick 3");

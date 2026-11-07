@@ -90,6 +90,13 @@ function rowStamp(item: RenderItem): string {
   return item.kind === "line" ? item.item.line.observed_at : item.items[0].line.observed_at;
 }
 
+/** Every distinct member of a weave, in full (the row's hover). */
+function weaveMembers(items: IndexedLine[]): string {
+  const all: string[] = [];
+  for (const it of items) for (const m of it.line.members ?? [it.line.detail]) if (m && !all.includes(m)) all.push(m);
+  return all.join("\n");
+}
+
 function weaveSummary(group: WeaveGroup, items: IndexedLine[]): { title: string; detail: string } {
   if (group === "repeat") {
     // Count distinct details ("operator — book" x12, "… cognition
@@ -152,13 +159,37 @@ const LEDGER_KEY: Array<{ tone: string; label: string }> = [
   { tone: "session", label: "visits, phases, actions" },
 ];
 
+const KEY_OPEN_STORAGE = "entity.ledger.keyOpen";
+
 function LedgerKey(props: { showQuiet: boolean }): React.ReactElement {
   const narrow = useAfMedia(AF_MEDIA.md);
   const items = props.showQuiet ? [...LEDGER_KEY, { tone: "quiet", label: "audit detail" }] : LEDGER_KEY;
-  // Open on a wide screen; folded to one line on a phone (key: re-applies
-  // the default when the width class changes).
+  // Your last choice wins; until you make one it is open on a wide screen
+  // and folded on a phone.
+  const [stored, setStored] = useState<boolean | null>(() => {
+    try {
+      const v = localStorage.getItem(KEY_OPEN_STORAGE);
+      return v === null ? null : v === "1";
+    } catch {
+      return null;
+    }
+  });
+  const open = stored ?? !narrow;
   return (
-    <details className="el_key" open={!narrow} key={narrow ? "narrow" : "wide"}>
+    <details
+      className="el_key"
+      open={open}
+      onToggle={(e) => {
+        const next = (e.currentTarget as HTMLDetailsElement).open;
+        if (next === open) return;
+        setStored(next);
+        try {
+          localStorage.setItem(KEY_OPEN_STORAGE, next ? "1" : "0");
+        } catch {
+          // a remembered fold is a convenience only
+        }
+      }}
+    >
       <summary>Colour key · times are UTC</summary>
       <div className="el_key_items" aria-label="What the colours mean">
         {items.map((k) => (
@@ -352,7 +383,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
                 <div className="el_title">
                   {summary.title} {expanded ? "▾" : "▸"}
                 </div>
-                <div className="el_detail" title={summary.detail}>
+                <div className="el_detail" title={weaveMembers(items)}>
                   {summary.detail}
                 </div>
               </div>

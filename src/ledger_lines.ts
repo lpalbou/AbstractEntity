@@ -151,7 +151,7 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
 
 /** Parse a journal stamp; one without a zone is UTC (never local time). */
 function parseStamp(iso: string | null | undefined): number {
-  const raw = String(iso || "").trim();
+  const raw = String(iso || "").trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, "$1T$2");
   const zoned = /T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(raw) ? `${raw}Z` : raw;
   return /^\d{4}-\d{2}-\d{2}T/.test(zoned) ? Date.parse(zoned) : NaN;
 }
