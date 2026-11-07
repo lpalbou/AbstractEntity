@@ -4,6 +4,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Cognitive Monitor says whose words its emotion reading was calibrated on.** The quiet-bloom
+  tooltip and the monitor's information panel said the reading was calibrated on the entity's own
+  words. The shipped calibration comes from one entity (Ephemeral) and is used for every entity, so
+  for Castor and the others they now say "calibrated on ephemeral's words (74 real replies and
+  diary entries, 2026-08-01), not on castor's". The panel no longer mentions the retired v0
+  calibration.
+
 ## [0.11.1] - 2026-11-07
 
 On AbstractUIC `@abstractframework/ui-kit` ^0.9.15 and `@abstractframework/panel-chat` ^0.8.2.

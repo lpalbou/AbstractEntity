@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { basisCalibrationNote, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { EmbeddingsUnconfiguredNote } from "./cognition_wave_inline";
@@ -93,6 +93,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
       ? `basis v${basis.version} · calibrated on ${real} real utterance(s)`
       : `basis v${basis.version} · curated-only (no real utterances yet) — shapes are indicative`;
   }, [basis]);
+  const calibration = useMemo(() => (basis && source ? basisCalibrationNote(basis.calibrated_on, source.entity) : null), [basis, source]);
 
   // Switching entity (or losing the gateway) discards any scored wave and
   // returns to the resting state — never carries one mind's wave onto
@@ -184,7 +185,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
         {provenance ? <span className="cw_prov">{provenance}</span> : null}
       </div>
       <div className="cw_framing">{FRAMING}</div>
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} /> : null}
 
       {/* THE ONE-PULL CONTROL (c1824 ruling, flood fix c2155): scoring is an
         * EXPLICIT operator act, never automatic — reading his words costs
@@ -285,7 +286,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq }: CognitionWavePane
                   * a flat bloom on this sample is honest quiet, not a
                   * scoring failure — hover carries the live numbers. */}
                 {evidenceNote(current.emotionEvidence) ? (
-                  <span className="cw_quiet" title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim)}>
+                  <span className="cw_quiet" title={evidenceTitle(current.emotionEvidence, current.emotionMaxSim, calibration)}>
                     {evidenceNote(current.emotionEvidence)}
                   </span>
                 ) : null}

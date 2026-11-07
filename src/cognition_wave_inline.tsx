@@ -27,7 +27,7 @@ import {
   type ConductToolCall,
 } from "@abstractframework/ui-kit";
 
-import { BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
+import { basisCalibrationNote, BloomAxisOverlay, EMOTION_AXES, CONDUCT_AXES, dominantEmotion, evidenceNote, evidenceTitle, MonitorInfoModal, type AxisInfo } from "./cognitive_monitor";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -139,6 +139,9 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   const [status, setStatus] = useState<"idle" | "scoring" | "live" | "error" | "unavailable" | "unconfigured">("idle");
   const [note, setNote] = useState<string | null>(null);
   const [current, setCurrent] = useState<ScoredText | null>(null);
+  /** The loaded basis's provenance (whose words calibrated it) — the
+   * tooltip and the (i) modal say it for THIS entity, never "his own". */
+  const [calibratedOn, setCalibratedOn] = useState<Record<string, unknown> | null>(null);
   const [folded, setFolded] = useState<boolean>(() => {
     let stored: string | null = null;
     try {
@@ -226,6 +229,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
     if (setupRef.current) return setupRef.current;
     const p = (async () => {
       const basis = await loadBasis();
+      setCalibratedOn(basis.calibrated_on ?? {});
       let embedderId = basis.embedder_id;
       try {
         const emb = await fetchEntityEmbedding(baseUrl, entity);
@@ -237,9 +241,10 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         throw Object.assign(new Error(`home embedder ${embedderId} ≠ basis ${basis.embedder_id}`), { mismatch: true });
       }
       embedderRef.current = embedderId;
-      // The gate floor rides the basis when calibrated (v1: p20 of his own
-      // corpus's nearest-register sims — mild leans fade in, noise stays
-      // dark); a floor-less basis keeps the scorer's default.
+      // The gate floor rides the basis when calibrated (v1: 0.0798, cut on
+      // entity:ephemeral's corpus — one basis for every entity; measured
+      // 2026-11-07, 12 of 23 real replies on record read fully quiet); a
+      // floor-less basis keeps the scorer's default.
       scorerRef.current = createScorer(basis, {
         embedderId,
         ...(typeof basis.abstention_floor === "number" ? { abstention: { floor: basis.abstention_floor } } : {}),
@@ -306,6 +311,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   /** The honest quiet/faint caption (null when the bloom has real reach or
    * the diagnostics are absent — old cache entries predate them). */
   const quiet = evidenceNote(current?.emotionEvidence);
+  const calibration = calibratedOn ? basisCalibrationNote(calibratedOn, entity) : null;
 
   // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
   if (status === "idle") return null;
@@ -357,7 +363,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
               * ships evidence diagnostics for exactly this — hover explains
               * the gate with the live numbers. */}
             {status === "live" && quiet ? (
-              <div role="status" className="cm_quiet" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim)}>
+              <div role="status" className="cm_quiet" title={evidenceTitle(current?.emotionEvidence, current?.emotionMaxSim, calibration)}>
                 {current?.emotionEvidence !== undefined && current.emotionEvidence <= 0.02 ? "Read complete · no clear emotional tone" : quiet}
               </div>
             ) : null}
@@ -396,7 +402,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
         </div>
       ) : null}
 
-      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} /> : null}
+      {modalAxis !== null ? <MonitorInfoModal axis={modalAxis} onClose={() => setModalAxis(null)} calibration={calibration} /> : null}
     </div>
   );
 }

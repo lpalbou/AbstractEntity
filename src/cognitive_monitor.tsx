@@ -98,14 +98,34 @@ export function evidenceNote(evidence: number | undefined): string | null {
   return null;
 }
 
+/** Whose words the frozen basis was calibrated on, said for the entity being
+ * viewed (operator report 2026-11-07: the copy claimed "calibrated on his own
+ * corpus" for EVERY entity, while basis v1 records `calibrated_on.entity:
+ * "entity:ephemeral"` — Castor's replies are read against another entity's
+ * corpus and floor). Pure: reads the basis metadata, never guesses. */
+export function basisCalibrationNote(calibratedOn: Record<string, unknown> | null | undefined, entity: string): string {
+  const c = calibratedOn ?? {};
+  const name = (id: unknown) => (typeof id === "string" ? id.trim().replace(/^entity:/, "").replace(/@.*$/, "").toLowerCase() : "");
+  const source = name(c["entity"]);
+  const viewed = name(entity);
+  const real = typeof c["castor_utterances"] === "number" ? (c["castor_utterances"] as number) : 0;
+  const date = typeof c["date"] === "string" ? c["date"] : "";
+  if (!real) return `The basis is calibrated on curated example texts only${date ? ` (${date})` : ""}, not on anyone's real replies.`;
+  const corpus = `${real} real replies and diary entries${date ? `, ${date}` : ""}`;
+  if (source && viewed && source === viewed) return `The gate's floor is calibrated on his own words (${corpus}).`;
+  if (source) return `The basis and its gate floor were calibrated on ${source}'s words (${corpus}), not on ${viewed || "this entity"}'s.`;
+  return `The basis and its gate floor were calibrated on ${corpus}; the basis does not record whose.`;
+}
+
 /** The (i)-level explanation of the quiet state, shared by both mounts'
- * tooltips (one sentence, honest: abstention is the design, not a fault). */
-export function evidenceTitle(evidence: number | undefined, maxSim: number | undefined): string {
+ * tooltips (honest: abstention is the design, not a fault). `calibration`
+ * is basisCalibrationNote's sentence for the viewed entity. */
+export function evidenceTitle(evidence: number | undefined, maxSim: number | undefined, calibration?: string | null): string {
   const nums = [
     typeof evidence === "number" ? `evidence ${evidence.toFixed(2)}` : null,
     typeof maxSim === "number" ? `nearest-register similarity ${maxSim.toFixed(2)}` : null,
   ].filter(Boolean).join(", ");
-  return `The evidence gate: petals show only when his words land near SOME register prototype in embedding space${nums ? ` (${nums})` : ""}. A quiet bloom is honest abstention — far-from-every-register words show nothing rather than a confident wrong reading. The gate's floor is calibrated on his own corpus (basis v1): typical task replies stay quiet, his warmer or heavier moments fade in.`;
+  return `The evidence gate: petals show only when his words land near SOME register prototype in embedding space${nums ? ` (${nums})` : ""}. A quiet bloom is honest abstention — far-from-every-register words show nothing rather than a confident wrong reading.${calibration ? ` ${calibration}` : ""}`;
 }
 
 export interface WaveSampleLike {
@@ -219,7 +239,7 @@ export function interpretWave(sample: WaveSampleLike | null): string {
 /** What the monitor IS — the (i) modal body, shared by the chat panel and
  * the Wave tab. Axis = null shows the general explanation; an axis shows
  * its detail. */
-export function MonitorInfoModal({ axis, onClose }: { axis: AxisInfo | null | "about"; onClose(): void }): React.ReactElement {
+export function MonitorInfoModal({ axis, onClose, calibration }: { axis: AxisInfo | null | "about"; onClose(): void; /** basisCalibrationNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) {
@@ -258,8 +278,7 @@ export function MonitorInfoModal({ axis, onClose }: { axis: AxisInfo | null | "a
                 <strong>A flat bloom is usually honest abstention, not a fault:</strong> an evidence gate scales every
                 register by how near the words land to ANY register prototype — words far from every register show
                 NOTHING rather than a confident wrong reading. The panel says so under the bloom ("quiet" / "faint")
-                with the live evidence number; expect a lot of quiet on the curated-only v0 basis until one is cut on
-                his real utterances.
+                with the live evidence number.
               </p>
               <p>
                 RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing
@@ -301,9 +320,8 @@ export function MonitorInfoModal({ axis, onClose }: { axis: AxisInfo | null | "a
                 ))}
               </div>
               <p className="cm_modal_note">
-                Basis: v1 (2026-08-01) — calibrated on his real utterances (episode replies + diary entries, door-read)
-                plus the curated arc; the nine registers include GRV and the quiet-gate floor comes from his own
-                corpus. Scoring is an explicit read of his words through the gateway; nothing here writes to his memory.
+                {calibration ? `${calibration} ` : ""}The nine registers include GRV. Scoring is an explicit read of his
+                words through the gateway; nothing here writes to his memory.
               </p>
             </div>
           </>
