@@ -4726,6 +4726,28 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A drawn tile whose card has not answered yet (roster_tiles.ts): two quiet lines hold the
+ * loaded lines' place (the meta line at 11 px, the interest chips at 11 px + padding + border),
+ * so nothing moves when the card lands. Still under reduced motion. */
+.eix_sk {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--line, #24304a) 0%, color-mix(in srgb, var(--line, #24304a) 45%, transparent) 50%, var(--line, #24304a) 100%);
+  background-size: 200% 100%;
+  opacity: 0.55;
+  animation: cd_shimmer_slide 1.6s ease-in-out infinite;
+}
+.eix_sk_meta {
+  width: 46%;
+  height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4);
+}
+.eix_sk_upto {
+  width: 78%;
+  height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4 + 6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .eix_sk { animation: none; }
+}
 .eix_card_actions {
   display: flex;
   gap: 8px;

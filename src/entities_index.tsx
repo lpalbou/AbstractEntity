@@ -12,10 +12,11 @@
  * (correspondence between entities) gets room in the layout but no build
  * yet — the entity-visit stamp has not landed.
  *
- * Scale honesty (adversarial review, commons 66): per-card /card reads
- * are fine at operator scale (a handful of homes) and WRONG at N=100 —
- * the batched roster endpoint is filed with the gateway lane; this grid
- * fetches cards lazily with bounded concurrency until it exists.
+ * Loading (operator 2026-11-07, "reading the cards is extremely slow"):
+ * every tile is drawn from the roster at once and fills in on its own —
+ * live reads per tile, cards three at a time, kept and read again only
+ * after 5 minutes or when the entity's state changed (roster_tiles.ts,
+ * card_reads.ts). The light roster card is gateway backlog 1012.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -26,6 +27,7 @@ import { ENTITY_IDENTITY } from "./app_about";
 import { CreateEntityForm } from "./create_entity_form";
 import { activeRuledPhase, deriveLifeState } from "./entity_state";
 import { rosterHeadActions, rosterMode, type RosterMode } from "./roster_empty";
+import { createRosterLoader, type RosterCard, type RosterLoader, type RosterTile } from "./roster_tiles";
 import {
   fetchEntityState,
   gatewayReadHeaders,
@@ -36,10 +38,6 @@ import {
   postEntityState,
   startLoop,
   stopLoop,
-  type EntityStateInfo,
-  type EntitySummary,
-  type LoopStatus,
-  type ServerLifeState,
 } from "./stream_source";
 
 export interface EntitiesIndexProps {
@@ -103,28 +101,11 @@ export function EmptyRoster({ onCreate }: { onCreate(): void }): React.ReactElem
   );
 }
 
-/** The slice of the card compositor the roster reads (kept minimal —
- * the full shape belongs to the identity card drawer). */
-interface RosterCard {
-  age_days?: number;
-  mind_substrate?: { provider?: string; model?: string };
-  discoveries?: unknown[] | { interests?: unknown[] };
-  capabilities?: { tools?: unknown[]; workspace_files?: number };
-  sleep_stats?: { sleeps?: number; self_elected?: number; operator?: number; sleep_share?: number };
-  key_moments?: { total?: number };
-  moments?: Array<Record<string, unknown>>;
-  likes_dislikes?: { likes?: Array<{ target?: string }> };
-}
+/** How often the roster and the live reads are refreshed (cards follow their own rules). */
+export const ROSTER_REFRESH_MS = 20_000;
 
-interface EntityRow {
-  summary: EntitySummary;
-  state: EntityStateInfo | null;
-  loop: LoopStatus | null;
-  /** Gateway-computed composite phase; null on older gateways (#FALLBACK
-   * to client derivation). */
-  serverLife: ServerLifeState | null;
-  card: RosterCard | null;
-}
+/** The words a tile shows when its card could not be read (the reason rides the tooltip). */
+export const CARD_FAILED_NOTE = "details unavailable right now";
 
 function gistOf(item: unknown): string {
   if (typeof item === "string") return item;
@@ -153,6 +134,57 @@ export function RosterStatus({ mode, showCreate, onCreate }: { mode: RosterMode;
   return null;
 }
 
+/** What a read card says on its tile: age and mind, what it is into lately, its sleeps and key moments. */
+export function RosterCardBody({ card }: { card: RosterCard | null }): React.ReactElement {
+  const interests = interestsOf(card);
+  const sleep = card?.sleep_stats;
+  const momentsTotal = card?.key_moments?.total ?? card?.moments?.length;
+  return (
+    <>
+      {card?.age_days !== undefined || card?.mind_substrate?.model ? (
+        <div className="eix_meta">
+          {card?.age_days !== undefined ? <span>{card.age_days}d old</span> : null}
+          {card?.mind_substrate?.model ? <span title="mind substrate">{card.mind_substrate.model}</span> : null}
+        </div>
+      ) : null}
+      {interests.length > 0 ? (
+        <div className="eix_upto">
+          <span className="eix_upto_label">into lately</span>
+          {interests.map((g, i) => (
+            <span key={i} className="eix_interest">
+              {g}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="eix_note">no interests recorded yet</p>
+      )}
+      {sleep && (sleep.sleeps ?? 0) > 0 ? (
+        <div className="eix_meta">
+          <span title="sleeps (self-elected / operator)">
+            🌙 {sleep.sleeps} sleep{(sleep.sleeps ?? 0) === 1 ? "" : "s"}
+            {sleep.self_elected ? ` · ${sleep.self_elected} his own choice` : ""}
+          </span>
+          {momentsTotal ? <span>{momentsTotal} key moments</span> : null}
+        </div>
+      ) : momentsTotal ? (
+        <div className="eix_meta">
+          <span>{momentsTotal} key moments</span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** One roster card read (`GET /entities/{name}/card`), at its default size. */
+export async function fetchRosterCard(baseUrl: string, slug: string): Promise<RosterCard> {
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(slug)}/card`), {
+    headers: gatewayReadHeaders({ Accept: "application/json" }),
+  });
+  if (!res.ok) throw new Error(`The card could not be read (HTTP ${res.status}).`);
+  return (await res.json()) as RosterCard;
+}
+
 export function EntitiesIndex({
   baseUrl,
   token,
@@ -164,7 +196,7 @@ export function EntitiesIndex({
   createRequest = 0,
   onCreateFlowClosed,
 }: EntitiesIndexProps): React.ReactElement {
-  const [rows, setRows] = useState<EntityRow[] | null>(null);
+  const [rows, setRows] = useState<RosterTile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authNeeded, setAuthNeeded] = useState(false);
   // The `#new` deep link opens the form on arrival (initial state, so the
@@ -182,80 +214,47 @@ export function EntitiesIndex({
   }, [onCreateFlowClosed]);
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const cardCacheRef = useRef<Map<string, RosterCard>>(new Map());
+  const loaderRef = useRef<RosterLoader | null>(null);
 
-  const fetchCard = useCallback(
-    async (slug: string): Promise<RosterCard | null> => {
-      const cached = cardCacheRef.current.get(slug);
-      if (cached) return cached;
-      try {
-        const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(slug)}/card`), {
-          headers: gatewayReadHeaders({ Accept: "application/json" }),
-        });
-        if (!res.ok) return null;
-        const card = (await res.json()) as RosterCard;
-        cardCacheRef.current.set(slug, card);
-        return card;
-      } catch {
-        return null;
-      }
-    },
-    [baseUrl],
-  );
-
-  const refresh = useCallback(
-    (opts: { cards?: boolean } = {}) => {
-      listEntities(baseUrl)
-        .then(async (entities) => {
-          // State + loop are cheap per row; cards are the heavy compositor —
-          // fetched SEQUENTIALLY (bounded concurrency 1) and cached, so a
-          // grid of N homes never storms the gateway (scale review P0).
-          const enriched: EntityRow[] = await Promise.all(
-            entities.map(async (summary) => {
-              const [state, loop, serverLife] = await Promise.all([
-                fetchEntityState(baseUrl, summary.slug).catch(() => null),
-                getLoopStatus(baseUrl, summary.slug).catch(() => null),
-                // The gateway-computed composite phase (commons seq 96);
-                // null on older gateways -> client-derived fallback.
-                getServerLifeState(baseUrl, summary.slug).catch(() => null),
-              ]);
-              return { summary, state, loop, serverLife, card: cardCacheRef.current.get(summary.slug) ?? null };
-            }),
-          );
-          setRows(enriched);
-          setError(null);
-          setAuthNeeded(false);
-          if (opts.cards !== false) {
-            for (const row of enriched) {
-              if (cardCacheRef.current.has(row.summary.slug)) continue;
-              const card = await fetchCard(row.summary.slug);
-              if (card) {
-                setRows((prev) =>
-                  prev ? prev.map((r) => (r.summary.slug === row.summary.slug ? { ...r, card } : r)) : prev,
-                );
-              }
-            }
-          }
-        })
-        .catch((e: Error & { status?: number }) => {
-          // 401/403 = the gateway wants a sign-in: prompt, never a blank
-          // page (the maintainer's "empty space", 2026-07-09 06:1x).
-          if (e.status === 401 || e.status === 403) {
+  // One loader per gateway: the card cache lives as long as it does (a gateway switch starts over).
+  useEffect(() => {
+    const loader = createRosterLoader({
+      gateway: {
+        list: () => listEntities(baseUrl),
+        loop: (slug) => getLoopStatus(baseUrl, slug),
+        // The gateway-computed composite phase (commons seq 96); null on older gateways.
+        life: (slug) => getServerLifeState(baseUrl, slug),
+        card: (slug) => fetchRosterCard(baseUrl, slug),
+      },
+      sink: {
+        tiles: setRows,
+        error: (e) => {
+          if (!e) {
+            setError(null);
+            setAuthNeeded(false);
+          } else if (e.status === 401 || e.status === 403) {
+            // 401/403 = the gateway wants a sign-in: prompt, never a blank
+            // page (the maintainer's "empty space", 2026-07-09 06:1x).
             setAuthNeeded(true);
             setError(null);
           } else {
             setError(`Could not list entities: ${e.message}`);
           }
-        });
-    },
-    [baseUrl, fetchCard],
-  );
+        },
+      },
+      schedule: (fn) => void window.requestAnimationFrame(() => fn()),
+    });
+    loaderRef.current = loader;
+    void loader.refresh();
+    const interval = window.setInterval(() => void loader.refresh(), ROSTER_REFRESH_MS);
+    return () => {
+      window.clearInterval(interval);
+      loader.stop();
+      if (loaderRef.current === loader) loaderRef.current = null;
+    };
+  }, [baseUrl]);
 
-  useEffect(() => {
-    refresh();
-    const interval = window.setInterval(() => refresh({ cards: false }), 20000);
-    return () => window.clearInterval(interval);
-  }, [refresh]);
+  const refresh = useCallback(() => void loaderRef.current?.refresh(), []);
 
   const rowFor = (slug: string) => rows?.find((r) => r.summary.slug === slug) ?? null;
 
@@ -315,7 +314,7 @@ export function EntitiesIndex({
             setNote(acts.length ? `${slug}: ${acts.join(" and ")}.` : `${slug}: his personal time did not start — see the card state.`);
           }
         }
-        window.setTimeout(() => refresh({ cards: false }), 1200);
+        window.setTimeout(() => refresh(), 1200);
       } catch (e) {
         // Structured /loop refusals carry the reason — speak it verbatim,
         // never JSON armor (B2: every refusal surfaces with its reason).
@@ -323,7 +322,7 @@ export function EntitiesIndex({
         setNote(`${slug}: ${refusal ? refusal.message : (e as Error).message}`);
       } finally {
         setBusySlug(null);
-        refresh({ cards: false });
+        refresh();
       }
     },
     [baseUrl, token, busySlug, refresh],
@@ -338,12 +337,12 @@ export function EntitiesIndex({
       const target = row?.state?.state === "asleep" ? "awake" : "asleep";
       try {
         await postEntityState(baseUrl, slug, target, "by the operator (roster)", token);
-        window.setTimeout(() => refresh({ cards: false }), 800);
+        window.setTimeout(() => refresh(), 800);
       } catch (e) {
         setNote(`${slug}: ${(e as Error).message}`);
       } finally {
         setBusySlug(null);
-        refresh({ cards: false });
+        refresh();
       }
     },
     [baseUrl, token, busySlug, rows, refresh],
@@ -424,7 +423,7 @@ export function EntitiesIndex({
       <RosterStatus mode={mode} showCreate={showCreate} onCreate={openCreate} />
 
       <div className="eix_grid">
-        {(rows ?? []).map(({ summary, state, loop, serverLife, card }) => {
+        {(rows ?? []).map(({ summary, state, loop, serverLife, livePending, card, cardStatus, cardError }) => {
           // ONE derived state per card (maintainer 2026-07-09): the same
           // mutually-exclusive machine as the focus view — no card shows
           // "visiting" beside a lit own-time badge. Server phase wins.
@@ -433,15 +432,15 @@ export function EntitiesIndex({
           // chat_open is consumed by the derive, so a card can never say
           // "personal" over a server-asserted open conversation.
           const rosterHoldsNoChat = null;
+          // Until its first live answers the tile claims no phase (the roster's state alone is
+          // half the truth: whether personal time runs comes from /loop and /life_state).
           const life = deriveLifeState(state, loop, rosterHoldsNoChat, serverLife);
+          const livePhase = livePending ? null : activeRuledPhase(life);
           // The radio position + process axis — same ONE machine as the
           // entity page (no roster-vs-page axis split, adversary G2).
-          const activePhase = activeRuledPhase(life);
+          const activePhase = livePhase;
           const ownTimeOn = life.ownTimeOn;
           const stopping = life.stopping;
-          const interests = interestsOf(card);
-          const sleep = card?.sleep_stats;
-          const momentsTotal = card?.key_moments?.total ?? card?.moments?.length;
           const busy = busySlug === summary.slug;
           return (
             <div key={summary.slug} className="eix_card">
@@ -458,7 +457,7 @@ export function EntitiesIndex({
                   * settling/unknown, where no phase is current and the radio
                   * pushes nothing. A gold pushed "visit" 40px under a badge
                   * saying "visiting" said it twice (IA review P2). */}
-                {activePhase === null ? (
+                {activePhase === null && !livePending ? (
                   <span className={`eix_badge eix_life_${life.accent}`} title={life.detail}>
                     {life.label}
                   </span>
@@ -477,40 +476,20 @@ export function EntitiesIndex({
                 <span className="eix_open">watch →</span>
               </button>
 
-              <div className="eix_card_body">
-                {card?.age_days !== undefined || card?.mind_substrate?.model ? (
-                  <div className="eix_meta">
-                    {card?.age_days !== undefined ? <span>{card.age_days}d old</span> : null}
-                    {card?.mind_substrate?.model ? <span title="mind substrate">{card.mind_substrate.model}</span> : null}
-                  </div>
-                ) : null}
-                {interests.length > 0 ? (
-                  <div className="eix_upto">
-                    <span className="eix_upto_label">into lately</span>
-                    {interests.map((g, i) => (
-                      <span key={i} className="eix_interest">
-                        {g}
-                      </span>
-                    ))}
-                  </div>
-                ) : card ? (
-                  <p className="eix_note">no interests recorded yet</p>
+              <div className="eix_card_body" data-card={cardStatus}>
+                {cardStatus === "pending" ? (
+                  // The card arrives after the roster: quiet lines hold the loaded lines' place.
+                  <>
+                    <span className="eix_sk eix_sk_meta" aria-hidden="true" />
+                    <span className="eix_sk eix_sk_upto" aria-hidden="true" />
+                  </>
+                ) : cardStatus === "failed" ? (
+                  <p className="eix_note eix_card_note" title={cardError}>
+                    {CARD_FAILED_NOTE}
+                  </p>
                 ) : (
-                  <p className="eix_note">reading his card…</p>
+                  <RosterCardBody card={card} />
                 )}
-                {sleep && (sleep.sleeps ?? 0) > 0 ? (
-                  <div className="eix_meta">
-                    <span title="sleeps (self-elected / operator)">
-                      🌙 {sleep.sleeps} sleep{(sleep.sleeps ?? 0) === 1 ? "" : "s"}
-                      {sleep.self_elected ? ` · ${sleep.self_elected} his own choice` : ""}
-                    </span>
-                    {momentsTotal ? <span>{momentsTotal} key moments</span> : null}
-                  </div>
-                ) : momentsTotal ? (
-                  <div className="eix_meta">
-                    <span>{momentsTotal} key moments</span>
-                  </div>
-                ) : null}
               </div>
 
               <div className="eix_card_actions">
@@ -553,7 +532,8 @@ export function EntitiesIndex({
                       // swapped the WORD for "…"). The label never changes;
                       // busy renders as the slot's disabled styling only.
                       label: <>⏻ personal</>,
-                      busy,
+                      // Until the tile's live reads answered, nothing is known to toggle.
+                      busy: busy || livePending,
                       variant: activePhase === "personal" ? (life.ownTimeActive ? "active" : "resting") : ownTimeOn ? "suppressed" : undefined,
                       onSelect: () => void toggleOwnTime(summary.slug),
                       title: stopping
@@ -568,7 +548,7 @@ export function EntitiesIndex({
                     },
                     sleep: {
                       label: <>🌙 sleep</>,
-                      disabled: busy || life.visiting,
+                      disabled: busy || life.visiting || livePending,
                       onSelect: () => void toggleSleep(summary.slug),
                       title: life.visiting
                         ? "In a visit — cannot sleep with a visitor in the room"
