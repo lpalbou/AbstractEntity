@@ -148,6 +148,11 @@ describe("live ledger fold", () => {
     ]);
   });
 
+  it("after a day that stopped without reflecting, a visit's turn-1 events open nothing", () => {
+    const visit = [listed(170, "t-0001"), env(183, "binding", "chat-chat-20260708-cd34", "t-0001", { record_id: "ex:episode-183", source: "remember" }, { kind: "episode", title: "exchange: hi" })];
+    expect(titles([...journal(), ...visit])).toHaveLength(3);
+  });
+
   it("a recall with no participants recorded says nothing about who is there", () => {
     const quiet = journal().map((e) => (e.seq === 87 ? recall(87, "t-0002", []) : e));
     expect(titles(quiet)).toContain("87 — tick 2 —");
