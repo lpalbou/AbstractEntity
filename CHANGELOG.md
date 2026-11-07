@@ -6,7 +6,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [0.11.2] - 2026-11-07
 
-On the next AbstractUIC `@abstractframework/ui-kit` release (the one that adds `IdentityPanel`) and
+On `@abstractframework/ui-kit` ^0.9.16 (AbstractUIC 0.10.3, with `IdentityPanel` and the avatar frame-rate fix) and
 `@abstractframework/panel-chat` ^0.8.2. Works with the same gateways as 0.11.1.
 
 ### Fixed
