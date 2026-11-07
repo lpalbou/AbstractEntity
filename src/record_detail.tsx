@@ -237,9 +237,11 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
       ? "These words are the whole record: it was born as words."
       : digest && !diary
         ? "The summary saved with the record, as it was saved."
-        : diary || node.bookkeeping || node.kind === "relation"
-          ? null
-          : "The fuller summary arrives once this memory is recalled.";
+        : diary
+          ? "The runtime keeps only the first 120 characters of an entry as its summary (a runtime fix is planned); the whole entry is in his Book, below."
+          : node.bookkeeping || node.kind === "relation"
+            ? null
+            : "The fuller summary arrives once this memory is recalled.";
   return (
     <>
       <h3 className="ei_title">
