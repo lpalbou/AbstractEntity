@@ -116,3 +116,14 @@ export function parseExchange(raw: string, entityName: string): Exchange | null 
     answer: lines.slice(answerAt + 1).join("\n").trim(),
   };
 }
+
+/** His ```rest block — the runtime's mark that he chose to rest (abstractruntime
+ * identity/life.py _REST_FENCE_RE / parse_rest_block) — as a readable line
+ * for Markdown: "*Chose to rest:* <reason>". Every word of the reason is
+ * kept; only the fence marks change. Other fences are left as they are. */
+export function restBlocksAsText(text: string): string {
+  return String(text || "").replace(/```rest[^\n`]*\n([\s\S]*?)```/gi, (_m, reason: string) => {
+    const r = String(reason || "").trim();
+    return `\n\n*Chose to rest:* ${r || "(no reason given)"}\n\n`;
+  });
+}

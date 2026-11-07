@@ -14,7 +14,7 @@ import { Markdown } from "@abstractframework/panel-chat";
 
 import { fetchRecordVerbatim } from "./stream_source";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
-import { parseExchange, parseVerbatimTurns, splitUnspokenThinking } from "./verbatim_parse";
+import { parseExchange, parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./verbatim_parse";
 import type { VerbatimSource } from "./verbatim_modal";
 
 export async function readRecordWords(source: VerbatimSource, graphId: string, kind: string | undefined): Promise<{ text: string; note: string | null }> {
@@ -37,7 +37,9 @@ function isToolTurn(speaker: string): boolean {
   return /\(while looking things up\)$/.test(speaker) || speaker === "(the door)";
 }
 
-export function VerbatimTurns({ text, entity, onSpeakers }: { text: string; entity: string; onSpeakers?(speakers: string[]): void }): React.ReactElement {
+/** `plain`: the words are not Markdown (a born-digest summary) — shown as
+ * written, line breaks kept. */
+export function VerbatimTurns({ text, entity, onSpeakers, plain = false }: { text: string; entity: string; onSpeakers?(speakers: string[]): void; plain?: boolean }): React.ReactElement {
   const { spoken, thinking } = useMemo(() => splitUnspokenThinking(text), [text]);
   const exchange = useMemo(() => parseExchange(spoken, entity), [spoken, entity]);
   const turns = useMemo(() => parseVerbatimTurns(spoken, entity), [spoken, entity]);
@@ -63,7 +65,7 @@ export function VerbatimTurns({ text, entity, onSpeakers }: { text: string; enti
         <div className="ei_turns">
           <div className="ei_turn">
             <span className="ei_turn_speaker">{exchange.cueSpeaker}</span>
-            <Markdown text={exchange.cue} className="ev_markdown ei_turn_md" />
+            <Markdown text={restBlocksAsText(exchange.cue)} className="ev_markdown ei_turn_md" />
           </div>
           {exchange.between ? (
             <div className="ei_unspoken">
@@ -73,7 +75,7 @@ export function VerbatimTurns({ text, entity, onSpeakers }: { text: string; enti
           ) : null}
           <div className="ei_turn ei_turn_self">
             <span className="ei_turn_speaker">{exchange.answerSpeaker}</span>
-            <Markdown text={exchange.answer} className="ev_markdown ei_turn_md" />
+            <Markdown text={restBlocksAsText(exchange.answer)} className="ev_markdown ei_turn_md" />
           </div>
         </div>
         {thinking ? (
@@ -92,12 +94,16 @@ export function VerbatimTurns({ text, entity, onSpeakers }: { text: string; enti
           {turns.map((t, i) => (
             <div key={i} className={`ei_turn ${t.speaker.toLowerCase().startsWith(self) ? "ei_turn_self" : ""}`}>
               <span className="ei_turn_speaker">{t.speaker}</span>
-              {isToolTurn(t.speaker) ? <pre className="ei_turn_text">{t.text}</pre> : <Markdown text={t.text} className="ev_markdown ei_turn_md" />}
+              {isToolTurn(t.speaker) ? <pre className="ei_turn_text">{t.text}</pre> : <Markdown text={restBlocksAsText(t.text)} className="ev_markdown ei_turn_md" />}
             </div>
           ))}
         </div>
       ) : (
-        <Markdown text={spoken || text} className="ev_markdown ei_verbatim_md" />
+        plain ? (
+          <div className="ei_verbatim_md ei_verbatim_plain">{spoken || text}</div>
+        ) : (
+          <Markdown text={restBlocksAsText(spoken || text)} className="ev_markdown ei_verbatim_md" />
+        )
       )}
       {thinking ? (
         <div className="ei_unspoken">

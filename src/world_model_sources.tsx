@@ -22,7 +22,7 @@ import { Markdown } from "@abstractframework/panel-chat";
 import { fetchDiaryEntry } from "./stream_source";
 import { isDiaryGraphId, type FoldState, type NodeState } from "./stream_fold";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
-import { parseExchange, parseVerbatimTurns, splitUnspokenThinking } from "./verbatim_parse";
+import { parseExchange, parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./verbatim_parse";
 import { readRecordWords, VerbatimTurns } from "./verbatim_view";
 import type { VerbatimSource } from "./verbatim_modal";
 
@@ -47,32 +47,54 @@ export function selectCardSources(fold: FoldState, card: NodeState): CardSource[
   return out;
 }
 
-export function WorldModelSources({ fold, card, source, onSelect }: { fold: FoldState; card: NodeState; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement | null {
-  const sources = useMemo(() => selectCardSources(fold, card), [fold, card]);
+/** Book rows for any memories, by graph id (order kept; missing ones too). */
+export function sourcesFromIds(fold: FoldState, ids: string[]): CardSource[] {
+  const seen = new Set<string>();
+  const out: CardSource[] = [];
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const node = fold.nodes.get(fold.graph_to_row.get(id) ?? id) ?? null;
+    out.push({ graphId: id, node, bornAt: node?.born_at ?? "" });
+  }
+  return out;
+}
+
+/** Memories laid out like the Book: a date line, then time + full words. */
+export function MemoryRows({ items, source, onSelect }: { items: CardSource[]; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement {
   const byDay = useMemo(() => {
     const groups: Array<{ day: string; rows: CardSource[] }> = [];
-    for (const s of sources) {
+    for (const s of items) {
       const { day } = bookDate(s.bornAt);
       const last = groups[groups.length - 1];
       if (last && last.day === day) last.rows.push(s);
       else groups.push({ day, rows: [s] });
     }
     return groups;
-  }, [sources]);
-  if (sources.length === 0) return null;
+  }, [items]);
   return (
-    <div className="wm_sources">
-      <div className="wm_sources_head">
-        What he drew on <span className="wm_sources_count">{sources.length} {sources.length === 1 ? "memory" : "memories"}, in full</span>
-      </div>
-      {byDay.map((group) => (
-        <div key={group.day} className="book_day_group">
+    <>
+      {byDay.map((group, gi) => (
+        <div key={`${group.day}-${gi}`} className="book_day_group">
           <div className="book_day">{group.day}</div>
           {group.rows.map((s) => (
             <SourceRow key={s.graphId} item={s} source={source} onSelect={onSelect} />
           ))}
         </div>
       ))}
+    </>
+  );
+}
+
+export function WorldModelSources({ fold, card, source, onSelect }: { fold: FoldState; card: NodeState; source: VerbatimSource; onSelect(id: string): void }): React.ReactElement | null {
+  const sources = useMemo(() => selectCardSources(fold, card), [fold, card]);
+  if (sources.length === 0) return null;
+  return (
+    <div className="wm_sources">
+      <div className="wm_sources_head">
+        What he drew on <span className="wm_sources_count">{sources.length} {sources.length === 1 ? "memory" : "memories"}, in full</span>
+      </div>
+      <MemoryRows items={sources} source={source} onSelect={onSelect} />
     </div>
   );
 }
@@ -161,7 +183,7 @@ function SourceRow({ item, source, onSelect }: { item: CardSource; source: Verba
                 <VerbatimTurns text={words.full} entity={source.entity} />
               </div>
             ) : (
-              <Markdown text={words.lead} className="ev_markdown wm_source_text" />
+              <Markdown text={restBlocksAsText(words.lead)} className="ev_markdown wm_source_text" />
             )}
             {words.full !== words.lead ? (
               <button className="wm_more" onClick={() => setExpanded((v) => !v)}>

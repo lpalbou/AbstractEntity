@@ -483,6 +483,20 @@ body {
 .wm_source_text.ev_markdown {
   overflow-wrap: anywhere;
 }
+
+.ei_verbatim_plain {
+  white-space: pre-wrap;
+}
+
+/* Never hide words sideways: code blocks in these panels wrap. */
+.ei_turn_md pre,
+.ei_verbatim_md pre,
+.wm_source_text pre,
+.cw_text pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: visible;
+}
 .cm_overlay {
   position: absolute;
   top: 0;
@@ -1826,6 +1840,109 @@ body {
   cursor: default;
   color: var(--text-dim, #8b98ad);
 }
+/* A world-model card's own words, structured. */
+.cw_card {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  line-height: 1.55;
+}
+
+.cw_head,
+.cw_feeling {
+  margin: 0 0 8px;
+}
+
+.cw_quotes {
+  margin: 0 0 8px;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.cw_quote {
+  margin-bottom: 10px;
+}
+
+.cw_date {
+  display: block;
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+}
+
+.cw_text {
+  overflow-wrap: anywhere;
+}
+
+.cw_cut {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.cw_footer {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.cw_thread {
+  display: inline-block;
+  margin: 2px 4px 0 0;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.cw_reminder {
+  display: block;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* A dream, told by what it touched. */
+.dr_detail {
+  margin: 12px 0;
+}
+
+.dr_section {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-bottom: 14px;
+}
+
+.dr_head {
+  margin: 0 12px 4px;
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.dr_note {
+  margin: 2px 12px 6px;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.dr_block {
+  margin: 8px 0 12px;
+}
+
+.dr_block_head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 0 12px;
+}
+
+.dr_label {
+  font-weight: 600;
+}
+
+.dr_tone {
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
 /* A world-model card's sources, read like the Book (full words). */
 .wm_sources {
   margin: 12px 0;

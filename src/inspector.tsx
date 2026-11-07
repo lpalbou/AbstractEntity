@@ -16,6 +16,8 @@ import { shapeLabel } from "./node_label";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
 import { SectionDisclosure } from "./section_disclosure";
+import { CardWords } from "./card_words";
+import { DreamDetail } from "./dream_detail";
 import { WorldModelSources } from "./world_model_sources";
 import { readRecordWords, VerbatimTurns } from "./verbatim_view";
 
@@ -86,9 +88,12 @@ function InlineVerbatim({
   node,
   source,
   onSpeakers,
+  plain = false,
 }: {
   node: NodeState;
   source: VerbatimSource;
+  /** Words that are not Markdown, shown as written, without the born-digest note. */
+  plain?: boolean;
   /** Reports the exchange's OTHER participants up to the card's metadata
    * panel (dm#54 pt5) — fires once per fetch. */
   onSpeakers?(speakers: string[]): void;
@@ -144,8 +149,8 @@ function InlineVerbatim({
   if (state.phase === "none") return <p className="ei_note">{state.message}</p>;
   return (
     <div className="ei_verbatim_inline">
-      {state.note ? <p className="ei_verbatim_note">{state.note}</p> : null}
-      <VerbatimTurns text={state.text} entity={source.entity} onSpeakers={onSpeakers} />
+      {state.note && !plain ? <p className="ei_verbatim_note">{state.note}</p> : null}
+      <VerbatimTurns text={state.text} entity={source.entity} onSpeakers={onSpeakers} plain={plain} />
     </div>
   );
 }
@@ -204,7 +209,7 @@ function NodeCard({
       </div>
       {/* The kind badge sits directly above — a "lesson:" prefix here said
         * it twice (laurent dm#84); shapeLabel strips type/gist scaffolding. */}
-      <h3 className="ei_title">{shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
+      <h3 className="ei_title">{node.kind === "dream" ? "A dream" : shapeLabel(node.title || "") || node.id.slice(0, 24)}</h3>
       {node.digest_method ? (
         <p
           className="ei_digest_method"
@@ -278,12 +283,17 @@ function NodeCard({
         * verbatim — the Detail tab IS the reading surface. Only relation
         * rows and engine bookkeeping carry no words to show. */}
       {node.kind === "world_model" && verbatimSource ? <WorldModelSources fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
+      {node.kind === "dream" && verbatimSource ? <DreamDetail fold={fold} dream={node} source={verbatimSource} onSelect={onSelect} /> : null}
       {node.kind !== "relation" && !node.bookkeeping ? (
         verbatimSource ? (
-          node.kind === "world_model" ? (
+          node.kind === "dream" ? (
+            <SectionDisclosure id="dream_summary" title="The sleep pass's summary">
+              <p className="ei_note">A mechanical summary that quotes titles cut short — what the night touched is listed above in full.</p>
+              <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} plain />
+            </SectionDisclosure>
+          ) : node.kind === "world_model" ? (
             <SectionDisclosure id="wm_card_text" title="The card's own words">
-              <p className="ei_note">Where a quote here ends in “…”, the sleep pass cut it short — the memories above are complete.</p>
-              <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
+              <CardWords foldState={fold} card={node} source={verbatimSource} onSelect={onSelect} />
             </SectionDisclosure>
           ) : (
             <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
@@ -292,7 +302,7 @@ function NodeCard({
           <p className="ei_note">Verbatim reads need a connected gateway (this is an exported file).</p>
         )
       ) : null}
-      {node.signals && node.signals.length > 0 ? (
+      {node.signals && node.signals.length > 0 && !(node.kind === "dream" && verbatimSource) ? (
         <SectionDisclosure id="night" className="ei_night" title="The night moved" sectionTitle="The night's telemetry (wave-5 dream signals): what the sleep pass MOVED — structure decided what enters; the felt tint only COLORS it (a read of his accumulated feelings, never a deposit). Machine acts carry no tint by design.">
           <ul className="ei_signals">
             {node.signals.map((s, i) => {
