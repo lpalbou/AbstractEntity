@@ -2994,10 +2994,6 @@ body {
 }
 
 /* ------------------------------------------------- turn detail modal (tdm) */
-.tdm_panel {
-  max-width: 720px;
-  width: min(720px, 94vw);
-}
 .tdm_body section {
   margin-bottom: 18px;
 }
@@ -3022,47 +3018,6 @@ body {
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   margin: 0;
 }
-.tdm_mem {
-  border: 1px solid color-mix(in srgb, var(--memory) 18%, transparent);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  background: color-mix(in srgb, var(--memory) 4%, transparent);
-}
-.tdm_mem_head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text);
-  font-weight: 600;
-}
-.tdm_mem_title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tdm_tag {
-  font-family: var(--font-mono, Menlo, Monaco, monospace);
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-}
-.tdm_mem_digest {
-  margin-top: 5px;
-  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.45;
-  color: var(--text-dim);
-}
-.tdm_mem_meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 6px;
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-}
 .tdm_list {
   margin: 0;
   padding-left: 4px;
@@ -3079,18 +3034,6 @@ body {
 .tdm_list code {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text);
-}
-.tdm_arg {
-  color: var(--text-dim);
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-/* Failed/refused call chip (gateway ledger fold serves success:false with
- * the error text as the result — a real reach that failed loudly). */
-.tdm_tool_failed {
-  color: var(--danger, #e06c75);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  margin-left: 6px;
-  white-space: nowrap;
 }
 .tdm_action {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
@@ -4934,31 +4877,6 @@ body {
 }
 .tdm_copy:hover {
   border-color: var(--ea-accent);
-}
-.tdm_tool {
-  margin-bottom: 12px;
-}
-.tdm_tool_head {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-.tdm_tool_result,
-.tdm_system {
-  margin: 6px 0 0;
-  padding: 8px 10px;
-  background: var(--bg, #0b0f16);
-  border: 1px solid var(--line, #24304a);
-  border-radius: 6px;
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 340px;
-  overflow-y: auto;
-}
-.tdm_tool_noresult {
-  color: #e0b16b;
 }
 .el_loading_note {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
