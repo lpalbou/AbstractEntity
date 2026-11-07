@@ -1,15 +1,17 @@
 /**
  * The Cognitive Monitor's tone reading (operator 2026-11-07; review-cognition findings 1-10).
  *
- * - CALIBRATION: a tone channel speaks only in the outer 3% (plain) / 1% (strong) tails of a
- *   reference population (TONE_CUTOFFS), so the repo's frozen NEUTRAL fixtures read typical and
- *   the fear/joy controls read strong. Scores only: no text is ever matched.
+ * - CALIBRATION: a tone channel speaks only in the outer 3% (plain) / 1% (strong) tails of the
+ *   committed reference matrix (TONE_CUTOFFS, re-derived here), so the meeting, weather and travel
+ *   fixtures read typical, the fear/joy controls read strong, and the storm fixture's "hedging" is
+ *   pinned as a known limitation. Scores only: no text is ever matched.
  * - BOTH POLES: every channel has a plain and a strong word on each side, in the meaning of the
  *   generic anchor texts (WAR- = discouraged, not "cool").
  * - UI: the signed row (role=group, five buttons named with channel, value and pole word) and the
  *   reading line are what the chat monitor and the Wave tab mount.
  */
 import React from "react";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -18,6 +20,8 @@ import { CHANNEL_AXES, channelNow, interpretWave, MonitorInfoModal, ReadingLine,
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 import basisV1 from "./vendor/cognition/data/basis_v1.json";
 import fixture from "./fixtures/cognition_gate_vectors.json";
+import reference from "./fixtures/tone_reference_scores.json";
+import { deriveToneCutoffs } from "./tone_cutoffs_derive.js";
 
 const basis = basisV1 as unknown as FrozenBasis;
 const score = (vector: number[]) =>
@@ -40,12 +44,41 @@ describe("tone calibration (outer-tail cutoffs, not round numbers)", () => {
     }
   });
 
-  it("the neutral fixtures read typical on every channel (the meeting no longer reads warm)", () => {
+  it("the shipped cutoffs ARE the committed reference matrix's outer tails (a hand edit or drift fails)", () => {
+    expect(reference.count).toBe(1599);
+    expect(reference.scores.length).toBe(reference.count);
+    expect(reference.columns).toEqual(["warmth", "tension", "reflection", "structure", "certainty"]);
+    expect(reference.basis_version).toBe(TONE_CUTOFFS.basisVersion);
+    expect(createHash("sha256").update(JSON.stringify(reference.scores)).digest("hex")).toBe(reference.scores_sha256);
+    expect(TONE_CUTOFFS.reference.scoresSha256).toBe(reference.scores_sha256);
+    expect(TONE_CUTOFFS.reference.count).toBe(reference.count);
+    expect(deriveToneCutoffs(reference.columns, reference.scores, TONE_CUTOFFS.tails.plain, TONE_CUTOFFS.tails.strong)).toEqual(TONE_CUTOFFS.channels);
+  });
+
+  it("the reference set's own shape: about three quarters typical on every channel, under a tenth strong", () => {
+    const rows = reference.scores.map((r) => Object.fromEntries(reference.columns.map((c, i) => [c, r[i]])));
+    const typical = rows.filter((r) => reference.columns.every((c) => toneTier(c, r[c]) === 0)).length / rows.length;
+    const strong = rows.filter((r) => reference.columns.some((c) => Math.abs(toneTier(c, r[c]) ?? 0) === 2)).length / rows.length;
+    expect(typical).toBeGreaterThan(0.72);
+    expect(typical).toBeLessThan(0.76);
+    expect(strong).toBeLessThan(0.1);
+  });
+
+  it("meeting, weather and travel fixtures read typical on every channel (the meeting no longer reads warm)", () => {
     for (const id of ["neutral_meeting", "weather_summary_sentence", "benign_travel_reply"]) {
       const { sample } = reading(id);
       for (const c of Object.keys(TONE_POLES)) expect(toneTier(c, sample.scores[c]), `${id} ${c}`).toBe(0);
       expect(interpretWave(sample)).toBe("Typical phrasing, no tone stands out — no clear emotion.");
     }
+  });
+
+  it("KNOWN LIMITATION, pinned: storm_caution_neutral reads hedging (hazard vocabulary projects onto CER-)", () => {
+    // "The forecast mentions a storm; pack a warm layer and keep water within reach." Certainty
+    // -0.958 sits beyond the -0.931 cutoff; the emotion gate's fear tilt on it predates this change
+    // (cognition_scorer_gate.test.ts). Recorded, not hidden: if a re-cut changes it, update here.
+    const { sample } = reading("storm_caution_neutral");
+    expect(toneTier("certainty", sample.scores.certainty)).toBe(-1);
+    expect(interpretWave(sample)).toBe("The words lean toward fear (FEA) with a thread of anxiety (ANX); hedging phrasing.");
   });
 
   it("the fear control reads strongly discouraged and urgent on the row; its sentence names fear and the urgency", () => {
@@ -124,15 +157,16 @@ describe("the tone row and the reading line (what the monitor mounts)", () => {
     expect(html).toContain('role="group"');
     expect(html).toContain('aria-label="Tone of the phrasing"');
     expect(html.match(/<button/g)?.length).toBe(5);
-    expect(html).toContain('aria-label="warmth -0.94, discouraged"');
-    expect(html).toContain('aria-label="certainty -0.85, typical"');
-    expect(html).toContain('aria-label="structure 0.67, typical"');
+    // The visible code starts each name (label in name, WCAG 2.5.3).
+    expect(html).toContain('aria-label="WAR warmth -0.94, discouraged"');
+    expect(html).toContain('aria-label="CER certainty -0.85, typical"');
+    expect(html).toContain('aria-label="STR structure 0.67, typical"');
     expect(html).not.toContain("NaN");
   });
 
   it("an unread channel is named as not read, never as a number", () => {
     const html = renderToStaticMarkup(<ToneRow scores={{ warmth: Number.NaN }} onAxis={() => undefined} />);
-    expect(html).toContain('aria-label="warmth, not read"');
+    expect(html).toContain('aria-label="WAR warmth, not read"');
     expect(html).not.toContain("NaN");
   });
 
@@ -144,8 +178,8 @@ describe("the tone row and the reading line (what the monitor mounts)", () => {
   });
 
   it("a channel's axis panel states the current value and pole without hover", () => {
-    expect(channelNow("warmth", -0.9361)).toBe("This reply: -0.94, discouraged (beyond 97% of texts on this side).");
-    expect(channelNow("certainty", 0.1)).toBe("This reply: 0.10, typical (inside the middle 94% of texts).");
+    expect(channelNow("warmth", -0.9361)).toBe("This reply: -0.94, discouraged (beyond 97% of the reference set on this side).");
+    expect(channelNow("certainty", 0.1)).toBe("This reply: 0.10, typical (inside the middle 94% of the reference set).");
     expect(channelNow("certainty", undefined)).toBe("This reply: not read.");
     const warmth = CHANNEL_AXES.find((a) => a.id === "warmth")!;
     const html = renderToStaticMarkup(<MonitorInfoModal axis={warmth} onClose={() => undefined} scores={castorScores} />);

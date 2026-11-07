@@ -85,8 +85,8 @@ try {
   const row = page.getByRole("group",{name:"Tone of the phrasing"});
   assert.equal(await row.getByRole("button").count(),5,"five tone channels");
   assert.deepEqual(await row.locator(".cm_tone_val").allTextContents(),["·","·","·","·","·"],"a neutral reply is typical on every channel");
-  for (const [i,name] of ["warmth","tension","reflection","structure","certainty"].entries())
-    assert.match(await row.getByRole("button").nth(i).getAttribute("aria-label"),new RegExp(`^${name} -?\\d\\.\\d\\d, typical$`));
+  for (const [i,[code,name]] of [["WAR","warmth"],["TSN","tension"],["REF","reflection"],["STR","structure"],["CER","certainty"]].entries())
+    assert.match(await row.getByRole("button").nth(i).getAttribute("aria-label"),new RegExp(`^${code} ${name} -?\\d\\.\\d\\d, typical$`));
   await page.screenshot({path:resolve(shots,"entity-cognition-quiet.png")});
   await page.getByRole("button",{name:"Joy",exact:true}).click();
   await page.locator('.cm_mood_dot[title="leaning joy"]').waitFor();

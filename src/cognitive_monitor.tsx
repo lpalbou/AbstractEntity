@@ -105,13 +105,14 @@ export function evidenceNote(evidence: number | undefined): string | null {
 export function basisProvenanceNote(calibratedOn: Record<string, unknown> | null | undefined): string {
   const c = calibratedOn ?? {};
   const count = (k: string) => (typeof c[k] === "number" && (c[k] as number) > 0 ? (c[k] as number) : 0);
-  const whose = typeof c["entity"] === "string" && (c["entity"] as string).trim() ? ` (${(c["entity"] as string).trim()})` : "";
+  const entity = typeof c["entity"] === "string" ? (c["entity"] as string).trim() : "";
+  // Exactly what the basis records: the field names' meaning, the counts, the entity, the date.
   const parts = [
     count("curated_arc") ? `${count("curated_arc")} curated texts` : null,
     count("anchor_texts") ? `${count("anchor_texts")} anchor texts` : null,
-    count("castor_utterances") ? `${count("castor_utterances")} replies and diary entries${whose}` : null,
+    count("castor_utterances") ? `${count("castor_utterances")} utterances${entity ? ` of ${entity}` : ""}` : null,
   ].filter(Boolean) as string[];
-  const date = typeof c["date"] === "string" ? ` (${c["date"]})` : "";
+  const date = typeof c["date"] === "string" ? `, recorded ${c["date"]}` : "";
   const generic = "The registers and tone channels are generic: their prototypes come from generic anchor texts, the same for every entity.";
   if (!parts.length) return generic;
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
@@ -145,15 +146,23 @@ export interface WaveSampleLike {
  * speaks only when the reply sits in the outer 3% of a reference population on that side (plain
  * word) or the outer 1% (strong word); everything between is typical and says nothing.
  *
- * Reference population: 1,599 texts of the home gateway's embeddings cache
- * (text-embedding-qwen3-embedding-0.6b, 2026-11-07), scored with basis v1. With these cutoffs
- * 74% of those texts read as typical on every channel and 10% get a strong word (the previous
- * round cutoffs: 0% and 81%). The repo's neutral fixtures (meeting, weather, travel) read typical;
- * the fear and joy controls read strong. Regenerate with scripts/derive_tone_cutoffs.mjs when the basis changes;
- * a test pins the basis version.
+ * Reference set: the channel scores of 1,599 texts from this home's embedding cache (2026-11-07),
+ * committed as src/fixtures/tone_reference_scores.json (scores only: no texts, no vectors; source,
+ * basis version and sha256 recorded there). It is "what this home embedded", not a curated corpus,
+ * and it includes the repo's frozen fixture probes. With these cutoffs 74% of the set reads typical
+ * on every channel and 9% gets a strong word (the previous round cutoffs: 0% and 81%).
+ * scripts/derive_tone_cutoffs.mjs re-derives these numbers from that file; a test re-derives them
+ * and must match exactly, so a hand edit or a drift fails. Re-cut after a basis change.
+ *
+ * Known limitation (pinned in a test): the frozen storm_caution_neutral fixture ("The forecast
+ * mentions a storm; pack a warm layer …") reads "hedging": hazard-topic vocabulary projects onto the
+ * certainty axis's hedging side (-0.958, beyond the -0.931 cutoff). By design about a quarter of
+ * texts get at least one word (ten tails of 3%), so some such readings are expected.
  */
 export const TONE_CUTOFFS = {
   basisVersion: "1.0.0",
+  /** The reference set, said once wherever the percentages are shown. */
+  reference: { label: "this home's embedding cache, 1,599 texts, 2026-11-07", count: 1599, scoresSha256: "44cb8095852d6f1f36b356bcabe572dbc6913360e4d2f0df3ad5123cda5097f3" },
   tails: { plain: 0.03, strong: 0.01 },
   channels: {
     warmth: { low: -0.879, lowStrong: -0.963, high: 0.975, highStrong: 0.989 },
@@ -236,7 +245,10 @@ export function dominantEmotion(emotions: Record<string, number> | undefined): {
  * - an emotion is named only when it clears the gate (>= 0.18 after the evidence gate), with
  *   strength-honest verbs and "(faint evidence)" when the gate's evidence is below 0.35;
  * - ONE rule against contradiction: when an emotion is named, warmth is not spoken (the named
- *   emotion already carries the valence) and no second valence clause is added;
+ *   emotion already carries the valence) and no second valence clause is added. Scope: valence is
+ *   the only dimension both instruments measure; urgency, reflection, structure and certainty
+ *   describe the phrasing alongside any emotion (e.g. calm with very urgent phrasing is two
+ *   readings, not a contradiction the scores could settle), so they are not suppressed;
  * - no emotion: the tone IS the reading ("… — no clear emotion"); no tone scores at all: say so.
  * Pure + tested.
  */
@@ -290,7 +302,7 @@ export function ToneRow({ scores, onAxis }: { scores: Record<string, number> | u
         const v = scores?.[a.id];
         const finite = typeof v === "number" && Number.isFinite(v);
         const word = toneWord(a.id, v);
-        const said = finite ? `${a.name} ${v.toFixed(2)}, ${word ?? "typical"}` : `${a.name}, not read`;
+        const said = finite ? `${a.code} ${a.name} ${v.toFixed(2)}, ${word ?? "typical"}` : `${a.code} ${a.name}, not read`;
         return (
           <button key={a.id} type="button" className="cm_gauge_code" style={{ color: a.color }} aria-label={said} title={`${said}. ${a.description}`} onClick={() => onAxis(a)}>
             {a.code}
@@ -351,8 +363,9 @@ export function MonitorInfoModal({ axis, onClose, calibration, scores }: { axis:
                 NOTHING rather than a confident wrong reading. The tone still reads: the five channels under the bloom
                 (WAR warmth, TSN tension, REF reflection, STR structure, CER certainty) are signed, so both poles speak
                 (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
-                associative, assured or hedging). A channel speaks only when the reply sits in the outer 3% of typical
-                texts on that side ("+" or "−"; "++" or "−−" for the outer 1%); "·" is typical. The sentence says the
+                associative, assured or hedging). A channel speaks only when the reply sits in the outer 3% of a reference set
+                on that side ("+" or "−"; "++" or "−−" for the outer 1%); "·" is typical. The reference set is{" "}
+                {TONE_CUTOFFS.reference.label}: what this home embedded, not a general corpus. The sentence says the
                 strongest ones and adds an emotion only when one clears the gate.
               </p>
               <p>
@@ -425,7 +438,7 @@ export function channelNow(channel: string, value: number | undefined): string {
   const tier = toneTier(channel, value);
   if (tier === null) return "This reply: not read.";
   const word = toneWord(channel, value);
-  const where = tier === 0 ? "typical (inside the middle 94% of texts)" : `${word} (beyond ${Math.abs(tier) === 2 ? "99%" : "97%"} of texts on this side)`;
+  const where = tier === 0 ? "typical (inside the middle 94% of the reference set)" : `${word} (beyond ${Math.abs(tier) === 2 ? "99%" : "97%"} of the reference set on this side)`;
   return `This reply: ${(value as number).toFixed(2)}, ${where}.`;
 }
 

@@ -103,6 +103,8 @@ describe("interpretWave (the pre-computed meaning)", () => {
     expect(text).not.toMatch(/discouraged|bright|strained|settled|energized/);
     // without a named emotion, warmth speaks
     expect(interpretWave({ emotions: {}, scores: { warmth: -0.99 } })).toBe("Deeply discouraged phrasing — no clear emotion.");
+    // Scope: only valence is shared; other channels speak beside any emotion (documented on interpretWave).
+    expect(interpretWave({ emotions: { calm: 0.8 }, scores: { tension: 0.99 } })).toBe("The words lean strongly toward calm (CAL); very urgent phrasing.");
   });
 
   it("a strong tone word leads over a mild emotional tilt; otherwise the emotion leads", () => {

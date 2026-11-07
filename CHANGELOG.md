@@ -26,8 +26,11 @@ On `@abstractframework/ui-kit` ^0.9.16 (AbstractUIC 0.10.3, with `IdentityPanel`
   It now says the tone of the phrasing from the five tone channels it already scores, on both sides:
   warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
   associative, assured or hedging. A channel speaks only when the reply is more extreme than 97% of
-  typical texts on that side ("very …" beyond 99%); otherwise the reading says the phrasing is
-  typical. For Castor's reply to "what are the last things you remember?" it reads "Discouraged
+  a reference set on that side ("very …" beyond 99%); otherwise the reading says the phrasing is
+  typical. The reference set is this home's embedding cache (1,599 texts, 2026-11-07), committed as
+  channel scores only (`src/fixtures/tone_reference_scores.json`); the cutoffs are re-derived from it
+  in a test. Known limitation: a short hazard warning ("The forecast mentions a storm…") reads
+  "hedging". For Castor's reply to "what are the last things you remember?" it reads "Discouraged
   phrasing — no clear emotion."; a plain "The meeting is at 3pm." reads "Typical phrasing, no tone
   stands out — no clear emotion.". When an emotion clears the gate it is named first ("faint
   evidence" when the gate is weak) and warmth is left to the emotion, so the two never contradict.
@@ -35,12 +38,12 @@ On `@abstractframework/ui-kit` ^0.9.16 (AbstractUIC 0.10.3, with `IdentityPanel`
   marks (· typical, + or − beyond 97%, ++ or −− beyond 99%); each mark is a button named with the
   exact value and its word, and opens the channel's explanation with the current value. The Wave
   tab shows the same sentence. No scoring change and no text matching: only the existing embedding
-  scores. `scripts/derive_tone_cutoffs.mjs` regenerates the cutoffs if the scoring basis changes.
+  scores. `scripts/derive_tone_cutoffs.mjs` re-derives the cutoffs, or re-cuts them from new vectors.
 - **The monitor describes its basis correctly.** The tooltip and the information panel said the basis
   was calibrated on the entity's own words. The registers and channels are generic (the same for
   every entity); the basis's normalization and emotion-gate floor were fitted on a mixed corpus
-  (20 curated texts, 125 anchor texts and 74 replies and diary entries of entity:ephemeral,
-  2026-08-01). The panel no longer mentions the retired v0 calibration.
+  (20 curated texts, 125 anchor texts and 74 utterances of entity:ephemeral, recorded 2026-08-01).
+  The panel no longer mentions the retired v0 calibration.
 
 ### Changed
 
