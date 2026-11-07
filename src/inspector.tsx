@@ -16,6 +16,11 @@ import { shapeLabel } from "./node_label";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import type { VerbatimSource } from "./verbatim_modal";
 import { SectionDisclosure } from "./section_disclosure";
+import { parseVerbatimTurns, splitUnspokenThinking } from "./verbatim_parse";
+import { WorldModelSources } from "./world_model_sources";
+
+/** Partners listed before "(…) N more" — every one stays one click away. */
+const PARTNERS_SHOWN = 8;
 
 export interface InspectorProps {
   fold: FoldState;
@@ -75,73 +80,7 @@ function FeelingEvents({ events }: { events: FeelingEvent[] }): React.ReactEleme
  * artifacts): a diary entry marks the biography ON ITS FIRST read only —
  * cache hits never touch the door (the read-flood lesson). Honest states:
  * loading, the text, born-digest notes, or the reason there is none. */
-/** One speaker turn inside an exchange verbatim. */
-export interface VerbatimTurn {
-  speaker: string;
-  text: string;
-}
-
-/** Parse an exchange verbatim ("person:admin:\n…\n\nEphemeral:\n…") into
- * labeled turns. STRICT speaker recognition (laurent dm#54 pt5: the
- * interlocutor belongs in metadata, not scrolling text): a line is a
- * speaker head only when the WHOLE line is `X:` where X is a namespaced
- * identity (person:/entity:/agent:…), the entity's own name
- * (case-insensitive), or the door — prose headers like "Note:" never
- * split. Returns null when the text doesn't open with a speaker head
- * (diary entries, born-digest words): the caller renders plain text. */
-/** The semantics-blessed inner-speech section marker (framework c3313/
- * c3318): runtime appends "(thinking, unspoken)" to the turn verbatim at
- * the three formation sites, byte-identical forever. Split the spoken
- * verbatim from his unspoken reasoning so the render treats them
- * distinctly — say-vs-think honesty: his private reasoning must never read
- * as something he said aloud. Absent marker = no thinking section (pre-ship
- * verbatims and substrates that return no reasoning pass through whole). */
-const UNSPOKEN_MARKER = "(thinking, unspoken)";
-
-export function splitUnspokenThinking(raw: string): { spoken: string; thinking: string | null } {
-  const text = String(raw || "");
-  // The marker sits on its own line (a labeled section head). Match at a
-  // line boundary so the literal string inside prose never false-splits.
-  const idx = text.search(/(^|\n)\s*\(thinking, unspoken\)\s*(\n|$)/);
-  if (idx < 0) return { spoken: text, thinking: null };
-  const markerStart = text.indexOf(UNSPOKEN_MARKER, idx);
-  const spoken = text.slice(0, markerStart).replace(/\n+$/, "");
-  const thinking = text.slice(markerStart + UNSPOKEN_MARKER.length).replace(/^\n+/, "").trim();
-  return { spoken, thinking: thinking || null };
-}
-
-export function parseVerbatimTurns(raw: string, entityName: string): VerbatimTurn[] | null {
-  const lines = String(raw || "").split("\n");
-  const name = entityName.trim().toLowerCase();
-  const isSpeakerHead = (line: string): string | null => {
-    const m = line.match(/^(\S+|\S+ \(while looking things up\)|\(the door\)):\s*$/);
-    if (!m) return null;
-    const head = m[1];
-    const bare = head.replace(/ \(while looking things up\)$/, "");
-    if (/^[a-z0-9_-]+:[\w.@-]+$/i.test(bare)) return head; // namespaced identity
-    if (bare.toLowerCase() === name) return head; // the entity itself
-    if (bare === "(the door)") return head;
-    return null;
-  };
-  const turns: VerbatimTurn[] = [];
-  let current: VerbatimTurn | null = null;
-  for (let i = 0; i < lines.length; i++) {
-    const head = isSpeakerHead(lines[i]);
-    // A head mid-text only counts at a paragraph boundary (prev empty).
-    if (head && (current === null || i === 0 || lines[i - 1].trim() === "")) {
-      if (current) turns.push({ ...current, text: current.text.trim() });
-      current = { speaker: head, text: "" };
-      continue;
-    }
-    if (current === null) {
-      if (lines[i].trim()) return null; // words before any speaker → not an exchange
-      continue;
-    }
-    current.text += (current.text ? "\n" : "") + lines[i];
-  }
-  if (current) turns.push({ ...current, text: current.text.trim() });
-  return turns.length > 0 ? turns : null;
-}
+export { parseVerbatimTurns, splitUnspokenThinking, type VerbatimTurn } from "./verbatim_parse";
 
 function InlineVerbatim({
   node,
@@ -295,8 +234,10 @@ function NodeCard({
       rows.push({ id: other, title: otherNode?.title || other.slice(0, 18), count: e.count });
     }
     rows.sort((a, b) => b.count - a.count);
-    return rows.slice(0, 8);
+    return rows;
   }, [fold, node]);
+  const [allPartners, setAllPartners] = useState(false);
+  useEffect(() => setAllPartners(false), [node.id]);
 
   // Feelings ABOUT this record (valence targets may be record ids).
   const feeling = useMemo(() => {
@@ -396,9 +337,19 @@ function NodeCard({
       {/* THE WORDS (operator dm#28): no button between the click and the
         * verbatim — the Detail tab IS the reading surface. Only relation
         * rows and engine bookkeeping carry no words to show. */}
+      {node.kind === "world_model" && verbatimSource ? <WorldModelSources fold={fold} card={node} source={verbatimSource} onSelect={onSelect} /> : null}
       {node.kind !== "relation" && !node.bookkeeping ? (
         verbatimSource ? (
-          <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
+          node.kind === "world_model" ? (
+            <SectionDisclosure id="wm_card_text" title="The card's own words">
+              {node.digest_method?.startsWith("mechanical") ? (
+                <p className="ei_note">The sleep pass wrote this briefing and quotes each memory above cut short; the memories above are complete.</p>
+              ) : null}
+              <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
+            </SectionDisclosure>
+          ) : (
+            <InlineVerbatim node={node} source={verbatimSource} onSpeakers={setSpeakers} />
+          )
         ) : (
           <p className="ei_note">Verbatim reads need a connected gateway (this is an exported file).</p>
         )
@@ -478,12 +429,17 @@ function NodeCard({
       ) : null}
       {partners.length > 0 ? (
         <SectionDisclosure id="partners" title="Used together with">
-          {partners.map((p) => (
+          {(allPartners ? partners : partners.slice(0, PARTNERS_SHOWN)).map((p) => (
             <button key={p.id} className="ei_link ei_partner" onClick={() => onSelect(p.id)}>
               <span>{p.title}</span>
               <span className="ei_count">×{p.count}</span>
             </button>
           ))}
+          {partners.length > PARTNERS_SHOWN ? (
+            <button className="wm_more" onClick={() => setAllPartners((v) => !v)}>
+              {allPartners ? "show the first 8" : `(…) ${partners.length - PARTNERS_SHOWN} more`}
+            </button>
+          ) : null}
         </SectionDisclosure>
       ) : null}
     </div>

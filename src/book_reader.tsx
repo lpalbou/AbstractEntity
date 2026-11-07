@@ -35,7 +35,7 @@ export interface BookReaderProps {
 
 /** A readable date/time for a book row; falls back to the raw string when
  * the stream's timestamp is non-ISO (never fabricated). */
-function bookDate(iso: string): { day: string; time: string } {
+export function bookDate(iso: string): { day: string; time: string } {
   if (!iso) return { day: "date unknown", time: "" };
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { day: iso.slice(0, 10) || "date unknown", time: "" };

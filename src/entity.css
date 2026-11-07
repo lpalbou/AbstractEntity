@@ -1813,6 +1813,84 @@ body {
   cursor: default;
   color: var(--text-dim, #8b98ad);
 }
+/* A world-model card's sources, read like the Book (full words). */
+.wm_sources {
+  margin: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.wm_sources_head {
+  padding: 10px 12px 2px;
+  font-weight: 600;
+}
+
+.wm_sources_count {
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+
+.wm_source {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 12px;
+  border-left: 2px solid color-mix(in srgb, var(--standing) 40%, transparent);
+}
+
+.wm_source_body {
+  flex: 1;
+  min-width: 0;
+}
+
+.wm_source_text {
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.wm_para {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+
+.wm_fence {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border-left: 2px solid var(--line);
+  color: var(--text-dim);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+.wm_fence_label {
+  font-style: normal;
+  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 6px;
+}
+
+.wm_source_note {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.wm_more,
+.wm_open {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  margin-right: 12px;
+  font: inherit;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--ea-accent);
+  cursor: pointer;
+}
+
+.wm_open {
+  color: var(--text-dim);
+}
+
 .book_time {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim, #8b98ad);

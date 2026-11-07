@@ -30,6 +30,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
   dark; it can be folded, and stays as you left it. Grouped "memories drawn on" rows read in two
   lines (hover for every memory, click for each event), and each tick line says when it started.
 
+### Changed
+
+- **A world-model card shows what it was built from, in full.** The card's own text is the
+  sleep pass's briefing, which quotes each memory cut short. The Detail tab now lists the card's
+  source memories first, laid out like the Book (date, time, his complete answer), with "(…)"
+  for the whole exchange and a link to each memory; the card's own words follow, with a note that
+  they quote the memories above. "Used together with" lists every memory, not only the first 8.
+
 ## [0.11.2] - 2026-11-07
 
 On `@abstractframework/ui-kit` ^0.9.16 (AbstractUIC 0.10.3, with `IdentityPanel` and the avatar frame-rate fix) and
