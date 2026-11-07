@@ -155,8 +155,10 @@ export function Timeline(props: TimelineProps): React.ReactElement {
 
   // Effective position for stepping: live rides the head.
   const pos = live ? max : scrubIndex;
-  const onOpenEvent = props.onOpenEvent;
-  const onScrub = props.onScrub;
+  // The latest handlers, read at click time: the marks must not depend on
+  // them (the parent passes new functions on every render).
+  const handlersRef = useRef({ onOpenEvent: props.onOpenEvent, onScrub: props.onScrub });
+  handlersRef.current = { onOpenEvent: props.onOpenEvent, onScrub: props.onScrub };
   // Marks depend on the events, not on the position (a scrub step must not
   // re-render thousands of them); the past/future shade is one overlay per
   // lane. Marks are not Tab stops — the ledger is the keyboard path.
@@ -174,14 +176,18 @@ export function Timeline(props: TimelineProps): React.ReactElement {
             style={{ left: pct(e.index), background: lane.color }}
             title={`${lane.label} · ${when}\n${e.title}${diary ? "\n(click: shows it in his Book; reading its words there is recorded)" : ""}`}
             aria-label={`${lane.label}, ${when}: ${e.title}`}
-            onClick={() => (onOpenEvent ? onOpenEvent(e.index, e.recordId) : onScrub(e.index))}
+            onClick={() => {
+              const h = handlersRef.current;
+              if (h.onOpenEvent) h.onOpenEvent(e.index, e.recordId);
+              else h.onScrub(e.index);
+            }}
           />
         );
       });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byLane, span, onOpenEvent, onScrub]);
+  }, [byLane, span]);
 
   return (
     <div className="entity_timeline et_grid">

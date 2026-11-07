@@ -1433,6 +1433,8 @@ export function EntityView(): React.ReactElement {
     }, 2000);
     return () => window.clearTimeout(t);
   }, [lifeChange, live]);
+  /** The Book entry a diary line or mark asked for (shown, never read). */
+  const [bookFocus, setBookFocus] = useState<{ id: string; nonce: number } | null>(null);
   /** The side tab on screen (null: none) — the card reads only while shown. */
   const [openTab, setOpenTab] = useState<string | null>(null);
   // The header's state, loop and cognition follow the live stream at once
@@ -2513,7 +2515,7 @@ export function EntityView(): React.ReactElement {
               id: "book",
               icon: "📔",
               title: "Book",
-              content: <BookReader fold={fold} verbatimSource={verbatimSource} />,
+              content: <BookReader fold={fold} verbatimSource={verbatimSource} focus={bookFocus} />,
             },
             {
               id: "health",
@@ -2611,7 +2613,9 @@ export function EntityView(): React.ReactElement {
                       // it, and that read is recorded in his biography — in
                       // the Book, reading the words is its own click.
                       if (id && isDiaryGraphId(id)) {
-                        setRequestedTab({ tab: "book", nonce: Date.now() });
+                        const nonce = Date.now();
+                        setBookFocus({ id, nonce });
+                        setRequestedTab({ tab: "book", nonce });
                         return;
                       }
                       setSelectedId(id);
@@ -2665,7 +2669,9 @@ export function EntityView(): React.ReactElement {
             // A diary mark opens the Book (no read); anything else opens in
             // Detail (see the ledger's rule above).
             if (isDiaryGraphId(recordId)) {
-              setRequestedTab({ tab: "book", nonce: Date.now() });
+              const nonce = Date.now();
+              setBookFocus({ id: recordId, nonce });
+              setRequestedTab({ tab: "book", nonce });
               return;
             }
             setSelectedId(recordId);

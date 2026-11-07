@@ -2023,6 +2023,11 @@ body {
   color: var(--text-dim);
 }
 
+.book_entry_focus {
+  background: color-mix(in srgb, var(--standing) 14%, transparent);
+  border-left-color: var(--standing);
+}
+
 .book_time {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim, #8b98ad);

@@ -448,7 +448,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
               ? target.startsWith("beat:")
                 ? "Open what came to mind at this moment"
                 : isDiaryGraphId(target)
-                  ? "Show this entry in his Book (reading its words there is a separate click, recorded in his biography)"
+                  ? "Show this entry in his Book, marked (reading its words there is a separate click, recorded in his biography)"
                   : "Open this memory in Detail"
               : undefined
           }
