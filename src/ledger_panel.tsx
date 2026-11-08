@@ -214,6 +214,17 @@ const FOLLOW_SLACK_PX = 80;
 /** How long a landed row keeps its flash class (the CSS fade is shorter). */
 export const LANDING_FLASH_MS = 4000;
 
+/** One commit of the landing baseline. `settled` is the newest line index
+ * seen while the ledger was live and caught up (null while it streams in, or
+ * is not live); a landing flashes only the lines past a SETTLED baseline —
+ * the commit that ends the catch-up stream is a baseline, never a landing
+ * (adversarial review 2026-11-08: every row flashed when loading ended). */
+export function landingStep(settled: number | null, top: number, unsettled: boolean): { settled: number | null; flashAfter: number | null } {
+  if (unsettled) return { settled: null, flashAfter: null };
+  if (settled !== null && top > settled) return { settled: top, flashAfter: settled };
+  return { settled: top, flashAfter: null };
+}
+
 /** Indices of the lines that landed after `prevTop` (the newest index the
  * reader had seen). Pure, so the flash set is testable without a DOM. */
 export function landedIndices(lines: ReadonlyArray<{ index: number }>, prevTop: number): number[] {
@@ -374,12 +385,12 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
     const landed = seen.showQuiet === showQuiet ? renderItems.length - seen.rows : 0;
     seenRef.current = { rows: renderItems.length, showQuiet };
     const top = lines.length > 0 ? lines[lines.length - 1].index : -1;
-    const prevTop = topIndexRef.current;
-    topIndexRef.current = top;
+    const step = landingStep(topIndexRef.current, top, Boolean(props.loadingNote) || !props.live);
+    topIndexRef.current = step.settled;
     if (!props.live) return;
-    if (prevTop !== null && !props.loadingNote && top > prevTop) {
+    if (step.flashAfter !== null) {
       const fresh = freshRef.current;
-      const added = landedIndices(lines, prevTop);
+      const added = landedIndices(lines, step.flashAfter);
       added.forEach((i) => fresh.add(i));
       window.setTimeout(() => added.forEach((i) => fresh.delete(i)), LANDING_FLASH_MS);
     }

@@ -247,6 +247,22 @@ describe("live follow", () => {
     expect(el.scrollTop).toBe(kept);
   });
 
+  it("the end of the catch-up stream is a baseline, never a landing; only later lines flash", async () => {
+    const { landingStep } = await import("./ledger_panel");
+    // streaming in: no baseline, nothing flashes
+    expect(landingStep(null, 30, true)).toEqual({ settled: null, flashAfter: null });
+    expect(landingStep(null, 600, true)).toEqual({ settled: null, flashAfter: null });
+    // the commit that clears loading: baseline only
+    expect(landingStep(null, 600, false)).toEqual({ settled: 600, flashAfter: null });
+    // a live landing after that: flash the lines past 600
+    expect(landingStep(600, 603, false)).toEqual({ settled: 603, flashAfter: 600 });
+    // nothing new: no flash
+    expect(landingStep(603, 603, false)).toEqual({ settled: 603, flashAfter: null });
+    // loading again (a catch-up fetch): the baseline resets, nothing flashes until it clears
+    expect(landingStep(603, 650, true)).toEqual({ settled: null, flashAfter: null });
+    expect(landingStep(null, 650, false)).toEqual({ settled: 650, flashAfter: null });
+  });
+
   it("only the lines past the newest seen index count as landed, oldest first", async () => {
     const { landedIndices } = await import("./ledger_panel");
     const lines = [{ index: 3 }, { index: 7 }, { index: 9 }, { index: 12 }];
