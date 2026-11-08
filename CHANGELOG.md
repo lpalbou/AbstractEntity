@@ -24,8 +24,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   author on its answer cards. With a gateway that names no author, messages look exactly as
   before.
 - The shared chat parts come from the AbstractUIC build that adds mentions (panel-chat 0.9.9,
-  not yet published), vendored as a package file until it is; the lockfile check reports this
-  until the app is relocked to the published version.
+  not yet published), vendored as a package file until it is and bundled inside the app's own
+  package, so the packed app installs on its own; the lockfile check reports this until the app
+  is relocked to the published version (then the bundle entry goes too).
 - **The Book folds by day.** Each day is now one row: its date, how many entries he wrote that
   day and, while it is folded, the first entry's opening words on one line. Every day is folded
   except the newest, so the Book opens on what he wrote last. A click on a day (or the arrow
