@@ -155,6 +155,35 @@ function DriveBars({
     : card;
 
   if (!effective) return null;
+  return <DriveRows drive={effective} />;
+}
+
+/** A count in words: "1 question", "3 questions". */
+function countOf(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The questions row in words (operator 2026-11-08: "it still shows 0
+ * interests or questions" when he had one of each — "0/1 resolved" reads
+ * as zero). Nothing resolved names the open ones; otherwise the total and
+ * how many he resolved. Empty (0 + 0) has its own sentence in the row. */
+export function questionsWords(open: number, resolved: number): string {
+  if (resolved === 0) return `${countOf(open, "open question", "open questions")} · none resolved yet`;
+  return `${countOf(open + resolved, "question", "questions")} · ${resolved} resolved`;
+}
+
+/** The interests row in words: how many he holds and how many he explored
+ * ("1 interest · none explored yet", "4 interests · 2 explored"). `explored`
+ * null = an engine that does not serve the split: the count alone (the row
+ * adds the pending note). Empty (0 held) has its own sentence in the row. */
+export function interestsWords(held: number, explored: number | null): string {
+  const count = countOf(held, "interest", "interests");
+  if (explored === null) return count;
+  return explored === 0 ? `${count} · none explored yet` : `${count} · ${explored} explored`;
+}
+
+/** The drive rows as rendered (pure: the numbers in, the section out). */
+export function DriveRows({ drive: effective }: { drive: { open: number; resolved: number; interests: number; explored: number | null } }): React.ReactElement {
   const qTotal = effective.open + effective.resolved;
   // DRIVES ARE DRIVERS (laurent dm#82, reframing c203): standing questions
   // and interests are what cognition RUNS ON, not a violation to alarm on.
@@ -199,7 +228,7 @@ function DriveBars({
               />
             </div>
             <span className="hp_drive_num">
-              {effective.resolved}/{qTotal} resolved
+              {questionsWords(effective.open, effective.resolved)}
               {effective.open === 0 ? (
                 // The operator's own warning shape (focused room seq 2:
                 // "it's never 100% — otherwise it just loops"): all-resolved
@@ -233,14 +262,18 @@ function DriveBars({
               />
             </div>
             <span className="hp_drive_num">
-              {effective.explored}/{effective.interests} explored
+              {interestsWords(effective.interests, effective.explored)}
               {effective.explored >= effective.interests ? <span className="hp_drive_warn"> · all explored — no pull forward</span> : null}
             </span>
           </>
-        ) : (
+        ) : effective.interests > 0 ? (
           <span className="hp_drive_num">
-            {effective.interests} held{" "}
-            {effective.explored === null ? <span className="hp_drive_empty">· explored-tracking pending (older engine)</span> : null}
+            {interestsWords(effective.interests, effective.explored)}{" "}
+            <span className="hp_drive_empty">· explored-tracking pending (older engine)</span>
+          </span>
+        ) : (
+          <span className="hp_drive_num hp_drive_empty">
+            <WordsLine text="none yet — interests are self-grown direction, elected in his own reflections" inline />
           </span>
         )}
       </div>
