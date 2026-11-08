@@ -15,6 +15,18 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **The ledger keeps following even if the live connection stalls.** While live, the page checks
   every 20 seconds that it holds the gateway's latest events; if the connection went quiet while
   newer events exist, it fetches what it missed and reconnects.
+- **The Card shows his lessons.** A "Lessons" section after Interests lists what he learned and
+  chose to keep, newest first, each with its date; a lesson he wrote in his book carries a small
+  "from his book" tag, and when he has more than the card shows, a line says how many ("the 20
+  newest of 52 lessons"). With none it says so in one sentence. Needs abstractmemory's card with
+  book lessons (`lessons[].source: "diary"`) for those to appear; before, an entity whose lessons
+  were all in his book (nerin: 16) showed none anywhere (operator 2026-11-08).
+- **Feelings among the key moments read as sentences.** A strong feeling, a bond, a scar, its
+  healing, a broken bond and a feeling he chose to let weigh less now say who they are about and
+  why, e.g. "A bond with admin formed — trusted me with my own time" or "A scar from web search
+  healed — the archive mirrors held", instead of "Appraisal — reason". A remembered exchange or
+  entry is named by what it is ("an exchange"), never by its id. The time beside a moment no longer
+  breaks across two lines.
 
 ### Added
 

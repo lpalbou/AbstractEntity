@@ -1403,6 +1403,19 @@ body {
 .ic_moment .ei_feeling_when {
   display: inline;
   margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* "from his book" beside a lesson he wrote in his diary. */
+.ic_lesson_src {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--diary) 55%, transparent);
+  border-radius: 8px;
+  color: var(--diary);
+  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  white-space: nowrap;
 }
 
 .ic_ctx {

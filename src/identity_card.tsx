@@ -103,6 +103,9 @@ interface EntityCard {
   state?: { state?: string; changed_at?: string; reason?: string };
   moments?: Array<Record<string, unknown>>;
   key_moments?: { moments?: Array<Record<string, unknown>>; total?: number };
+  /** Memory's lessons section: kind=lesson records and the lessons he
+   * wrote in his book (`source: "diary"`), newest first. */
+  lessons?: { lessons?: unknown[]; total?: number };
 }
 
 type CardState = { phase: "loading" } | { phase: "ready"; card: EntityCard } | { phase: "error"; message: string };
@@ -217,6 +220,35 @@ const MOMENT_PHRASES: Record<string, { icon: string; phrase: string }> = {
   valence_peak: { icon: "💗", phrase: "A strong feeling" },
 };
 
+/** The feeling events memory keeps as key moments (|magnitude| at the
+ * scar/bond band; entity_card.py `_valence_moment`: {type:"valence", kind,
+ * target, sign, magnitude, reason, observed_at}). They read as sentences
+ * about WHO, never "Appraisal — reason". `who` is "" when no target came. */
+const FEELING_PHRASES: Record<string, (who: string, warm: boolean) => { icon: string; phrase: string }> = {
+  appraisal: (who, warm) =>
+    warm
+      ? { icon: "💗", phrase: who ? `A strong, warm feeling about ${who}` : "A strong, warm feeling" }
+      : { icon: "🌧️", phrase: who ? `A strong, painful feeling about ${who}` : "A strong, painful feeling" },
+  bond: (who) => ({ icon: "🤝", phrase: who ? `A bond with ${who} formed` : "A bond formed" }),
+  scar: (who) => ({ icon: "🩹", phrase: who ? `A scar from ${who}` : "A scar" }),
+  healing: (who) => ({ icon: "🌿", phrase: who ? `A scar from ${who} healed` : "A scar healed" }),
+  break: (who) => ({ icon: "💔", phrase: who ? `The bond with ${who} broke` : "A bond broke" }),
+  revalued: (who) => ({ icon: "⚖️", phrase: who ? `He let his past with ${who} weigh less` : "He let a past feeling weigh less" }),
+};
+
+/** Who a feeling is about, in words: a name ("person:admin" → "admin"), or
+ * for a remembered record ("ex:episode-…") what it is ("an exchange") —
+ * never an id. */
+export function feelingWho(target: string): string {
+  if (!target) return "";
+  const rec = /^ex:([a-z_]+)-/.exec(target);
+  if (rec) {
+    const word = KIND_WORDS[rec[1]]?.[0] ?? rec[1].split("_").join(" ");
+    return `${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`;
+  }
+  return targetName(target);
+}
+
 /** Two shapes reach us: the stream's {kind, at, details:{reason}} and the
  * gateway's "first" milestones {type:"first", what, reason, observed_at}
  * (operator 2026-11-08: the latter rendered as raw JSON). Never JSON. */
@@ -227,7 +259,12 @@ export function momentLine(m: Record<string, unknown>): { icon: string; text: st
   const reason = str(details["reason"]) || str(m["reason"]);
   const known = MOMENT_PHRASES[kind];
   const at = str(m["at"]) || str(m["observed_at"]);
-  const when = at ? at.slice(5, 16).replace("T", " ") : "";
+  const when = shortWhen(at);
+  const feeling = FEELING_PHRASES[kind];
+  if (feeling) {
+    const { icon, phrase } = feeling(feelingWho(str(m["target"])), Number(m["sign"]) >= 0);
+    return { icon, text: reason ? `${phrase} — ${reason}` : phrase, when };
+  }
   if (known) {
     return { icon: known.icon, text: reason ? `${known.phrase} — ${reason}` : known.phrase, when };
   }
@@ -238,25 +275,45 @@ export function momentLine(m: Record<string, unknown>): { icon: string; text: st
   return { icon: "・", text, when };
 }
 
+/** A card timestamp as "MM-DD HH:MM" (the key moments' form). */
+function shortWhen(at: string): string {
+  return at ? at.slice(5, 16).replace("T", " ") : "";
+}
+
+/** One lesson on the card: his words, when, and whether he wrote it in his
+ * book (memory marks those `source: "diary"`; the others are lessons his
+ * reflections elected). */
+export function lessonLine(item: unknown): { text: string; when: string; fromBook: boolean } {
+  const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+  return {
+    text: asText(item),
+    when: shortWhen(typeof o["observed_at"] === "string" ? (o["observed_at"] as string) : ""),
+    fromBook: o["source"] === "diary",
+  };
+}
+
+/** Record kinds in words, singular and plural (end-user copy, never
+ * `diarys` or `world_models`). */
+const KIND_WORDS: Record<string, [string, string]> = {
+  episode: ["exchange", "exchanges"],
+  diary: ["diary entry", "diary entries"],
+  summary: ["summary", "summaries"],
+  world_model: ["world model", "world models"],
+  dream: ["dream", "dreams"],
+  value: ["value", "values"],
+  trait: ["trait", "traits"],
+  purpose: ["purpose", "purposes"],
+  interest: ["interest", "interests"],
+  lesson: ["lesson", "lessons"],
+  realization: ["realization", "realizations"],
+  observation: ["observation", "observations"],
+  claim: ["claim", "claims"],
+};
+
 /** The "Life so far" counts, in words (operator: end-user copy, never
  * `diarys` or `world_models`). */
 export function kindCountLabel(kind: string, count: number): string {
-  const words: Record<string, [string, string]> = {
-    episode: ["exchange", "exchanges"],
-    diary: ["diary entry", "diary entries"],
-    summary: ["summary", "summaries"],
-    world_model: ["world model", "world models"],
-    dream: ["dream", "dreams"],
-    value: ["value", "values"],
-    trait: ["trait", "traits"],
-    purpose: ["purpose", "purposes"],
-    interest: ["interest", "interests"],
-    lesson: ["lesson", "lessons"],
-    realization: ["realization", "realizations"],
-    observation: ["observation", "observations"],
-    claim: ["claim", "claims"],
-  };
-  const w = words[kind];
+  const w = KIND_WORDS[kind];
   if (w) return `${count} ${count === 1 ? w[0] : w[1]}`;
   const plain = kind.split("_").join(" ");
   return `${count} ${plain}${count === 1 ? "" : "s"}`;
@@ -361,6 +418,9 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
   const questionKeys = itemKeys(openQuestions);
   const problemKeys = itemKeys(openProblems);
   const interests = Array.isArray(card.discoveries) ? card.discoveries : card.discoveries?.interests ?? [];
+  const lessons = Array.isArray(card.lessons?.lessons) ? card.lessons.lessons : [];
+  const lessonsTotal = typeof card.lessons?.total === "number" ? card.lessons.total : lessons.length;
+  const lessonKeys = itemKeys(lessons);
   const moments = card.key_moments?.moments ?? card.moments ?? [];
   const ctxCanonical = card.age_and_context;
   const ctx = card.accumulated_context;
@@ -578,6 +638,31 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
         ) : (
           <div className="ic_window_note wl_p">
             <WordsLine text="none yet — interests are self-grown direction, elected in his own reflections." />
+          </div>
+        )}
+      </Section>
+      <Section title="Lessons">
+        {lessons.length ? (
+          <>
+            {lessons.map((l, i) => {
+              const line = lessonLine(l);
+              return (
+                <div key={lessonKeys[i]} className="ic_line ic_moment">
+                  <span className="ic_moment_icon">📘</span> <WordsLine text={line.text} inline />
+                  {line.fromBook ? <span className="ic_lesson_src" title="He wrote this lesson in his book (a diary entry he marked as a lesson)">from his book</span> : null}
+                  {line.when ? <span className="ei_feeling_when">{line.when}</span> : null}
+                </div>
+              );
+            })}
+            {lessonsTotal > lessons.length ? (
+              <div className="ic_window_note wl_p">
+                <WordsLine text={`the ${lessons.length} newest of ${lessonsTotal} lessons.`} />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="ic_window_note wl_p">
+            <WordsLine text="none yet — a lesson is something he learned and chose to keep, in his book or in his reflections." />
           </div>
         )}
       </Section>
