@@ -10,7 +10,9 @@
  * under "How … works".
  *
  * - Mind & voice: Mind — the kit's shared picker ("Gateway default" or its
- *   own choice; mind_voice_settings.tsx), used by visits and its own time;
+ *   own choice; mind_voice_settings.tsx), used by visits and its own time,
+ *   then which model each part of thinking uses and the per-turn memory
+ *   bounds (the cognition profile, mind_cognition_profile.tsx);
  *   Voice — the listener's own playback and microphone (entity_voice.tsx).
  * - Identity & record: Identity — its look and its voice, one record, one
  *   Save (framework ADR 0052; identity_settings.tsx); Track record — what it
@@ -32,6 +34,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 
 import { authRefusedMsg } from "./gateway_session";
 import { EntityMindPicker, substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
+import { EntityCognitionProfile } from "./mind_cognition_profile";
 import { IdentitySettings } from "./identity_settings";
 import { TrackRecordPanel } from "./track_record_panel";
 import { ListenerVoiceSettings } from "./entity_voice";
@@ -400,6 +403,12 @@ function MindTab({
           </ol>
         </details>
       ) : null}
+      <EntityCognitionProfile
+        baseUrl={baseUrl}
+        entity={entity}
+        token={token}
+        mindKey={substrate ? `${substrate.provider}|${substrate.model}|${substrate.thinking ?? ""}` : ""}
+      />
     </div>
   );
 }

@@ -1935,6 +1935,68 @@ export function putEntitySubstrate(
   });
 }
 
+// ------------------------------------------------ cognition profile (gateway 1013)
+// `GET|PUT /entities/{name}/cognition-profile` (contract 2026-11-08,
+// untracked/understanding-pass-2026-11-07/CONTRACT-cognition-profile.md): which model each part of
+// thinking uses (summaries, understanding, extraction; dialogue stays the substrate), how many
+// memories a turn may bring to mind, and how the understanding rebuild is bounded.
+
+/** The three parts of thinking the profile names (closed set, gateway-validated). */
+export type CognitionCapability = "summaries" | "understanding" | "extraction";
+
+/** A part's stored choice: the mind's, or its own provider/model. */
+export type CognitionCapabilityChoice =
+  | { inherit: "mind" }
+  | { provider: string; model: string; thinking?: string | null; max_input_tokens?: number | null };
+
+export interface CognitionModelRoute {
+  provider: string;
+  model: string;
+  thinking?: string | null;
+}
+
+/** The GET answer (also the PUT answer). */
+export interface EntityCognitionProfile {
+  schema_version: number;
+  capabilities: Record<CognitionCapability, { choice: CognitionCapabilityChoice; effective: CognitionModelRoute; source: "profile" | "mind" }>;
+  recall: { shelf_size: number; source: "profile" | "default"; applies_to_running_loop?: string };
+  rebuild: { sensitivity: number; cap_per_turn: number; source: "profile" | "default" };
+  mind: CognitionModelRoute & { source: "entity" | "gateway" };
+}
+
+/** A PUT body: any subset; an absent key keeps, `null` resets to the default. */
+export interface CognitionProfilePut {
+  capabilities?: Partial<Record<CognitionCapability, CognitionCapabilityChoice | null>>;
+  recall?: { shelf_size: number | null };
+  rebuild?: { sensitivity?: number | null; cap_per_turn?: number | null };
+}
+
+/** The raw answer, or null when the gateway has no such route (404: too old). The shape is checked
+ * by `cognitionProfileOf` (mind_cognition_profile.tsx). */
+export async function getEntityCognitionProfile(baseUrl: string, entity: string): Promise<unknown | null> {
+  try {
+    return await getJson<unknown>(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/cognition-profile`));
+  } catch (e) {
+    if ((e as { status?: number }).status === 404) return null;
+    throw e;
+  }
+}
+
+/** Save a change; the answer is the GET shape. A refusal rejects with the gateway's own sentence
+ * (`detail`) and its HTTP status. */
+export async function putEntityCognitionProfile(baseUrl: string, entity: string, token: string | null, body: CognitionProfilePut): Promise<unknown> {
+  const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/cognition-profile`);
+  const res = await fetch(url, { credentials: "include", method: "PUT", headers: authHeaders(token), body: JSON.stringify(body) });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    const detail = refusalDetail(text).trim();
+    const err = new Error(detail && !detail.startsWith("<") ? detail : `HTTP ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<unknown>;
+}
+
 export function stopLoop(baseUrl: string, entity: string, token: string | null): Promise<{ stop_requested: boolean; status?: LoopStatus }> {
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop/stop`), {}, token, 30000);
 }

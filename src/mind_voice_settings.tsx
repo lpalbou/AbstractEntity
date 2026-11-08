@@ -21,6 +21,7 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { authRefusedMsg } from "./gateway_session";
+import { WordsLine } from "./words_line";
 import {
   cloneVoice,
   designVoice,
@@ -60,12 +61,13 @@ export function useEntityAccess(baseUrl: string, entity: string): { access: Enti
   return state;
 }
 
-/** The sentence line under a control the caller may not use (the kit tooltip carries it too). */
+/** The sentence line under a control the caller may not use, or under one the gateway refused (the
+ * kit tooltip carries it too). The words go through the shared renderer. */
 export function RefusalLine({ text }: { text: string }): React.ReactElement {
   return (
-    <p className="wsp_status wsp_status_refused" role="note" data-af-tip={text} data-testid="entity-settings-refusal">
-      {text}
-    </p>
+    <div className="wsp_status wsp_status_refused" role="note" data-af-tip={text} data-testid="entity-settings-refusal">
+      <WordsLine text={text} />
+    </div>
   );
 }
 

@@ -611,6 +611,18 @@
   word-break: break-all;
 }
 
+/* Settings → Mind, the cognition profile (mind_cognition_profile.tsx): the line under each part
+ * says what it uses now; the memory numbers are short fields, not full-width ones. */
+.mcp_effective {
+  color: var(--text-secondary);
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  overflow-wrap: anywhere;
+}
+.mcp_field .af-setting-row__control > .mcp_number {
+  flex: 0 1 8rem;
+  max-width: 8rem;
+}
+
 /* The kit panels inside take the page's width (they cap themselves at 640 px elsewhere). */
 .stg .idn,
 .stg .trk,
@@ -673,6 +685,13 @@
   }
   .stg_mount .stg_btn_danger {
     margin-left: 26px;
+  }
+  /* The memory numbers sit under their words: the help lines need the width. */
+  .mcp_field .af-setting-row__label {
+    flex-basis: 100%;
+  }
+  .mcp_field .af-setting-row__control {
+    justify-content: flex-start;
   }
   /* The discard question stays a small centred dialog, not a full-screen sheet. */
   .af-modal-backdrop:has(> .stg_confirm) {

@@ -16,6 +16,21 @@ All notable changes to `@abstractframework/entity` are recorded here.
   every 20 seconds that it holds the gateway's latest events; if the connection went quiet while
   newer events exist, it fetches what it missed and reconnects.
 
+### Added
+
+- **Settings → Mind says which model each part of his thinking uses, and how far his memory reaches
+  per turn.** Under the mind's model, three rows (Summaries and memory details, Understanding and
+  dreams, Extraction) each offer "Same as the mind" or a model of their own, with its reasoning; the
+  line under each row says what it uses now, e.g. "Same as the mind (gpt-5.6-terra)" or
+  "theforge-nvidia · qwen/qwen3.8-27b". A Memory card sets the memories he brings to mind per turn
+  (1-400, default 50), how easily something new makes him revisit what he understood (0-1, default
+  0.5), and how many rebuilds a turn may run at most (0-10, default 3; 0 = only while he rests).
+  Every change saves itself and the page reads back what was stored; a refused value shows the
+  gateway's sentence and the field returns to its stored value. Someone who may not configure him
+  sees the controls disabled with the reason; a gateway that does not offer these settings yet says
+  so in one sentence and leaves them visible but disabled (needs the gateway's cognition profile
+  route, `GET/PUT /entities/{name}/cognition-profile`).
+
 ### Changed
 
 - **Every text renders its Markdown.** Ledger rows, the Now line, the Book, Lessons and World,
