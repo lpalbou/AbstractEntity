@@ -8,10 +8,17 @@
  * behaviour: the recall BEAT active at the scrub position (the same rule
  * the Inspector uses for "No selection: show the beat active at the scrub
  * position") names the memories on the shelf and WHY each entered
- * (trace admissions). The highlight holds until the turn's answer lands —
- * the first episode BORN after the recall — or until the next recall
- * replaces it. The canvas feeds the lit ids into its ONE emphasis/dim
- * mechanism (the hover mechanism); nothing here draws.
+ * (trace admissions), and the pairs that turn used together.
+ *
+ * The highlight STAYS lit after his answer lands (operator 2026-11-08:
+ * "essentially it should show the current context highlighted in the
+ * graph for the response"): the newest recall's shelf + that turn's pairs
+ * hold until the NEXT recall replaces them, as one swap (the next beat is
+ * a new emphasis object, never a merge). The reader's one control is the
+ * "Context" toggle (contextToggleView): off shows the plain graph with the
+ * resting warmth view; Escape or a click on empty canvas never clears it.
+ * The canvas feeds the lit ids into its ONE emphasis/dim mechanism (the
+ * hover mechanism); nothing here draws.
  */
 
 import { edgeKey, type BeatState, type FoldState } from "./stream_fold";
@@ -63,36 +70,18 @@ export function activeBeat(fold: FoldState, scrubSeq: number): BeatState | null 
   return active;
 }
 
-/** Did the turn's answer land? = an EPISODE node first seen after the
- * recall and at or before the scrub (the exchange binding that closes a
- * turn). Records the recall itself touched (shelf, dropped, labelled) are
- * excluded: a usage event can REVEAL an old record after the trace, and a
- * revealed old episode is not this turn's answer. */
-export function answerLanded(fold: FoldState, beat: BeatState, scrubSeq: number): boolean {
-  const touched = new Set<string>(beat.selected);
-  for (const d of beat.dropped) touched.add(d.record_id);
-  for (const id of Object.keys(beat.admissions)) touched.add(id);
-  for (const node of fold.nodes.values()) {
-    if (node.kind !== "episode") continue;
-    if (node.first_seq <= beat.first_seq || node.first_seq > scrubSeq) continue;
-    if (touched.has(node.id) || (node.graph_id !== null && touched.has(node.graph_id))) continue;
-    return true;
-  }
-  return false;
-}
-
 function resolveNodeId(fold: FoldState, id: string): string | null {
   if (fold.nodes.has(id)) return id;
   const row = fold.graph_to_row.get(id);
   return row !== undefined && fold.nodes.has(row) ? row : null;
 }
 
-/** The recall to light at the scrub position, or null (no recall yet, the
- * answer already landed, or an empty shelf). */
+/** The recall to light at the scrub position: the newest recall's shelf,
+ * held after his answer lands until the next recall replaces it; null
+ * only before any recall, or for an empty shelf. */
 export function recallEmphasis(fold: FoldState, scrubSeq: number): RecallEmphasis | null {
   const beat = activeBeat(fold, scrubSeq);
-  if (!beat || answerLanded(fold, beat, scrubSeq)) return null;
-  return beatEmphasis(fold, beat);
+  return beat ? beatEmphasis(fold, beat) : null;
 }
 
 /** The selection as the canvas keys it: a memory opened by its GRAPH id
@@ -104,14 +93,81 @@ export function resolveSelection(fold: FoldState, selectedId: string | null): st
 }
 
 /** What the canvas lights: a recall line picked in the ledger (selection
- * id `beat:<trace>`) is an explicit ask — that beat lights, answered or
- * not; otherwise the recall active at the scrub position. */
-export function canvasRecall(fold: FoldState, scrubSeq: number, selectedId: string | null): RecallEmphasis | null {
+ * id `beat:<trace>`) is an explicit ask — that beat lights, whatever the
+ * toggle; otherwise the recall active at the scrub position while the
+ * "Context" toggle is on, and nothing (the plain graph) while it is off. */
+export function canvasRecall(fold: FoldState, scrubSeq: number, selectedId: string | null, contextOn: boolean): RecallEmphasis | null {
   if (selectedId?.startsWith("beat:")) {
     const beat = fold.beats.get(selectedId.slice("beat:".length));
     return beat ? beatEmphasis(fold, beat) : null;
   }
-  return recallEmphasis(fold, scrubSeq);
+  return contextOn ? recallEmphasis(fold, scrubSeq) : null;
+}
+
+/** THE "CONTEXT" TOGGLE (operator 2026-11-08: "there must be a toggle to
+ * show/hide the currently selected memories so the reader can explore the
+ * rest of the graph"). Labelled by what it shows, pressed = on (toggles
+ * show state, never verbs). What there is to show at the scrub position:
+ * "none" before any recall, "empty" when the newest recall brought no
+ * memory to mind, "ready" otherwise. */
+export type ContextAvailability = "none" | "empty" | "ready";
+
+export function contextAvailability(fold: FoldState, scrubSeq: number): ContextAvailability {
+  const beat = activeBeat(fold, scrubSeq);
+  if (!beat) return "none";
+  return beat.selected.length > 0 ? "ready" : "empty";
+}
+
+export const CONTEXT_LABEL = "Context";
+export const CONTEXT_TITLE = "the memories he brought to mind for his last answer";
+export const CONTEXT_HINT_NONE = "Nothing to show yet: he has not brought any memories to mind at this point of his life";
+export const CONTEXT_HINT_EMPTY = "His last recall brought no memories to mind";
+
+export interface ContextToggleView {
+  /** aria-pressed: the highlight is on the graph. */
+  pressed: boolean;
+  disabled: boolean;
+  title: string;
+}
+
+/** The toggle as the reader sees it: on when a recall exists and the
+ * reader's choice is on; disabled, with a hint saying why, when there is
+ * nothing to light. The choice itself is kept (a disabled toggle never
+ * rewrites it), so the highlight returns with the next recall. */
+export function contextToggleView(availability: ContextAvailability, chosenOn: boolean): ContextToggleView {
+  if (availability === "none") return { pressed: false, disabled: true, title: CONTEXT_HINT_NONE };
+  if (availability === "empty") return { pressed: false, disabled: true, title: CONTEXT_HINT_EMPTY };
+  return { pressed: chosenOn, disabled: false, title: `${CONTEXT_LABEL}: ${CONTEXT_TITLE}` };
+}
+
+/** The reader's choice, remembered for the browser session (on by
+ * default). Storage can be missing or throw (private mode, blocked site
+ * data): the default then holds and nothing breaks. */
+export const CONTEXT_CHOICE_KEY = "abstractentity_graph_context_v1";
+
+export function readContextChoice(storage: Pick<Storage, "getItem"> | null): boolean {
+  try {
+    return storage?.getItem(CONTEXT_CHOICE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function writeContextChoice(storage: Pick<Storage, "setItem"> | null, on: boolean): void {
+  try {
+    storage?.setItem(CONTEXT_CHOICE_KEY, on ? "on" : "off");
+  } catch {
+    // Not remembered this session; the choice still holds on screen.
+  }
+}
+
+/** window.sessionStorage, or null where reading it throws. */
+export function sessionStore(): Storage | null {
+  try {
+    return typeof window !== "undefined" ? window.sessionStorage : null;
+  } catch {
+    return null;
+  }
 }
 
 /** One beat's shelf as emphasis (null for an empty shelf). */

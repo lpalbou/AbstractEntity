@@ -5294,6 +5294,37 @@ body {
 .lens_search_label {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
+/* The "Context" toggle (kit AfChipButton, pressed = the recall highlight is
+ * on the graph): sized like its neighbours; off reads like an unpressed
+ * lens toggle so the pressed state is the one that stands out. */
+.lens_context_toggle.af-chip {
+  padding: 3px 9px;
+  flex-shrink: 0;
+  font-weight: 400;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.lens_context_toggle.af-chip[aria-pressed="false"] {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  color: var(--text-dim);
+}
+.lens_context_toggle.af-chip[aria-pressed="false"]:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--ea-accent);
+}
+.lens_context_ring {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  box-sizing: border-box;
+  margin-right: 5px;
+  vertical-align: -0.5px;
+}
+.lens_context_toggle[aria-pressed="true"] .lens_context_ring {
+  background: color-mix(in srgb, currentColor 40%, transparent);
+}
 .lens_search_badge {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   font-weight: 600;
@@ -5824,6 +5855,7 @@ body {
   }
   .lens_chip,
   .lens_search_toggle,
+  .lens_context_toggle,
   .lens_count {
     flex: none;
     white-space: nowrap;

@@ -23,6 +23,8 @@ import { FleetView } from "./fleet_view";
 import { MeetConsole } from "./meet_console";
 import { MeetReader } from "./meet_reader";
 import { GraphCanvas, KIND_COLORS, relationGlyph, type RelationGlyph } from "./graph_canvas";
+import { ContextToggle } from "./context_toggle";
+import { contextAvailability, contextToggleView, readContextChoice, sessionStore, writeContextChoice } from "./recall_emphasis";
 import { IdentityCardContent } from "./identity_card";
 import {
   AfPhaseRadio,
@@ -1590,6 +1592,11 @@ export function EntityView(): React.ReactElement {
   // memory nodes should have been naturally grouped by topics"): the
   // "topics" toggle only shows their halos + labels over the same graph.
   const [showTopics, setShowTopics] = useState(false);
+  // The "Context" toggle (operator 2026-11-08): the memories he brought to
+  // mind for his last answer stay lit until his next recall; on by
+  // default, the reader's choice remembered for the browser session.
+  const [contextOn, setContextOn] = useState(() => readContextChoice(sessionStore()));
+  const contextView = useMemo(() => contextToggleView(contextAvailability(fold, scrubSeq), contextOn), [fold, scrubSeq, contextOn]);
   const emphasisIds = useMemo(() => {
     const sources: Array<Set<string>> = [];
     const fromLens = lensIds(fold, temporal, lens);
@@ -2322,6 +2329,14 @@ export function EntityView(): React.ReactElement {
                   🗺<span className="lens_search_label">topics</span>
                 </button>
               ) : null}
+              <ContextToggle
+                view={contextView}
+                onToggle={() => {
+                  const next = !contextOn;
+                  setContextOn(next);
+                  writeContextChoice(sessionStore(), next);
+                }}
+              />
               {topicFilter !== null ? (
                 <button
                   className="lens_chip active tm_filter_chip gc_topic_chip_full"
@@ -2379,6 +2394,7 @@ export function EntityView(): React.ReactElement {
               setRequestedTab({ tab: "book", nonce });
             }}
             showTopics={showTopics}
+            showContext={contextOn}
             onPickTopic={(rowIds, label) => setTopicFilter(rowIds.size > 0 ? { ids: rowIds, label } : null)}
           />
           <div className="entity_legend">

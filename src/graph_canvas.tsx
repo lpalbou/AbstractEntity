@@ -104,6 +104,10 @@ export interface GraphCanvasProps {
   /** The "topics" toggle: soft halos + labels over the grouped layout
    * (never a different graph). */
   showTopics: boolean;
+  /** The "Context" toggle: the newest recall's shelf + that turn's pairs
+   * stay lit until the next recall (off = the plain graph, the resting
+   * warmth view). A recall picked in the ledger lights either way. */
+  showContext: boolean;
   /** A click on a topic label lights that topic's memories (the topic
    * filter: every member present, diary and identity included). */
   onPickTopic(rowIds: Set<string>, label: string): void;
@@ -457,6 +461,7 @@ export function GraphCanvas({
   onSelect,
   gatewaySource,
   showTopics,
+  showContext,
   onPickTopic,
   onShowInBook,
   height,
@@ -464,10 +469,11 @@ export function GraphCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layoutRef = useRef<Map<string, LayoutNode>>(new Map());
   const cameraRef = useRef<Camera>({ x: 0, y: 0, zoom: 1.05 });
-  // RECALL HIGHLIGHT (operator 2026-11-07): the beat active at the scrub
-  // position lights its shelf through the SAME emphasis/dim mechanism as
-  // hover; released when the turn's answer lands or the next recall
-  // replaces it (recall_emphasis.ts). A recall line picked in the ledger
+  // RECALL HIGHLIGHT (operator 2026-11-07, 2026-11-08): the beat active at
+  // the scrub position lights its shelf through the SAME emphasis/dim
+  // mechanism as hover, and STAYS lit after his answer until the next
+  // recall replaces it; the "Context" toggle is the one control (off = the
+  // plain graph) (recall_emphasis.ts). A recall line picked in the ledger
   // (selection "beat:…") lights that beat. Recomputed per fold change,
   // never per frame.
   // The selection as the CANVAS knows it: a memory opened by its graph id
@@ -475,7 +481,7 @@ export function GraphCanvas({
   // Inspector does (fold.graph_to_row) — otherwise the canvas would not
   // see a selection and the recall would keep lighting the graph.
   const selectedRow = resolveSelection(fold, selectedId);
-  const recall = useMemo(() => canvasRecall(fold, scrubSeq, selectedId), [fold, scrubSeq, selectedId]);
+  const recall = useMemo(() => canvasRecall(fold, scrubSeq, selectedId, showContext), [fold, scrubSeq, selectedId, showContext]);
   // TOPICS AS THE NATURAL LAYOUT (operator 2026-11-07): the served
   // communities give every topic a home and its memories seats inside it
   // (topic_layout.ts); the force sim pulls each memory to its seat with

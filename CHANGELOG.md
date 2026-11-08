@@ -37,11 +37,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
   ones dropped this turn, kept a faint glow. Now each turn records the pairs it used together.
   While the highlight is on, only those pairs are green (561 on that turn, every pair among its
   34 matched memories). Every other line dims like the memories that were not recalled, and only
-  the memories recalled for this turn glow (55 on that turn). The highlight still clears when he
-  answers. The resting view is unchanged. Its legend now says what "recent" means: hovering
-  "warm together" or "warm now" says it covers about the last N turns (14 on Nerin's life
-  today), with older turns fainter (operator 2026-11-08: "it selects more nodes & edges on the
-  graph than have been visited").
+  the memories recalled for this turn glow (55 on that turn). The resting view is unchanged. Its
+  legend now says what "recent" means: hovering "warm together" or "warm now" says it covers
+  about the last N turns (14 on Nerin's life today), with older turns fainter (operator
+  2026-11-08: "it selects more nodes & edges on the graph than have been visited").
 - **Detail shows a memory's summary, who wrote it, and how it was understood before.** Opening a
   session summary showed an empty shell ("The fuller summary arrives once this memory is
   recalled", and "The words as saved: none kept"). Now Detail leads with the summary the gateway
@@ -114,10 +113,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
   facts. A topic keeps its place and colour while its members stay mostly the same; when the
   runtime regroups topics, the new groups take new places. Long labels wrap and show every keyword
   on hover.
-- **When he recalls, the graph shows it.** The memories he brought to mind light up and the rest
-  of the graph slowly dims; a ring says why each one came (present by right, from continuity,
-  matched) and a line says how many. It clears when he answers, and scrubbing to a past recall
-  shows that one.
+- **When he recalls, the graph shows it, and keeps showing it.** The memories he brought to mind
+  light up and the rest of the graph slowly dims; a ring says why each one came (present by right,
+  from continuity, matched) and a line says how many. The highlight stays on after he answers, so
+  the graph shows the context behind his answer, until his next recall replaces it (operator
+  2026-11-08). A "Context" toggle in the graph toolbar shows or hides it: on by default, off shows
+  the plain graph with its usual warmth so you can explore the rest; it is greyed out, with a
+  hint, until he has recalled something, and the browser remembers your choice for the session.
+  Escape or a click on empty space never clears it; clicking a lit memory still opens its card
+  and Detail. Scrubbing to a past recall shows that one, live and in replay alike.
 - **Memories settle into their topics on the normal graph.** The "topics" button now shows or
   hides a soft halo and label per topic instead of switching to a separate map; click a label to
   light that topic.

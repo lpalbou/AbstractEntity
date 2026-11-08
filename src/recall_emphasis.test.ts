@@ -1,8 +1,9 @@
 /**
  * Recall highlight — which memories light at the scrub position, why each
- * entered, and when the highlight releases. Built on the real fold (the
- * same envelopes the stream serves: bindings, a trace, its usage events,
- * the answer's episode binding), never on hand-made fold objects.
+ * entered, that the highlight STAYS after his answer until the next recall
+ * replaces it, and the reader's "Context" toggle. Built on the real fold
+ * (the same envelopes the stream serves: bindings, a trace, its usage
+ * events, the answer's episode binding), never on hand-made fold objects.
  */
 import { describe, expect, it } from "vitest";
 
@@ -12,7 +13,12 @@ import {
   activeBeat,
   admissionClass,
   canvasRecall,
-  answerLanded,
+  CONTEXT_CHOICE_KEY,
+  CONTEXT_HINT_EMPTY,
+  CONTEXT_HINT_NONE,
+  CONTEXT_TITLE,
+  contextAvailability,
+  contextToggleView,
   DIMMED_EDGE,
   dimRampSec,
   edgeDimTarget,
@@ -24,8 +30,10 @@ import {
   resolveSelection,
   RECALL_RAMP_SEC,
   recallEmphasis,
+  readContextChoice,
   recallLegendText,
   TURN_PAIR_WARMTH,
+  writeContextChoice,
 } from "./recall_emphasis";
 import { computeTemporalActivation, nodeWarmth, pairWarmth } from "./temporal_activation";
 
@@ -151,44 +159,47 @@ describe("recallEmphasis", () => {
     expect(recallEmphasis(fold, 10)?.ids.size).toBe(4);
   });
 
-  it("releases when the turn's answer (the next episode binding) lands", () => {
-    const fold = foldEnvelopes(life(), 20);
-    expect(recallEmphasis(fold, 19)).not.toBeNull();
-    expect(recallEmphasis(fold, 20)).toBeNull();
+  it("STAYS lit after his answer lands (operator 2026-11-08: the current context for the response)", () => {
+    const fold = foldEnvelopes(life());
+    // seq 20 is the answer's episode binding; long after it, still lit.
+    for (const at of [19, 20, 500]) {
+      const e = recallEmphasis(fold, at)!;
+      expect(e.trace_id).toBe("tr1");
+      expect([...e.ids].sort()).toEqual(["ex:episode-d", "ex:memory-b", "ex:memory-c", "ex:value-a"]);
+    }
+    // The answer's own episode is not part of the context.
+    expect(recallEmphasis(fold, 20)!.ids.has("ex:episode-answer")).toBe(false);
   });
 
-  it("an old episode REVEALED after the trace is not the answer", () => {
-    // The episode exists only through the recall's own usage event (no
-    // binding in this stream): first seen at seq 11, after the trace.
-    const envs = [
-      binding(1, "ex:memory-b", "memory"),
-      trace(10, "tr1", ["ex:memory-b", "row-old-ep"], { "ex:memory-b": "stm", "row-old-ep": "stimulus" }),
-      env(11, "event", { kind: "listed", scope: "life", owner_id: "entity:test", record_id: "row-old-ep", pair_ids: null, weight: 0, matched: true, event_id: "e11", seq: 11 }, {
-        trace_id: "tr1",
-        display: { record_id: "row-old-ep", kind: "episode", title: "exchange: long ago" } as ReplayEnvelope["display"],
-      }),
-    ];
-    const fold = foldEnvelopes(envs);
-    expect(fold.nodes.get("row-old-ep")?.kind).toBe("episode");
-    const beat = activeBeat(fold, 11)!;
-    expect(answerLanded(fold, beat, 11)).toBe(false);
-    expect(recallEmphasis(fold, 11)?.ids.has("row-old-ep")).toBe(true);
-  });
-
-  it("the next recall replaces the previous one", () => {
-    const envs = [...life().slice(0, 8), trace(15, "tr2", ["ex:memory-e"], { "ex:memory-e": "stimulus" })];
-    const fold = foldEnvelopes(envs);
-    const e = recallEmphasis(fold, 15)!;
+  it("keeps the turn's pairs after the answer (the 74c6806 rule holds through it)", () => {
+    const envs = [...twoTurns(), binding(40, "ex:episode-2", "episode", "exchange: second")];
+    const e = recallEmphasis(foldEnvelopes(envs), 40)!;
     expect(e.trace_id).toBe("tr2");
-    expect([...e.ids]).toEqual(["ex:memory-e"]);
+    expect([...e.pairs]).toEqual([key("ex:memory-c", "ex:memory-d")]);
   });
 
-  it("scrubbing back to a past recall lights it again", () => {
+  it("the next recall replaces the previous one, whole (shelf and pairs, never a merge)", () => {
+    // Prefix folds at the scrub, as the canvas receives them live.
+    // Before turn 2's recall: turn 1's context, answered at 20, still lit.
+    const before = recallEmphasis(foldEnvelopes(twoTurns(), 29), 29)!;
+    expect(before.trace_id).toBe("tr1");
+    expect(before.ids.has("ex:memory-e")).toBe(true);
+    expect(before.pairs.has(key("ex:memory-b", "ex:memory-c"))).toBe(true);
+    // At turn 2's recall: its shelf only; e (turn 1, dropped now) is out,
+    // and none of turn 1's pairs ride along.
+    const after = recallEmphasis(foldEnvelopes(twoTurns(), 30), 30)!;
+    expect(after.trace_id).toBe("tr2");
+    expect([...after.ids].sort()).toEqual(["ex:memory-b", "ex:memory-c", "ex:memory-d"]);
+    expect(after.pairs.size).toBe(0);
+  });
+
+  it("scrubbing back to a past recall lights it again (replay)", () => {
     // A prefix fold at the scrub (what the canvas receives after a scrub).
     const later = [...life(), trace(30, "tr2", ["ex:memory-e"], { "ex:memory-e": "stimulus" }), binding(40, "ex:episode-2", "episode")];
-    expect(recallEmphasis(foldEnvelopes(later), 40)).toBeNull();
-    const scrubbed = foldEnvelopes(later, 12);
-    expect(recallEmphasis(scrubbed, 12)?.trace_id).toBe("tr1");
+    expect(recallEmphasis(foldEnvelopes(later), 40)?.trace_id).toBe("tr2");
+    const scrubbed = foldEnvelopes(later, 25);
+    expect(recallEmphasis(scrubbed, 25)?.trace_id).toBe("tr1");
+    expect(recallEmphasis(foldEnvelopes(later, 9), 9)).toBeNull();
   });
 
   it("resolves shelf ids through graph_to_row (re-keyed nodes still light)", () => {
@@ -214,21 +225,78 @@ describe("recallEmphasis", () => {
 });
 
 describe("canvasRecall", () => {
-  it("a recall line picked in the ledger lights THAT beat, answered or not", () => {
+  it("a recall line picked in the ledger lights THAT beat, answered or not, whatever the toggle", () => {
     const envs = [...life(), trace(30, "tr2", ["ex:memory-e"], { "ex:memory-e": "stimulus" })];
     const fold = foldEnvelopes(envs);
     // At the head the scrub recall is tr2…
-    expect(canvasRecall(fold, 30, null)?.trace_id).toBe("tr2");
+    expect(canvasRecall(fold, 30, null, true)?.trace_id).toBe("tr2");
     // …but the operator picked tr1's ledger line (its answer landed at 20).
-    const picked = canvasRecall(fold, 30, "beat:tr1")!;
+    const picked = canvasRecall(fold, 30, "beat:tr1", true)!;
     expect(picked.trace_id).toBe("tr1");
     expect(picked.ids.size).toBe(4);
-    expect(canvasRecall(fold, 30, "beat:nope")).toBeNull();
+    expect(canvasRecall(fold, 30, "beat:tr1", false)?.trace_id).toBe("tr1");
+    expect(canvasRecall(fold, 30, "beat:nope", true)).toBeNull();
   });
 
   it("a node selection leaves the scrub recall as the canvas recall", () => {
     const fold = foldEnvelopes(life(), 12);
-    expect(canvasRecall(fold, 12, "ex:memory-b")?.trace_id).toBe("tr1");
+    expect(canvasRecall(fold, 12, "ex:memory-b", true)?.trace_id).toBe("tr1");
+  });
+
+  it("the Context toggle: off shows the plain graph, on again brings the same context back", () => {
+    const fold = foldEnvelopes(life());
+    expect(canvasRecall(fold, 30, null, true)?.trace_id).toBe("tr1");
+    expect(canvasRecall(fold, 30, null, false)).toBeNull();
+    expect(canvasRecall(fold, 30, "ex:memory-b", false)).toBeNull();
+    const back = canvasRecall(fold, 30, null, true)!;
+    expect(back.trace_id).toBe("tr1");
+    expect(back.ids.size).toBe(4);
+  });
+});
+
+describe("the Context toggle", () => {
+  it("no recall yet: disabled with a hint, never pressed — whatever the choice", () => {
+    const fold = foldEnvelopes(life(), 9);
+    expect(contextAvailability(fold, 9)).toBe("none");
+    for (const chosen of [true, false]) {
+      const view = contextToggleView(contextAvailability(fold, 9), chosen);
+      expect(view).toEqual({ pressed: false, disabled: true, title: CONTEXT_HINT_NONE });
+    }
+    // An empty shelf has nothing to light either; its hint says so.
+    const empty = foldEnvelopes([binding(1, "ex:memory-b", "memory"), trace(10, "tr1", [], {})]);
+    expect(contextAvailability(empty, 10)).toBe("empty");
+    expect(contextToggleView("empty", true)).toEqual({ pressed: false, disabled: true, title: CONTEXT_HINT_EMPTY });
+  });
+
+  it("a recall exists: enabled, pressed = the reader's choice (on by default), titled by what it shows", () => {
+    const fold = foldEnvelopes(life());
+    // Before and after the answer alike.
+    for (const at of [12, 20, 500]) expect(contextAvailability(fold, at)).toBe("ready");
+    expect(contextToggleView("ready", true)).toEqual({ pressed: true, disabled: false, title: `Context: ${CONTEXT_TITLE}` });
+    expect(contextToggleView("ready", false)).toEqual({ pressed: false, disabled: false, title: `Context: ${CONTEXT_TITLE}` });
+    expect(CONTEXT_TITLE).toBe("the memories he brought to mind for his last answer");
+  });
+
+  it("the choice is remembered per browser session, on by default, and storage failures never break it", () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    expect(readContextChoice(storage)).toBe(true);
+    writeContextChoice(storage, false);
+    expect(store.get(CONTEXT_CHOICE_KEY)).toBe("off");
+    expect(readContextChoice(storage)).toBe(false);
+    writeContextChoice(storage, true);
+    expect(readContextChoice(storage)).toBe(true);
+    const throwing = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("quota");
+      },
+    };
+    expect(readContextChoice(throwing)).toBe(true);
+    expect(() => writeContextChoice(throwing, false)).not.toThrow();
+    expect(readContextChoice(null)).toBe(true);
   });
 });
 
@@ -343,7 +411,7 @@ describe("each turn's used-together pairs (operator 2026-11-08: more edges lit t
     // The pairs light as they arrive: before the turn's co-use, none.
     expect(recallEmphasis(foldEnvelopes(twoTurns(), 32), 32)!.pairs.size).toBe(0);
     // A ledger pick of the earlier beat shows ITS pairs.
-    expect([...canvasRecall(fold, 34, "beat:tr1")!.pairs].sort()).toEqual([key("ex:memory-b", "ex:memory-c"), key("ex:memory-c", "ex:memory-e")]);
+    expect([...canvasRecall(fold, 34, "beat:tr1", true)!.pairs].sort()).toEqual([key("ex:memory-b", "ex:memory-c"), key("ex:memory-c", "ex:memory-e")]);
   });
 
   it("a pair deposited before its node re-keyed (graph id -> row id) still names the drawn edge", () => {
