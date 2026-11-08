@@ -63,9 +63,10 @@ describe("the visit turn POST", () => {
     expect(nonImageMention([PNG])).toBeNull();
   });
 
-  it("a non-image file alone is a turn; an image with no words is not sent, and says why", () => {
+  it("a file alone is a turn (an image with empty text); nothing at all is not", () => {
     expect(visitTurnPayload("", [PDF])).toEqual({ text: "I've placed shared/notes.pdf in your workspace (read it with read_file).", attachments: [{ path: PDF.path }] });
-    expect(visitTurnPayload("  ", [PNG])).toEqual({ refusal: expect.stringMatching(/Add a few words with the image/) });
+    expect(visitTurnPayload("  ", [PNG])).toEqual({ text: "", attachments: [{ path: PNG.path }] });
+    expect(visitTurnPayload("  ", [])).toEqual({ refusal: "There is nothing to send." });
   });
 
   it("a turn without files sends no attachments field", async () => {

@@ -10,8 +10,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   each one, and the runtime shows the images to his model with that message, as every other
   client does. The app no longer adds "I've placed N files in your workspace (read with
   read_file)" for images: the runtime writes that line itself. A file that is not an image keeps
-  one plain line naming its path. An image with no words is not sent (a message without words is
-  not a turn), and the note says to add a few words. Your message shows each attachment as a chip
+  one plain line naming its path. An image can be sent with no words. Your message shows each attachment as a chip
   (its kind, size and name; the path and exact size on hover; no thumbnail, since the chat never
   loads an image), and a rejoined visit rebuilds the chips from the gateway's records. When the
   gateway refuses an attachment (a missing file, a path outside his workspace, a folder, a file

@@ -96,9 +96,9 @@ export function nonImageMention(files: AttachmentRecord[]): string | null {
 }
 
 /** What one visit turn sends: the words (with the non-image line ahead of
- * them) and every file as `{path}`. A turn of images with no words is not
- * sent: the runtime parks a turn whose text is empty
- * (visit_workflow.py route_node), so the image would never reach him. */
+ * them) and every file as `{path}`. Images with no words are a turn (the door
+ * accepts an empty text when attachments are present); only a message with
+ * neither words nor files is nothing to send. */
 export function visitTurnPayload(
   words: string,
   files: PendingFile[],
@@ -106,9 +106,7 @@ export function visitTurnPayload(
   const said = words.trim();
   const mention = nonImageMention(files);
   const text = [mention, said].filter(Boolean).join("\n\n");
-  if (!text) {
-    return { refusal: files.length > 0 ? "Add a few words with the image. A message with no words is not sent, so the image would not reach him." : "There is nothing to send." };
-  }
+  if (!text && files.length === 0) return { refusal: "There is nothing to send." };
   return { text, attachments: files.map((f) => ({ path: f.path })) };
 }
 
