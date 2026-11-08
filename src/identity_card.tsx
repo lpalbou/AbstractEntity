@@ -217,19 +217,49 @@ const MOMENT_PHRASES: Record<string, { icon: string; phrase: string }> = {
   valence_peak: { icon: "💗", phrase: "A strong feeling" },
 };
 
-function momentLine(m: Record<string, unknown>): { icon: string; text: string; when: string } {
-  const kind = String(m["kind"] ?? "");
+/** Two shapes reach us: the stream's {kind, at, details:{reason}} and the
+ * gateway's "first" milestones {type:"first", what, reason, observed_at}
+ * (operator 2026-11-08: the latter rendered as raw JSON). Never JSON. */
+export function momentLine(m: Record<string, unknown>): { icon: string; text: string; when: string } {
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
   const details = (m["details"] && typeof m["details"] === "object" ? m["details"] : {}) as Record<string, unknown>;
-  const reason = typeof details["reason"] === "string" && details["reason"] ? String(details["reason"]) : "";
+  const kind = str(m["kind"]) || str(m["what"]) || str(m["type"]);
+  const reason = str(details["reason"]) || str(m["reason"]);
   const known = MOMENT_PHRASES[kind];
-  const at = typeof m["at"] === "string" ? String(m["at"]) : typeof m["observed_at"] === "string" ? String(m["observed_at"]) : "";
+  const at = str(m["at"]) || str(m["observed_at"]);
   const when = at ? at.slice(5, 16).replace("T", " ") : "";
   if (known) {
     return { icon: known.icon, text: reason ? `${known.phrase} — ${reason}` : known.phrase, when };
   }
-  // Unknown kinds: human-ish fallback, never raw JSON.
-  const fallback = reason || asText(m["title"] ?? m["digest"] ?? (kind || m));
-  return { icon: "・", text: fallback, when };
+  // Unknown kinds: the kind's words and its reason, never the object.
+  const title = str(m["title"]) || str(m["digest"]);
+  const words = kind ? kind.split("_").join(" ") : "";
+  const text = title || (words && reason ? `${words[0].toUpperCase()}${words.slice(1)} — ${reason}` : reason || words || "A moment");
+  return { icon: "・", text, when };
+}
+
+/** The "Life so far" counts, in words (operator: end-user copy, never
+ * `diarys` or `world_models`). */
+export function kindCountLabel(kind: string, count: number): string {
+  const words: Record<string, [string, string]> = {
+    episode: ["exchange", "exchanges"],
+    diary: ["diary entry", "diary entries"],
+    summary: ["summary", "summaries"],
+    world_model: ["world model", "world models"],
+    dream: ["dream", "dreams"],
+    value: ["value", "values"],
+    trait: ["trait", "traits"],
+    purpose: ["purpose", "purposes"],
+    interest: ["interest", "interests"],
+    lesson: ["lesson", "lessons"],
+    realization: ["realization", "realizations"],
+    observation: ["observation", "observations"],
+    claim: ["claim", "claims"],
+  };
+  const w = words[kind];
+  if (w) return `${count} ${count === 1 ? w[0] : w[1]}`;
+  const plain = kind.split("_").join(" ");
+  return `${count} ${plain}${count === 1 ? "" : "s"}`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
@@ -572,9 +602,7 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
             <span title="journal sequence — every remembered moment">{ctxCanonical?.journal_seq ?? ctx?.journal_seq ?? "—"} moments</span>
             <span>📔 {ctxCanonical?.diary_entries ?? ctx?.diary_entries ?? 0} book entries</span>
             {flattenCounts(ctxCanonical?.record_counts ?? ctx?.records_by_kind).map(([kind, count]) => (
-              <span key={kind}>
-                {count} {kind === "episode" ? "exchanges" : `${kind}s`}
-              </span>
+              <span key={kind}>{kindCountLabel(kind, count)}</span>
             ))}
           </div>
         </Section>
