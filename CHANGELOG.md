@@ -4,6 +4,28 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Bring another entity into the conversation with `@`.** While you visit one entity, type `@`
+  in the message box: a list offers the other entities your account can see (never the one you
+  are visiting), each with its avatar. A pick becomes a chip; the first time you pick a name in
+  a conversation, a line under it says "Nerin will read this conversation's history". When you
+  send, your message goes to the entity you are visiting as before; once it has answered, each
+  mentioned entity receives the same words, one after the other in the order you picked them
+  (so the second one sees the first one's answer), and each answer appears as its own message.
+  An entity already in another conversation is skipped with "Pollux is in another
+  conversation."; one that cannot answer says why, and your words and its chip come back to the
+  message box. On a gateway that does not have mentions yet, typing `@` says "This gateway does
+  not offer mentions yet" instead of showing names. This works in both ways of talking (his
+  driver and the flow brain); the "bring Castor in" offer for a typed `castor@host` address is
+  unchanged.
+- **Every answer says who wrote it.** When the gateway names the author of a turn, the message
+  shows that entity's avatar, its name and a small "entity" tag (an agent gets its own mark), so
+  a mentioned entity's answer is never mistaken for the one you are visiting. Answers in the
+  flow brain carry the visited entity's name and avatar the same way; the Avatar view keeps the
+  author on its answer cards. With a gateway that names no author, messages look exactly as
+  before.
+- The shared chat parts come from the AbstractUIC build that adds mentions (panel-chat 0.9.9,
+  not yet published), vendored as a package file until it is; the lockfile check reports this
+  until the app is relocked to the published version.
 - **The Book folds by day.** Each day is now one row: its date, how many entries he wrote that
   day and, while it is folded, the first entry's opening words on one line. Every day is folded
   except the newest, so the Book opens on what he wrote last. A click on a day (or the arrow

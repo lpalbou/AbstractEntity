@@ -24,7 +24,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat";
 import { entityReadAloudInput } from "./read_aloud";
 
-import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMessage } from "./vendor/abstractchat/conversation";
+import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage } from "./vendor/abstractchat/conversation";
+import { MENTIONS_UNAVAILABLE, chipsToRestore, mentionCandidatesFor, runMentions, visitMentionProps, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -62,7 +63,7 @@ import { resolveMentions } from "./entity_handle";
 import { foldVisitStatus } from "./visit_status_poll";
 import { ChatMessageList, splitVisitDecoration, toolGaugeTrustworthy, type DrawerMessage } from "./chat_message_list";
 export { splitVisitDecoration } from "./chat_message_list";
-import { getEntitySeat, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
+import { getEntitySeat, listEntities, postMention, probeMentionRoute, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import { RefusalLine, type SubstrateChoice } from "./mind_voice_settings";
@@ -182,6 +183,19 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const [runId, setRunId] = useState<string | null>(null);
   /** The identity the visit opened with (`identity_ref` of the open answer), by run. */
   const [openedRef, setOpenedRef] = useState<{ runId: string; ref: IdentityRef } | null>(null);
+  /** The open visit's session (`session_id` of the open answer or of the visit status), by run:
+   * the conversation an `@` mention invites another entity into. */
+  const [visitSession, setVisitSession] = useState<{ runId: string; sessionId: string } | null>(null);
+  // @ENTITY MENTIONS (operator 2026-11-08, visit_mentions.ts): chips picked from the kit's `@`
+  // list, the sentences about the last send, and the older-gateway sentence once known.
+  const [mentionChips, setMentionChips] = useState<ChatMention[]>([]);
+  const mentionChipsRef = useRef<ChatMention[]>([]);
+  mentionChipsRef.current = mentionChips;
+  const [mentionStatus, setMentionStatus] = useState<string | null>(null);
+  const [mentionsUnavailable, setMentionsUnavailable] = useState<string | null>(null);
+  const mentionRowsRef = useRef<Promise<MentionableEntity[]> | null>(null);
+  const mentionRouteRef = useRef<Promise<boolean | null> | null>(null);
+  const mentionRefusedRef = useRef<Set<string>>(new Set());
   // THE FLOW-BRAIN LANE (operator tasking c5190; door acceptance GREEN
   // c5246): an alternative brain for the conversation — each prompt is ONE
   // summon of the entity-chat VisualFlow (recall → lived turn → elections →
@@ -473,6 +487,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         .then((s) => {
           if (cancelled) return;
           setStatus(s);
+          if (s.open && s.run_id && typeof s.session_id === "string" && s.session_id) {
+            const own = { runId: s.run_id, sessionId: s.session_id };
+            setVisitSession((prev) => (prev && prev.runId === own.runId && prev.sessionId === own.sessionId ? prev : own));
+          }
           if (s.open && !runId && !flowActive) {
             // An open visit that WE started (stored run id matches) resumes
             // automatically. Any other open visit renders with a REJOIN
@@ -582,6 +600,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       setSeatBusy(false);
       setRunId(r.run_id);
       setOpenedRef(r.identity_ref ? { runId: r.run_id, ref: r.identity_ref } : null);
+      setVisitSession(typeof r.session_id === "string" && r.session_id ? { runId: r.run_id, sessionId: r.session_id } : null);
       rehydratedRef.current.add(r.run_id); // freshly opened: nothing to fetch
       try {
         localStorage.setItem(chatSessionStorageKey(entity), r.run_id);
@@ -745,6 +764,64 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     publicVisit.refresh();
   }, [brain, baseUrl, entity, runId, token, publicVisit.refresh]);
 
+  /** Does this gateway serve the mentions route? Asked once (again after an unknown answer); a
+   * gateway without it gets the one sentence and no names. */
+  const mentionRouteOffered = useCallback((): Promise<boolean | null> => {
+    if (!mentionRouteRef.current) {
+      mentionRouteRef.current = probeMentionRoute(baseUrl).then((state) => {
+        if (state === "absent") setMentionsUnavailable(MENTIONS_UNAVAILABLE);
+        if (state === "unknown") mentionRouteRef.current = null;
+        return state === "offered" ? true : state === "absent" ? false : null;
+      });
+    }
+    return mentionRouteRef.current;
+  }, [baseUrl]);
+  /** The `@` list: `GET /entities` (read once per drawer) minus the entity being visited and the
+   * ones the gateway refused to mention, with each one's look. */
+  const mentionCandidates = useCallback(
+    async (query: string) => {
+      if (!mentionRowsRef.current) {
+        const rows = listEntities(baseUrl).then((list) => list.map((e): MentionableEntity => ({ name: e.name, slug: e.slug, avatar: e.avatar ?? null })));
+        mentionRowsRef.current = rows;
+        rows.catch(() => {
+          if (mentionRowsRef.current === rows) mentionRowsRef.current = null;
+        });
+      }
+      const [rows, offered] = await Promise.all([mentionRowsRef.current, mentionRouteOffered()]);
+      return offered === false ? [] : mentionCandidatesFor(rows, entity, query, mentionRefusedRef.current);
+    },
+    [baseUrl, entity, mentionRouteOffered],
+  );
+  /** After the person's turn landed: each mention, in pick order, one call after the other; each
+   * reply is a turn with its author. A 503 or a failure puts the words and the unsent chips back. */
+  const sendMentions = useCallback(
+    async (sessionId: string, text: string, sent: ChatMentionSent[], chips: ChatMention[]): Promise<void> => {
+      const result = await runMentions(sent, {
+        post: (m) => postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index }, token),
+        routeOffered: mentionRouteOffered,
+        onReply: (m, reply, author) => push({ role: "assistant", content: reply, title: m.name, ...(author ? { author } : {}) }),
+      });
+      for (const id of result.refused) mentionRefusedRef.current.add(id);
+      if (result.unavailable) setMentionsUnavailable(MENTIONS_UNAVAILABLE);
+      setMentionStatus(result.sentences.length ? result.sentences.join(" ") : null);
+      if (result.keepDraft) {
+        setDraft((cur) => cur || text);
+        const back = chipsToRestore(chips, result.unsent);
+        if (back.length) setMentionChips((cur) => (cur.length ? cur : back));
+      }
+    },
+    [baseUrl, token, push, mentionRouteOffered],
+  );
+  /** The conversation a mention joins: the open visit's session, or the flow lane's (minted with
+   * its first message). None: no `@` list (an older door that names no session). */
+  const mentionSession = brain === "driver" ? (runId && visitSession?.runId === runId ? visitSession.sessionId : null) : flowActive ? flowSessionId : null;
+  const mentionSessionKey = brain === "driver" ? (mentionSession ? `visit:${mentionSession}` : null) : flowActive ? `flow:${flowSessionId || "new"}` : null;
+  // A new conversation starts with no chips and no sentence from the last one.
+  useEffect(() => {
+    setMentionChips([]);
+    setMentionStatus(null);
+  }, [mentionSessionKey]);
+
   const sendDuringWork = useCallback(async () => {
     const words = draft.trim();
     if (!words || replyInFlight.current) return;
@@ -777,12 +854,22 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     finally { replyInFlight.current = false; setReplyPending(false); }
   }, [draft, runId, flowRunId, flowView, brain, baseUrl, entity, token, pendingFiles.length, pendingQuestion, answerPublic, replyContext, publicState, publicVisit.refresh]);
 
-  const send = useCallback(() => {
-    if (avatarMode && avatarSendsDuringWork({ turnInFlight: busy === "turn", pendingQuestion: Boolean(pendingQuestion), fresh: brain === "flow" || publicVisit.fresh, status: publicState?.status, readyForInput: publicState?.ready_for_input })) { void sendDuringWork(); return; }
+  const send = useCallback((mentionsSent: ChatMentionSent[] = []) => {
+    if (avatarMode && avatarSendsDuringWork({ turnInFlight: busy === "turn", pendingQuestion: Boolean(pendingQuestion), fresh: brain === "flow" || publicVisit.fresh, status: publicState?.status, readyForInput: publicState?.ready_for_input })) {
+      // A mention runs after a full turn, never inside the work in progress.
+      if (mentionsSent.length) { setMentionStatus("A mention goes with a full message: send it once the current turn has finished. Your words and mentions are kept."); return; }
+      void sendDuringWork(); return;
+    }
     const words = draft.trim();
     if ((!words && pendingFiles.length === 0) || busy !== "idle") return;
+    if (mentionsSent.length && !words) { setMentionStatus(`Write a message for ${mentionsSent.map((m) => m.name).join(" and ")}: a mention carries your words.`); return; }
+    // The chips as picked (for their looks), cleared from the composer like the words.
+    const sentChips = mentionsSent.length ? chipsToRestore(mentionChipsRef.current, mentionsSent) : [];
+    const chipsBack = () => { if (sentChips.length) setMentionChips((cur) => (cur.length ? cur : sentChips)); };
+    setMentionStatus(null);
+    if (sentChips.length) setMentionChips([]);
     if (brain === "flow") {
-      if (!flowActive) return;
+      if (!flowActive) { chipsBack(); return; }
       if (pendingFiles.length > 0 && warnOnce("files-lane")) {
         // The flow turn has no file-handover path yet — telling him
         // "read with read_file" would be a lie he cannot act on (lane
@@ -799,10 +886,16 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       }
       setDraft("");
       push({ role: "user", content: flowText });
-      sendFlow(flowText);
+      void sendFlow(flowText).then(({ landed, sessionId }) => {
+        if (!mentionsSent.length) return;
+        // His turn did not land (failed, queued, stopped): the mentions were not sent.
+        if (!landed || !sessionId) { chipsBack(); return; }
+        setBusy("turn");
+        return sendMentions(sessionId, flowText, mentionsSent, sentChips).finally(() => setBusy("idle"));
+      });
       return;
     }
-    if (!runId) return;
+    if (!runId) { chipsBack(); return; }
     // Files ride the turn as attachments (the runtime labels images itself);
     // files that are not images keep one plain line in the words.
     const payload = visitTurnPayload(words, pendingFiles);
@@ -824,7 +917,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     const handBack = () => {
       setDraft((cur) => cur || words);
       if (sentFiles.length) setPendingFiles((cur) => [...sentFiles, ...cur]);
+      chipsBack();
     };
+    // The session the mentions join, read at send time (the visit's own).
+    const sessionForMentions = mentionSession;
     // Through the REF (pulse adversary N7): `envelopes` is not a dep of
     // this callback, so the prop is stale-bounded — the ref is the live
     // tail (same pattern as closeSeqRef below).
@@ -875,6 +971,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           push({ role: "system", content: "The visit closed while this turn ran (idle deadline) — open a new one to continue." });
           setRunId(null);
         }
+        // His answer is in the thread: now each mention, in order (busy until the last answered).
+        if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, words, mentionsSent, sentChips);
+        chipsBack();
       })
       .catch((e: Error & { status?: number }) => {
         // The door refused the turn before it ran (an attachment it cannot
@@ -898,7 +997,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         handBack();
       })
       .finally(() => setBusy("idle"));
-  }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow, avatarMode, publicState?.status, publicState?.ready_for_input, publicVisit.fresh, pendingQuestion, sendDuringWork]);
+  }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow, avatarMode, publicState?.status, publicState?.ready_for_input, publicVisit.fresh, pendingQuestion, sendDuringWork, mentionSession, sendMentions]);
 
   const close = useCallback(() => {
     if (!runId || busy !== "idle") return;
@@ -1429,7 +1528,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           <ChatComposer
             value={draft}
             onChange={(text) => { if (avatarMode) stopTtsRef.current(); setDraft(text); }}
-            onSubmit={send}
+            onSend={(s) => send(s.mentions)}
+            {...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus })}
             placeholder={`talk with ${entityName}…  (drop or attach files)`}
             busy={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy === "turn"}
             disabled={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy !== "idle"}

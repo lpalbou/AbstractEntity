@@ -8,7 +8,7 @@
  * component composes these and owns only pixels + state.
  */
 
-import { ReplayViewFold, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import { ReplayViewFold, chatAuthorOf, type ChatAuthor, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
 
 export type PollOutcome =
   | { kind: "aborted"; lastStatus: string }
@@ -16,12 +16,15 @@ export type PollOutcome =
   /** Five consecutive poll failures — the drawer lost its VIEW of the
    * run; the run itself may well have completed server-side. */
   | { kind: "lost_view"; lastStatus: string }
-  | { kind: "terminal"; status: "completed" | "failed" | "cancelled"; output: unknown; error: string | null };
+  /** `author`: who answered (the gateway's turn author on `GET /runs/{id}`, or the view's final
+   * message), null when the gateway names nobody (an older gateway): today's rendering. */
+  | { kind: "terminal"; status: "completed" | "failed" | "cancelled"; output: unknown; error: string | null; author: ChatAuthor | null };
 
 export interface RunSummaryShape {
   status?: string;
   output?: unknown;
   error?: string | null;
+  author?: unknown;
 }
 
 /**
@@ -70,7 +73,7 @@ export async function pollRunToTerminal(
     }
     const st = String(run.status || "");
     if (st === "completed" || st === "failed" || st === "cancelled") {
-      return { kind: "terminal", status: st, output: run.output, error: run.error == null ? null : String(run.error) };
+      return { kind: "terminal", status: st, output: run.output, error: run.error == null ? null : String(run.error), author: chatAuthorOf(run.author) };
     }
   }
 }
@@ -234,7 +237,7 @@ export async function followRunToTerminal(
     const final = (view.messages || []).find((m) => m.id === `${view.root_run_id}:final`);
     const lastError = (last as RunSummaryShape | null)?.error;
     const error = status === "completed" ? null : String(lastError || view.display_status || `run ${status}`);
-    return { kind: "terminal", status, output: final ? { answer: final.text } : null, error };
+    return { kind: "terminal", status, output: final ? { answer: final.text } : null, error, author: chatAuthorOf(final?.author) };
   }
 }
 

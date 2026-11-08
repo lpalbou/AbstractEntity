@@ -26,7 +26,9 @@ export interface FlowConversationApi {
   flowPublicHistory: ChatMessage[];
   /** Open the conversation view (resuming a stored unclosed session). */
   startConversation(): void;
-  sendFlow(text: string, opts?: { queue?: boolean; park?: boolean }): void;
+  /** Resolves once the turn settled: `landed` = his answer reached the thread (so a mention can
+   * follow it), `sessionId` = the conversation's session (minted on the first message). */
+  sendFlow(text: string, opts?: { queue?: boolean; park?: boolean }): Promise<FlowTurnSettled>;
   endFlowConversation(): void;
   /** Stop waiting on the current poll — the run keeps ticking server-side. */
   stopWaiting(): void;
@@ -38,6 +40,8 @@ export interface FlowConversationApi {
   queueState: { queueId: string; line: string } | null;
   stepAway(): void;
 }
+
+export type FlowTurnSettled = { landed: boolean; sessionId: string | null };
 
 export function useFlowConversation(io: {
   baseUrl: string;
@@ -92,16 +96,17 @@ export function useFlowConversation(io: {
 
   /** Render one summoned turn's terminal outcome — the ONE fold both the
    * direct summon path and the queue's admitted state ride (contract §4).
-   * Failure shapes THROW so each caller's catch owns its wording. */
+   * Failure shapes THROW so each caller's catch owns its wording. Resolves true when his answer
+   * reached the thread. */
   const renderFlowOutcome = useCallback(
-    async (outcome: PollOutcome, runId: string): Promise<void> => {
+    async (outcome: PollOutcome, runId: string): Promise<boolean> => {
       if (outcome.kind === "aborted") {
         push({
           role: "system",
           content: `Stopped waiting (run ${runId.slice(0, 8)}, last seen ${outcome.lastStatus}) — the moment keeps ticking server-side and his memory keeps whatever he lives.`,
           level: "info",
         });
-        return;
+        return false;
       }
       if (outcome.kind === "deadline")
         throw new Error(`the summoned turn did not finish within 10 minutes (run ${runId.slice(0, 8)}, last seen ${outcome.lastStatus}) — it may still be ticking; his memory keeps whatever it lived`);
@@ -120,7 +125,7 @@ export function useFlowConversation(io: {
             : "The turn completed but served no readable answer — he said nothing this moment.",
           level: fold.degraded ? "warn" : "info",
         });
-        return;
+        return false;
       }
       // DIARY-FENCE GUARD (c5342 P0 + fable5 findings 2/3): one shared
       // function at EVERY answer fold; unterminated fences withhold to
@@ -147,7 +152,9 @@ export function useFlowConversation(io: {
       }
       // P0-2 (lane adversary): NO detail object — the flow turn serves no
       // probe payload; a cast-through detail made the modal lie.
-      push({ role: "assistant", content: answer, title: entityName });
+      // Who answered: the turn's author when the gateway names it (`GET /runs/{id}`), else
+      // today's card (the entity's name as the title).
+      push({ role: "assistant", content: answer, title: entityName, ...(outcome.author ? { author: outcome.author } : {}) });
       // TOOL HONESTY (flow c5285 ask1b): a SERVED tools_ran is
       // authoritative; an ABSENT field stays a blind gauge.
       if (fold.toolsRan !== null) {
@@ -172,6 +179,7 @@ export function useFlowConversation(io: {
           }
         }
       }
+      return true;
     },
     [push, entityName],
   );
@@ -287,11 +295,12 @@ export function useFlowConversation(io: {
       // poll) bumps the token and this loop sees itself stale (finding 1).
       const gen = ++pollGenRef.current;
       if (!flowSessionRef.current) flowSessionRef.current = flowSession.mint(entity);
+      const sessionId = flowSessionRef.current;
       // NO substrate override (lane adversary P1-5): the summon resolver
       // ranks request > home substrate.yaml, so a mount-time copy pinned
       // here would defeat a Settings change mid-conversation. The gateway
       // resolves the entity's stored mind — one source.
-      summonEntity(
+      return summonEntity(
         baseUrl,
         entity,
         {
@@ -312,7 +321,7 @@ export function useFlowConversation(io: {
         },
         token,
       )
-        .then(async (r) => {
+        .then(async (r): Promise<boolean> => {
           const newWarnings = Array.isArray(r.warnings) ? r.warnings.filter((w) => typeof w === "string" && !flowWarnedRef.current.has(w)) : [];
           if (newWarnings.length > 0) {
             for (const w of newWarnings) flowWarnedRef.current.add(w);
@@ -330,14 +339,14 @@ export function useFlowConversation(io: {
                 level: "info",
               });
               setBusy("idle");
-              return;
+              return false;
             }
             setQueueState({
               queueId: r.queue_id,
               line: queueCardLine({ state: "queued", position: r.position, current_idle_deadline: r.current_idle_deadline }),
             });
             setBusy("idle");
-            return;
+            return false;
           }
           // The summoned run executes async in the runner — poll to
           setFlowRunId(r.run_id); setFlowView(null);
@@ -346,9 +355,9 @@ export function useFlowConversation(io: {
           // provider calls per turn on top of the lived turn (flow c5285
           // ask1); contended-model turns measured 1-8 min BEFORE tools.
           const outcome = await followRunRef.current(r.run_id, gen, 600_000);
-          await renderFlowOutcomeRef.current(outcome, r.run_id);
+          return renderFlowOutcomeRef.current(outcome, r.run_id);
         })
-        .catch((e: Error & { status?: number }) => {
+        .catch((e: Error & { status?: number }): boolean => {
           push({
             role: "system",
             content:
@@ -363,13 +372,15 @@ export function useFlowConversation(io: {
           // The failed words come back; the flow session survives (a
           // summon error must never reset the conversation — c5330).
           setDraft((cur) => cur || text);
+          return false;
         })
         .finally(() => {
           // Only the CURRENT generation may release the busy state — a
           // stale chain's finally must not re-enable the composer while a
           // newer poll (e.g. the goodbye) still runs (finding 1's stomp).
           if (pollGenRef.current === gen) setBusy("idle");
-        });
+        })
+        .then((landed): FlowTurnSettled => ({ landed, sessionId }));
     },
     [baseUrl, entity, entityName, token, push],
   );

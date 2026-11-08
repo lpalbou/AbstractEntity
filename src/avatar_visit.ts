@@ -84,7 +84,8 @@ export function publicVisitMessages(state: VisitConversationState): EntityPublic
   return orderPublicMessages(result);
 }
 
-/** The technical transcript stays untouched; the avatar receives only screened public words. */
+/** The technical transcript stays untouched; the avatar receives only screened public words. An
+ * answer keeps its author (a mentioned entity's reply names who answered on the answer card). */
 export function avatarVisitHistory(messages: DrawerMessage[], updates: ChatMessage[], runId: string | null, working = false): ChatMessage[] {
   const ordered = orderPublicMessages(updates as EntityPublicMessage[]);
   const safe: ChatMessage[] = messages.filter((m) => {
@@ -93,7 +94,7 @@ export function avatarVisitHistory(messages: DrawerMessage[], updates: ChatMessa
     // projection will show either its applied answer or its retained late reply.
     if (local.source === "local_question_answer") return false;
     return m.role === "user" || m.role === "assistant";
-  }).map((m) => ({ id: m.id, role: m.role, kind: m.kind || (m.role === "user" ? "prompt" : "answer"), runId: m.runId || runId || undefined, content: m.role === "assistant" ? screenDiaryFences(m.content).display : m.content, ts: m.ts, ...(m.role === "user" && m.attachments?.length ? { attachments: m.attachments } : {}) }));
+  }).map((m) => ({ id: m.id, role: m.role, kind: m.kind || (m.role === "user" ? "prompt" : "answer"), runId: m.runId || runId || undefined, content: m.role === "assistant" ? screenDiaryFences(m.content).display : m.content, ts: m.ts, ...(m.role === "user" && m.attachments?.length ? { attachments: m.attachments } : {}), ...(m.role === "assistant" && m.author ? { author: m.author } : {}) }));
   // The newest public event leads while work is in progress; the final answer is last once it lands.
   const latestReply = working ? null : [...safe].reverse().find((m) => m.role === "assistant");
   return [...safe.filter((m) => m !== latestReply), ...ordered, ...(latestReply ? [latestReply] : [])];

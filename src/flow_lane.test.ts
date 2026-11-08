@@ -26,7 +26,17 @@ describe("pollRunToTerminal (the ONE loop both lanes ride — fable5 finding 1/B
   it("reaches terminal and carries output + error", async () => {
     const h = harness([{ status: "running" }, { status: "completed", output: { answer: "hi" }, error: null }]);
     const out = await pollRunToTerminal(h.fetchSummary, { deadlineMs: 60_000, ...h });
-    expect(out).toEqual({ kind: "terminal", status: "completed", output: { answer: "hi" }, error: null });
+    expect(out).toEqual({ kind: "terminal", status: "completed", output: { answer: "hi" }, error: null, author: null });
+  });
+
+  it("carries who answered: the summary's turn author (entity mentions 2026-11-08); an unknown kind is nobody", async () => {
+    const author = { kind: "entity", name: "Nerin", entity_id: "ent-nerin", identity_ref: "entity:nerin#2", avatar: { style: "watch-halo", color: "#2a9d8f" } };
+    const h = harness([{ status: "completed", output: { answer: "hi" }, error: null, author }]);
+    const out = await pollRunToTerminal(h.fetchSummary, { deadlineMs: 60_000, ...h });
+    expect(out.kind === "terminal" ? out.author : "not terminal").toEqual(author);
+    const odd = harness([{ status: "completed", output: { answer: "hi" }, author: { kind: "robot", name: "x" } }]);
+    const out2 = await pollRunToTerminal(odd.fetchSummary, { deadlineMs: 60_000, ...odd });
+    expect(out2.kind === "terminal" ? out2.author : "not terminal").toBeNull();
   });
 
   it("an abort wins over everything — even between sleep and fetch", async () => {
@@ -56,7 +66,7 @@ describe("pollRunToTerminal (the ONE loop both lanes ride — fable5 finding 1/B
   it("failed and cancelled are terminal, not retried", async () => {
     const h = harness([{ status: "failed", error: "boom" }]);
     const out = await pollRunToTerminal(h.fetchSummary, { deadlineMs: 60_000, ...h });
-    expect(out).toEqual({ kind: "terminal", status: "failed", output: undefined, error: "boom" });
+    expect(out).toEqual({ kind: "terminal", status: "failed", output: undefined, error: "boom", author: null });
   });
 });
 

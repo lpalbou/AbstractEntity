@@ -16,7 +16,7 @@
 
 import type { ReplayEnvelope } from "./stream_types";
 import { joinBaseUrl, randomId, type VoiceDefaults } from "@abstractframework/ui-kit";
-import { createReplayViewTransport, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import { chatAvatarLookOf, createReplayViewTransport, type ChatAvatarLook, type ReplayViewTransport } from "@abstractframework/panel-chat";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
  * cannot be trusted (code adversary F1/F3): the fold runs in the render
@@ -75,6 +75,9 @@ export interface EntitySummary {
   /** The row's state (`GET /entities` carries the record `GET /state` serves): the roster draws
    * every tile from it at once (roster_tiles.ts). Absent when the row has none. */
   state?: EntityStateInfo;
+  /** The row's identity look (`identity.avatar` {style, color}, framework ADR 0052): the orb an
+   * `@` mention list draws. Null when the row has no identity record. */
+  avatar?: ChatAvatarLook | null;
 }
 
 /** The browser's gateway credential, module-wide (maintainer, 2026-07-08:
@@ -182,6 +185,7 @@ export async function listEntities(baseUrl: string): Promise<EntitySummary[]> {
     entity_id: e.entity_id ? String(e.entity_id) : undefined,
     handle: typeof e.handle === "string" && e.handle ? e.handle : undefined,
     state: e.state && typeof e.state === "object" && typeof (e.state as { state?: unknown }).state === "string" ? (e.state as EntityStateInfo) : undefined,
+    avatar: chatAvatarLookOf(e.identity && typeof e.identity === "object" ? (e.identity as { avatar?: unknown }).avatar : null),
   }));
 }
 
@@ -935,7 +939,7 @@ export function gatewayReplayView(baseUrl: string, opts: { requestBudgetMs?: num
 export function getRunSummary(
   baseUrl: string,
   runId: string,
-): Promise<{ status?: string; output?: unknown; error?: string | null }> {
+): Promise<{ status?: string; output?: unknown; error?: string | null; author?: unknown }> {
   return getJson(joinBaseUrl(baseUrl, `api/gateway/runs/${encodeURIComponent(runId)}`));
 }
 
@@ -1472,6 +1476,65 @@ export function sendVisitTurn(
   if (attachments.length > 0) body["attachments"] = attachments.map((a) => ({ path: a.path }));
   // Same 10-min budget as the hosted lane (20-tool-call turns are legal).
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`), body, token, 600000);
+}
+
+/** One `@entity` mention as the gateway answered it (`POST /sessions/{session_id}/mentions`,
+ * AbstractGateway main f32c8ca9): the HTTP status, the JSON body (null when it is not JSON) and
+ * the error code (`code` in the body, else the `X-Gateway-Error-Code` header). The outcome rule
+ * lives in visit_mentions.ts; only a network failure throws. */
+export interface MentionWire {
+  status: number;
+  body: Record<string, unknown> | null;
+  code: string | null;
+}
+
+/** Mention `entity` in the conversation `sessionId`: the gateway runs `text` as a visit turn of
+ * that entity (its visit bound to this session) and records the reply as a turn of the session
+ * with its `author`. Ten minutes, as a visit turn (a mention IS one). */
+export async function postMention(
+  baseUrl: string,
+  sessionId: string,
+  body: { entity: string; text: string; mention_index: number },
+  token: string | null,
+  timeoutMs = 600000,
+): Promise<MentionWire> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/sessions/${encodeURIComponent(sessionId)}/mentions`), {
+      credentials: "include",
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      const value = (await res.json()) as unknown;
+      if (value && typeof value === "object" && !Array.isArray(value)) parsed = value as Record<string, unknown>;
+    } catch {
+      parsed = null;
+    }
+    const bodyCode = parsed && typeof parsed.code === "string" && parsed.code ? parsed.code : null;
+    return { status: res.status, body: parsed, code: bodyCode || res.headers.get("X-Gateway-Error-Code") || null };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Does this gateway serve the mentions route? Asked by method: the route is POST-only, so a
+ * GET on it answers 405 where it exists and 404 where it does not (an older gateway). Anything
+ * else (signed out, unreachable) is "unknown". */
+export async function probeMentionRoute(baseUrl: string): Promise<"offered" | "absent" | "unknown"> {
+  try {
+    const res = await fetch(joinBaseUrl(baseUrl, "api/gateway/sessions/mention-route-probe/mentions"), {
+      credentials: "include",
+      headers: readHeaders({ Accept: "application/json" }),
+    });
+    return res.status === 405 ? "offered" : res.status === 404 ? "absent" : "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 export function closeVisit(

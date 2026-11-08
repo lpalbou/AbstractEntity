@@ -57,7 +57,7 @@ describe("followRunToTerminal (the replay view, runtime 0854)", () => {
     const gw = gateway(view(9, "completed"), [[]]);
     const s = summaries([{ status: "completed", output: { answer: "hi", tool_rounds: 0 }, error: null }]);
     const out = await followRunToTerminal(ROOT, { view: gw.transport, fetchSummary: s.fetchSummary, deadlineMs: 60_000, aborted: () => false, ...fast });
-    expect(out).toEqual({ kind: "terminal", status: "completed", output: { answer: "hi", tool_rounds: 0 }, error: null });
+    expect(out).toEqual({ kind: "terminal", status: "completed", output: { answer: "hi", tool_rounds: 0 }, error: null, author: null });
     expect(gw.calls.streams.length).toBe(0);
     expect(s.count()).toBe(1);
   });
@@ -112,9 +112,21 @@ describe("followRunToTerminal (the replay view, runtime 0854)", () => {
     let t = 0;
     const s = summaries([{ status: "running" }]);
     const out = await followRunToTerminal(ROOT, { view: gw.transport, fetchSummary: s.fetchSummary, deadlineMs: 60_000, aborted: () => false, now: () => t, sleep: (ms) => { t += ms; return Promise.resolve(); } });
-    expect(out).toEqual({ kind: "terminal", status: "completed", output: { answer: "from the view" }, error: null });
+    expect(out).toEqual({ kind: "terminal", status: "completed", output: { answer: "from the view" }, error: null, author: null });
     expect(foldGoodbyeWords(out.kind === "terminal" ? out.output : null)).toBe("from the view");
     expect(s.count()).toBeGreaterThan(1);
+  });
+
+  it("who answered rides with the outcome: the summary's author, else the view's final message's", async () => {
+    const author = { kind: "entity", name: "Nerin", entity_id: "ent-nerin", identity_ref: null, avatar: null };
+    const gw = gateway(view(9, "completed"), [[]]);
+    const s = summaries([{ status: "completed", output: { answer: "hi" }, error: null, author }]);
+    const out = await followRunToTerminal(ROOT, { view: gw.transport, fetchSummary: s.fetchSummary, deadlineMs: 60_000, aborted: () => false, ...fast });
+    expect(out.kind === "terminal" ? out.author : "not terminal").toEqual(author);
+    const final = view(7, "completed", { messages: [{ id: `${ROOT}:final`, role: "assistant", kind: "final", text: "from the view", run_id: ROOT, author } as never] });
+    let t = 0;
+    const trailing = await followRunToTerminal(ROOT, { view: gateway(final, [[]]).transport, fetchSummary: summaries([{ status: "running" }]).fetchSummary, deadlineMs: 60_000, aborted: () => false, now: () => t, sleep: (ms) => { t += ms; return Promise.resolve(); } });
+    expect(trailing.kind === "terminal" ? trailing.author : "not terminal").toEqual(author);
   });
 
   it("stop waiting returns aborted", async () => {
