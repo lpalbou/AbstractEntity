@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import graph from "../spec/entity_phases.json";
-import { activeRuledPhase, deriveLifeState } from "./entity_state";
+import { PHASE_SLOT_KEYS } from "./phase_bar";
 
 const PHASE_KEYS = Object.keys(graph.phases);
 
@@ -81,22 +81,8 @@ describe("the canonical phase graph (spec/entity_phases.json)", () => {
 });
 
 describe("this app's derivation maps onto the artifact's keys", () => {
-  it("activeRuledPhase returns only artifact phase keys (or null for the honest idle hole)", () => {
-    const cases = [
-      deriveLifeState({ state: "awake", mode: "visiting" }, null, null, null),
-      deriveLifeState({ state: "working" }, null, null, null),
-      deriveLifeState({ state: "awake" }, { running: true, phase: "day" }, null, null),
-      deriveLifeState({ state: "awake" }, { running: true, phase: "between" }, null, null),
-      deriveLifeState({ state: "paused" }, { running: true, phase: "day" }, null, null),
-      deriveLifeState({ state: "asleep" }, null, null, null),
-      deriveLifeState({ state: "asleep", mode: "dreaming" }, null, null, null),
-      deriveLifeState({ state: "awake" }, { running: false }, null, null),
-      deriveLifeState(null, null, null, null),
-    ];
-    for (const life of cases) {
-      const phase = activeRuledPhase(life);
-      if (phase !== null) expect(PHASE_KEYS).toContain(phase);
-    }
+  it("the phase bar's four pills are exactly the artifact's phase keys (idle and stopped light none)", () => {
+    expect([...PHASE_SLOT_KEYS].sort()).toEqual([...PHASE_KEYS].sort());
   });
 
   it("v6/v7 record the c203+dm#82 rulings: awake-never-renders + drives-are-drivers, invariants + machine floor", () => {

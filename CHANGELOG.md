@@ -4,6 +4,29 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The phase bar: what he is doing, what he may do, and one Stop button.** The four pills at the
+  top of an entity's page now say two different things. `work` and `personal` are switches:
+  pressed (a filled ring) means he is allowed to work, or to have his own time (explore his ideas,
+  sleep for maintenance when he needs to and wake up by himself). The phase he is in right now is
+  lit in gold, whichever pill it is: `visit` while someone talks with him, `sleep` while he rests.
+  When nothing is lit he is awake and reachable, with nothing of his own running. Turning
+  `personal` off no longer puts him to sleep: he stays awake and can be visited. Clicking `visit`
+  opens the conversation and knocks; clicking `sleep` asks "Put Castor to sleep now?" in the bar,
+  and he wakes by himself when his maintenance is done (he cannot sleep twice in a row, and not
+  during a visit). Next to the pills, one red **Stop** button stops everything at once, after a
+  question in the bar: his own time, any work, any conversation in progress. While he is stopped,
+  the button reads **Resume**, the pills wait, and a banner says so. The line beside the pills is
+  the gateway's own sentence for now ("On his own time since 19:30."), never an old reason; its
+  tooltip says since when and what happens next ("When the visit closes, his own time resumes.").
+  When something blocks what you allowed (no mind is set, say), the bar says why. When a change is
+  refused, the bar shows the reason as a sentence. The bar follows changes as they happen on his
+  stream. The roster's cards show the same pills and sentence (Stop stays on his page). This needs
+  a gateway that serves the phase bar; with an older one the bar says "This gateway does not serve
+  the phase bar yet" and its controls are off.
+- The old controls are gone: the personal pill no longer starts or stops his own time directly,
+  and Stop no longer writes a "paused" state; the header's separate phase chip is gone too (the bar
+  is the one place the phase is shown).
+
 - **Bring another entity into the conversation with `@`.** While you visit one entity, type `@`
   in the message box: a list offers the other entities your account can see (never the one you
   are visiting), each with its avatar. A pick becomes a chip; the first time you pick a name in

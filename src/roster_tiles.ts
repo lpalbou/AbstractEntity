@@ -5,7 +5,7 @@
  * The grid's reads differ wildly in cost:
  *   - the roster (`GET /entities`, ~20 ms) names every entity and carries its state (the same
  *     record `GET /state` serves): every tile is drawn from it at once;
- *   - the live reads (`/loop`, `/life_state`, ~10-20 ms each) give the phase radio its truth: read
+ *   - the live reads (`/loop`, `/life_state`, ~10-20 ms each) give the phase bar its truth: read
  *     for every tile on every refresh, each tile updated when its own answers arrive;
  *   - the card (`/card`) is the heavy compositor (88 KB and 1-6 s for a long life such as
  *     ephemeral): read through `createCardReads` (card_reads.ts): three at a time, kept between
@@ -16,7 +16,8 @@
  */
 
 import { createCardReads, type CardReadStatus, type CardReads } from "./card_reads";
-import type { EntityStateInfo, EntitySummary, LoopStatus, ServerLifeState } from "./stream_source";
+import { adoptPhaseBar, type PhaseBarRead } from "./phase_bar";
+import type { EntityStateInfo, EntitySummary, LoopStatus } from "./stream_source";
 
 /** The slice of the card compositor the roster reads (the full shape belongs to the identity card). */
 export interface RosterCard {
@@ -35,9 +36,9 @@ export interface RosterTile {
   /** The roster row's state (null when the row carries none). */
   state: EntityStateInfo | null;
   loop: LoopStatus | null;
-  /** Gateway-computed composite phase; null on older gateways (client derivation then). */
-  serverLife: ServerLifeState | null;
-  /** True until this tile's first live answers (loop + life state) arrived: the phase radio waits. */
+  /** The served phase bar (`/life_state`, phase_bar.ts): loading until its first answer. */
+  phase: PhaseBarRead;
+  /** True until this tile's first live answers (loop + life state) arrived: the phase bar waits. */
   livePending: boolean;
   card: RosterCard | null;
   cardStatus: CardReadStatus;
@@ -48,7 +49,8 @@ export interface RosterTile {
 export interface RosterGateway {
   list(): Promise<EntitySummary[]>;
   loop(slug: string): Promise<LoopStatus>;
-  life(slug: string): Promise<ServerLifeState | null>;
+  /** The tile's phase bar (`GET /life_state` read by phase_bar.phaseBarRead). */
+  life(slug: string): Promise<PhaseBarRead>;
   card(slug: string): Promise<RosterCard>;
 }
 
@@ -134,7 +136,7 @@ export function createRosterLoader(opts: {
           summary,
           state: summary.state ?? prev?.state ?? null,
           loop: prev?.loop ?? null,
-          serverLife: prev?.serverLife ?? null,
+          phase: prev?.phase ?? { kind: "loading" },
           livePending: prev ? prev.livePending : true,
           ...cardPart(summary.slug),
         });
@@ -149,12 +151,14 @@ export function createRosterLoader(opts: {
       // Live reads first (cheap): all issued before any card so the browser serves them first.
       // A read that fails keeps the previous answer (undefined = not answered).
       const live = roster.map((s) =>
-        Promise.all([gateway.loop(s.slug).catch(() => undefined), gateway.life(s.slug).catch(() => undefined)]).then(([loop, serverLife]) => {
+        Promise.all([gateway.loop(s.slug).catch(() => undefined), gateway.life(s.slug).catch(() => undefined)]).then(([loop, phase]) => {
           if (tick !== generation) return;
           const prev = tiles.get(s.slug);
+          const prevPhase: PhaseBarRead = prev?.phase ?? { kind: "loading" };
           patch(s.slug, {
             loop: loop === undefined ? (prev?.loop ?? null) : loop,
-            serverLife: serverLife === undefined ? (prev?.serverLife ?? null) : serverLife,
+            // The highest rev wins (contract §5); a read that failed keeps the previous answer.
+            phase: phase === undefined ? prevPhase : phase.kind === "served" ? adoptPhaseBar(prevPhase, phase.bar) : phase,
             livePending: false,
           });
         }),

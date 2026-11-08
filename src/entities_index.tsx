@@ -21,25 +21,17 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { AfPhaseRadio, joinBaseUrl } from "@abstractframework/ui-kit";
+import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 import { ENTITY_IDENTITY } from "./app_about";
 import { CreateEntityForm } from "./create_entity_form";
-import { activeRuledPhase, deriveLifeState } from "./entity_state";
+import { adoptPhaseBar, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { PhaseBarControls } from "./phase_bar_controls";
+import { getPhaseBar, postSleepNow, putPhaseToggle, type PhaseWire } from "./phase_bar_source";
 import { rosterHeadActions, rosterMode, type RosterMode } from "./roster_empty";
 import { createRosterLoader, type RosterCard, type RosterLoader, type RosterTile } from "./roster_tiles";
 import { WordsLine } from "./words_line";
-import {
-  fetchEntityState,
-  gatewayReadHeaders,
-  getLoopStatus,
-  getServerLifeState,
-  listEntities,
-  parseLoopRefusal,
-  postEntityState,
-  startLoop,
-  stopLoop,
-} from "./stream_source";
+import { gatewayReadHeaders, getLoopStatus, listEntities } from "./stream_source";
 
 export interface EntitiesIndexProps {
   baseUrl: string;
@@ -140,23 +132,12 @@ export function RosterStatus({ mode, showCreate, onCreate }: { mode: RosterMode;
 }
 
 /**
- * A tile's phase as its radio shows it. The roster CONDUCTS no chat (dm#94 wiring pin): the visit
- * axis is honestly absent here, but the served composite's own chat_open is consumed by the derive,
- * so a tile can never say "personal" over a server-asserted open conversation. Until its first live
- * answers (`/loop`, `/life_state`) the tile claims no phase, shows no state badge and its controls
- * wait: the roster's state alone is half the truth (whether personal time runs is not in it).
+ * A tile's phase bar read: the served life_state (phase_bar.ts, the same bar as the entity page,
+ * without its Stop / Resume). Until the tile's first live answers it claims no phase and its
+ * controls wait: the roster's own state record is half the truth.
  */
-export function tilePhase(tile: Pick<RosterTile, "state" | "loop" | "serverLife" | "livePending">): {
-  life: ReturnType<typeof deriveLifeState>;
-  activePhase: ReturnType<typeof activeRuledPhase> | null;
-  showBadge: boolean;
-  locked: boolean;
-} {
-  const rosterHoldsNoChat = null;
-  const life = deriveLifeState(tile.state, tile.loop, rosterHoldsNoChat, tile.serverLife);
-  if (tile.livePending) return { life, activePhase: null, showBadge: false, locked: true };
-  const activePhase = activeRuledPhase(life);
-  return { life, activePhase, showBadge: activePhase === null, locked: false };
+export function tilePhaseRead(tile: Pick<RosterTile, "phase" | "livePending">): PhaseBarRead {
+  return tile.livePending ? { kind: "loading" } : tile.phase;
 }
 
 /** What a read card says on its tile: age and mind, what it is into lately, its sleeps and key moments. */
@@ -240,7 +221,6 @@ export function EntitiesIndex({
     onCreateFlowClosed?.();
   }, [onCreateFlowClosed]);
   const [busySlug, setBusySlug] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
   const loaderRef = useRef<RosterLoader | null>(null);
 
   // One loader per gateway: the card cache lives as long as it does (a gateway switch starts over).
@@ -249,8 +229,8 @@ export function EntitiesIndex({
       gateway: {
         list: () => listEntities(baseUrl),
         loop: (slug) => getLoopStatus(baseUrl, slug),
-        // The gateway-computed composite phase (commons seq 96); null on older gateways.
-        life: (slug) => getServerLifeState(baseUrl, slug),
+        // The phase bar (CONTRACT-phases §1): the same read as the entity page's.
+        life: (slug) => getPhaseBar(baseUrl, slug).then(phaseBarRead),
         card: (slug) => fetchRosterCard(baseUrl, slug),
       },
       sink: {
@@ -283,97 +263,55 @@ export function EntitiesIndex({
 
   const refresh = useCallback(() => void loaderRef.current?.refresh(), []);
 
-  const rowFor = (slug: string) => rows?.find((r) => r.summary.slug === slug) ?? null;
-
-  const toggleOwnTime = useCallback(
-    async (slug: string) => {
+  /** The tiles' phase acts (phase_bar.ts phaseActPlan, the entity page's rules): the visit pill
+   * opens his page in its conversation, the toggles PUT and say what happens next, "sleep now"
+   * asks first on the tile. One tile acts at a time; its sentence shows on that tile. */
+  const [tileUi, setTileUi] = useState<{ slug: string; ui: PhaseBarUi } | null>(null);
+  const [tileNote, setTileNote] = useState<{ slug: string; text: string } | null>(null);
+  const adoptTileAnswer = useCallback((slug: string, wire: PhaseWire) => {
+    const out = phaseWriteOutcome(wire);
+    const bar = out.bar;
+    if (bar) setRows((cur) => cur?.map((t) => (t.summary.slug === slug ? { ...t, phase: adoptPhaseBar(t.phase, bar) } : t)) ?? cur);
+    setTileNote(out.sentence ? { slug, text: out.sentence } : null);
+  }, []);
+  const actOnTile = useCallback(
+    (tile: RosterTile, act: PhaseBarAct) => {
+      const slug = tile.summary.slug;
       if (busySlug) return;
+      const plan = phaseActPlan(tilePhaseRead(tile), act);
+      setTileNote(null);
+      if (plan.kind === "none") return;
+      if (plan.kind === "refused") return setTileNote({ slug, text: plan.sentence });
+      if (plan.kind === "show_visit" || plan.kind === "open_visit") return onOpen(slug);
+      if (plan.kind === "confirm") return setTileUi({ slug, ui: { busy: null, confirm: plan.confirm } });
+      if (plan.kind !== "toggle") return; // the tiles carry no Stop / Resume
       setBusySlug(slug);
-      setNote(null);
-      try {
-        // STATE WAVE (laurent 12:32): the click decides on FRESH reads
-        // fetched now, never the row's 20s-stale snapshot (the false
-        // "woke him" class), and the note names only acts that happened.
-        const [freshLoop, freshState, freshLife] = await Promise.all([
-          getLoopStatus(baseUrl, slug).catch(() => null),
-          fetchEntityState(baseUrl, slug).catch(() => null),
-          getServerLifeState(baseUrl, slug).catch(() => null),
-        ]);
-        // PHASE semantics (laurent 2026-07-15 22:38): clicking personal
-        // moves TOWARD personal unless personal already IS the phase.
-        // The old process-axis rule stopped an alive-but-suppressed loop
-        // instead of entering the phase (the grey-button incident).
-        const freshSleeping = freshState?.state === "asleep" || freshState?.state === "paused";
-        const inPersonal = Boolean(freshLoop?.running) && !freshSleeping && String(freshState?.mode || "") !== "visiting";
-        // VISIT PREEMPTS THE BUTTON (dm#94 write adversary: the roster
-        // toggle was an unguarded awake writer — waking over a yielded
-        // visit destroyed the visiting posture). Fresh mode + the fresh
-        // composite's chat_open/phase (impl adversary P1-2: a hosted-lane
-        // visit on an awake loop-less entity flips no mode) both refuse
-        // the enter half.
-        const rosterVisitLive =
-          String(freshState?.mode || "") === "visiting" ||
-          Boolean(freshLife?.chat_open) ||
-          ["visit", "visiting"].includes(String(freshLife?.phase || "").toLowerCase());
-        if (!inPersonal && rosterVisitLive) {
-          setNote(`${slug}: a visit is in the room — personal time cannot start until it closes (the visit's close restores his phase).`);
-          return;
-        }
-        if (inPersonal) {
-          await stopLoop(baseUrl, slug, token);
-          setNote(`${slug}: stop requested — his personal time ends at the next tick boundary.`);
-        } else {
-          const acts: string[] = [];
-          if (freshState?.state === "paused" || freshState?.state === "asleep") {
-            await postEntityState(baseUrl, slug, "awake", "operator started his personal time (roster)", token);
-            acts.push("woke him");
-          }
-          if (freshLoop?.running) {
-            // Loop process alive but suppressed by the sleep state — the
-            // wake alone re-enters personal.
-            setNote(`${slug}: ${acts.length ? acts.join(" and ") + " — " : ""}his personal time resumes.`);
-          } else {
-            // ONE substrate per entity (2026-07-09 06:32): the gateway
-            // resolves his persisted choice; if none exists anywhere its
-            // refusal names the fix (set it once with 🧠 on his page).
-            const r = await startLoop(baseUrl, slug, token, {});
-            if (r.started) acts.push("started his personal time");
-            setNote(acts.length ? `${slug}: ${acts.join(" and ")}.` : `${slug}: his personal time did not start — see the card state.`);
-          }
-        }
-        window.setTimeout(() => refresh(), 1200);
-      } catch (e) {
-        // Structured /loop refusals carry the reason — speak it verbatim,
-        // never JSON armor (B2: every refusal surfaces with its reason).
-        const refusal = parseLoopRefusal(e as Error);
-        setNote(`${slug}: ${refusal ? refusal.message : (e as Error).message}`);
-      } finally {
-        setBusySlug(null);
-        refresh();
-      }
+      setTileUi({ slug, ui: { busy: act, confirm: null } });
+      putPhaseToggle(baseUrl, slug, plan.key, plan.on, token)
+        .then((wire) => adoptTileAnswer(slug, wire))
+        .catch((e: Error) => setTileNote({ slug, text: `The gateway did not answer: ${e.message || "no response"}.` }))
+        .finally(() => {
+          setBusySlug(null);
+          setTileUi(null);
+          refresh();
+        });
     },
-    [baseUrl, token, busySlug, refresh],
+    [baseUrl, token, busySlug, onOpen, adoptTileAnswer, refresh],
   );
-
-  const toggleSleep = useCallback(
-    async (slug: string) => {
-      if (busySlug) return;
-      const row = rowFor(slug);
-      setBusySlug(slug);
-      setNote(null);
-      const target = row?.state?.state === "asleep" ? "awake" : "asleep";
-      try {
-        await postEntityState(baseUrl, slug, target, "by the operator (roster)", token);
-        window.setTimeout(() => refresh(), 800);
-      } catch (e) {
-        setNote(`${slug}: ${(e as Error).message}`);
-      } finally {
-        setBusySlug(null);
+  /** "Sleep now" on a tile: the pass runs inside the request (contract O7), so the tile does not wait
+   * on it; a refresh shows the sleep, and a refusal still reaches the tile when it comes back. */
+  const confirmTile = useCallback(() => {
+    if (!tileUi || tileUi.ui.confirm !== "sleep") return;
+    const slug = tileUi.slug;
+    setTileUi(null);
+    postSleepNow(baseUrl, slug, token)
+      .then((wire) => {
+        if (wire.status < 200 || wire.status >= 300) adoptTileAnswer(slug, wire);
         refresh();
-      }
-    },
-    [baseUrl, token, busySlug, rows, refresh],
-  );
+      })
+      .catch((e: Error) => setTileNote({ slug, text: `The gateway did not answer: ${e.message || "no response"}.` }));
+    window.setTimeout(() => refresh(), 800);
+  }, [tileUi, baseUrl, token, adoptTileAnswer, refresh]);
 
   const mode = rosterMode({ rowCount: rows === null ? null : rows.length, authNeeded, error });
   const head = rosterHeadActions(mode);
@@ -452,30 +390,16 @@ export function EntitiesIndex({
           <WordsLine text={error} />
         </div>
       ) : null}
-      {note ? (
-        <div className="eix_error wl_p">
-          <WordsLine text={note} />
-        </div>
-      ) : null}
       <RosterStatus mode={mode} showCreate={showCreate} onCreate={openCreate} />
 
       <div className="eix_grid">
         {(rows ?? []).map((tile) => {
           const { summary, card, cardStatus, cardError } = tile;
-          // ONE derived state per card (maintainer 2026-07-09): the same
-          // mutually-exclusive machine as the focus view — no card shows
-          // "visiting" beside a lit own-time badge. Server phase wins.
-          // The roster CONDUCTS no chat (dm#94 wiring pin): the visit
-          // axis is honestly absent here — but the served composite's own
-          // chat_open is consumed by the derive, so a card can never say
-          // "personal" over a server-asserted open conversation.
-          // The radio position + process axis — same ONE machine as the
-          // entity page (no roster-vs-page axis split, adversary G2).
-          const { life, activePhase, showBadge, locked } = tilePhase(tile);
+          // ONE phase per card, served (CONTRACT-phases §1): the same bar as the entity page
+          // (no roster-vs-page split, adversary G2), its sentence on the card.
+          const ui: PhaseBarUi = tileUi?.slug === summary.slug ? tileUi.ui : { busy: null, confirm: null };
+          const view = phaseBarView(tilePhaseRead(tile), ui);
           const loop = tile.loop;
-          const ownTimeOn = life.ownTimeOn;
-          const stopping = life.stopping;
-          const busy = busySlug === summary.slug;
           return (
             <div key={summary.slug} className="eix_card">
               <button className="eix_card_head" onClick={() => onOpen(summary.slug)} title={`Watch ${summary.name}'s mind`}>
@@ -485,18 +409,6 @@ export function EntitiesIndex({
                     {summary.handle}
                   </span>
                 ) : null}
-                {/* The head badge carries the phase ONLY when the footer
-                  * radio can't — with all four positions rendered (laurent
-                  * dm#44) that leaves the NULL states: paused/yielded/
-                  * settling/unknown, where no phase is current and the radio
-                  * pushes nothing. A gold pushed "visit" 40px under a badge
-                  * saying "visiting" said it twice (IA review P2). */}
-                {showBadge ? (
-                  <span className={`eix_badge eix_life_${life.accent}`} title={life.detail}>
-                    {life.label}
-                  </span>
-                ) : null}
-                {stopping ? <span className="eix_badge eix_loop_stopping">stopping…</span> : null}
                 {loop?.inbox_warning ? (
                   <span className="eix_badge eix_loop_warning" title={loop.inbox_warning}>
                     ⚠ inbox
@@ -529,70 +441,19 @@ export function EntitiesIndex({
               </div>
 
               <div className="eix_card_actions">
-                {/* The card speaks the SAME radio as the entity page — the
-                  * shared AfPhaseRadio (adopted c2113), ALL FOUR positions
-                  * (laurent dm#44 2026-07-16: "we should have the 4 badges
-                  * always visible for each entity, so we know their state").
-                  * visit/work render disabled-with-honest-words when not
-                  * current (same contract as the focus view — no button
-                  * entry into a visit; work doors are gateway-lane), pushed
-                  * gold when current. */}
-                <AfPhaseRadio
-                  className="ec_phase_radio"
-                  phase={activePhase}
-                  slots={{
-                    visit: {
-                      label: <>💬 visit</>,
-                      // Disabled only when NOT current (adversary 7.1: the
-                      // kit dims disabled buttons — a live visit's pushed
-                      // gold must not render half-off).
-                      disabled: activePhase !== "visit",
-                      title:
-                        activePhase === "visit"
-                          ? "CURRENT — a visitor is in the room (turn-based: he waits between messages)"
-                          : "Visits start by talking — open his page and knock in the Chat tab; there is no button-entry into a visit",
-                    },
-                    work: {
-                      label: <>🛠 work</>,
-                      disabled: activePhase !== "work",
-                      title:
-                        activePhase === "work"
-                          ? "CURRENT — working a task autonomously until completion"
-                          : "Work-phase entry doors are being built (gateway lane) — no task surface exists here yet",
-                    },
-                    personal: {
-                      // The label IS the phase name (laurent 2026-07-15:
-                      // sub-states never rename a phase — tooltip only).
-                      // ONE design at all times (laurent dm#127: Ephemeral's
-                      // card looked different mid-action — the busy state
-                      // swapped the WORD for "…"). The label never changes;
-                      // busy renders as the slot's disabled styling only.
-                      label: <>⏻ personal</>,
-                      // Until the tile's live reads answered, nothing is known to toggle.
-                      busy: busy || locked,
-                      variant: activePhase === "personal" ? (life.ownTimeActive ? "active" : "resting") : ownTimeOn ? "suppressed" : undefined,
-                      onSelect: () => void toggleOwnTime(summary.slug),
-                      title: stopping
-                        ? "Stop requested — ends at the next tick boundary"
-                        : activePhase === "personal"
-                          ? "CURRENT — his personal time (spoken: own time). Click to stop"
-                          : ownTimeOn
-                            ? "His personal phase ended for the current one; the loop process stands by (no ticks). Click to stop it entirely"
-                            : life.sleeping
-                              ? "Click to wake him AND start his personal time"
-                              : "Click to start his personal time",
-                    },
-                    sleep: {
-                      label: <>🌙 sleep</>,
-                      disabled: busy || life.visiting || locked,
-                      onSelect: () => void toggleSleep(summary.slug),
-                      title: life.visiting
-                        ? "In a visit — cannot sleep with a visitor in the room"
-                        : activePhase === "sleep"
-                          ? "CURRENT — asleep. Click to wake him"
-                          : "Put him to sleep (rest / consolidation)",
-                    },
-                  }}
+                {/* The card speaks the SAME phase bar as the entity page, all four pills (laurent
+                  * dm#44 2026-07-16: "we should have the 4 badges always visible for each entity,
+                  * so we know their state"); the kill switch stays on his page. */}
+                <PhaseBarControls
+                  className="eix_phase_bar"
+                  view={view}
+                  ui={ui}
+                  entityName={summary.name}
+                  note={tileNote?.slug === summary.slug ? tileNote.text : null}
+                  onAct={(act) => actOnTile(tile, act)}
+                  onConfirm={confirmTile}
+                  onCancel={() => setTileUi(null)}
+                  showPower={false}
                 />
                 {/* NEVER the internal manifest key (laurent c2513: the
                   * handle is <name>@ip; entity:<slug>@<home_id> is a birth
@@ -608,7 +469,7 @@ export function EntitiesIndex({
         <details className="eix_howto">
           <summary>How this works</summary>
           <div className="eix_footer wl_p">
-            <WordsLine text="Watching never changes an entity: the list, states and cards on this page are read-only. The controls (personal time, sleep) go through the gateway and show up as visible events in each entity's life." />
+            <WordsLine text="Watching never changes an entity: the list, states and cards on this page are read-only. The controls (work, personal time, sleep) go through the gateway and show up as visible events in each entity's life." />
           </div>
         </details>
       ) : null}

@@ -1,135 +1,88 @@
 /**
- * B2 (laurent 04:58, hypnos): the own-time button did nothing on repeated
- * clicks. Two halves, both pinned:
- *
- * 1. Structured /loop refusals ({reason_code, message, loop}) parse into
- *    words + adoptable live status — never JSON armor in a note.
- * 2. The click acts on the RENDERED state (deriveLifeState.ownTimeActive),
- *    never raw process-aliveness: a loop process alive under an
- *    operator-sleep must present as NOT own-time, so a click means START
- *    (wake), not a silent stop. This is the exact hypnos shape (loop pid
- *    alive 1h+ holding the lease, state=asleep written by web controls).
+ * B2 (laurent 04:58, hypnos), carried to the phase bar (2026-11-08): a refused act speaks its
+ * reason as a sentence and adopts the real state the refusal carries, never JSON armor, never a
+ * silent no-op. The old /loop/* refusal parser and the own-time push button it served are gone
+ * with the routes (CONTRACT-phases §6); the new routes keep the same refusal shape
+ * {detail: {reason_code, message, life_state}} + X-Gateway-Error-Code (§7).
  */
 import { describe, expect, it } from "vitest";
 
-import { activeRuledPhase, deriveLifeState } from "./entity_state";
-import { parseLoopRefusal } from "./stream_source";
+import { phaseBody } from "./fixtures/phase_bodies";
+import { ADMIN_REQUIRED, REFUSAL_SENTENCES, phaseBarRead, phaseWriteOutcome } from "./phase_bar";
+import { PHASE_BAR_UNSERVED, type PhaseWire } from "./phase_bar_source";
 
-describe("parseLoopRefusal (B2 structured refusals)", () => {
-  it("parses reason_code + message + live loop status", () => {
-    const err = new Error(
-      JSON.stringify({
-        detail: {
-          reason_code: "already_running",
-          message: "entity:hypnos's own time is already running (pid 14902, phase day)",
-          loop: { running: true, phase: "day", pid: 14902 },
-        },
-      }),
-    );
-    const refusal = parseLoopRefusal(err);
-    expect(refusal?.reason_code).toBe("already_running");
-    expect(refusal?.message).toMatch(/already running/);
-    expect(refusal?.loop?.running).toBe(true);
+const refusal = (status: number, reason_code: string | null, message: string | null, life_state?: unknown): PhaseWire => ({
+  status,
+  code: reason_code,
+  body: { detail: { ...(reason_code ? { reason_code } : {}), ...(message ? { message } : {}), ...(life_state ? { life_state } : {}) } },
+});
+
+describe("phase refusals are sentences (contract §7)", () => {
+  it("a toggle while stopped: the gateway's message, and the bar it carries is adopted", () => {
+    const out = phaseWriteOutcome(refusal(409, "stopped_use_resume", "Castor is stopped. Resume him first, then choose what he may do.", phaseBody("stopped")));
+    expect(out.ok).toBe(false);
+    expect(out.sentence).toBe("Castor is stopped. Resume him first, then choose what he may do.");
+    expect(out.bar?.phase).toBe("stopped");
+    expect(out.bar?.rev).toBe(47);
   });
 
-  it("returns null for plain-text and non-refusal JSON errors", () => {
-    expect(parseLoopRefusal(new Error("HTTP 500"))).toBeNull();
-    expect(parseLoopRefusal(new Error('{"detail":"a visit is open"}'))).toBeNull();
+  it("a code without words gets the contract's sentence for it", () => {
+    for (const [code, sentence] of Object.entries(REFUSAL_SENTENCES)) {
+      expect(phaseWriteOutcome(refusal(409, code, null)).sentence).toBe(sentence);
+    }
+    expect(phaseWriteOutcome(refusal(409, "already_asleep", null)).sentence).toBe("He is already resting; a sleep cannot follow a sleep.");
   });
 
-  it("falls back to the reason_code when message is missing", () => {
-    const err = new Error(JSON.stringify({ detail: { reason_code: "paused" } }));
-    expect(parseLoopRefusal(err)?.message).toBe("paused");
+  it("the visit doors' {detail: string, code} shape reads too", () => {
+    const out = phaseWriteOutcome({ status: 409, code: "entity_asleep", body: { detail: "Castor is resting for maintenance since 19:02; he wakes when it is done (or wake him now).", code: "entity_asleep" } });
+    expect(out.sentence).toBe("Castor is resting for maintenance since 19:02; he wakes when it is done (or wake him now).");
+    expect(out.bar).toBeNull();
+  });
+
+  it("admin_required never shows its machine words", () => {
+    const out = phaseWriteOutcome({ status: 403, code: "admin_required", body: { detail: "Admin principal required", reason_code: "admin_required" } });
+    expect(out.sentence).toBe(ADMIN_REQUIRED);
+    expect(out.sentence).not.toMatch(/principal/i);
+  });
+
+  it("401 asks for a sign-in; a 404 without a code is a missing route (the unserved sentence), with a code it is the entity", () => {
+    expect(phaseWriteOutcome({ status: 401, code: null, body: null }).sentence).toMatch(/^Sign in again/);
+    expect(phaseWriteOutcome({ status: 404, code: null, body: { detail: "Not Found" } }).sentence).toBe(PHASE_BAR_UNSERVED);
+    expect(phaseWriteOutcome(refusal(404, "entity_not_found", "There is no entity named castor.")).sentence).toBe("There is no entity named castor.");
+  });
+
+  it("anything else says the status, never a blank", () => {
+    expect(phaseWriteOutcome({ status: 500, code: null, body: null }).sentence).toBe("The gateway refused (HTTP 500).");
   });
 });
 
-describe("the three-axis state model (state wave, laurent 12:32)", () => {
-  it("hypnos shape: loop alive + operator-asleep = PUSHED-suppressed (ownTimeOn true, not ticking)", () => {
-    const life = deriveLifeState(
-      { state: "asleep", reason: "operator", written_by: "operator" },
-      { running: true, phase: "day", pid: 14902 },
-      null,
-      null,
-    );
-    // The button renders PRESSED (own time is ON — the process axis) with
-    // the suppressed tint; a click on a pressed button means STOP. The old
-    // model rendered this unpressed, which made an alive loop unstoppable
-    // and clicks silently act on the wrong axis — the 10:20 incident.
-    expect(life.ownTimeOn).toBe(true);
-    expect(life.ownTimeActive).toBe(false);
-    expect(life.sleeping).toBe(true);
+describe("a write that succeeded says what happens next, or which stop step failed", () => {
+  it("personal on during a visit: the answer's next sentence", () => {
+    const out = phaseWriteOutcome({ status: 200, code: null, body: { ...phaseBody("visit"), changed: { work: null, personal: { from: false, to: true } } } });
+    expect(out.ok).toBe(true);
+    expect(out.bar?.phase).toBe("visit");
+    expect(out.sentence).toBe("When the visit closes, his own time resumes.");
   });
 
-  it("loop alive between days = PUSHED-resting (on, not ticking; stop reachable)", () => {
-    const life = deriveLifeState({ state: "awake" }, { running: true, phase: "between" }, null, null);
-    expect(life.ownTimeOn).toBe(true);
-    expect(life.ownTimeActive).toBe(false);
-    expect(life.phase).toBe("resting");
-    expect(life.label).toBe("personal · resting");
+  it("a stop that stands with a failed step names it; a clean stop says nothing (the banner does)", () => {
+    const failed = phaseWriteOutcome({
+      status: 200,
+      code: null,
+      body: { ...phaseBody("stopped"), action: "stop", already: false, failures: [{ step: "visit", sentence: "The visit could not be closed; it ends when its turn finishes." }] },
+    });
+    expect(failed.sentence).toBe("The visit could not be closed; it ends when its turn finishes.");
+    const clean = phaseWriteOutcome({ status: 200, code: null, body: { ...phaseBody("stopped"), action: "stop", already: false, failures: [] } });
+    expect(clean.sentence).toBeNull();
+    expect(clean.bar?.stopped).toBe(true);
   });
+});
 
-  it("loop alive, day open, awake = PUSHED-active (ticking)", () => {
-    const life = deriveLifeState({ state: "awake" }, { running: true, phase: "day" }, null, null);
-    expect(life.ownTimeOn).toBe(true);
-    expect(life.ownTimeActive).toBe(true);
-  });
-
-  it("loop dead = unpressed", () => {
-    const life = deriveLifeState({ state: "awake" }, { running: false }, null, null);
-    expect(life.ownTimeOn).toBe(false);
-    expect(life.ownTimeActive).toBe(false);
-  });
-
-  it("stopping derives from the ONE machine (never raw fields at render sites)", () => {
-    const life = deriveLifeState({ state: "awake" }, { running: true, phase: "day", stop_requested: true }, null, null);
-    expect(life.stopping).toBe(true);
-    const dead = deriveLifeState({ state: "awake" }, { running: false, stop_requested: true }, null, null);
-    expect(dead.stopping).toBe(false); // a dead loop is not "stopping"
-  });
-
-  it("nothing answered renders UNKNOWN, never a definite phase", () => {
-    const life = deriveLifeState(null, null, null, null);
-    expect(life.phase).toBe("unknown");
-    expect(life.label).toBe("state unknown");
-    expect(life.ownTimeOn).toBe(false);
-  });
-
-  it("HALF the truth stays partial: loop answered, state read failed (F23)", () => {
-    const life = deriveLifeState(null, { running: true, phase: "day" }, null, null);
-    expect(life.phase).toBe("unknown"); // never "own_time" from half a read
-    expect(life.label).toBe("state unread · loop alive");
-    expect(life.ownTimeOn).toBe(true); // the loop FACT still renders
-    const dead = deriveLifeState(null, { running: false }, null, null);
-    expect(dead.label).toBe("state unread");
-  });
-
-  it("the radio maps the ruled four phases; awake-idle/unknown push nothing", () => {
-    // laurent 13:28: visit/work/personal/sleep — one active phase.
-    expect(activeRuledPhase(deriveLifeState({ state: "awake", mode: "visiting" }, null, null, null))).toBe("visit");
-    expect(activeRuledPhase(deriveLifeState({ state: "awake" }, { running: true, phase: "day" }, null, null))).toBe("personal");
-    expect(activeRuledPhase(deriveLifeState({ state: "awake" }, { running: true, phase: "between" }, null, null))).toBe("personal");
-    // STOP = PAUSED promoted (laurent 16:12): the kill switch blocks the
-    // whole machine — the radio pushes NOTHING under paused, loop process
-    // alive or not (supersedes the earlier personal-when-loop-alive pin).
-    expect(activeRuledPhase(deriveLifeState({ state: "paused" }, { running: true, phase: "day" }, null, null))).toBeNull();
-    expect(activeRuledPhase(deriveLifeState({ state: "paused" }, { running: false }, null, null))).toBeNull();
-    expect(deriveLifeState({ state: "paused" }, { running: false }, null, null).label).toBe("STOPPED");
-    expect(activeRuledPhase(deriveLifeState({ state: "asleep" }, null, null, null))).toBe("sleep");
-    expect(activeRuledPhase(deriveLifeState({ state: "awake" }, { running: false }, null, null))).toBeNull();
-    expect(activeRuledPhase(deriveLifeState(null, null, null, null))).toBeNull();
-  });
-
-  it("written_by decorates only when the trio is the winning source", () => {
-    // Under SERVER authority a stale client written_by must not relabel.
-    const life = deriveLifeState(
-      { state: "asleep", written_by: "self" },
-      null,
-      null,
-      { phase: "asleep", state: "asleep", state_mode: "", own_time_running: false, own_time_phase: "" },
-    );
-    expect(life.label).toBe("sleep");
-    // Trio mode: the nuance renders.
-    const trio = deriveLifeState({ state: "asleep", written_by: "self" }, null, null, null);
-    expect(trio.label).toBe("sleep (his choice)");
+describe("the read itself (GET life_state)", () => {
+  it("an older life_state (no rev, no toggles) is unserved; 404/405 too; a failure says why", () => {
+    expect(phaseBarRead({ status: 200, code: null, body: { phase: "sleep", posture: "resting", state: "awake", own_time_running: false } })).toEqual({ kind: "unserved" });
+    expect(phaseBarRead({ status: 404, code: null, body: null })).toEqual({ kind: "unserved" });
+    expect(phaseBarRead({ status: 405, code: null, body: null })).toEqual({ kind: "unserved" });
+    expect(phaseBarRead({ status: 502, code: null, body: { detail: "upstream down" } })).toEqual({ kind: "failed", sentence: "Could not read his phase: upstream down" });
+    expect(phaseBarRead({ status: 200, code: null, body: phaseBody("idle") })).toMatchObject({ kind: "served", bar: { phase: "idle", rev: 48 } });
   });
 });

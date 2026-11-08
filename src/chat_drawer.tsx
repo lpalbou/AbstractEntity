@@ -156,6 +156,9 @@ export interface ChatDrawerProps {
    * knows of. */
   onVisitStateChange?(signal: ClientVisitSignal | null): void;
   onAvatarModeChange?(active: boolean): void;
+  /** A new number = knock now (the phase bar's visit pill): opens a visit as the start screen's
+   * "visit <name>" button does. */
+  knockRequest?: number;
   /** The panel remains mounted on tab changes; background speech/cues stay silent. */
   visible?: boolean;
 }
@@ -693,6 +696,20 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     // choice; a picker change must not re-open a live visit); onAuthRefused
     // IS one (func review: a stale closure served the 401 recovery path).
   }, [baseUrl, entity, entityName, participant, token, push, onAuthRefused, flowActive, avatarMode]);
+  /** The phase bar's visit pill knocks (entity_view sends a new number per click): the same open as
+   * the "visit <name>" button, when no visit is open here and nothing is opening. */
+  const knockSeenRef = useRef(props.knockRequest ?? 0);
+  useEffect(() => {
+    const n = props.knockRequest ?? 0;
+    if (n === knockSeenRef.current) return;
+    knockSeenRef.current = n;
+    if (runId || busy !== "idle") return;
+    if (!participant) {
+      setNote("Sign in to visit.");
+      return;
+    }
+    open();
+  }, [props.knockRequest, runId, busy, participant, open]);
 
   /** Sanitize a dropped filename into a safe workspace leaf. */
   const safeName = (name: string): string =>

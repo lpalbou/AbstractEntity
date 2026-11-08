@@ -14,23 +14,17 @@ const roster = readFileSync(new URL("./entities_index.tsx", import.meta.url), "u
 const drawer = readFileSync(new URL("./chat_drawer.tsx", import.meta.url), "utf8");
 
 describe("dm#94 wiring pins — the machine is never fed blind, the strip has no second phase vocabulary", () => {
-  it("entity_view feeds the drawer's visit signal into deriveLifeState (no literal-null visit axis)", () => {
-    const calls = view.match(/deriveLifeState\(([^)]*)\)/g) ?? [];
-    expect(calls.length).toBeGreaterThan(0);
-    for (const call of calls) {
-      // The third argument (the visit axis) must be a bound variable, not
-      // the literal null amputation that blinded the machine (P0-2).
-      expect(call, call).not.toMatch(/deriveLifeState\([^)]*,\s*null\s*,/);
-    }
-    expect(view).toContain("clientVisit");
+  it("entity_view's visit truth is the served phase OR the drawer's own signal (never one amputated)", () => {
+    // The phase bar (2026-11-08) replaced the client derive on this page: the served life_state is
+    // the phase, and the drawer's first-hand open visit still counts (dm#94 P0-2).
+    expect(view).not.toContain("deriveLifeState(");
+    expect(view).toContain('const visiting = (phaseRead.kind === "served" && phaseRead.bar.phase === "visit") || Boolean(clientVisit?.open);');
     expect(view).toContain("onVisitStateChange={handleVisitStateChange}");
   });
 
-  it("the roster names its honest absence (it conducts no chat) instead of a bare null", () => {
-    // The roster genuinely has no first-hand visit knowledge — the named
-    // constant records the reasoning; the served chat_open belt covers it.
-    expect(roster).toContain("rosterHoldsNoChat");
-    expect(roster).not.toMatch(/deriveLifeState\([^)]*,\s*null\s*,/);
+  it("the roster reads the same served phase as the entity page (no client derive of its own)", () => {
+    expect(roster).not.toContain("deriveLifeState(");
+    expect(roster).toContain("life: (slug) => getPhaseBar(baseUrl, slug).then(phaseBarRead),");
   });
 
   it("the drawer reports its visit state upward (the first-hand truth is not trapped)", () => {
@@ -46,13 +40,13 @@ describe("dm#94 wiring pins — the machine is never fed blind, the strip has no
     expect(view).toContain("● thinking{");
   });
 
-  it("the chat tab hint rides the ONE machine, not the raw trio mode (P2-9)", () => {
-    expect(view).toContain("hint: life.visiting");
+  it("the chat tab hint rides the ONE visit truth, not the raw trio mode (P2-9)", () => {
+    expect(view).toContain("hint: visiting");
     expect(view).not.toMatch(/hint:\s*entityState\?\.mode/);
   });
 
   it("the settling chip and the day-cause line are suppressed under a visit (P2-8/P2-10)", () => {
-    expect(view).toMatch(/cognition\?\.settling && !life\.visiting/);
-    expect(view).toMatch(/if \(life\.visiting\) return null;\s*\n\s*const line = dayCauseLine/);
+    expect(view).toMatch(/cognition\?\.settling && !visiting/);
+    expect(view).toMatch(/if \(visiting\) return null;\s*\n\s*const line = dayCauseLine/);
   });
 });

@@ -27,8 +27,6 @@ import { ContextToggle } from "./context_toggle";
 import { contextAvailability, contextToggleView, readContextChoice, sessionStore, writeContextChoice } from "./recall_emphasis";
 import { IdentityCardContent } from "./identity_card";
 import {
-  AfPhaseRadio,
-  type AfPhaseSlot,
   AfTopBarActions,
   AfAppearanceDialog,
   useAppearanceSettings,
@@ -58,34 +56,29 @@ const LIVE_CHECK_MS = 20_000;
 const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation, warmthLegendTitles } from "./temporal_activation";
-import { activeRuledPhase, dayCauseLine, deriveLifeState, type ClientVisitSignal } from "./entity_state";
+import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
+import { adoptPhaseBar, adoptPhaseMarker, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { PhaseBarControls } from "./phase_bar_controls";
+import { getPhaseBar, highestPhaseMarker, postLifecycle, postSleepNow, putPhaseToggle, type PhaseMarker, type PhaseWire } from "./phase_bar_source";
 import { substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { getEntitySubstrate } from "./stream_source";
 import { checkSpecSync, type SpecSyncResult } from "./spec_sync";
 import { pageFromSearch, searchAfterNavigate } from "./index_page";
 import {
   classifyOperatorAuth,
-  fetchEntityState,
   gatewayReadHeaders,
   getEntityCognition,
   fetchEntityFootprint,
   getLoopStatus,
-  getServerLifeState,
   listEntities,
   fetchReplay,
   openLiveTail,
-  parseLoopRefusal,
   parseNdjson,
-  postEntityState,
   setGatewayToken,
-  startLoop,
-  stopLoop,
-  type EntityStateInfo,
   type LiveTailHandle,
   type LoopStatus,
   type EntityCognition,
   type EntityFootprint,
-  type ServerLifeState,
 } from "./stream_source";
 import { openLifeStream } from "./replay_cache";
 import { createPlayhead, playFrame, startPlay } from "./replay_clock";
@@ -96,7 +89,7 @@ import {
   storeAuth,
   type GatewayAuthState,
 } from "./connect_gateway_modal";
-import { authRefusedMsg, proxyConnectionLogout, proxyConnectionStatus, sameGatewayTarget } from "./gateway_session";
+import { proxyConnectionLogout, proxyConnectionStatus, sameGatewayTarget } from "./gateway_session";
 import { useEntityAbout } from "./app_about";
 import { wantsCreateFlow } from "./roster_empty";
 import { clipboardWrite } from "./lib/secure-context";
@@ -169,7 +162,6 @@ export function EntityView(): React.ReactElement {
   // nothing — the honest signal is wall time since the last envelope.
   const lastEnvelopeAtRef = useRef<number | null>(null);
   const [liveAgeS, setLiveAgeS] = useState<number | null>(null);
-  const [entityState, setEntityState] = useState<EntityStateInfo | null>(null);
   /** GW-F handle (`castor@<address>`) — display-only reachability. */
   const [handle, setHandle] = useState<string | null>(null);
   /** Transient click-to-copy feedback on the handle badge (operator ask
@@ -357,10 +349,15 @@ export function EntityView(): React.ReactElement {
   // a first-class bar over the lens pills, opened from a prominent control,
   // not lost among stats.
   const [searchOpen, setSearchOpen] = useState(false);
-  /** One state write at a time through the door (double-click guard). */
-  const stateBusyRef = useRef(false);
   const [loopStatus, setLoopStatus] = useState<LoopStatus | null>(null);
-  const [serverLife, setServerLife] = useState<ServerLifeState | null>(null);
+  /** THE PHASE BAR (operator ruling 2026-11-08, phase_bar.ts): the served life_state (phase,
+   * toggles, kill switch, the sentence for now), the act in flight / the inline confirmation, and
+   * the last act's sentence. */
+  const [phaseRead, setPhaseRead] = useState<PhaseBarRead>({ kind: "loading" });
+  const [phaseUi, setPhaseUi] = useState<PhaseBarUi>({ busy: null, confirm: null });
+  const [phaseNote, setPhaseNote] = useState<string | null>(null);
+  /** A click on the visit pill asks the Chat tab to knock (a nonce the drawer watches). */
+  const [visitKnock, setVisitKnock] = useState(0);
   /** ONE-GRAPH drift check (dm#79 mechanism; my consumer half, c3564):
    * compares the gateway's vendored phase graph against this build's
    * bundled copy by sha — once per load (the graph is global, not
@@ -387,7 +384,6 @@ export function EntityView(): React.ReactElement {
   /** Progressive life-load status ("loading his life… 42,000 events") —
    * a 98 MB replay must never look like an empty broken page. */
   const [bootProgress, setBootProgress] = useState<string | null>(null);
-  const [loopBusy, setLoopBusy] = useState(false);
   // Identity flows from the ONE authentication (maintainer 2026-07-10
   // 20:17): the old free-text participant field (and its localStorage
   // seed) is GONE — the chat drawer derives person:<userId> from the
@@ -667,11 +663,6 @@ export function EntityView(): React.ReactElement {
     };
   }, [sourceKind, entityName, gatewayUrl, authVerified]);
 
-  // entityState is polled in the ONE state-poll effect below (state-wave
-  // fix: the old separate 30s poll made the wake/sleep axis up to 2x
-  // staler than the loop axis — the source-skew class behind the false
-  // "woke him" note).
-
   useEffect(() => {
     // Boot sources, by precedence:
     //   ?gateway=<base>&entity=<slug>[&live=0]  open a served home directly
@@ -905,6 +896,22 @@ export function EntityView(): React.ReactElement {
   // painted over fresher truth (adversary find: the stale-poll-overwrites-
   // action race).
   const stateEpochRef = useRef(0);
+  /** The phase bar's read (GET life_state): by the poll (now the fallback, contract §5), after each
+   * phase act, and when the stream carries a newer phase marker. The highest rev wins (an older
+   * answer never repaints a newer bar); the epoch only drops answers about another entity. */
+  const phaseEpochRef = useRef(0);
+  const readPhaseBar = useCallback(() => {
+    if (sourceKind !== "gateway" || !entityName || !authVerifiedRef.current) return;
+    const base = gatewayUrl.trim().replace(/\/+$/, "");
+    const epoch = phaseEpochRef.current;
+    getPhaseBar(base, entityName)
+      .then((wire) => {
+        if (epoch !== phaseEpochRef.current) return;
+        const next = phaseBarRead(wire);
+        setPhaseRead((cur) => (next.kind === "served" ? adoptPhaseBar(cur, next.bar) : next));
+      })
+      .catch((e: Error) => epoch === phaseEpochRef.current && setPhaseRead({ kind: "failed", sentence: `Could not read his phase: ${e.message || "the gateway did not answer"}.` }));
+  }, [sourceKind, entityName, gatewayUrl]);
   const refreshEntityTruth = useCallback(() => {
     // THE CONTENT GATE covers every entry path (impl adversary P1-1, the
     // F14 regression class): the drawer's unmount cleanup fires the
@@ -916,18 +923,11 @@ export function EntityView(): React.ReactElement {
     const base = gatewayUrl.trim().replace(/\/+$/, "");
     const epoch = ++stateEpochRef.current;
     const fresh = () => epoch === stateEpochRef.current;
-    fetchEntityState(base, entityName)
-      .then((s) => fresh() && setEntityState(s))
-      .catch(() => fresh() && setEntityState(null));
     getLoopStatus(base, entityName)
       .then((s) => fresh() && setLoopStatus(s))
       .catch(() => fresh() && setLoopStatus(null));
-    // The composite phase, computed gateway-side (commons seq 96): ONE
-    // mutually-exclusive answer. Null (endpoint absent on an older
-    // gateway) drops us to the client-derived trio — the #FALLBACK path.
-    getServerLifeState(base, entityName)
-      .then((s) => fresh() && setServerLife(s))
-      .catch(() => fresh() && setServerLife(null));
+    // The phase, its toggles and the kill switch: served whole by life_state (the phase bar).
+    readPhaseBar();
     // Billed spend + working truth (B3 wire). Null on older gateways —
     // the header keeps the labeled input-side estimate then.
     getEntityCognition(base, entityName)
@@ -938,16 +938,22 @@ export function EntityView(): React.ReactElement {
     fetchEntityFootprint(base, entityName)
       .then((f) => fresh() && setFootprint(f))
       .catch(() => fresh() && setFootprint(null));
-  }, [sourceKind, entityName, gatewayUrl]);
+  }, [sourceKind, entityName, gatewayUrl, readPhaseBar]);
+  // One entity's phase never shows under another's name: a switch (or a lock) starts the bar over.
+  // Declared before the poll so the poll's first read belongs to the new epoch.
+  useEffect(() => {
+    phaseEpochRef.current += 1;
+    setPhaseRead({ kind: "loading" });
+    setPhaseUi({ busy: null, confirm: null });
+    setPhaseNote(null);
+  }, [sourceKind, entityName, gatewayUrl, authVerified]);
   useEffect(() => {
     // CONTENT GATE extends to the POLLS (code adversary F14): an
     // unverified browser must not even FETCH state/loop/cognition — the
     // 2026-07-10 20:56 ruling covers reads, and dev-read-posture gateways
     // would answer them.
     if (sourceKind !== "gateway" || !entityName || !authVerified) {
-      setEntityState(null);
       setLoopStatus(null);
-      setServerLife(null);
       setCognition(null);
       // The drawer's first-hand visit signal dies with the room (belt —
       // the drawer's unmount cleanup fires it too).
@@ -990,18 +996,12 @@ export function EntityView(): React.ReactElement {
     [refreshEntityTruth],
   );
 
-  /** ONE derived life-state (maintainer, 2026-07-09 02:02): the entity is
-   * in exactly one of visiting/working/sleeping/own-time/…, and visiting
-   * suppresses own-time and sleeping. The gateway's `/life_state` is the
-   * authority when present; `entityState.mode` + loop status carry the
-   * client-side fallback for older gateways. */
   // A gateway source whose browser is not yet VERIFIED shows no content
   // (the critical content gate). File/demo sources are never locked.
   const gatewayLocked = sourceKind === "gateway" && !authVerified;
-  // The visit axis is NEVER amputated (dm#94 render adversary P0-2: this
-  // call site passed a literal null, making the machine blind to the
-  // conversation this very app conducts — the wiring pin forbids it now).
-  const life = useMemo(() => deriveLifeState(entityState, loopStatus, clientVisit, serverLife), [entityState, loopStatus, clientVisit, serverLife]);
+  /** A visit is in the room: the served phase says so, or this app's own drawer conducts one (its
+   * first-hand knowledge, dm#94: a live conversation never renders under another phase word). */
+  const visiting = (phaseRead.kind === "served" && phaseRead.bar.phase === "visit") || Boolean(clientVisit?.open);
 
   /** The mind history, marker-derived (c1430 ask 3: "which llm was behind
    * during which time" answerable from the stream): every substrate_changed
@@ -1094,144 +1094,99 @@ export function EntityView(): React.ReactElement {
    * stream heuristic (envelopes landed moments ago). */
   const workingNow = cognition ? cognition.working : live && liveAgeS !== null && liveAgeS < 30;
 
-  /** THE GRANT AXIS (phases.personal, gateway c1454): armed is the
-   * server-computed truth (mode != disabled && within expiry). null =
-   * axis unknown (older gateway or pre-phases.yaml runtime, the block's
-   * #FALLBACK note). RADIO SEMANTICS (13:28 ruling, superseding the
-   * short-lived pushed=armed): pushed = CURRENT PHASE; ARMED renders as
-   * its own underline dot (armed ≠ in-phase); click intent stays on the
-   * fresh-read process axis (alive→stop, dead→start); loop-alive-WITHOUT-
-   * grant renders as the alarm it is (the 10:20 incident state). */
-  const grantArmed: boolean | null =
-    cognition?.personal && cognition.personal.note === undefined && typeof cognition.personal.armed === "boolean"
-      ? cognition.personal.armed
-      : null;
-  const grantAlarm = grantArmed === false && life.ownTimeOn; // alive, NO grant — the 10:20 shape
-  /** The RADIO position (13:28 ruling): exactly one active phase pushed;
-   * settling/paused/yielded/unknown = none pushed, the chip says so. */
-  const activePhase = activeRuledPhase(life);
-
-  const toggleLoop = useCallback(async () => {
-    if (sourceKind !== "gateway" || !entityName || loopBusy) return;
-    const base = gatewayUrl.trim().replace(/\/+$/, "");
-    const token = controlToken.trim() || null;
-    setLoopBusy(true);
-    setControlNote(null);
-    // Post-action convergence: bump the epoch (dropping every in-flight
-    // stale poll) and re-read ALL axes together, twice.
-    const reconcile = () => {
-      [900, 4000].forEach((ms) => window.setTimeout(refreshEntityTruth, ms));
-    };
-    try {
-      // STATE WAVE (laurent 12:32): the handler acts on FRESH reads, never
-      // the render closure — the false "woke him" note came from branching
-      // on a poll up to 15-30s old (forensics c1426: this very handler's
-      // wake was the 10:20 incident). One fetch pair at click time decides.
-      const [freshLoop, freshState, freshLife] = await Promise.all([
-        getLoopStatus(base, entityName).catch(() => null),
-        fetchEntityState(base, entityName).catch(() => null),
-        getServerLifeState(base, entityName).catch(() => null),
-      ]);
-      stateEpochRef.current += 1; // in-flight polls are now stale
-      setLoopStatus(freshLoop);
-      if (freshState) setEntityState(freshState);
-
-      // PHASE SEMANTICS, not process semantics (laurent 2026-07-15 22:38:
-      // "phases are mutually exclusive push buttons" — clicking personal
-      // must move TOWARD personal unless personal is already the phase).
-      // The old rule keyed on the PROCESS axis (loop alive → STOP), so
-      // clicking personal while the loop idled alive under a sleep state
-      // STOPPED it — the button read as doing nothing and staying grey.
-      const freshSleeping = freshState?.state === "asleep" || freshState?.state === "paused";
-      const inPersonal = Boolean(freshLoop?.running) && !freshSleeping && String(freshState?.mode || "") !== "visiting";
-
-      // VISIT PREEMPTS THE BUTTON (dm#94 write adversary: the client
-      // personal toggle was one of five unguarded awake writers — posting
-      // awake over a yielded visit destroyed the visiting posture and
-      // re-opened personal under a live conversation). A live visit —
-      // the fresh state's own mode, the fresh composite's phase/chat_open
-      // (impl adversary P1-2: a hosted-lane visit from ANOTHER client on
-      // an awake loop-less entity flips neither mode nor this drawer),
-      // OR this app's drawer — refuses the enter half; the visit's close
-      // restores the phase, not this button.
-      const visitLive =
-        String(freshState?.mode || "") === "visiting" ||
-        Boolean(clientVisit?.open) ||
-        Boolean(freshLife?.chat_open) ||
-        ["visit", "visiting"].includes(String(freshLife?.phase || "").toLowerCase());
-      if (!inPersonal && visitLive) {
-        setControlNote("A visit is in the room — personal time cannot start until it closes (the visit's close restores his phase; spec v10: LIVE-SESSION-IMPLIES-VISIT).");
-        reconcile();
-        return;
+  /** THE PHASE BAR'S ACTS (operator ruling 2026-11-08; phase_bar.ts phaseActPlan). A toggle PUTs
+   * the toggle and the gateway says what it means now (during a visit, say); Stop and "sleep now"
+   * ask first, in the bar; Resume acts at once; the visit pill opens the conversation as the Chat
+   * tab's button does. Every answer's sentence shows, and every act ends with a fresh read. */
+  const phaseBusyRef = useRef(false);
+  const settlePhaseWrite = useCallback(
+    (wire: PhaseWire) => {
+      const out = phaseWriteOutcome(wire);
+      if (out.bar) {
+        const bar = out.bar;
+        setPhaseRead((cur) => adoptPhaseBar(cur, bar));
       }
-
-      if (inPersonal) {
-        // Personal IS the current phase — the push-button un-push: stop at
-        // the next tick boundary (the machine settles to sleep, idle=sleep).
-        const r = await stopLoop(base, entityName, token);
-        // Never fabricate a LoopStatus (adversary find: an invented
-        // {phase:"day"} painted a running day over a corpse) — mark
-        // stop_requested on the FRESH read only.
-        setLoopStatus(r.status ? { ...r.status, stop_requested: true } : freshLoop ? { ...freshLoop, stop_requested: true } : null);
-        setControlNote("Stop requested — his personal time ends at the next tick boundary.");
-        reconcile();
-      } else {
-        // ENTER personal. Acts compose from FRESH reads and the note names
-        // exactly what was done — never an act that did not happen.
-        const acts: string[] = [];
-        if (freshState?.state === "paused" || freshState?.state === "asleep") {
-          // Entering personal from sleep IS the wake intent (one click =
-          // the transition); the wake is an ACT and is reported as one.
-          const s = await postEntityState(base, entityName, "awake", "operator started his personal time (web toggle)", token);
-          setEntityState(s);
-          acts.push("woke him");
-        }
-        if (freshLoop?.running) {
-          // Loop process already alive (it was suppressed by the sleep
-          // state) — the wake alone re-enters personal; starting a second
-          // loop would be refused anyway.
-          setControlNote((acts.length ? acts.join(" and ") + " — " : "") + "his personal time resumes.");
-          reconcile();
-        } else {
-          // ONE substrate per entity (2026-07-09 06:32): the gateway
-          // resolves the entity's persisted choice — the loop never asks
-          // separately. No choice anywhere -> the refusal names the fix.
-          const r = await startLoop(base, entityName, token, {});
-          if (r.started) {
-            acts.push("started his personal time");
-            if (r.status?.running) setLoopStatus(r.status);
-            setControlNote(acts.join(" and ") + ".");
-          } else {
-            setLoopStatus(r.status ?? null);
-            setControlNote(
-              (acts.length ? acts.join(" and ") + ", but " : "") +
-                "his personal time did not start — the status chip carries the live state.",
-            );
-          }
-          reconcile();
-        }
+      setPhaseNote(out.sentence);
+      if (wire.status === 401) void handleAuthRefused();
+      refreshEntityTruth();
+    },
+    [refreshEntityTruth, handleAuthRefused],
+  );
+  const runPhaseWrite = useCallback(
+    async (act: PhaseBarAct, send: (base: string, token: string | null) => Promise<PhaseWire>) => {
+      if (sourceKind !== "gateway" || !entityName || phaseBusyRef.current) return;
+      phaseBusyRef.current = true;
+      setPhaseUi({ busy: act, confirm: null });
+      setPhaseNote(null);
+      const epoch = phaseEpochRef.current;
+      try {
+        const wire = await send(gatewayUrl.trim().replace(/\/+$/, ""), controlToken.trim() || null);
+        if (epoch === phaseEpochRef.current) settlePhaseWrite(wire);
+      } catch (e) {
+        if (epoch === phaseEpochRef.current) setPhaseNote(`The gateway did not answer: ${(e as Error).message || "no response"}.`);
+        refreshEntityTruth();
+      } finally {
+        phaseBusyRef.current = false;
+        setPhaseUi({ busy: null, confirm: null });
       }
-    } catch (e) {
-      const err = e as Error & { status?: number };
-      // B2: /loop/* refusals carry {reason_code, message, loop} — adopt the
-      // LIVE loop status into the button and speak the reason verbatim,
-      // never JSON armor.
-      const refusal = parseLoopRefusal(err);
-      if (refusal) {
-        if (refusal.loop) setLoopStatus(refusal.loop);
-        setControlNote(`Own time: ${refusal.message}`);
-      } else {
-        setControlNote(
-          err.status === 401 || err.status === 403
-            ? authRefusedMsg(err.status, err.message)
-            : `Own-time request refused: ${err.message}`,
-        );
+    },
+    [sourceKind, entityName, gatewayUrl, controlToken, settlePhaseWrite, refreshEntityTruth],
+  );
+  /** "Sleep now" (contract O7): the maintenance pass runs inside this request and can be long, so
+   * the bar does not wait on it: a re-read shows the sleep, the stream then shows the wake; the
+   * answer still reports a refusal ("already resting") when one comes back. */
+  const sleepNow = useCallback(() => {
+    if (sourceKind !== "gateway" || !entityName || phaseBusyRef.current) return;
+    const epoch = phaseEpochRef.current;
+    setPhaseUi({ busy: null, confirm: null });
+    setPhaseNote(null);
+    postSleepNow(gatewayUrl.trim().replace(/\/+$/, ""), entityName, controlToken.trim() || null)
+      .then((wire) => {
+        if (epoch !== phaseEpochRef.current) return;
+        if (wire.status < 200 || wire.status >= 300) settlePhaseWrite(wire);
+        else refreshEntityTruth();
+      })
+      .catch((e: Error) => epoch === phaseEpochRef.current && setPhaseNote(`The gateway did not answer: ${e.message || "no response"}.`));
+    window.setTimeout(() => epoch === phaseEpochRef.current && readPhaseBar(), 800);
+  }, [sourceKind, entityName, gatewayUrl, controlToken, settlePhaseWrite, refreshEntityTruth, readPhaseBar]);
+  const actOnPhase = useCallback(
+    (act: PhaseBarAct) => {
+      if (phaseBusyRef.current) return;
+      const plan = phaseActPlan(phaseRead, act);
+      setPhaseNote(null);
+      switch (plan.kind) {
+        case "none":
+          return;
+        case "refused":
+          setPhaseNote(plan.sentence);
+          return;
+        case "show_visit":
+          setRequestedTab({ tab: "chat", nonce: Date.now() });
+          return;
+        case "open_visit":
+          setRequestedTab({ tab: "chat", nonce: Date.now() });
+          setVisitKnock((n) => n + 1);
+          return;
+        case "confirm":
+          setPhaseUi({ busy: null, confirm: plan.confirm });
+          return;
+        case "toggle":
+          void runPhaseWrite(plan.key, (base, token) => putPhaseToggle(base, entityName, plan.key, plan.on, token));
+          return;
+        case "resume":
+          void runPhaseWrite("resume", (base, token) => postLifecycle(base, entityName, "resume", token));
+          return;
       }
-      reconcile();
-    } finally {
-      setLoopBusy(false);
-    }
-  }, [sourceKind, entityName, gatewayUrl, loopBusy, controlToken, refreshEntityTruth, clientVisit]);
+    },
+    [phaseRead, entityName, runPhaseWrite],
+  );
+  const confirmPhaseAct = useCallback(() => {
+    const kind = phaseUi.confirm;
+    if (kind === "stop") void runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
+    else if (kind === "sleep") sleepNow();
+  }, [phaseUi.confirm, entityName, runPhaseWrite, sleepNow]);
+  const cancelPhaseConfirm = useCallback(() => setPhaseUi((u) => (u.busy ? u : { busy: null, confirm: null })), []);
+  const phaseView = phaseBarView(phaseRead, phaseUi);
 
   const openEntity = useCallback(
     async (name: string, opts: { pushUrl?: boolean; joinRoom?: boolean } = {}) => {
@@ -1314,9 +1269,8 @@ export function EntityView(): React.ReactElement {
       // ALL state axes clear together (adversary P0: cognition/serverLife
       // survived the index return, painting Castor's working pulse +
       // billed spend over the roster — a same-screen cross-entity lie).
-      setEntityState(null);
       setLoopStatus(null);
-      setServerLife(null);
+      setPhaseRead({ kind: "loading" });
       setCognition(null);
       setFootprint(null);
       // Modal/search state never survives navigation (func review P1: a
@@ -1459,6 +1413,37 @@ export function EntityView(): React.ReactElement {
   useEffect(() => {
     if (lifeTicks > 0) refreshTruthRef.current();
   }, [lifeTicks]);
+  // THE PHASE MARKER (contract §5): a `phase_changed` host envelope with a higher rev repaints the
+  // bar at once (phase, toggles, stop, sentence), then a re-read brings what comes next, what
+  // blocks and the visit/work/sleep facts. A marker no newer than the bar changes nothing.
+  // Incremental (the substrate-timeline pattern): appends from where it left off, rebuilds only
+  // when the array shrank or its covered tail moved (a retrograde host insert).
+  const phaseMarkerCacheRef = useRef<{ upTo: number; tailSeq: number; marker: PhaseMarker | null }>({ upTo: 0, tailSeq: -Infinity, marker: null });
+  const phaseMarker = useMemo(() => {
+    const cache = phaseMarkerCacheRef.current;
+    const lastCovered = cache.upTo > 0 && cache.upTo <= envelopes.length ? envelopes[cache.upTo - 1] : null;
+    const appendable = cache.upTo <= envelopes.length && (cache.upTo === 0 || (lastCovered !== null && lastCovered.seq === cache.tailSeq));
+    const from = appendable ? cache.upTo : 0;
+    cache.marker = highestPhaseMarker(envelopes, from, appendable ? cache.marker : null);
+    cache.upTo = envelopes.length;
+    cache.tailSeq = envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : -Infinity;
+    return sourceKind === "gateway" ? cache.marker : null;
+  }, [envelopes, sourceKind]);
+  const phaseMarkerRef = useRef(phaseMarker);
+  phaseMarkerRef.current = phaseMarker;
+  const phaseReadRef = useRef(phaseRead);
+  phaseReadRef.current = phaseRead;
+  const readPhaseBarRef = useRef(readPhaseBar);
+  readPhaseBarRef.current = readPhaseBar;
+  const phaseMarkerRev = phaseMarker?.rev ?? 0;
+  useEffect(() => {
+    const marker = phaseMarkerRef.current;
+    if (!marker) return;
+    const cur = phaseReadRef.current;
+    const painted = adoptPhaseMarker(cur, marker);
+    if (painted) setPhaseRead((c) => adoptPhaseMarker(c, marker) ?? c);
+    if (painted || cur.kind !== "served") readPhaseBarRef.current();
+  }, [phaseMarkerRev]);
   const scrubSeq = effectiveIndex >= 0 && envelopes[effectiveIndex] ? envelopes[effectiveIndex].seq : 0;
 
   // BACKWARD scrub is a full refold (state-at-T semantics) — debounce it
@@ -1634,41 +1619,6 @@ export function EntityView(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityName, sourceLabel]);
 
-  const sendState = useCallback(
-    (target: "awake" | "asleep" | "paused") => {
-      if (sourceKind !== "gateway" || !entityName) return;
-      // In-flight guard (func review P1): a double-click on the sleep slot
-      // or ⛔ stop must not race two state writes through the door.
-      if (stateBusyRef.current) return;
-      stateBusyRef.current = true;
-      // No ceremony (maintainer ruling 2026-07-08): the act stays visible
-      // — the transition lands as a host marker with this reason attached.
-      const reason = "by the operator (web controls)";
-      const base = gatewayUrl.trim().replace(/\/+$/, "");
-      const verb = target === "awake" ? "wake" : target === "asleep" ? "sleep" : "pause";
-      postEntityState(base, entityName, target, reason, controlToken.trim() || null)
-        .then((s) => {
-          setEntityState(s);
-          setControlNote(`${verb} accepted by the door`);
-          window.setTimeout(() => setControlNote(null), 6000);
-        })
-        .catch((e: Error & { status?: number }) => {
-          // authRefusedMsg splits 401 (sign in) from 403 (door refused the
-          // act); the old wording here named a "token in the control panel"
-          // mechanism the 2026-07-09 auth ruling removed.
-          setControlNote(
-            e.status === 401 || e.status === 403
-              ? authRefusedMsg(e.status, e.message)
-              : `The door refused: ${e.message}`,
-          );
-          window.setTimeout(() => setControlNote(null), 10000);
-        })
-        .finally(() => {
-          stateBusyRef.current = false;
-        });
-    },
-    [sourceKind, entityName, gatewayUrl, controlToken],
-  );
 
   // THE HANDLE (operator 2026-07-15): an entity's unique reachability
   // string, displayed as name@address — the gateway's DECLARED handle when
@@ -1738,21 +1688,12 @@ export function EntityView(): React.ReactElement {
               {sourceLabel}
             </span>
           )}
-          {/* ONE state chip (maintainer 2026-07-09): never two contradictory
-            * badges. deriveLifeState collapses chat/state/loop into a single
-            * mutually-exclusive phase (visiting suppresses own-time+sleep).
-            * Gate includes serverLife (state-wave fix: the chip vanished
-            * when only the composite endpoint answered) and renders the
-            * honest "state unknown" when nothing has. */}
-          {sourceKind === "gateway" && entityName ? (
-            <span className={`eh_state eh_life_${life.accent}`} title={entityState?.reason ? `${life.detail} — ${entityState.reason}` : life.detail}>
-              {life.label}
-            </span>
-          ) : null}
+          {/* No phase chip here: the phase bar below is the one place the phase is shown (a second
+            * phase word beside it, from another read, was the contradictory-badge class). */}
           {/* Suppressed while a visit renders (dm#94 P2-10): a live visit is
             * settled truth — a second endpoint's transition word must not
             * stand beside the visit chip. */}
-          {cognition?.settling && !life.visiting ? (
+          {cognition?.settling && !visiting ? (
             <span
               className="eh_settling"
               title="A phase transition is landing — intent (his state) and actuality (loop/visit) briefly disagree while it settles. This is the settling window, not a contradiction."
@@ -1844,145 +1785,20 @@ export function EntityView(): React.ReactElement {
 
       {sourceKind === "gateway" && entityName && !gatewayLocked ? (
         <div className="entity_controls">
-          {/* Maintainer ruling (2026-07-08 00:59): no pre-gating. The
-            * buttons are always live; if the gateway refuses, its actual
-            * answer renders here. (IA review P2: the "🎛 controls" text
-            * label was dead weight — the radio is self-describing.) */}
-          {/* THE PHASE RADIO (laurent 13:28, c1455 ask 4): the FOUR ruled
-            * phases as one radio group — exactly one pushed (the ACTIVE
-            * phase from the one derived machine); settling/unknown = no
-            * position pushed, the chip says so. visit/work render but have
-            * no entry surface yet (visits start by talking; work doors are
-            * gateway's 3d build) — disabled with honest words, never fake
-            * affordances. personal + sleep are the operator-pushable pair
-            * (existing act semantics kept: fresh-read stop/start, wake).
-            * When uic's shared AfPhaseRadio ships, this local group adopts
-            * it. */}
-          {/* THE PHASE RADIO — uic's shared AfPhaseRadio (adopted c2113, my
-            * old c1398 note discharged). The kit owns the markup + the
-            * gold-gradient variants; my derived machine stays the ONE truth
-            * (phase = activePhase; per-slot facts below). visit/work render
-            * disabled with honest words (no entry surface here); personal +
-            * sleep are the operator-pushable pair with the SAME act
-            * semantics kept (fresh-read stop/start, wake). The three
-            * personal sub-states ride the kit's `variant` (active/resting/
-            * suppressed) so the operator's "state is broken" nuance
-            * survives the swap. */}
-          <AfPhaseRadio
-            className="ec_phase_radio"
-            phase={activePhase}
-            slots={{
-              visit: {
-                label: <>💬 visit</>,
-                // Disabled only when NOT current (adversary 7.1: the kit
-                // dims disabled buttons — a live visit's pushed-gold
-                // position rendered half-off).
-                disabled: activePhase !== "visit",
-                title:
-                  activePhase === "visit"
-                    ? "CURRENT — a visitor is in the room (turn-based: he waits between messages)"
-                    : "Visits start by talking — open the Chat tab and knock; there is no button-entry into a visit",
-              },
-              work: {
-                label: <>🛠 work</>,
-                disabled: activePhase !== "work",
-                title:
-                  activePhase === "work"
-                    ? "CURRENT — working a task autonomously until completion"
-                    : "Work-phase entry doors are being built (gateway lane) — no task surface exists here yet",
-              },
-              personal: ((): AfPhaseSlot => {
-                // ARMED ≠ in-phase (semantics' rule) → the underline dot.
-                // grantAlarm (loop alive, NOT armed) is the loudest pixel.
-                // The three sub-states map to the kit's variant: active =
-                // ticking now, resting = personal-phase between days,
-                // suppressed = loop alive but not the current phase.
-                const variant: AfPhaseSlot["variant"] =
-                  activePhase === "personal" ? (life.ownTimeActive ? "active" : "resting") : life.ownTimeOn ? "suppressed" : undefined;
-                // THE LABEL IS THE PHASE NAME, PERIOD (laurent 2026-07-15
-                // 22:38: "you can't change the name of a phase like that" —
-                // "personal · standing by" read as a renamed phase). Every
-                // sub-state nuance lives in the tooltip + the kit variant
-                // styling; the only label change is the busy ellipsis.
-                // ONE design at all times (dm#127): the word never swaps
-                // for "…" — busy renders as disabled styling only.
-                const label = "⏻ personal";
-                const title = grantAlarm
-                  ? "ALARM: the loop process is ALIVE but personal time is NOT armed (this is the state that burned tokens unnoticed). Click to STOP the loop; arming is the console's act"
-                  : life.stopping
-                    ? "Stop requested — his running thought completes, then his personal time ends"
-                    : activePhase === "personal" && life.ownTimeActive
-                      ? "CURRENT — living a day by himself right now. Click to stop at the next tick boundary"
-                      : activePhase === "personal"
-                        ? life.phase === "paused"
-                          ? "Personal phase, GATED (paused) — click to resume"
-                          : "Personal phase, resting between days — the next day starts by itself. Click to stop"
-                        : life.ownTimeOn
-                          ? "His personal phase ended for the current one; the loop process stands by for re-entry (no ticks). Click to stop it entirely"
-                          : grantArmed === true
-                            ? "ARMED but not started — click to start his personal time"
-                            : grantArmed === false
-                              ? "NOT armed (mode: disabled) — a start will be refused; arming is the operator's console act"
-                              : life.sleeping
-                                ? "He is asleep — click to wake him AND start his personal time"
-                                : "Click to start his personal time (the self-prompted tick loop)";
-                return {
-                  label: <>{label}</>,
-                  title,
-                  onSelect: () => void toggleLoop(),
-                  busy: loopBusy,
-                  armed: grantArmed === true,
-                  alarm: grantAlarm,
-                  variant,
-                };
-              })(),
-              sleep: {
-                label: <>🌙 sleep</>,
-                // Paused disables it too (impl adversary P2-7): with the
-                // kill switch on, a sleep click would post asleep OVER the
-                // stop — restore is the only act the radio may offer.
-                disabled: life.visiting || life.phase === "paused",
-                onSelect: () => sendState(life.sleeping ? "awake" : "asleep"),
-                title:
-                  activePhase === "sleep"
-                    ? life.phase === "dreaming"
-                      ? "CURRENT — dreaming (consolidation in this window). Click to wake him"
-                      : entityState?.written_by === "self" && !serverLife
-                        ? "CURRENT — sleeping by his own choice. Click to wake him"
-                        : "CURRENT — asleep. Click to wake him"
-                    : life.visiting
-                      ? "He is in a visit — he cannot sleep while a visitor is in the room"
-                      : "Click to put him to sleep (rest / consolidation)",
-              },
-            }}
+          {/* THE PHASE BAR (operator ruling 2026-11-08, phase_bar.ts): visit and sleep are
+            * indicators, work and personal are toggles (pressed = allowed) that light when
+            * current, one Stop / Resume button apart from them; the line beside them is the
+            * gateway's sentence for now. A gateway without it gets one sentence and no controls. */}
+          <PhaseBarControls
+            view={phaseView}
+            ui={phaseUi}
+            entityName={entityName.charAt(0).toUpperCase() + entityName.slice(1)}
+            note={phaseNote}
+            onAct={actOnPhase}
+            onConfirm={confirmPhaseAct}
+            onCancel={cancelPhaseConfirm}
+            showSentence={!phaseView.stopped}
           />
-          {/* The old ec_idle_hint ("settling" beside the radio) is REMOVED
-            * (adversary-A find 10): the header chip already says
-            * "sleep (settling)" with the full tooltip — a second token for
-            * the same fact was the said-it-twice class (IA review P2), and
-            * a THIRD unrelated "settling" chip (cognition transition
-            * window) can co-render in the same strip. One word, one owner:
-            * the chip. */}
-          {/* THE NOW LINE (adversary A#6.1 — laurent 2026-07-15 22:38: "the
-            * UI is completely uninformative in terms of what happened").
-            * The current cause IN THE WORDS THE MACHINE WROTE, in plain
-            * sight, not a tooltip: a self-elected sleep shows HIS reason,
-            * an auto-yield says it is visit bookkeeping, an operator act
-            * names the operator. Fed from data already polled. */}
-          {(() => {
-            const reason = String(serverLife?.state_reason ?? entityState?.reason ?? "").trim();
-            if (!reason) return null;
-            const changedAt = entityState?.changed_at ? new Date(entityState.changed_at) : null;
-            const ageMin = changedAt && !Number.isNaN(changedAt.getTime()) ? Math.max(0, Math.round((Date.now() - changedAt.getTime()) / 60000)) : null;
-            const isSelf = /^self-elected/i.test(reason);
-            const text = isSelf ? reason.replace(/^self-elected sleep:\s*/i, "his choice — ") : reason;
-            return (
-              <span className="ec_nowline" title={`Why the current state: the reason recorded at the last transition${changedAt ? ` (${changedAt.toLocaleString()})` : ""}. Self-elected reasons are his own words, verbatim.`}>
-                {text}
-                {ageMin !== null ? ` · ${ageMin < 60 ? `${ageMin}m` : `${Math.floor(ageMin / 60)}h${ageMin % 60 ? ` ${ageMin % 60}m` : ""}`} ago` : ""}
-              </span>
-            );
-          })()}
           {/* THE DAY CAUSE (drives build, runtime seq 269): WHY the day-gate
             * chose work/personal/sleep — the operator-audit line the v7
             * adversary demanded (B F8: "nothing tells the operator WHICH
@@ -1993,7 +1809,7 @@ export function EntityView(): React.ReactElement {
             // "personal day…" claim standing beside a visit chip is the
             // exact co-render the ruling forbids; the gate's history
             // returns the moment the visit closes.
-            if (life.visiting) return null;
+            if (visiting) return null;
             const line = dayCauseLine(loopStatus?.day_cause);
             if (!line) return null;
             return (
@@ -2005,23 +1821,6 @@ export function EntityView(): React.ReactElement {
               </span>
             );
           })()}
-          {/* THE KILL SWITCH (liveness axis): distinct from the radio by
-            * position, color and words — two named acts (stop/restore)
-            * behind a blast-radius confirm. stop = the promoted paused
-            * hard-freeze (16:12 ruling). */}
-          {life.phase !== "paused" ? (
-            <button
-              className="ec_btn ec_stop_btn"
-              onClick={() => {
-                if (window.confirm(`STOP ${entityName}? (the kill switch)\n\nEvery process blocks: no ticks, no visits, no work, no sleep processes — he becomes unreachable until an operator restores him. His memory is untouched.\n\nThis is protection (rogue behavior, hijack, degradation), not punishment.`)) {
-                  sendState("paused");
-                }
-              }}
-              title="The primary kill switch (stop = paused hard-freeze): blocks everything, operator-only, recorded as a marker"
-            >
-              ⛔ stop
-            </button>
-          ) : null}
           {/* SETTINGS (operator 2026-07-15 (d)(e)): the old "workspace"
             * button was really settings — one gear opens the modal holding
             * the mind substrate (provider/model), workspace/files, mounts,
@@ -2061,29 +1860,15 @@ export function EntityView(): React.ReactElement {
         </div>
       ) : null}
 
-      {/* THE STOPPED BANNER (liveness axis, laurent 16:06/16:12): the kill
-        * switch outranks every chip — full-width, unmistakable, carrying
-        * the restore act. Renders whenever the promoted paused hard-freeze
-        * is on, regardless of tab or view. */}
-      {sourceKind === "gateway" && entityName && life.phase === "paused" ? (
+      {/* THE STOPPED BANNER (liveness axis, laurent 16:06/16:12): the kill switch outranks every
+        * other line, full width, whatever the tab. Its words are the gateway's sentence; the one
+        * Resume button is in the phase bar. */}
+      {sourceKind === "gateway" && entityName && phaseView.stopped ? (
         <div className="entity_stopped_banner" role="alert">
-          <span className="esb_glyph">⛔</span>
+          <span className="esb_glyph" aria-hidden="true">⛔</span>
           <span className="esb_text">
-            <strong>STOPPED</strong> — the kill switch is on: no ticks, no visits, no work, no sleep processes. He is not
-            reachable until restored.
-            {entityState?.reason ? ` Reason: ${entityState.reason}` : ""}
+            <strong>Stopped</strong> — <span title={phaseView.sentenceTitle || undefined}>{phaseView.sentence}</span>
           </span>
-          <button
-            className="esb_restore"
-            onClick={() => {
-              if (window.confirm(`Restore ${entityName} to ALIVE?\n\nThis lifts the kill switch: doors reopen (visits, work), sleep processes may run, and any armed personal grant can tick again.`)) {
-                sendState("awake");
-              }
-            }}
-            title="Lift the kill switch — he becomes reachable again (operator act, recorded as a marker)"
-          >
-            restore
-          </button>
         </div>
       ) : null}
 
@@ -2485,7 +2270,7 @@ export function EntityView(): React.ReactElement {
                     // adversary P2-9: the raw trio field could dot the tab
                     // while the chip said personal — a third independently
                     // sourced visit word in the same viewport).
-                    hint: life.visiting,
+                    hint: visiting,
                     content: (visible: boolean) => (
                       <ChatDrawer
                         key={entityName} // F9: a direct A→B switch must remount — A's thread/runId must never render in B's room
@@ -2503,6 +2288,7 @@ export function EntityView(): React.ReactElement {
                           setShowMeetConsole(true);
                         }}
                         onVisitStateChange={handleVisitStateChange}
+                        knockRequest={visitKnock}
                         onAvatarModeChange={setAvatarChat}
                         visible={visible}
                       />

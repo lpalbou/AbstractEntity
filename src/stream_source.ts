@@ -1098,6 +1098,12 @@ export interface ChatCloseResult {
   warnings?: string[];
 }
 
+/** The headers of a gateway write (JSON, the proxy/gateway CSRF twins, the credential), for the
+ * modules that keep their own transport (phase_bar_source). */
+export function gatewayWriteHeaders(token: string | null): Record<string, string> {
+  return authHeaders(token);
+}
+
 function authHeaders(token: string | null): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json", ...proxyCsrfHeader() };
   const effective = token || _gatewayToken;
@@ -1811,8 +1817,8 @@ export function openLiveTail(
 }
 
 // ------------------------------------------------------------- own time
-// The ticking mode from the webapp (2026-07-08): wake/sleep/pause GATE a
-// running loop; these start/stop the loop process itself.
+// The loop's own status, read only (its day cause, inbox warning, failure stop). Starting and
+// stopping his own time is the phase bar's toggle now (phase_bar_source.ts, CONTRACT-phases §2).
 
 export interface LoopStatus {
   phase: string; // day | between | stopped
@@ -1841,81 +1847,6 @@ export interface LoopStatus {
 
 export function getLoopStatus(baseUrl: string, entity: string): Promise<LoopStatus> {
   return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop`));
-}
-
-/** The gateway-computed composite life phase (commons seq 96: ONE mutually-
- * exclusive answer computed server-side so clients never re-derive — and
- * never re-bug — the chat/state/loop trio). */
-export interface ServerLifeState {
-  /** BOTH wire generations accepted (vocabulary-drift law): the post-c3618
-   * gateway serves GRAPH WORDS ONLY (visit|work|personal|sleep — the
-   * one-graph ruling's last serving hole closed) with the old nuances in
-   * `posture`; older gateways serve the legacy composite words directly.
-   * "personal" is the ruled spelling (gateway c786); "own_time" retired. */
-  phase: "visit" | "work" | "personal" | "sleep" | "visiting" | "paused" | "asleep" | "own_time" | "resting" | "awake" | string;
-  /** Post-c3618 nuance channel: visiting|yielded|resting|paused|day —
-   * the legacy composite words, verbatim, beside the graph phase. */
-  posture?: string | null;
-  chat_open?: boolean;
-  chat_id?: string | null;
-  state?: string | null;
-  state_mode?: string | null;
-  state_reason?: string | null;
-  own_time_running?: boolean;
-  own_time_phase?: string | null;
-}
-
-/** Null when the endpoint is absent (older gateway) — the caller falls back
- * to client-side derivation, labeled #FALLBACK in the derived state. */
-export function getServerLifeState(baseUrl: string, entity: string): Promise<ServerLifeState | null> {
-  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/life_state`), {
-    credentials: "include",
-    headers: readHeaders({ Accept: "application/json" }),
-  }).then((res) => {
-    if (res.status === 404 || res.status === 405) return null;
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json() as Promise<ServerLifeState>;
-  });
-}
-
-export interface LoopRefusal {
-  reason_code: string;
-  message: string;
-  loop?: LoopStatus;
-}
-
-/** Parse a structured /loop/* refusal (B2, laurent 04:58: refusals carry
- * `{reason_code, message, loop}` in the detail so the own-time button can
- * adopt REAL state and speak the reason). Null when the error is not that
- * shape (older gateway, other endpoints) — callers fall back to raw text. */
-export function parseLoopRefusal(err: Error): LoopRefusal | null {
-  try {
-    const parsed = JSON.parse(String(err.message || "")) as { detail?: unknown };
-    const detail = parsed?.detail;
-    if (detail && typeof detail === "object" && typeof (detail as Record<string, unknown>).reason_code === "string") {
-      const d = detail as { reason_code: string; message?: unknown; loop?: unknown };
-      return {
-        reason_code: d.reason_code,
-        message: typeof d.message === "string" && d.message ? d.message : d.reason_code,
-        loop: d.loop && typeof d.loop === "object" ? (d.loop as LoopStatus) : undefined,
-      };
-    }
-  } catch {
-    // not JSON: raw text is the caller's fallback
-  }
-  return null;
-}
-
-export function startLoop(
-  baseUrl: string,
-  entity: string,
-  token: string | null,
-  options: { provider?: string; model?: string } = {},
-): Promise<{ started: boolean; pid?: number; status?: LoopStatus }> {
-  const body: Record<string, unknown> = {};
-  if (options.provider?.trim()) body["provider"] = options.provider.trim();
-  if (options.model?.trim()) body["model"] = options.model.trim();
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop/start`), body, token, 30000);
 }
 
 // ------------------------------------------------------------- substrate
@@ -2075,10 +2006,6 @@ export async function putEntityCognitionProfile(baseUrl: string, entity: string,
     throw err;
   }
   return res.json() as Promise<unknown>;
-}
-
-export function stopLoop(baseUrl: string, entity: string, token: string | null): Promise<{ stop_requested: boolean; status?: LoopStatus }> {
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/loop/stop`), {}, token, 30000);
 }
 
 // ---------------------------------------------------- files to the entity

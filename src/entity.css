@@ -798,33 +798,136 @@ body {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-/* Entry-disabled positions (visit/work have no button-entry; sleep during
- * a visit): the kit's 0.55 dim read as "broken" beside gold cards — keep
- * them clearly quieter than live buttons but legible (aesthetics review). */
-.ec_phase_radio .af-phase-radio__btn:disabled:not(.af-phase-radio__btn--on) {
-  opacity: 0.7;
+/* THE PHASE BAR (operator ruling 2026-11-08; phase_bar_controls.tsx): four kit chips and one
+ * power button. Quiet = neither current nor allowed; pressed (a toggle allowed) = the kit's
+ * pressed chip with a filled ring; lit (the current phase) = gold and blooming, never dimmed,
+ * even when it has nothing to offer. */
+.ec_phase_bar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
 }
-
-/* .ec_idle_hint RETIRED (adversary-A find 10): the settling word has one
- * owner — the header chip ("sleep (settling)" + tooltip). The radio-side
- * duplicate token was the said-it-twice class. */
-
-/* The now line: the current cause in the machine's own words, beside the
- * radio (observability ruling 2026-07-15 — never tooltip-only). */
-.ec_nowline {
+.ec_pb_pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ec_pb_pill.af-chip,
+.ec_pb_power.af-chip,
+.ec_pb_confirm .af-chip {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-weight: 400;
+  padding: 3px 10px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.ec_pb_pill.af-chip:not(.ec_pb_lit):not([aria-pressed="true"]) {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  color: var(--text-dim);
+}
+.ec_pb_pill.af-chip:not(.ec_pb_lit):not([aria-pressed="true"]):hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--ea-accent);
+}
+.ec_pb_ring {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  box-sizing: border-box;
+  margin-right: 5px;
+  vertical-align: -0.5px;
+}
+/* Allowed (a pressed toggle) has its own channel: a raised neutral chip with a filled gold ring.
+ * Gold text, border and bloom belong to the current phase only, so "allowed" and "now" never read
+ * alike. */
+.ec_pb_toggle.af-chip[aria-pressed="true"]:not(.ec_pb_lit) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text-dim) 55%, transparent);
+  background: var(--bg-raise);
+}
+.ec_pb_toggle[aria-pressed="true"] .ec_pb_ring {
+  background: var(--entity-accent);
+  border-color: var(--entity-accent);
+}
+.ec_pb_pill.ec_pb_lit.af-chip {
+  color: var(--entity-accent);
+  border-color: var(--entity-accent);
+  background: color-mix(in srgb, var(--entity-accent) 26%, var(--bg-card));
+  font-weight: 700;
+  opacity: 1;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--entity-accent) 60%, transparent),
+    0 0 14px color-mix(in srgb, var(--entity-accent) 45%, transparent);
+  animation: ec_phase_bloom 2.4s ease-in-out infinite;
+}
+.ec_pb_pill.ec_pb_lit.af-chip:disabled {
+  cursor: default;
+}
+.ec_pb_busy.af-chip {
+  animation: ec_pb_busy 1s ease-in-out infinite;
+}
+@keyframes ec_pb_busy {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes ec_phase_bloom {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--entity-accent) 55%, transparent),
+      0 0 8px color-mix(in srgb, var(--entity-accent) 32%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--entity-accent) 80%, transparent),
+      0 0 20px color-mix(in srgb, var(--entity-accent) 60%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec_pb_pill.ec_pb_lit.af-chip,
+  .ec_pb_busy.af-chip {
+    animation: none;
+  }
+}
+/* The power button stands apart from the pills (at an equal gap it read as a fifth phase). */
+.ec_pb_power.af-chip {
+  margin-left: 8px;
+  padding: 3px 12px;
+}
+.ec_pb_power_stop.af-chip {
+  font-weight: 600;
+}
+.ec_pb_confirm {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--scar) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--scar) 7%, transparent);
+}
+.ec_pb_confirm_text {
+  color: var(--text);
+}
+/* The sentence for now: the gateway's own words, beside the pills (never tooltip-only). */
+.ec_pb_sentence {
   color: var(--text-dim);
   font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   font-style: italic;
-  max-width: 420px;
+  max-width: 460px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* The kill switch stands APART from the phase radio (IA review P2: at an
- * equal flex gap it read as a fifth radio segment). */
-.ec_stop_btn {
-  margin-left: 10px;
+.ec_pb_note {
+  color: var(--bond);
+}
+.ec_pb_blocked {
+  color: color-mix(in srgb, var(--scar) 65%, var(--text));
 }
 
 /* Settings gear (operator 2026-07-15 (d)): the old "workspace" button,
@@ -842,64 +945,6 @@ body {
  * lanes flagged it). Locally opaque; kit-side fix is uic's call. */
 .af-drawer {
   background: var(--bg-panel);
-}
-
-/* ---- phase radio: the ACTIVE phase is UNMISTAKABLY GOLD (operator
- * 2026-07-15 (c): "use gold for the envelope and text ... plus blooming").
- * The kit's --on rule tints per-phase (visit blue / work green / sleep
- * violet / personal gold); the operator wants the ACTIVE phase — whichever
- * it is — to read as gold + bright + blooming. So the wrapper OVERRIDES the
- * pushed state to a filled gold envelope with gold text and a slow bloom,
- * and — critically — keeps it at full opacity even when the slot is
- * `disabled` (visit/work have no click-entry but are still the current
- * phase; the kit dims disabled to 0.55, which washed out the very state
- * that must shout). The per-phase hue survives on the small dot only. */
-.ec_phase_radio .af-phase-radio__btn--on {
-  color: var(--entity-accent) !important;
-  border-color: var(--entity-accent) !important;
-  background: color-mix(in srgb, var(--entity-accent) 26%, var(--bg-card)) !important;
-  font-weight: 700;
-  opacity: 1 !important; /* current phase never dims, even if entry-disabled */
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--entity-accent) 60%, transparent),
-    0 0 14px color-mix(in srgb, var(--entity-accent) 45%, transparent);
-  animation: ec_phase_bloom 2.4s ease-in-out infinite;
-}
-.ec_phase_radio .af-phase-radio__btn--on:disabled {
-  cursor: default;
-}
-@keyframes ec_phase_bloom {
-  0%, 100% {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--entity-accent) 55%, transparent),
-      0 0 8px color-mix(in srgb, var(--entity-accent) 32%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--entity-accent) 80%, transparent),
-      0 0 20px color-mix(in srgb, var(--entity-accent) 60%, transparent);
-  }
-}
-/* An alive-but-ungranted personal loop is the ALARM — it must read RED, not
- * gold. Override back to the scar colour, faster pulse (danger, not calm). */
-.ec_phase_radio .af-phase-radio__btn--alarm {
-  color: var(--entity-scar) !important;
-  border-color: var(--entity-scar) !important;
-  background: color-mix(in srgb, var(--entity-scar) 20%, var(--bg-card)) !important;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--entity-scar) 60%, transparent),
-    0 0 14px color-mix(in srgb, var(--entity-scar) 50%, transparent);
-  animation: ec_phase_alarm 1s ease-in-out infinite;
-}
-@keyframes ec_phase_alarm {
-  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--entity-scar) 55%, transparent), 0 0 8px color-mix(in srgb, var(--entity-scar) 35%, transparent); }
-  50% { box-shadow: 0 0 0 1px var(--entity-scar), 0 0 18px color-mix(in srgb, var(--entity-scar) 65%, transparent); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ec_phase_radio .af-phase-radio__btn--on,
-  .ec_phase_radio .af-phase-radio__btn--alarm {
-    animation: none;
-  }
 }
 
 .ec_btn {
@@ -4856,16 +4901,6 @@ body {
   color: color-mix(in srgb, var(--scar) 65%, var(--text));
 }
 
-/* The four-position phase radio is now uic's shared AfPhaseRadio (adopted
- * 2026-07-14, c2113) — the `.af-phase-radio*` styles live in the kit's
- * theme.css. `.ec_phase_radio` is only the layout wrapper the app passes
- * as className; the kit component's own inline-flex handles the group. The
- * old local `.ec_radio*` / `.ec_toggle_on*` rules were removed with the
- * hand-rolled buttons. */
-.ec_phase_radio {
-  display: inline-flex;
-}
-
 /* THE STOPPED BANNER (liveness axis): outranks every chip — full-width,
  * red family, impossible to miss. */
 .entity_stopped_banner {
@@ -4886,31 +4921,6 @@ body {
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   flex: 1;
 }
-.esb_restore {
-  background: color-mix(in srgb, var(--diary) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--diary) 60%, transparent);
-  color: color-mix(in srgb, var(--diary) 80%, var(--text));
-  border-radius: 8px;
-  padding: 4px 12px;
-  cursor: pointer;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.esb_restore:hover {
-  background: color-mix(in srgb, var(--diary) 20%, transparent);
-}
-/* The stop control: red text, never confused with the radio. */
-.ec_stop_btn {
-  color: color-mix(in srgb, var(--scar) 60%, var(--text));
-  border-color: color-mix(in srgb, var(--scar) 40%, transparent);
-}
-.ec_stop_btn:hover {
-  border-color: var(--scar) !important;
-  background: color-mix(in srgb, var(--scar) 10%, transparent);
-}
-
-/* The loop-alive-without-grant ALARM (the 10:20 incident state) now rides
- * the kit's `.af-phase-radio__btn--alarm` via the personal slot's `alarm`
- * prop — the local `.ec_toggle_alarm` rule was removed with the swap. */
 
 /* -------------------------------------- ledger day/tick boundary rows
  * The rhythm of his own time (maintainer 2026-07-08 16:31), derived from
@@ -5033,6 +5043,19 @@ body {
   align-items: center;
   padding: 8px 14px 12px;
   border-top: 1px solid var(--line, #24304a);
+}
+/* The roster tile's phase bar (no power button): the pills, then the sentence wrapping under them. */
+.eix_phase_bar {
+  flex: 1 1 100%;
+}
+/* A tile is narrow: the four phase words fit one row without their glyphs. */
+.eix_phase_bar .ec_pb_glyph {
+  display: none;
+}
+.eix_phase_bar .ec_pb_sentence {
+  flex: 1 1 100%;
+  white-space: normal;
+  max-width: 100%;
 }
 .eix_card_actions .eix_id {
   text-align: right;
@@ -6053,9 +6076,12 @@ body {
     padding-left: max(14px, var(--safe-left, 0px));
     padding-right: max(14px, var(--safe-right, 0px));
   }
-  .ec_nowline {
-    order: 10;
+  /* The phase bar takes a row of its own; its sentence wraps instead of being cut. */
+  .entity_controls > .ec_phase_bar {
     flex: 1 1 100%;
+  }
+  .ec_pb_sentence {
+    white-space: normal;
     max-width: 100%;
   }
   .entity_stopped_banner {
@@ -6270,9 +6296,6 @@ body {
   .entity_controls {
     gap: 6px;
   }
-  .ec_stop_btn {
-    margin-left: 0;
-  }
 
   /* Timeline: the track keeps a real width; the transport wraps below. */
   .entity_timeline {
@@ -6369,8 +6392,8 @@ body {
   .eh_home {
     padding: 6px 10px;
   }
-  /* Phase radio + stop + Settings: one swipeable row (two wrapped rows cost
-   * the graph ~50 px on a 667 px phone); Settings stays reachable. */
+  /* The phase bar, then Settings and the notes: one swipeable row (wrapped rows cost the graph
+   * height on a 667 px phone); Settings stays reachable. */
   .entity_controls {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -6385,9 +6408,14 @@ body {
   .ec_settings_btn {
     margin-left: 0;
   }
-  .ec_nowline {
-    flex: none;
-    max-width: 70vw;
+  /* The phase bar is the first screen-wide part of the swipeable row: pills and Stop, then the
+   * sentence (and an open confirmation) on lines of their own, never scrolled out of sight. */
+  .entity_controls > .ec_phase_bar {
+    flex: 0 0 100%;
+  }
+  /* The four phase words fit one row without their glyphs. */
+  .ec_pb_glyph {
+    display: none;
   }
 }
 
@@ -6611,8 +6639,8 @@ body {
   .fleet_view {
     --font-scale: calc(var(--ent-user-scale, 1) * 1.3);
   }
-  /* The roster's phase radio (kit, 12 px) matches the panes. */
-  .eix_card_actions .af-phase-radio__label {
+  /* The roster's phase bar matches the panes. */
+  .eix_card_actions .ec_pb_pill.af-chip {
     font-size: calc(14px * var(--ent-user-scale, 1));
   }
 }

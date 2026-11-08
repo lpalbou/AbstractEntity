@@ -8,7 +8,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CARD_READ_CONCURRENCY, CARD_READ_RETRY_MS, CARD_READ_TTL_MS, createCardReads } from "./card_reads";
-import { CARD_FAILED_NOTE, RosterCardBody, tilePhase } from "./entities_index";
+import { CARD_FAILED_NOTE, RosterCardBody, tilePhaseRead } from "./entities_index";
+import { phaseBody } from "./fixtures/phase_bodies";
+import { phaseBarRead, type PhaseBarRead } from "./phase_bar";
 import { createRosterLoader, type RosterCard, type RosterGateway, type RosterTile } from "./roster_tiles";
 import type { EntitySummary } from "./stream_source";
 
@@ -34,7 +36,7 @@ function mockGateway(rows: Row[], cardMs: Record<string, number> = {}, failCard:
     async life(slug) {
       calls.life.push(slug);
       await delay(10);
-      return { phase: "sleep", state: "asleep", own_time_running: false };
+      return phaseBarRead({ status: 200, body: phaseBody("sleep"), code: null });
     },
     async card(slug): Promise<RosterCard> {
       calls.card.push(slug);
@@ -88,7 +90,7 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     // The live reads land 10 ms later, long before the cards.
     await vi.advanceTimersByTimeAsync(10);
     expect(r.tile("castor")?.livePending).toBe(false);
-    expect(r.tile("castor")?.serverLife?.phase).toBe("sleep");
+    expect(r.tile("castor")?.phase).toMatchObject({ kind: "served", bar: { phase: "sleep" } });
     expect(r.tile("castor")?.cardStatus).toBe("pending");
     loader.stop();
   });
@@ -154,7 +156,7 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     expect(redrawn.cardStatus).toBe("loaded");
     expect(redrawn.card?.age_days).toBe(30);
     expect(redrawn.livePending).toBe(false);
-    expect(redrawn.serverLife?.phase).toBe("sleep");
+    expect(redrawn.phase).toMatchObject({ kind: "served", bar: { phase: "sleep" } });
     expect(redrawn.loop).toEqual({ running: false });
     loader.stop();
   });
@@ -191,7 +193,7 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     void loader.refresh();
     await vi.advanceTimersByTimeAsync(100);
     expect(r.tile("castor")?.loop).toEqual({ running: false });
-    expect(r.tile("castor")?.serverLife?.phase).toBe("sleep");
+    expect(r.tile("castor")?.phase).toMatchObject({ kind: "served", bar: { phase: "sleep" } });
     loader.stop();
   });
 
@@ -264,22 +266,20 @@ describe("card reads (card_reads.ts, app-agnostic)", () => {
   });
 });
 
-describe("the phase radio while a tile's live reads are on their way (tilePhase)", () => {
-  const state = { state: "asleep", changed_at: "x" };
-  it("claims no phase, shows no badge and keeps its controls waiting", () => {
-    expect(tilePhase({ state, loop: null, serverLife: null, livePending: true })).toMatchObject({ activePhase: null, showBadge: false, locked: true });
+describe("the phase bar while a tile's live reads are on their way (tilePhaseRead)", () => {
+  const served: PhaseBarRead = phaseBarRead({ status: 200, body: phaseBody("sleep"), code: null });
+  it("claims no phase and keeps its controls waiting", () => {
+    expect(tilePhaseRead({ phase: served, livePending: true })).toEqual({ kind: "loading" });
   });
-  it("once answered: the served phase, controls live", () => {
-    const t = tilePhase({ state, loop: { running: false } as never, serverLife: { phase: "sleep", state: "asleep", own_time_running: false }, livePending: false });
-    expect(t.activePhase).toBe("sleep");
-    expect(t.locked).toBe(false);
+  it("once answered: the served phase", () => {
+    expect(tilePhaseRead({ phase: served, livePending: false })).toMatchObject({ kind: "served", bar: { phase: "sleep" } });
   });
-  it("the grid uses it for the badge and both controls", () => {
+  it("the grid draws the shared phase bar from it, without the kill switch (that stays on his page)", () => {
     const src = fs.readFileSync(path.join(__dirname, "entities_index.tsx"), "utf8");
-    expect(src).toContain("const { life, activePhase, showBadge, locked } = tilePhase(tile);");
-    expect(src).toContain("busy: busy || locked,");
-    expect(src).toContain("disabled: busy || life.visiting || locked,");
-    expect(src).toContain("{showBadge ? (");
+    expect(src).toContain("const view = phaseBarView(tilePhaseRead(tile), ui);");
+    expect(src).toContain("<PhaseBarControls");
+    expect(src).toContain("showPower={false}");
+    expect(src).not.toMatch(/AfPhaseRadio|startLoop|stopLoop|postEntityState/);
   });
 });
 
