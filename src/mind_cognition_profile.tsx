@@ -68,7 +68,7 @@ export const MEMORY_FIELDS: ReadonlyArray<{ id: MemoryField; label: string; help
   {
     id: "shelf_size",
     label: "Memories retrieved per turn",
-    help: "How many memories he may bring to mind for each turn, in visits and in his own time. A running day picks it up at its next start.",
+    help: "How many memories he may bring to mind for each turn, in visits and in his own time. Visits use it at once; his own time picks it up when it is next started.",
     min: 1,
     max: 400,
     step: 1,

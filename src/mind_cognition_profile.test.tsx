@@ -217,7 +217,7 @@ describe("Settings → Mind: a home without a profile", () => {
     expect(html).not.toMatch(/<input[^>]*disabled=""/);
     expect(html).not.toContain("entity-settings-refusal");
     // The help lines are the contract's words.
-    expect(html).toContain("How many memories he may bring to mind for each turn, in visits and in his own time. A running day picks it up at its next start.");
+    expect(html).toContain("How many memories he may bring to mind for each turn, in visits and in his own time. Visits use it at once; his own time picks it up when it is next started.");
     expect(html).toContain("How easily a new memory or a surprise starts a rebuild.");
     expect(html).toContain("A safety cap. 0 = only while he rests.");
   });
