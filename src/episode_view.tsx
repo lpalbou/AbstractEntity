@@ -5,9 +5,10 @@
  * it."):
  *
  * - EpisodeDetail (the Detail tab): what kind of moment it was and the
- *   record's facts, then its summary (the full digest once a recall served
- *   it, else the saved title, said so), then the exchange, then how he got
- *   there.
+ *   record's facts, then its summary (its stored understanding when the
+ *   gateway serves it, with who wrote it, as of when and its earlier
+ *   readings; else the digest a recall served, else the saved title, said
+ *   so), then the exchange, then how he got there.
  * - LivedExchangeView (everywhere a whole exchange is shown, through
  *   VerbatimTurns): what was said to him, his answer, and "How he got
  *   there" — folded, in plain words, each lookup through the turn panel's
@@ -27,6 +28,8 @@ import { describeToolAsk } from "./turn_probe_parse";
 import { Fold, ToolCall } from "./turn_probe_views";
 import { exchangeSpeakers, readRecordWords, VerbatimTurns, Words, type RecordWords } from "./verbatim_view";
 import { restBlocksAsText } from "./verbatim_parse";
+import { servedDigest, UNSERVED_SENTENCE } from "./understanding";
+import { DigestNotYet, EarlierUnderstandings, ProvenanceLine } from "./understanding_view";
 import {
   askFromResult,
   howSentence,
@@ -239,6 +242,11 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
   const turnId = state.phase === "ready" ? state.words.turnId : null;
   const summary = episodeSummary(node.title);
   const digest = typeof node.digest === "string" && node.digest.trim() ? node.digest.trim() : null;
+  // The stored understanding the record read served (understanding.ts).
+  const read = state.phase === "ready" ? state.words.understanding : null;
+  const understanding = read && read.served ? read.understanding : null;
+  const unserved = Boolean(read && !read.served);
+  const stored = understanding ? servedDigest(understanding) : null;
   const extra = ex ? (
     <>
       <dt>moment</dt>
@@ -253,10 +261,16 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
       {renderFacts(extra)}
       <section className="ep_summary">
         <h4 className="ep_h">Summary</h4>
-        {digest ? (
+        {understanding ? (
+          <>
+            {stored ? <Words text={stored} className="ev_markdown ep_summary_text" /> : <DigestNotYet />}
+            <ProvenanceLine understanding={understanding} />
+            <EarlierUnderstandings understanding={understanding} />
+          </>
+        ) : digest ? (
           <>
             <Words text={digest} className="ev_markdown ep_summary_text" />
-            <p className="ep_summary_note">The summary saved with the record, as it was saved.</p>
+            <p className="ep_summary_note">{unserved ? UNSERVED_SENTENCE : "The summary saved with the record, as it was saved."}</p>
           </>
         ) : (
           <>
@@ -265,7 +279,7 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
               {summary.text
                 ? `The title saved with the record${summary.cut === "words" ? " (cut at 14 words when saved)" : summary.cut === "short" ? " (cut short when saved)" : ""}. `
                 : ""}
-              The fuller summary arrives once this memory is recalled; everything that was said is below.
+              {unserved ? `${UNSERVED_SENTENCE} Everything that was said is below.` : "The fuller summary arrives once this memory is recalled; everything that was said is below."}
             </p>
           </>
         )}

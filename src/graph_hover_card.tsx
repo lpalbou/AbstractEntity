@@ -17,13 +17,16 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NodeState } from "./stream_fold";
 import type { VerbatimSource } from "./verbatim_modal";
 import { readRecordWords, Words } from "./verbatim_view";
+import { servedDigest } from "./understanding";
 import { WordsLine } from "./words_line";
 import { needsWords, placeCard, type CardAction, type CardActionId, type CardSummary } from "./hover_card";
 
 /** How long the pointer rests on a memory before its words are read. */
 export const HOVER_READ_DELAY_MS = 250;
 
-export type HoverWords = { phase: "reading" } | { phase: "ready"; text: string } | { phase: "none"; message: string };
+/** `served`: the stored summary the record read served (understanding.ts);
+ * null when the gateway does not serve it or has not computed it yet. */
+export type HoverWords = { phase: "reading" } | { phase: "ready"; text: string; served: string | null } | { phase: "none"; message: string };
 
 /** The words a card shows for `node` when the fold holds no summary —
  * read once the pointer has rested HOVER_READ_DELAY_MS; null when the card
@@ -41,7 +44,9 @@ export function useHoverWords(source: VerbatimSource | null, node: NodeState | n
       setState({ key: graphId, words: { phase: "reading" } });
       readRecordWords(source, graphId, kind)
         .then((w) => {
-          if (live) setState({ key: graphId, words: w.text.trim() ? { phase: "ready", text: w.text } : { phase: "none", message: "no words are kept for this memory" } });
+          if (!live) return;
+          const served = w.understanding && w.understanding.served ? servedDigest(w.understanding.understanding) : null;
+          setState({ key: graphId, words: w.text.trim() || served ? { phase: "ready", text: w.text, served } : { phase: "none", message: "no words are kept for this memory" } });
         })
         .catch((e: Error & { status?: number }) => {
           if (!live) return;

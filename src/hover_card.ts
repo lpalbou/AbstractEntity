@@ -10,8 +10,8 @@
  *   stripped — node_label.shapeLabel — its later lines kept, so Markdown
  *   headings and lists stay readable); a private diary entry reads "a
  *   diary entry"; a record with no title shows its id's head;
- * - summary: the record's full digest when a recall at or before the
- *   scrub position served it (stream_fold NodeState.digest — never kept
+ * - summary: the record's full digest as the stream served it at or
+ *   before the scrub position (stream_fold NodeState.digest — never kept
  *   for a diary record); none otherwise (absent, never invented);
  * - topic cards: the topic's readable words, then its exemplar — the
  *   memory the runtime chose as most representative — by its summary
@@ -175,23 +175,27 @@ function dayOf(stamp: string | null): string {
   return String(stamp ?? "").slice(0, 10);
 }
 
-/** What the card says first, per kind, from the fold's digest or the words
- * just read (`words`; null while unread), through the parses Detail uses:
+/** What the card says first, per kind, from the fold's digest, else the
+ * stored summary the record read served (`words.served`), else the words
+ * just read (`words`; null while unread), through the parses Detail uses
+ * (a served summary is used as served, never derived from the words):
  * - a diary record: DIARY_CARD_LINE, never its words;
  * - a world model: its card (world_model_view.readCard) — the evidence
  *   floor's name, count, days, threads and standing feeling, or its lead;
  * - a lived moment: its digest, else his answer's lead
- *   (world_model_sources.sourceWords, the exchange parse);
+ *   (world_model_sources.sourceWords, the exchange parse) when no summary
+ *   is served;
  * - a dream: its summary as written (not Markdown);
  * - everything else (lessons, interests, identity, summaries, …): the
  *   whole words. */
 export function cardSummary(
   node: NodeState,
-  words: { phase: "reading" } | { phase: "ready"; text: string } | { phase: "none"; message: string } | null,
+  words: { phase: "reading" } | { phase: "ready"; text: string; served: string | null } | { phase: "none"; message: string } | null,
   entity: string,
 ): CardSummary | null {
   if (isDiaryNode(node)) return { kind: "diary", text: DIARY_CARD_LINE };
-  const digest = digestOf(node);
+  const served = words && words.phase === "ready" && words.served && words.served.trim() ? words.served.trim() : null;
+  const digest = digestOf(node) ?? served;
   const read = words && words.phase === "ready" && words.text.trim() ? words.text.trim() : null;
   const text = digest ?? read;
   if (!text) {

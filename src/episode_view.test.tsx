@@ -175,10 +175,11 @@ describe("the whole exchange wherever it is shown", () => {
 });
 
 describe("a cached copy of a record's words", () => {
-  it("answers when it keeps the turn, and a diary-shaped one always does (never read again)", () => {
+  it("answers only for a diary-shaped record (never read again); any other is read anew (its understanding changes in place)", () => {
     expect(cachedWordsAnswer(null, "ex:episode-1", "episode")).toBe(false);
-    expect(cachedWordsAnswer({ text: "x", turn_id: "" }, "ex:episode-1", "episode")).toBe(true);
+    expect(cachedWordsAnswer({ text: "x", turn_id: "" }, "ex:episode-1", "episode")).toBe(false);
     expect(cachedWordsAnswer({ text: "x" }, "ex:episode-1", "episode")).toBe(false);
+    expect(cachedWordsAnswer(null, "ex:diary-86444591", "episode")).toBe(false);
     expect(cachedWordsAnswer({ text: "x" }, "ex:diary-86444591", "episode")).toBe(true);
     expect(cachedWordsAnswer({ text: "x" }, "ex:memory-1", "diary")).toBe(true);
   });

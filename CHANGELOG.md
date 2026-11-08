@@ -4,6 +4,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Detail shows a memory's summary, who wrote it, and how it was understood before.** Opening a
+  session summary showed an empty shell ("The fuller summary arrives once this memory is
+  recalled", and "The words as saved: none kept"). Now Detail leads with the summary the gateway
+  stores for every kind (for a summary, a card or a dream it is the content), then one line saying
+  who wrote it ("his own words", "a passive memory process, part of him" and its model,
+  "mechanical — a placeholder until he understands it", "set by the operator"), as of when, and why
+  (first formed, rewritten after new evidence, revisited after a surprise, backfilled, changed by
+  the operator, restored). "Earlier understandings (N)" folds every earlier reading, newest first,
+  with its date, author and words. A value the gateway has not computed yet reads "not computed
+  yet"; a gateway that does not serve these fields gets one sentence saying so. The graph's hover
+  cards and the stream use the stored summary as served, never one derived from the words. A
+  record's words are now read anew each time (its summary can be rewritten in place); a diary
+  entry is still read only on your click, and only once per browser. Needs the gateway's record
+  read with the understanding fields (operator 2026-11-08).
 - **The ledger follows the newest events only while you are at the bottom, and each landing flashes.**
   The live follow now watches the list's content, not only its box: a row that renders its words a beat
   after it landed, or a line that grows in place, moved the list without moving the follow, so the view

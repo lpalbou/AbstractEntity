@@ -126,3 +126,45 @@
   padding: 4px 0 6px;
   min-width: 0;
 }
+
+/* ------------------------------------------- the stored understanding */
+
+/* Who wrote the summary, as of when, why (understanding_view.tsx): one
+ * dim line under the summary; it wraps on a phone, never cut. */
+.rd_prov {
+  margin: 6px 0 0;
+  color: var(--text-dim);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.rd_key > .rd_prov + .rd_key_line {
+  margin-top: 8px;
+}
+
+.rd_not_yet {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* Earlier understandings, newest first. */
+.rd_versions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.rd_version {
+  padding-left: 9px;
+  border-left: 2px solid var(--line);
+  min-width: 0;
+}
+.rd_version_head {
+  margin: 0 0 2px;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

@@ -15,6 +15,11 @@
  * text rendered on the abstractentity app must use the shared markdown
  * renderer component").
  *
+ * The summary is the record's stored understanding (understanding.ts) when
+ * the gateway serves it — for a summary, a card or a dream it IS the
+ * content — with who wrote it, as of when and why, and its earlier
+ * readings folded (understanding_view.tsx).
+ *
  * A diary entry's words are never read until the operator asks: the read
  * is recorded in his biography.
  */
@@ -30,29 +35,17 @@ import { readRecordWords, VerbatimTurns, Words, type RecordWords } from "./verba
 import { DreamDetail } from "./dream_detail";
 import { dreamLine, kindWords, standingLine, wordsReadOnOpen } from "./record_detail_parts";
 import { WordsLine as SharedWordsLine } from "./words_line";
+import { Disclosure } from "./detail_fold";
+import { servedDigest } from "./understanding";
+import { DigestNotYet, EarlierUnderstandings, ProvenanceLine, UnservedNote } from "./understanding_view";
 import "./record_detail.css";
+
+export { Disclosure };
 
 // ------------------------------------------------------------ shared parts
 
 /** One line of his words: the app's one inline renderer (words_line.tsx). */
 export const WordsLine = ({ text, className = "" }: { text: string; className?: string }): React.ReactElement => <SharedWordsLine text={text} inline className={className} />;
-
-/** A folded section: its head says what is inside; one click opens it. */
-export function Disclosure({ title, summary, defaultOpen = false, children }: { title: string; summary?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode }): React.ReactElement {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <section className={`rd_fold ${open ? "rd_fold_open" : ""}`}>
-      <button type="button" className="rd_fold_head" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        <span className="rd_chev" aria-hidden="true">
-          {open ? "▾" : "▸"}
-        </span>
-        <span className="rd_fold_title">{title}</span>
-        {summary ? <span className="rd_fold_summary">{summary}</span> : null}
-      </button>
-      {open ? <div className="rd_fold_body">{children}</div> : null}
-    </section>
-  );
-}
 
 /** The record's display title (scaffolding prefixes off, as everywhere). */
 export function recordTitle(node: NodeState): string {
@@ -157,7 +150,7 @@ function DiaryWords({ node, source }: { node: NodeState; source: VerbatimSource 
           c = { text: String(entry.text ?? entry.gist ?? "") };
           if (c.text) void putCachedText(ck, c);
         }
-        setState({ phase: "ready", words: { text: c.text || "", note: null, turnId: null, born: false } });
+        setState({ phase: "ready", words: { text: c.text || "", note: null, turnId: null, born: false, understanding: null } });
       } else {
         setState({ phase: "ready", words: await readRecordWords(source, node.graph_id ?? node.id, "diary") });
       }
@@ -225,23 +218,52 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
   const digest = typeof node.digest === "string" && node.digest.trim() ? node.digest.trim() : null;
   const diary = !wordsReadOnOpen(node) && node.kind !== "relation" && !node.bookkeeping;
   const dream = node.kind === "dream";
-  // The summary: words born as the whole record are its summary; else the
-  // digest a recall served; a dream is told by what it moved.
+  // The stored understanding the record read served (null: not read, or a
+  // diary record); `unserved`: this gateway does not serve it.
+  const read = words?.understanding ?? null;
+  const understanding = read && read.served ? read.understanding : null;
+  const unserved = Boolean(read && !read.served);
+  const stored = understanding ? servedDigest(understanding) : null;
+  // The summary: the stored understanding when served (a summary's, a
+  // card's or a dream's words ARE it); else words born as the whole record;
+  // else the digest a recall served; a dream is also told by what it moved.
   let summary: React.ReactNode = null;
-  if (dream) summary = <p className="rd_key_line">{dreamLine(node.signals)}</p>;
+  if (understanding) {
+    summary = (
+      <>
+        {stored ? <Words text={stored} className="ev_markdown rd_summary" /> : <DigestNotYet />}
+        <ProvenanceLine understanding={understanding} />
+        {dream ? <p className="rd_key_line">{dreamLine(node.signals)}</p> : null}
+      </>
+    );
+  } else if (dream) summary = <p className="rd_key_line">{dreamLine(node.signals)}</p>;
   else if (born && words?.text) summary = <Words text={words.text} className="ev_markdown rd_summary" />;
   else if (digest && !diary) summary = <Words text={digest} className="ev_markdown rd_summary" />;
-  const summaryNote = dream
+  const summaryNote: React.ReactNode = understanding
     ? null
-    : born
-      ? "These words are the whole record: it was born as words."
-      : digest && !diary
-        ? "The summary saved with the record, as it was saved."
-        : diary
-          ? "The runtime keeps only the first 120 characters of an entry as its summary (a runtime fix is planned); the whole entry is in his Book, below."
-          : node.bookkeeping || node.kind === "relation"
-            ? null
-            : "The fuller summary arrives once this memory is recalled.";
+    : unserved
+      ? <UnservedNote />
+      : dream
+        ? null
+        : born
+          ? "These words are the whole record: it was born as words."
+          : digest && !diary
+            ? "The summary saved with the record, as it was saved."
+            : diary
+              ? "The runtime keeps only the first 120 characters of an entry as its summary (a runtime fix is planned); the whole entry is in his Book, below."
+              : node.bookkeeping || node.kind === "relation"
+                ? null
+                : state.phase === "loading"
+                  ? "reading his summary…"
+                  : state.phase === "none"
+                    ? state.message
+                    : "The fuller summary arrives once this memory is recalled.";
+  // The words as saved, folded — unless they are the summary shown above
+  // (a summary, card or dream without a verbatim serves its digest as its
+  // words), the read served none, or it found none (said above).
+  const wordsAreTheSummary = Boolean(stored && words && words.text.trim() === stored);
+  const noWords = Boolean(words && !words.text.trim());
+  const wordsFold = !diary && wordsReadOnOpen(node) && (!born || dream) && !wordsAreTheSummary && !noWords && state.phase !== "none";
   return (
     <>
       <h3 className="ei_title">
@@ -250,19 +272,19 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
       <p className="rd_kind">{kindWords(node)}</p>
       <ClosedNotice fold={fold} node={node} onSelect={onSelect} />
       {summary ? <div className="rd_key">{summary}</div> : null}
-      {summaryNote ? <p className="rd_note">{summaryNote}</p> : null}
+      {typeof summaryNote === "string" ? <p className="rd_note">{summaryNote}</p> : summaryNote}
       {renderFacts(null)}
+      {understanding ? <EarlierUnderstandings understanding={understanding} /> : null}
       {dream && source ? <DreamDetail fold={fold} dream={node} source={source} onSelect={onSelect} /> : null}
       {diary ? (
         <Disclosure title="His words in the book" summary="not read until you open them">
           {source ? <DiaryWords node={node} source={source} /> : <div className="ei_note wl_p"><SharedWordsLine text={"His book can be read when the app is connected to his gateway (this is an exported file)."} /></div>}
         </Disclosure>
       ) : null}
-      {!diary && wordsReadOnOpen(node) && (!born || dream) ? (
-        <Disclosure title={dream ? "The sleep pass's own summary" : "The words as saved"} summary={state.phase === "loading" ? "reading…" : state.phase === "none" ? "none kept" : undefined}>
+      {wordsFold ? (
+        <Disclosure title={dream ? "The sleep pass's own summary" : "The words as saved"} summary={state.phase === "loading" ? "reading…" : undefined}>
           {!source ? <div className="ei_note wl_p"><SharedWordsLine text={"His words can be read when the app is connected to his gateway (this is an exported file)."} /></div> : null}
           {state.phase === "loading" ? <div className="ei_note wl_p"><SharedWordsLine text={"reading his words…"} /></div> : null}
-          {state.phase === "none" ? <div className="ei_note wl_p"><SharedWordsLine text={state.message} /></div> : null}
           {dream && words ? <div className="ei_note wl_p"><SharedWordsLine text={"A mechanical summary that quotes titles cut short — what the night touched is listed above in full."} /></div> : null}
           {words ? <VerbatimTurns text={words.text} entity={source?.entity ?? ""} onSpeakers={onSpeakers} plain={dream} /> : null}
         </Disclosure>

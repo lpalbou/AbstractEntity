@@ -3,7 +3,13 @@
  * world-model card's sources (one reader, one layout).
  *
  * readRecordWords: the pure verbatim read (GET /records/{id}/verbatim; no
- * access recorded for non-diary records), text-cached with its note.
+ * access recorded for non-diary records) with the record's stored
+ * understanding (understanding.ts: its summary, who wrote it, as of when,
+ * its earlier readings). A diary-shaped record answers from this browser's
+ * copy once read (a re-read is recorded in his biography); any other record
+ * is read from the gateway each time, because its summary is rewritten in
+ * place (understanding pass, DESIGN §4) — a stored copy would show an older
+ * reading.
  * VerbatimTurns: a lived moment in the runtime's format as what was said
  * to him, his answer, and how he got there (episode_view.tsx); other
  * exchanges as labelled turns; words that are not an exchange as Markdown.
@@ -18,6 +24,7 @@ import { parseVerbatimTurns, restBlocksAsText, splitUnspokenThinking } from "./v
 import type { VerbatimSource } from "./verbatim_modal";
 import { isDiaryShaped, parseLivedExchange } from "./episode_parse";
 import { LivedExchangeView } from "./episode_view";
+import { readUnderstanding, type UnderstandingRead } from "./understanding";
 
 /** No image in text a model or a page wrote is ever loaded — not even a
  * same-origin one: the app's /api proxy carries the operator's session, so
@@ -39,6 +46,10 @@ export interface RecordWords {
   turnId: string | null;
   /** Born as words: these are all the words the record has (its digest). */
   born: boolean;
+  /** The record's stored understanding as served (understanding.ts); null
+   * for a diary-shaped record, which is read through the book and carries
+   * none. */
+  understanding: UnderstandingRead | null;
 }
 
 /** One read per record at a time: the sources list and the card's words
@@ -54,19 +65,25 @@ export function readRecordWords(source: VerbatimSource, graphId: string, kind: s
   return p;
 }
 
-/** A cached copy answers unless it predates the turn id being kept and
- * the record is not diary-shaped: an ordinary record's read is a pure read
- * (nothing is recorded), a diary-shaped one is never read again. */
+/** Only a diary-shaped record answers from this browser's copy: it is
+ * never read again (each read is recorded in his biography). Any other
+ * record's read is a pure read, and its understanding changes in place, so
+ * it is always read from the gateway. */
 export function cachedWordsAnswer(cached: Record<string, string> | null, graphId: string, kind: string | undefined): boolean {
   if (!cached) return false;
-  return "turn_id" in cached || isDiaryShaped({ kind, graph_id: graphId });
+  return isDiaryShaped({ kind, graph_id: graphId });
 }
 
 /** A cached copy as words: a born-as-words record is cached with its note
- * (an ordinary one with an empty note). */
+ * (an ordinary one with an empty note). Only diary-shaped records answer
+ * from the cache, and they carry no understanding. */
 export function wordsFromCache(cached: Record<string, string>): RecordWords {
-  return { text: cached.text || "", note: cached.note || null, turnId: cached.turn_id || null, born: Boolean(cached.note) };
+  return { text: cached.text || "", note: cached.note || null, turnId: cached.turn_id || null, born: Boolean(cached.note), understanding: null };
 }
+
+/** One console line per gateway when its record read lacks the
+ * understanding (the screen says it in one sentence). */
+const warnedUnserved = new Set<string>();
 
 async function readRecordWordsOnce(source: VerbatimSource, graphId: string, kind: string | undefined): Promise<RecordWords> {
   const key = textCacheKey(source.baseUrl, source.entity, `verbatim:${graphId}`);
@@ -80,9 +97,14 @@ async function readRecordWordsOnce(source: VerbatimSource, graphId: string, kind
     : null;
   const text = String(v.text ?? "");
   const turnId = typeof v.turn_id === "string" && v.turn_id ? v.turn_id : null;
+  const understanding = isDiaryShaped({ kind, graph_id: graphId }) ? null : readUnderstanding(v as unknown as Record<string, unknown>, kind);
+  if (understanding && !understanding.served && !warnedUnserved.has(source.baseUrl)) {
+    warnedUnserved.add(source.baseUrl);
+    console.warn(`#FALLBACK: the record read serves no stored understanding (missing or unreadable: ${understanding.missing.join(", ")}); Detail says so in one sentence`);
+  }
   // Other readers keep their own fields on the same entry (created_at).
   if (text) void putCachedText(key, { ...(cached ?? {}), text, note: note ?? "", turn_id: turnId ?? "", created_at: String(v.created_at ?? cached?.created_at ?? "") });
-  return { text, note, turnId, born: Boolean(v.born_digest) };
+  return { text, note, turnId, born: Boolean(v.born_digest), understanding };
 }
 
 /** Tool output reads as written (its line breaks and indents matter). */

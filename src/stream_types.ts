@@ -73,6 +73,10 @@ export interface DisplayBlock {
    * display field (asked of memory — the graph_id delta precedent);
    * absent = no correlation claimed, rendered as absent. */
   visit_id?: string;
+  /** The record's current summary (understanding pass, abstractmemory
+   * replay.py: BINDING display blocks carry the current reading's digest,
+   * rewritten in place). Never on a diary block. */
+  digest?: string | null;
 }
 
 export interface ReplayEnvelope {

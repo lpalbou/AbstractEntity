@@ -239,7 +239,7 @@ describe("cardSummary — the summary every card leads with, per kind", () => {
     binding(8, "ex:interest-i", "interest", "interest: maps"),
   ]);
   const node = (id: string) => kinds.nodes.get(id)!;
-  const ready = (text: string) => ({ phase: "ready" as const, text });
+  const ready = (text: string) => ({ phase: "ready" as const, text, served: null });
   const FLOOR =
     "What I know of housing:\n- 2026-11-01: the HUD count rose…\nStanding feeling: warm toward the work\n(from 12 lived record(s), 2026-10-01T10:00:00 to 2026-11-01T09:00:00, 9 episodes, 3 summaries. Threads: housing, refugees. This card is orientation, never authority.)";
   const EXCHANGE = "person:admin:\nwhat did you find?\n\nnerin:\nI found the **UNHCR** portal and its 2026 tables.";

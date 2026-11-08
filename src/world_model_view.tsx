@@ -8,13 +8,15 @@
  * then how the card evolved, then the memories it comes from.
  *
  * Honesty rules (adversarial review 2026-11-07):
- *   - Authorship is never inferred. The two sleep-pass shapes are known
- *     exactly (abstractmemory world_model._floor_digest "What I know of …",
- *     and the earlier "Refined understanding of …, distilled from N lived
- *     record(s) …" written at abstractmemory af5d2c6) — those cards are
- *     evidence gathered without a model, so no understanding is written.
- *     Any other text is shown as the card's own words; this gateway does not
- *     say who wrote them (the record's authored_by is not served).
+ *   - Authorship is never inferred. Who wrote the card, as of when and
+ *     why are the record read's stored understanding (understanding.ts:
+ *     authored_by, understood_at, cause), with its earlier readings folded;
+ *     its words are the served digest. A gateway that does not serve them
+ *     gets one sentence (UNSERVED_SENTENCE). The two sleep-pass shapes are
+ *     known exactly (abstractmemory world_model._floor_digest "What I know
+ *     of …", and the earlier "Refined understanding of …, distilled from N
+ *     lived record(s) …" written at abstractmemory af5d2c6) — those cards
+ *     are evidence gathered without a model, read for their facts.
  *   - Evidence counts and dates come from the card's own text (its links
  *     are capped per revision), never from counting links.
  *   - A failed read says so; it is never shown as "nothing written".
@@ -28,6 +30,8 @@ import { parseMechanicalCard } from "./card_words";
 import type { FoldState, NodeState } from "./stream_fold";
 import type { VerbatimSource } from "./verbatim_modal";
 import { readRecordWords, Words } from "./verbatim_view";
+import { NOT_YET, servedDigest, type UnderstandingRead } from "./understanding";
+import { DigestNotYet, EarlierUnderstandings, ProvenanceLine, UnservedNote } from "./understanding_view";
 import { MemoryRows, sourcesFromIds, type CardSource } from "./world_model_sources";
 import { WordsLine } from "./words_line";
 
@@ -117,7 +121,18 @@ export function chainSources(fold: FoldState, chain: NodeState[]): CardSource[] 
   return sourcesFromIds(fold, targets).sort((a, b) => (a.bornAt === b.bornAt ? 0 : a.bornAt < b.bornAt ? -1 : 1));
 }
 
-type Read = { state: "loading" } | { state: "ready"; text: string; shape: CardShape } | { state: "failed"; message: string };
+export type CardRead =
+  | { state: "loading" }
+  | { state: "ready"; text: string; shape: CardShape; understanding: UnderstandingRead | null }
+  | { state: "failed"; message: string };
+type Read = CardRead;
+
+/** The card's words: its stored understanding's digest when served (it IS
+ * the card), else the words read; null when not computed yet. */
+export function cardText(text: string, understanding: UnderstandingRead | null): string | null {
+  if (understanding && understanding.served) return servedDigest(understanding.understanding);
+  return text;
+}
 
 function useCardRead(source: VerbatimSource, node: NodeState | null, enabled: boolean, attempt: number): Read {
   const [read, setRead] = useState<Read>({ state: "loading" });
@@ -127,7 +142,11 @@ function useCardRead(source: VerbatimSource, node: NodeState | null, enabled: bo
     setRead({ state: "loading" });
     // Card revisions are born-digest records: a pure read, no access recorded.
     readRecordWords(source, node.graph_id ?? node.id, "world_model")
-      .then((w) => !cancelled && setRead({ state: "ready", text: w.text, shape: readCard(w.text) }))
+      .then((w) => {
+        if (cancelled) return;
+        const text = cardText(w.text, w.understanding) ?? "";
+        setRead({ state: "ready", text, shape: readCard(text), understanding: w.understanding });
+      })
       .catch((e) => !cancelled && setRead({ state: "failed", message: (e as Error).message }));
     return () => {
       cancelled = true;
@@ -202,45 +221,13 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
           </>
         ) : null}
         <dt>type</dt>
-        <dd className="wmv_unknown">not served by this gateway yet</dd>
+        {(() => {
+          const t = cardTypeWords(read);
+          return <dd className={t.known ? undefined : "wmv_unknown"}>{t.text}</dd>;
+        })()}
       </dl>
 
-      <section className="wmv_section">
-        <h4 className="wmv_head">Understanding of {name}</h4>
-        {read.state === "loading" ? (
-          <div className="ei_note wl_p">
-            <WordsLine text="reading the card…" />
-          </div>
-        ) : null}
-        {read.state === "failed" ? (
-          <div className="wmv_empty">
-            <WordsLine text={`The card could not be read just now (${read.message}).`} inline />{" "}
-            <button className="wm_more" onClick={() => setAttempt((n) => n + 1)}>
-              try again
-            </button>
-          </div>
-        ) : null}
-        {shape?.kind === "floor" ? (
-          <div className="wmv_empty">
-            <WordsLine
-              text={`No understanding of ${name} has been written yet. This card is evidence the sleep pass gathered without a model${floor?.count != null ? ` (${floor.count} lived memories)` : ""}; nothing in this home writes an understanding from it today.`}
-            />
-          </div>
-        ) : null}
-        {shape?.kind === "prose" ? (
-          <>
-            <div className="wmv_as_of">
-              <WordsLine text={`The card's own words, as of ${stamp(card.born_at)} — this gateway does not say who wrote them.`} />
-            </div>
-            <Words text={shape.lead} className="ev_markdown wmv_understanding" />
-            {shape.since ? (
-              <div className="wmv_since">
-                <WordsLine text={shape.since} />
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </section>
+      <CardUnderstanding read={read} name={name} card={card} onRetry={() => setAttempt((n) => n + 1)} />
 
       {chain.length > 1 ? <Evolution chain={chain} current={card} source={source} onSelect={onSelect} /> : null}
 
@@ -254,6 +241,71 @@ export function WorldModelView({ fold, card, source, onSelect }: { fold: FoldSta
         <MemoryRows items={sources} source={source} onSelect={onSelect} collapsed />
       </section>
     </div>
+  );
+}
+
+/** The card's type fact: the served target type, "not computed yet", or
+ * a gateway that does not serve it. */
+export function cardTypeWords(read: CardRead): { text: string; known: boolean } {
+  if (read.state !== "ready" || !read.understanding) return { text: read.state === "loading" ? "reading…" : "—", known: false };
+  if (!read.understanding.served) return { text: "not served by this gateway yet", known: false };
+  const t = read.understanding.understanding.target_type;
+  return t && t.trim() ? { text: t.trim().replace(/[_-]+/g, " "), known: true } : { text: NOT_YET, known: false };
+}
+
+/** "Understanding of X": the card's words (its stored understanding), who
+ * wrote them, as of when and why, its earlier readings folded — or the
+ * evidence floor, a failed read, the one unserved sentence. Pure. */
+export function CardUnderstanding({ read, name, card, onRetry }: { read: CardRead; name: string; card: NodeState; onRetry(): void }): React.ReactElement {
+  const shape = read.state === "ready" ? read.shape : null;
+  const floor = shape?.kind === "floor" ? shape : null;
+  const und = read.state === "ready" ? read.understanding : null;
+  const understanding = und && und.served ? und.understanding : null;
+  const unserved = Boolean(und && !und.served);
+  const notYet = Boolean(understanding && servedDigest(understanding) === null);
+  return (
+    <section className="wmv_section">
+      <h4 className="wmv_head">Understanding of {name}</h4>
+      {read.state === "loading" ? (
+        <div className="ei_note wl_p">
+          <WordsLine text="reading the card…" />
+        </div>
+      ) : null}
+      {read.state === "failed" ? (
+        <div className="wmv_empty">
+          <WordsLine text={`The card could not be read just now (${read.message}).`} inline />{" "}
+          <button className="wm_more" onClick={onRetry}>
+            try again
+          </button>
+        </div>
+      ) : null}
+      {notYet ? <DigestNotYet /> : null}
+      {floor ? (
+        <div className="wmv_empty">
+          <WordsLine
+            text={`No understanding of ${name} has been written yet. This card is evidence the sleep pass gathered without a model${floor.count != null ? ` (${floor.count} lived memories)` : ""}${understanding ? "." : "; nothing in this home writes an understanding from it today."}`}
+          />
+        </div>
+      ) : null}
+      {shape?.kind === "prose" && !notYet ? (
+        <>
+          {!understanding ? (
+            <div className="wmv_as_of">
+              <WordsLine text={`The card's own words, as of ${stamp(card.born_at)}.`} />
+            </div>
+          ) : null}
+          <Words text={shape.lead} className="ev_markdown wmv_understanding" />
+          {shape.since ? (
+            <div className="wmv_since">
+              <WordsLine text={shape.since} />
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {understanding ? <ProvenanceLine understanding={understanding} /> : null}
+      {unserved ? <UnservedNote /> : null}
+      {understanding ? <EarlierUnderstandings understanding={understanding} /> : null}
+    </section>
   );
 }
 

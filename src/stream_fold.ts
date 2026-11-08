@@ -60,10 +60,12 @@ export interface NodeState {
   last_admission: string | null;
   /** Digest provenance when served (mechanical-v1/-v2, mechanical-flow-v1, …). */
   digest_method?: string | null;
-  /** The record's full digest (its summary), from the recall snapshots that
-   * carried it (abstractmemory selection.py display_rows); null until a
-   * recall at or before this fold position served it. Never kept for a
-   * diary record. */
+  /** The record's full digest (its summary) as served: the binding's
+   * display block carries the current reading (understanding pass,
+   * abstractmemory replay.py), the recall snapshots carry it too
+   * (selection.py display_rows); the newest served wins (a digest is
+   * rewritten in place). null until one at or before this fold position
+   * served it. Never kept for a diary record. */
   digest?: string | null;
   /** Belief lifecycle: set once a closure names this record. */
   closed: { kind: string; reason: string; seq: number; replacement_ids: string[] } | null;
@@ -432,9 +434,14 @@ function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
   // digest_method names WHO wrote its words (mechanical-v1/v2 = the
   // driver's floor, mechanical-flow-v1 = the flow brain, entity prose =
   // absent). Render-when-present; the consent set (c2447 pact) is
-  // memory's, never re-declared here.
+  // memory's, never re-declared here. The digest is rewritten in place
+  // (understanding pass): the newest served method wins.
   const dm = (display as { digest_method?: unknown }).digest_method;
-  if (typeof dm === "string" && dm && !node.digest_method) node.digest_method = dm;
+  if (typeof dm === "string" && dm) node.digest_method = dm;
+  // The served summary (a binding's display carries the current reading):
+  // the record's digest, used as served — never derived from its words.
+  const dg = display.digest;
+  if (typeof dg === "string" && dg.trim() && node.kind !== "relation" && !isDiaryGraphId(node.graph_id ?? node.id)) node.digest = dg;
   detectBookkeeping(node, display);
 }
 
@@ -651,6 +658,10 @@ function resolveUsageNode(state: FoldState, rowId: string, display: DisplayBlock
       if (!node.token_estimate) node.token_estimate = graphNode.token_estimate;
       if (!node.visit_id) node.visit_id = graphNode.visit_id;
       node.bookkeeping = node.bookkeeping || graphNode.bookkeeping;
+      // The binding's served summary and its method (the row side may not
+      // have seen a recall yet).
+      if (!node.digest && graphNode.digest) node.digest = graphNode.digest;
+      if (!node.digest_method && graphNode.digest_method) node.digest_method = graphNode.digest_method;
       state.nodes.delete(graphId);
       rekeyNodeInEdges(state, graphId, rowId);
     } else {

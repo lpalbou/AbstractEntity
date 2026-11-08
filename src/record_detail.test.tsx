@@ -142,9 +142,12 @@ describe("a record's card", () => {
     expect(html).not.toContain("THE LONG REFLECTION WORDS");
   });
 
-  it("says when the fuller summary will come, and never claims one is missing for good", () => {
+  it("says its summary is being read, and in an exported file when the fuller summary will come", () => {
     const html = body(node({ kind: "value", title: "honesty" }), { phase: "loading" });
-    inOrder(html, ["honesty", "One of his values", "The fuller summary arrives once this memory is recalled.", "<dt>born</dt>"]);
+    inOrder(html, ["honesty", "One of his values", "reading his summary…", "<dt>born</dt>"]);
+    expect(html).not.toContain("The fuller summary arrives");
+    const file = body(node({ kind: "value", title: "honesty" }), { phase: "idle" }, null);
+    inOrder(file, ["honesty", "One of his values", "The fuller summary arrives once this memory is recalled.", "<dt>born</dt>"]);
   });
 
   it("keeps a diary entry's words behind a click that says the read is recorded", () => {
@@ -178,8 +181,8 @@ describe("a record's card", () => {
   });
 
   it("knows a cached record born as words by the note it was cached with", () => {
-    expect(wordsFromCache({ text: "w", note: "Born as words", turn_id: "t-0001" })).toEqual({ text: "w", note: "Born as words", turnId: "t-0001", born: true });
-    expect(wordsFromCache({ text: "w", note: "", turn_id: "" })).toEqual({ text: "w", note: null, turnId: null, born: false });
+    expect(wordsFromCache({ text: "w", note: "Born as words", turn_id: "t-0001" })).toEqual({ text: "w", note: "Born as words", turnId: "t-0001", born: true, understanding: null });
+    expect(wordsFromCache({ text: "w", note: "", turn_id: "" })).toEqual({ text: "w", note: null, turnId: null, born: false, understanding: null });
   });
 
   it("says how its words can be read in an exported file", () => {

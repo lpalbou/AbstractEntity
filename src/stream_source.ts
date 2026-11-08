@@ -300,6 +300,13 @@ export interface RecordVerbatim {
    * complete text (0007 round 2, endorsed by memory + gateway). */
   born_digest?: boolean;
   kind?: string;
+  /** The stored understanding rides this read (memory's display block
+   * verbatim: digest, digest_method, digest_version, version_count,
+   * authored_by, reader, understood_at, cause, versions; cards add
+   * target_type and kin; null when not computed yet, never omitted).
+   * understanding.readUnderstanding reads it from the body; a summary,
+   * card or dream without a verbatim serves its digest as `text`. */
+  [field: string]: unknown;
 }
 
 /** Fetch a record's lossless verbatim from the gateway (pure read).
