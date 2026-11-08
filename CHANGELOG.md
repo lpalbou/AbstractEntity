@@ -7,8 +7,17 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **Health's drive rows say how many, in words.** With one open question and one interest, the
   rows read "0/1 resolved" and "0/1 explored", which looked like nothing at all. They now read
   "1 open question · none resolved yet" and "1 interest · none explored yet", or "3 questions ·
-  1 resolved" and "4 interests · 2 explored" once some are. The bars stay, the hover titles keep
-  their explanation, and a row with nothing in it says so in a sentence ("none yet — …").
+  1 resolved" and "4 interests · 2 explored" once some are. The bars stay, under the words, so a
+  narrow panel no longer squeezes them to nothing; the hover titles keep their explanation, and a
+  row with nothing in it says so in a sentence ("none yet — …").
+- **The card's likes, dislikes and "How he sees others" name what they are about.** A memory he
+  likes showed its id ("episode 15e2…"). Each row now reads: an icon and a small tag for what it
+  is (person, tool, exchange, diary entry, world model), then its name: a person's or a tool's
+  name, a memory's title as the card gives it. A memory the card names without a title reads
+  "untitled memory" with a "title missing" tag, so the gap is visible instead of a code. The
+  score sits at the right of the row and his words about it below the name. Likes and dislikes
+  stack in the side panel and on a phone instead of squeezing into two narrow columns. The
+  scores and feelings are the same as before.
 - **A memory's hover card shows what he understands it as now.** On a moment the overnight
   backfill had rewritten (Nerin's "so why did you stop exploring the world…"), the graph's card
   still showed the old one-line mechanical summary, with the answer's "###" and "-" run into the

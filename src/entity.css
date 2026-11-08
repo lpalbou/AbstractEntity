@@ -1322,47 +1322,69 @@ body {
   line-height: 1.45;
 }
 
+/* Likes beside dislikes where the card is wide (the modal); stacked in
+ * the side panel and on a phone, where two columns cramped every name. */
 .ic_two_col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 0 18px;
 }
 
-.ic_feeling_block {
-  padding: 3px 0;
+/* One feeling row (Likes, Dislikes, How he sees others): icon | kind tag +
+ * name (wraps, never cut) | score aligned right; the quote below the name. */
+.ic_like_row {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: baseline;
+  padding: 7px 0;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
 }
 
-.ic_feeling {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 2px 0;
-}
-
-.ic_feeling_icon {
-  flex: 0 0 auto;
+.ic_like_icon {
+  text-align: center;
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-.ic_feeling_reason {
+.ic_like_what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.ic_like_name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.ic_like_untitled {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.ic_like_score {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  justify-content: flex-end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ic_like_quote {
+  grid-column: 2 / -1;
   color: var(--text-dim);
   font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   font-style: italic;
-  padding-left: 26px;
   line-height: 1.35;
 }
 
 .ic_moment_icon {
   margin-right: 3px;
-}
-
-.ic_feeling_target {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ic_feeling_net {
@@ -5468,17 +5490,23 @@ body {
   font-weight: 600;
 }
 
-/* Drive bars (focused room: open/resolved questions + interests). */
+/* Drive bars (focused room: open/resolved questions + interests). The
+ * count in words beside the label, the bar under the words: a narrow panel
+ * never squeezes the bar to nothing. */
 .hp_drive_row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  margin: 6px 0;
+  gap: 4px 10px;
+  margin: 8px 0;
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
-.hp_drive_label { min-width: 92px; color: var(--text-muted); }
+.hp_drive_label { grid-column: 1; grid-row: 1; color: var(--text-muted); }
+.hp_drive_num { grid-column: 2; grid-row: 1; }
 .hp_drivebar {
-  flex: 1;
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
   max-width: 260px;
   height: 8px;
   border-radius: 4px;

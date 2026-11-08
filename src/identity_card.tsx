@@ -19,7 +19,8 @@ import type { FoldState } from "./stream_fold";
 import { fetchDiaryEntry, gatewayReadHeaders } from "./stream_source";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { WordsLine } from "./words_line";
-import { joinBaseUrl } from "@abstractframework/ui-kit";
+import { shapeLabel } from "./node_label";
+import { AfChip, joinBaseUrl } from "@abstractframework/ui-kit";
 
 /** Namespace prefixes double as icons — the maintainer's read: the prefix
  * says WHAT KIND of thing the entity is relating to. */
@@ -36,11 +37,6 @@ const NAMESPACE_ICONS: Record<string, string> = {
   moment: "🕰️",
 };
 
-function targetIcon(target: string): string {
-  const prefix = target.split(":", 1)[0]?.toLowerCase() ?? "";
-  return NAMESPACE_ICONS[prefix] ?? "◆";
-}
-
 function targetName(target: string): string {
   const idx = target.indexOf(":");
   return (idx >= 0 ? target.slice(idx + 1) : target).replace(/[_-]+/g, " ");
@@ -54,6 +50,10 @@ interface CardStatement {
 
 interface CardFeeling {
   target: string;
+  /** The record's title when the target is a record that has one
+   * (memory's entity_card `_standing_entry`); absent for a free identity
+   * string ("person:laurent") and for a record stored without one. */
+  title?: string;
   net: number;
   positive: number;
   negative: number;
@@ -319,6 +319,78 @@ export function kindCountLabel(kind: string, count: number): string {
   return `${count} ${plain}${count === 1 ? "" : "s"}`;
 }
 
+/** The icon of a remembered record a feeling is about, by its kind. */
+const RECORD_ICONS: Record<string, string> = {
+  episode: "💬",
+  diary: "📔",
+  world_model: "🌍",
+  dream: "🌌",
+  summary: "📝",
+  interest: "🌱",
+  lesson: "📘",
+};
+
+/** What a like, a dislike or a person he sees is about, as one card row
+ * says it (operator 2026-11-08: a cleaner layout, the NAME or TITLE, never
+ * an id): its icon, its kind in words ("person", "exchange", "world
+ * model"), and its name — a person's or a tool's name from the target, a
+ * remembered record's title from the card brief. A record whose brief
+ * came without a title reads "untitled memory" with `titleMissing` set,
+ * so the gap shows instead of a hash. */
+export interface FeelingLabel {
+  icon: string;
+  kind: string;
+  name: string;
+  titleMissing: boolean;
+}
+
+export function feelingLabel(target: string, title?: unknown): FeelingLabel {
+  const given = typeof title === "string" ? title.trim() : "";
+  // A "title" that is the target itself, or another graph id, names nothing.
+  const shown = given && given !== target && !/^ex:\S+$/.test(given) ? shapeLabel(given) : "";
+  const rec = /^ex:([a-z_]+)-/.exec(target);
+  if (rec || !target.includes(":")) {
+    // A remembered record (a graph id, or a bare record id).
+    const kind = rec ? rec[1] : "memory";
+    const word = KIND_WORDS[kind]?.[0] ?? kind.split("_").join(" ");
+    return { icon: RECORD_ICONS[kind] ?? "◆", kind: word, name: shown || "untitled memory", titleMissing: !shown };
+  }
+  const ns = target.split(":", 1)[0].toLowerCase();
+  return { icon: NAMESPACE_ICONS[ns] ?? "◆", kind: ns.split("_").join(" "), name: shown || targetName(target), titleMissing: false };
+}
+
+/** One feeling row: icon, kind tag, name (and the title-missing tag, the
+ * bond/scar marks), the score aligned right; the quote below. */
+function FeelingRow({ label, score, marks, quote }: { label: FeelingLabel; score: React.ReactNode; marks?: React.ReactNode; quote: string | null }): React.ReactElement {
+  return (
+    <div className="ic_like_row">
+      <span className="ic_like_icon" aria-hidden="true">
+        {label.icon}
+      </span>
+      <span className="ic_like_what">
+        <AfChip size="sm" tone="muted" className="ic_like_kind">
+          {label.kind}
+        </AfChip>
+        <span className={`ic_like_name${label.titleMissing ? " ic_like_untitled" : ""}`} title={label.titleMissing ? undefined : label.name}>
+          <WordsLine text={label.name} inline />
+        </span>
+        {label.titleMissing ? (
+          <AfChip size="sm" tone="warning" className="ic_like_missing" title="The card names this memory without its title — the gap is shown, not hidden.">
+            title missing
+          </AfChip>
+        ) : null}
+        {marks}
+      </span>
+      <span className="ic_like_score">{score}</span>
+      {quote ? (
+        <div className="ic_like_quote">
+          <WordsLine text={`“${quote}”`} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
   return (
     <div className="ic_section">
@@ -397,7 +469,7 @@ export function IdentityCardContent({
   return <CardBody card={state.card} fold={fold} baseUrl={baseUrl} entity={entity} />;
 }
 
-function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: FoldState | null; baseUrl: string; entity: string }): React.ReactElement {
+export function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: FoldState | null; baseUrl: string; entity: string }): React.ReactElement {
   const born = card.born ? new Date(card.born) : null;
   const substrate = card.mind_substrate;
   // Canonical compositor sections first; older gateway shapes as fallback.
@@ -501,48 +573,38 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
       <div className="ic_two_col">
         {likes.length ? (
           <Section title="Likes">
-            {likes.map((f, i) => {
-              const reason = reasonFor(f.target);
-              return (
-                <div key={i} className="ic_feeling_block">
-                  <div className="ic_feeling">
-                    <span className="ic_feeling_icon" title={f.target.split(":", 1)[0]}>{targetIcon(f.target)}</span>
-                    <span className="ic_feeling_target" title={f.target}>{targetName(f.target)}</span>
+            {likes.map((f, i) => (
+              <FeelingRow
+                key={i}
+                label={feelingLabel(f.target, f.title)}
+                score={
+                  <>
                     <span className="ic_feeling_net ei_feeling_pos">+{f.positive}</span>
                     {f.negative > 0 ? <span className="ic_feeling_net ei_feeling_neg">−{f.negative}</span> : null}
-                    {f.bonded ? <span className="ic_mark ic_mark_bond">bond</span> : null}
-                  </div>
-                  {reason ? (
-                    <div className="ic_feeling_reason">
-                      <WordsLine text={`“${reason}”`} />
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
+                  </>
+                }
+                marks={f.bonded ? <span className="ic_mark ic_mark_bond">bond</span> : null}
+                quote={reasonFor(f.target)}
+              />
+            ))}
           </Section>
         ) : null}
         {dislikes.length ? (
           <Section title="Dislikes">
-            {dislikes.map((f, i) => {
-              const reason = reasonFor(f.target);
-              return (
-                <div key={i} className="ic_feeling_block">
-                  <div className="ic_feeling">
-                    <span className="ic_feeling_icon" title={f.target.split(":", 1)[0]}>{targetIcon(f.target)}</span>
-                    <span className="ic_feeling_target" title={f.target}>{targetName(f.target)}</span>
+            {dislikes.map((f, i) => (
+              <FeelingRow
+                key={i}
+                label={feelingLabel(f.target, f.title)}
+                score={
+                  <>
                     <span className="ic_feeling_net ei_feeling_neg">−{f.negative}</span>
                     {f.positive > 0 ? <span className="ic_feeling_net ei_feeling_pos">+{f.positive}</span> : null}
-                    {f.scarred ? <span className="ic_mark ic_mark_scar">scar</span> : null}
-                  </div>
-                  {reason ? (
-                    <div className="ic_feeling_reason">
-                      <WordsLine text={`“${reason}”`} />
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
+                  </>
+                }
+                marks={f.scarred ? <span className="ic_mark ic_mark_scar">scar</span> : null}
+                quote={reasonFor(f.target)}
+              />
+            ))}
           </Section>
         ) : null}
       </div>
@@ -569,23 +631,25 @@ function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: Fol
               const net = s.positive - s.negative;
               const latest = [...s.events].reverse().find((e) => e.reason)?.reason ?? null;
               return (
-                <div key={s.target_id} className="ic_feeling_block">
-                  <div className="ic_feeling">
-                    <span className="ic_feeling_icon" title={s.target_id.split(":", 1)[0]}>{targetIcon(s.target_id)}</span>
-                    <span className="ic_feeling_target" title={s.target_id}>{targetName(s.target_id)}</span>
-                    <span className={`ic_feeling_net ${net >= 0 ? "ei_feeling_pos" : "ei_feeling_neg"}`}>{net >= 0 ? `+${net}` : `${net}`}</span>
-                    <span className="ic_rep_channels" title="both channels stay visible — a hundred small joys and one deep wound are both true">
-                      (+{s.positive} / −{s.negative})
-                    </span>
-                    {s.bonds.length > 0 ? <span className="ic_mark ic_mark_bond">bond</span> : null}
-                    {s.scars.length > 0 ? <span className="ic_mark ic_mark_scar">scar</span> : null}
-                  </div>
-                  {latest ? (
-                    <div className="ic_feeling_reason">
-                      <WordsLine text={`“${latest}”`} />
-                    </div>
-                  ) : null}
-                </div>
+                <FeelingRow
+                  key={s.target_id}
+                  label={feelingLabel(s.target_id)}
+                  score={
+                    <>
+                      <span className={`ic_feeling_net ${net >= 0 ? "ei_feeling_pos" : "ei_feeling_neg"}`}>{net >= 0 ? `+${net}` : `${net}`}</span>
+                      <span className="ic_rep_channels" title="both channels stay visible — a hundred small joys and one deep wound are both true">
+                        (+{s.positive} / −{s.negative})
+                      </span>
+                    </>
+                  }
+                  marks={
+                    <>
+                      {s.bonds.length > 0 ? <span className="ic_mark ic_mark_bond">bond</span> : null}
+                      {s.scars.length > 0 ? <span className="ic_mark ic_mark_scar">scar</span> : null}
+                    </>
+                  }
+                  quote={latest}
+                />
               );
             })}
             <div className="ic_window_note wl_p">
