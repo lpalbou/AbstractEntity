@@ -266,8 +266,16 @@ function jumpToBottom(el: ScrollList, lastTop: FollowRefs["lastTop"]): void {
 /** The reader's upward gestures, the only thing that may detach the follow:
  * wheel up, a finger dragging down (content up), the keys that move up, and
  * a press on the scrollbar (right of the client box) until release. */
-export function isUpwardKey(key: string): boolean {
-  return key === "ArrowUp" || key === "PageUp" || key === "Home";
+export function isUpwardKey(key: string, shift = false): boolean {
+  return key === "ArrowUp" || key === "PageUp" || key === "Home" || (key === " " && shift);
+}
+
+/** The strip at the list's right edge where a scrollbar lives — a classic
+ * bar sits beyond clientWidth, a macOS overlay bar INSIDE it (adversarial
+ * review 2026-11-08: dragging an overlay bar never left the bottom). */
+export const SCROLLBAR_STRIP_PX = 16;
+export function isScrollbarPress(offsetX: number, clientWidth: number): boolean {
+  return offsetX >= clientWidth - SCROLLBAR_STRIP_PX;
 }
 
 /** Live follow on the ledger list: start at the bottom, judge each scroll
@@ -302,7 +310,8 @@ export function attachLiveFollow(
     if ((e as WheelEvent).deltaY < 0) upAt = now();
   };
   const onKey = (e: Event) => {
-    if (isUpwardKey((e as KeyboardEvent).key)) upAt = now();
+    const k = e as KeyboardEvent;
+    if (isUpwardKey(k.key, k.shiftKey)) upAt = now();
   };
   const onTouchStart = (e: Event) => {
     touchY = (e as TouchEvent).touches[0]?.clientY ?? null;
@@ -313,7 +322,7 @@ export function attachLiveFollow(
     if (y !== undefined) touchY = y;
   };
   const onPointerDown = (e: Event) => {
-    if ((e as MouseEvent).offsetX >= el.clientWidth) barHeld = true;
+    if (isScrollbarPress((e as MouseEvent).offsetX, el.clientWidth)) barHeld = true;
   };
   const onPointerUp = () => {
     barHeld = false;

@@ -254,6 +254,25 @@ describe("live follow", () => {
     d.gesture("mousedown", { offsetX: 405 });
     d.scroll(d.el.scrollTop - 200);
     expect(d.refs.stick.current).toBe(false);
+    // a macOS overlay scrollbar sits INSIDE the client box: a press on the right-edge strip counts
+    const d2 = mk();
+    d2.gesture("mousedown", { offsetX: 390 });
+    d2.scroll(d2.el.scrollTop - 200);
+    expect(d2.refs.stick.current).toBe(false);
+    // a press in the body of the list is not a scrollbar press
+    const d3 = mk();
+    d3.gesture("mousedown", { offsetX: 200 });
+    d3.scroll(d3.el.scrollTop - 200);
+    expect(d3.refs.stick.current).toBe(true);
+    // Shift+Space pages up; plain Space pages down
+    const k1 = mk();
+    k1.gesture("keydown", { key: " ", shiftKey: true });
+    k1.scroll(k1.el.scrollTop - 200);
+    expect(k1.refs.stick.current).toBe(false);
+    const k2 = mk();
+    k2.gesture("keydown", { key: " ", shiftKey: false });
+    k2.scroll(k2.el.scrollTop - 200);
+    expect(k2.refs.stick.current).toBe(true);
     // a finger dragging down (content up): theirs
     const e = mk();
     e.gesture("touchstart", { touches: [{ clientY: 100 }] });
