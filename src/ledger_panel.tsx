@@ -233,13 +233,21 @@ export function landedIndices(lines: ReadonlyArray<{ index: number }>, prevTop: 
   return out.reverse();
 }
 
-/** The live follow after a scroll event. At the bottom it follows; only a
- * scroll that moved UP (the reader) detaches it. Lines landing grow the
- * list without moving it and our own jump to the bottom only moves down,
- * so judging by the distance alone detached a follow nobody had left. */
-export function followAfterScroll(following: boolean, m: { gap: number; top: number; lastTop: number }): boolean {
+/** How long after a reader's upward gesture a scroll still counts as theirs. */
+export const GESTURE_WINDOW_MS = 250;
+
+/** The live follow after a scroll event. At the bottom it follows. Only a
+ * scroll that moved UP *because the reader moved it* (a wheel, a finger, a
+ * key, a scrollbar drag within GESTURE_WINDOW_MS) detaches it. The list
+ * also shrinks ABOVE the reader on its own — recall lines collapse into
+ * one weave row as they arrive, the render window drops old rows — and the
+ * browser then clamps scrollTop: that looked like a scroll up and let the
+ * follow go while the reader sat at the bottom (operator 2026-11-08,
+ * screenshot with the "2 new lines below" pill). Such a drift keeps the
+ * follow, and the caller snaps back to the bottom. */
+export function followAfterScroll(following: boolean, m: { gap: number; top: number; lastTop: number; userUp: boolean }): boolean {
   if (m.gap <= FOLLOW_SLACK_PX) return true;
-  if (m.top < m.lastTop) return false;
+  if (m.top < m.lastTop && m.userUp) return false;
   return following;
 }
 
@@ -248,11 +256,18 @@ interface FollowRefs {
   lastTop: { current: number };
 }
 
-type ScrollList = Pick<HTMLElement, "scrollTop" | "scrollHeight" | "clientHeight" | "addEventListener" | "removeEventListener">;
+type ScrollList = Pick<HTMLElement, "scrollTop" | "scrollHeight" | "clientHeight" | "clientWidth" | "addEventListener" | "removeEventListener">;
 
 function jumpToBottom(el: ScrollList, lastTop: FollowRefs["lastTop"]): void {
   el.scrollTop = el.scrollHeight;
   lastTop.current = el.scrollTop;
+}
+
+/** The reader's upward gestures, the only thing that may detach the follow:
+ * wheel up, a finger dragging down (content up), the keys that move up, and
+ * a press on the scrollbar (right of the client box) until release. */
+export function isUpwardKey(key: string): boolean {
+  return key === "ArrowUp" || key === "PageUp" || key === "Home";
 }
 
 /** Live follow on the ledger list: start at the bottom, judge each scroll
@@ -267,12 +282,41 @@ export function attachLiveFollow(
   onAtBottom: () => void,
   Observer: typeof ResizeObserver = ResizeObserver,
   content?: Element | null,
+  now: () => number = () => Date.now(),
 ): () => void {
+  let upAt = -Infinity; // when the reader last gestured upward
+  let barHeld = false; // the scrollbar is being dragged
+  let touchY: number | null = null;
+  const userUp = () => barHeld || now() - upAt <= GESTURE_WINDOW_MS;
   const onScroll = () => {
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-    refs.stick.current = followAfterScroll(refs.stick.current, { gap, top: el.scrollTop, lastTop: refs.lastTop.current });
+    refs.stick.current = followAfterScroll(refs.stick.current, { gap, top: el.scrollTop, lastTop: refs.lastTop.current, userUp: userUp() });
+    if (refs.stick.current && gap > FOLLOW_SLACK_PX) {
+      jumpToBottom(el, refs.lastTop); // the list moved under the reader; stay at the bottom
+      return;
+    }
     if (refs.stick.current && gap <= FOLLOW_SLACK_PX) onAtBottom();
     refs.lastTop.current = el.scrollTop;
+  };
+  const onWheel = (e: Event) => {
+    if ((e as WheelEvent).deltaY < 0) upAt = now();
+  };
+  const onKey = (e: Event) => {
+    if (isUpwardKey((e as KeyboardEvent).key)) upAt = now();
+  };
+  const onTouchStart = (e: Event) => {
+    touchY = (e as TouchEvent).touches[0]?.clientY ?? null;
+  };
+  const onTouchMove = (e: Event) => {
+    const y = (e as TouchEvent).touches[0]?.clientY;
+    if (y !== undefined && touchY !== null && y > touchY) upAt = now();
+    if (y !== undefined) touchY = y;
+  };
+  const onPointerDown = (e: Event) => {
+    if ((e as MouseEvent).offsetX >= el.clientWidth) barHeld = true;
+  };
+  const onPointerUp = () => {
+    barHeld = false;
   };
   // Fires when the list is revealed (its own box changes) AND when its
   // CONTENT grows (operator 2026-11-08: "keep tracking the last events"):
@@ -287,9 +331,22 @@ export function attachLiveFollow(
   revealed.observe(el as unknown as Element);
   if (content) revealed.observe(content);
   el.addEventListener("scroll", onScroll, { passive: true });
+  el.addEventListener("wheel", onWheel, { passive: true });
+  el.addEventListener("keydown", onKey);
+  el.addEventListener("touchstart", onTouchStart, { passive: true });
+  el.addEventListener("touchmove", onTouchMove, { passive: true });
+  el.addEventListener("mousedown", onPointerDown);
+  const win: Pick<Window, "addEventListener" | "removeEventListener"> | null = typeof window === "undefined" ? null : window;
+  win?.addEventListener("mouseup", onPointerUp);
   return () => {
     revealed.disconnect();
     el.removeEventListener("scroll", onScroll);
+    el.removeEventListener("wheel", onWheel);
+    el.removeEventListener("keydown", onKey);
+    el.removeEventListener("touchstart", onTouchStart);
+    el.removeEventListener("touchmove", onTouchMove);
+    el.removeEventListener("mousedown", onPointerDown);
+    win?.removeEventListener("mouseup", onPointerUp);
   };
 }
 
@@ -556,7 +613,9 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
         </div>
       ) : null}
       <LedgerKey showQuiet={showQuiet} />
-      <div className="el_list" ref={listRef}>
+      {/* tabIndex −1: a click gives the list keyboard focus, so ArrowUp /
+          PageUp / Home scroll it and count as the reader's own gesture. */}
+      <div className="el_list" ref={listRef} tabIndex={-1}>
        <div className="el_list_inner" ref={innerRef}>
         {windowed.hiddenBefore > 0 ? (
           <div className="el_window_note">

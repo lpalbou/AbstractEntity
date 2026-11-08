@@ -2364,6 +2364,11 @@ body {
   padding: 4px 0;
 }
 
+/* Focusable for keyboard scrolling (tabIndex −1); no ring after a click. */
+.el_list:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .el_row {
   display: flex;
   gap: 8px;

@@ -192,33 +192,81 @@ describe("live ledger fold", () => {
 
 describe("live follow", () => {
   it("lines landing below do not detach it; our own jump down does not either", () => {
-    expect(followAfterScroll(true, { gap: 900, top: 400, lastTop: 400 })).toBe(true);
-    expect(followAfterScroll(true, { gap: 300, top: 1200, lastTop: 400 })).toBe(true);
+    expect(followAfterScroll(true, { gap: 900, top: 400, lastTop: 400, userUp: false })).toBe(true);
+    expect(followAfterScroll(true, { gap: 300, top: 1200, lastTop: 400, userUp: false })).toBe(true);
   });
 
-  it("only a scroll up detaches it, and reaching the bottom re-attaches it", () => {
-    expect(followAfterScroll(true, { gap: 600, top: 300, lastTop: 900 })).toBe(false);
-    expect(followAfterScroll(false, { gap: 600, top: 700, lastTop: 300 })).toBe(false);
-    expect(followAfterScroll(false, { gap: 40, top: 860, lastTop: 700 })).toBe(true);
+  it("only the reader's scroll up detaches it, and reaching the bottom re-attaches it", () => {
+    expect(followAfterScroll(true, { gap: 600, top: 300, lastTop: 900, userUp: true })).toBe(false);
+    // the list shrank above the reader (a weave collapsed, the window slid): not theirs
+    expect(followAfterScroll(true, { gap: 600, top: 300, lastTop: 900, userUp: false })).toBe(true);
+    expect(followAfterScroll(false, { gap: 600, top: 700, lastTop: 300, userUp: false })).toBe(false);
+    expect(followAfterScroll(false, { gap: 40, top: 860, lastTop: 700, userUp: false })).toBe(true);
   });
 
-  it("wired to a list: lines landing keep it attached, a scroll up detaches it", () => {
-    const { el, scroll } = fakeList();
+  it("wired to a list: lines landing keep it attached, a wheel up detaches it", () => {
+    const { el, scroll, wheelUp } = fakeList();
     const refs = { stick: { current: false }, lastTop: { current: 0 } };
     attachLiveFollow(el, refs, () => {}, FakeObserver);
     expect(el.scrollTop).toBe(el.scrollHeight - el.clientHeight);
     el.scrollHeight += 900; // lines landed; no scroll happened
     scroll(el.scrollTop);
     expect(refs.stick.current).toBe(true);
-    scroll(el.scrollTop - 300);
+    wheelUp(300);
     expect(refs.stick.current).toBe(false);
   });
 
-  it("wired to a list: revealing the tab leaves a reader who scrolled up where they were", () => {
-    const { el, scroll } = fakeList();
+  it("wired to a list: the list collapsing above a reader at the bottom keeps the follow and stays at the bottom (operator 2026-11-08)", () => {
+    const { el, shrinkAbove } = fakeList();
     const refs = { stick: { current: true }, lastTop: { current: 0 } };
     attachLiveFollow(el, refs, () => {}, FakeObserver);
-    scroll(el.scrollTop - 600);
+    shrinkAbove(700); // 4 recall lines became one weave row
+    expect(refs.stick.current).toBe(true);
+    expect(el.scrollTop).toBe(el.scrollHeight - el.clientHeight);
+  });
+
+  it("wired to a list: a gesture only counts within its window; keys and the scrollbar count, a wheel down does not", () => {
+    let t = 1000;
+    const mk = () => {
+      const f = fakeList();
+      const refs = { stick: { current: true }, lastTop: { current: 0 } };
+      attachLiveFollow(f.el, refs, () => {}, FakeObserver, null, () => t);
+      return { ...f, refs };
+    };
+    // wheel up long ago, then a clamp: not theirs
+    const a = mk();
+    a.gesture("wheel", { deltaY: -100 });
+    t += 2000;
+    a.scroll(a.el.scrollTop - 200);
+    expect(a.refs.stick.current).toBe(true);
+    // ArrowUp then scroll up: theirs
+    const b = mk();
+    b.gesture("keydown", { key: "ArrowUp" });
+    b.scroll(b.el.scrollTop - 200);
+    expect(b.refs.stick.current).toBe(false);
+    // ArrowDown then a clamp up: not theirs
+    const c = mk();
+    c.gesture("keydown", { key: "ArrowDown" });
+    c.scroll(c.el.scrollTop - 200);
+    expect(c.refs.stick.current).toBe(true);
+    // scrollbar press (right of the client box) then scroll up: theirs
+    const d = mk();
+    d.gesture("mousedown", { offsetX: 405 });
+    d.scroll(d.el.scrollTop - 200);
+    expect(d.refs.stick.current).toBe(false);
+    // a finger dragging down (content up): theirs
+    const e = mk();
+    e.gesture("touchstart", { touches: [{ clientY: 100 }] });
+    e.gesture("touchmove", { touches: [{ clientY: 160 }] });
+    e.scroll(e.el.scrollTop - 200);
+    expect(e.refs.stick.current).toBe(false);
+  });
+
+  it("wired to a list: revealing the tab leaves a reader who scrolled up where they were", () => {
+    const { el, wheelUp } = fakeList();
+    const refs = { stick: { current: true }, lastTop: { current: 0 } };
+    attachLiveFollow(el, refs, () => {}, FakeObserver);
+    wheelUp(600);
     const kept = el.scrollTop;
     el.scrollHeight += 1000;
     FakeObserver.resize(el);
@@ -236,11 +284,11 @@ describe("live follow", () => {
   });
 
   it("wired to a list: content growing does not move a reader who scrolled up", () => {
-    const { el, scroll } = fakeList();
+    const { el, wheelUp } = fakeList();
     const content = {} as Element;
     const refs = { stick: { current: true }, lastTop: { current: 0 } };
     attachLiveFollow(el, refs, () => {}, FakeObserver, content);
-    scroll(el.scrollTop - 400);
+    wheelUp(400);
     const kept = el.scrollTop;
     el.scrollHeight += 700;
     FakeObserver.resize(content);
@@ -284,27 +332,43 @@ describe("live follow", () => {
   });
 });
 
-/** A scroll container whose scrollTop clamps like a browser's. */
+/** A scroll container whose scrollTop clamps like a browser's. `scroll(to)`
+ * moves it and fires the scroll event; `gesture(type, ev)` fires a reader's
+ * input event; `shrinkAbove(px)` is the list collapsing above the reader
+ * (the browser clamps scrollTop and fires scroll, no gesture). */
 function fakeList() {
   let top = 0;
-  const handlers: Array<() => void> = [];
+  const handlers = new Map<string, Array<(e?: unknown) => void>>();
+  const fire = (type: string, e?: unknown) => (handlers.get(type) ?? []).forEach((h) => h(e));
   const el = {
     scrollHeight: 2000,
     clientHeight: 500,
+    clientWidth: 400,
     get scrollTop() {
       return top;
     },
     set scrollTop(v: number) {
       top = Math.max(0, Math.min(v, Math.max(0, this.scrollHeight - this.clientHeight)));
     },
-    addEventListener: (_t: string, h: () => void) => handlers.push(h),
+    addEventListener: (t: string, h: (e?: unknown) => void) => handlers.set(t, [...(handlers.get(t) ?? []), h]),
     removeEventListener: () => {},
   };
   const scroll = (to: number) => {
     el.scrollTop = to;
-    for (const h of handlers) h();
+    fire("scroll");
   };
-  return { el: el as unknown as HTMLElement, scroll };
+  const gesture = (type: string, e: unknown) => fire(type, e);
+  const shrinkAbove = (px: number) => {
+    el.scrollHeight -= px;
+    el.scrollTop = top; // clamps
+    fire("scroll");
+  };
+  // a reader scrolling up: wheel, then the scroll it causes
+  const wheelUp = (by: number) => {
+    gesture("wheel", { deltaY: -120 });
+    scroll(el.scrollTop - by);
+  };
+  return { el: el as unknown as HTMLElement, scroll, gesture, shrinkAbove, wheelUp };
 }
 
 /** Fires only for observed elements, like the real one. */
