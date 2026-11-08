@@ -20,6 +20,8 @@ import {
   nodeWarmth,
   pairWarmth,
   pushAttentionEvent,
+  recentWords,
+  warmthLegendTitles,
   type AttentionEventLite,
 } from "./temporal_activation";
 import type { ReplayEnvelope } from "./stream_types";
@@ -311,5 +313,38 @@ describe("head_burst (the wash measure — fable5 verdict on laurent c5439)", ()
     const buffers = new Map<string, AttentionEventLite[]>();
     buffers.set("life|e", [{ kind: "selected", record_id: "r", pair_key: null, weight: 1, ttl_activity: null, seq: 5, trace_id: null }]);
     expect(computeTemporalActivation(buffers).head_burst).toBeNull();
+  });
+});
+
+describe("window_turns + the legend's 'recent' (operator 2026-11-08: say how recent)", () => {
+  const sel = (seq: number, trace: string | null): AttentionEventLite => ({ kind: "selected", record_id: `r${seq}`, pair_key: null, weight: 8, ttl_activity: null, seq, trace_id: trace });
+  const small = { ...ENGINE_DEFAULT_CONFIG, window_limit: 4 };
+
+  it("is null while no scope window is full (every turn so far still counts)", () => {
+    const buffers = new Map<string, AttentionEventLite[]>([["life|e", [sel(1, "t1"), sel(2, "t2"), sel(3, "t2")]]]);
+    expect(computeTemporalActivation(buffers, small).window_turns).toBeNull();
+  });
+
+  it("counts the turns (bursts) a full window holds; the shortest full scope wins", () => {
+    const buffers = new Map<string, AttentionEventLite[]>([
+      // 6 events, window 4: t3 t3 t4 t5 -> 3 turns.
+      ["life|e", [sel(1, "t1"), sel(2, "t2"), sel(3, "t3"), sel(4, "t3"), sel(5, "t4"), sel(6, "t5")]],
+      // full, 4 distinct turns.
+      ["self|e", [sel(7, "u1"), sel(8, "u2"), sel(9, "u3"), sel(10, "u4")]],
+      // not full: ignored.
+      ["diary|e", [sel(11, "v1")]],
+    ]);
+    expect(computeTemporalActivation(buffers, small).window_turns).toBe(3);
+  });
+
+  it("the legend titles say RECENT and how recent", () => {
+    const titles = warmthLegendTitles({ window_turns: 14, config: ENGINE_DEFAULT_CONFIG });
+    for (const t of [titles.together, titles.now]) {
+      expect(t).toMatch(/RECENTLY: about the last 14 turns \(the newest 8,192 attention events per memory scope/);
+    }
+    expect(titles.together).toMatch(/While a recall is lit, only the pairs THIS turn used are green/);
+    expect(titles.now).toMatch(/While a recall is lit, only the memories on this turn's shelf glow/);
+    expect(recentWords({ window_turns: 1, config: ENGINE_DEFAULT_CONFIG })).toMatch(/about the last 1 turn \(/);
+    expect(recentWords({ window_turns: null, config: ENGINE_DEFAULT_CONFIG })).toMatch(/^every turn so far/);
   });
 });

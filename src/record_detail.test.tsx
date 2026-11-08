@@ -206,6 +206,7 @@ describe("the recall and feeling cards", () => {
     used_record_ids: ["r1", "r2"],
     prompt_token_estimate: 300,
     committed: true,
+    used_pairs: new Map(),
   };
 
   it("leads with what came to mind and why, then the facts, then each list with its titles as Markdown", () => {

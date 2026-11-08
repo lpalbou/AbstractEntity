@@ -55,7 +55,7 @@ import { foldUpToIndex, isDiaryGraphId, lastLifeChangeSeq, mergeEnvelopes, type 
 const LIVE_CHECK_MS = 20_000;
 const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
-import { computeTemporalActivation } from "./temporal_activation";
+import { computeTemporalActivation, warmthLegendTitles } from "./temporal_activation";
 import { activeRuledPhase, dayCauseLine, deriveLifeState, type ClientVisitSignal } from "./entity_state";
 import { substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { getEntitySubstrate } from "./stream_source";
@@ -1501,6 +1501,7 @@ export function EntityView(): React.ReactElement {
   // global counts. Pure over the fold's bounded attention windows —
   // recomputes once per fold change, not per frame.
   const temporal = useMemo(() => computeTemporalActivation(fold.attention), [fold]);
+  const warmthTitles = useMemo(() => warmthLegendTitles(temporal), [temporal]);
 
   // Wall-clock honesty for the warmth (data-adversary finding, measured on
   // Castor: journal frozen since Jul 9 while the head still rendered warm):
@@ -2397,10 +2398,7 @@ export function EntityView(): React.ReactElement {
               </span>
             ))}
             <span className="lg_sep" />
-            <span
-              className="lg_edge"
-              title="usage trail — turns green when the two memories served a RECENT moment together (temporal count: decays with activity, so old habits fade back to grey); line width grows with lifetime co-use; flashes in the accent colour when just traveled"
-            >
+            <span className="lg_edge" title={warmthTitles.together}>
               {/* SVG strokes ride the SAME tokens the canvas resolves — the
                 * legend must never diverge from what it explains (adversarial
                 * round 2: hardcoded swatches went invisible on light). */}
@@ -2409,7 +2407,7 @@ export function EntityView(): React.ReactElement {
               </svg>
               warm together
             </span>
-            <span className="lg_edge" title="green glow — this memory was RECENTLY selected (temporal count: decays with activity); node SIZE carries the lifetime count, which never decays">
+            <span className="lg_edge" title={warmthTitles.now}>
               <svg width="14" height="14" aria-hidden="true">
                 <circle cx="7" cy="7" r="6" fill="var(--adm-both)" opacity="0.35" />
                 <circle cx="7" cy="7" r="3" fill="var(--memory)" />

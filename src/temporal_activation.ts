@@ -109,6 +109,11 @@ export interface TemporalActivation {
    * hundreds of ranks deep — honest decay that reads as data loss unless
    * the legend says why (fable5 verdict, laurent c5439). */
   head_burst: { total: number; selected: number; trace_id: string } | null;
+  /** How far back "recent" reaches, in TURNS (bursts — the decay's own
+   * distance unit): the fewest bursts any FULL scope window holds (the
+   * scope whose recency is shortest). Null while no window is full — every
+   * turn so far still counts, the older ones fainter. */
+  window_turns: number | null;
 }
 
 /** Weight for a stream event: the journaled weight when present (scoring
@@ -200,6 +205,7 @@ export function computeTemporalActivation(
 ): TemporalActivation {
   const records = new Map<string, number>();
   const pairs = new Map<string, number>();
+  let window_turns: number | null = null;
 
   for (const buf of buffers.values()) {
     // Window: last window_limit events, walked newest -> oldest.
@@ -238,6 +244,11 @@ export function computeTemporalActivation(
         records.set(ev.record_id, Math.min(Math.max(prev + c, 0), config.max_activation));
       }
     }
+    // A full window has let older turns fall out: its burst count is how
+    // far back this scope's "recent" reaches.
+    if (buf.length >= config.window_limit && rank >= 0) {
+      window_turns = window_turns === null ? rank + 1 : Math.min(window_turns, rank + 1);
+    }
   }
   // The wash measure: find the globally newest attention event (by seq)
   // and count how many events share its trace — one commit's deposit.
@@ -260,7 +271,27 @@ export function computeTemporalActivation(
     }
     head_burst = { total, selected, trace_id: newest.trace_id };
   }
-  return { records, pairs, config, head_burst };
+  return { records, pairs, config, head_burst, window_turns };
+}
+
+/** "Recent" in words for the legend (operator 2026-11-08: warm together
+ * and warm now are RECENT — say how recent). */
+export function recentWords(t: Pick<TemporalActivation, "window_turns" | "config">): string {
+  const events = t.config.window_limit.toLocaleString("en-US");
+  if (t.window_turns === null) {
+    return `every turn so far, the older ones fainter (the recency window of ${events} attention events per memory scope is not full yet)`;
+  }
+  const n = t.window_turns;
+  return `about the last ${n} turn${n === 1 ? "" : "s"} (the newest ${events} attention events per memory scope; a quieter scope reaches further back), the older ones fainter`;
+}
+
+/** The legend's hover titles for the two warmth swatches. */
+export function warmthLegendTitles(t: Pick<TemporalActivation, "window_turns" | "config">): { together: string; now: string } {
+  const recent = recentWords(t);
+  return {
+    together: `usage trail — green when the two memories were used together RECENTLY: ${recent}. Line width grows with lifetime co-use; flashes in the accent colour when just traveled. While a recall is lit, only the pairs THIS turn used are green.`,
+    now: `green glow — this memory was selected RECENTLY: ${recent}. Node SIZE carries the lifetime count, which never decays. While a recall is lit, only the memories on this turn's shelf glow.`,
+  };
 }
 
 /** Presentation normalization: activation -> [0,1] intensity.

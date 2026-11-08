@@ -13,14 +13,21 @@ import {
   admissionClass,
   canvasRecall,
   answerLanded,
+  DIMMED_EDGE,
   dimRampSec,
+  edgeDimTarget,
+  edgeWarmthShown,
   emphasisDriver,
   HOVER_RAMP_SEC,
+  nodeGlowShown,
+  RECALL_GLOW_SCALE,
   resolveSelection,
   RECALL_RAMP_SEC,
   recallEmphasis,
   recallLegendText,
+  TURN_PAIR_WARMTH,
 } from "./recall_emphasis";
+import { computeTemporalActivation, nodeWarmth, pairWarmth } from "./temporal_activation";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope {
   return {
@@ -278,5 +285,135 @@ describe("resolveSelection", () => {
     expect(resolveSelection(fold, null)).toBeNull();
     // A selection the canvas sees outranks the recall (Detail shows it).
     expect(emphasisDriver({ filter: false, hover: false, selected: fold.nodes.has(resolveSelection(fold, "ex:memory-b")!), recall: true })).toBe("focus");
+  });
+});
+
+function coSelected(seq: number, a: string, b: string, traceId: string, pair?: Array<Record<string, unknown>>): ReplayEnvelope {
+  return env(
+    seq,
+    "event",
+    { kind: "co_selected", scope: "life", owner_id: "entity:test", record_id: null, pair_ids: [a, b], weight: 4, event_id: `e${seq}`, seq },
+    { trace_id: traceId, ...(pair ? { display: { pair } as unknown as ReplayEnvelope["display"] } : {}) },
+  );
+}
+
+/** Two turns. Turn 1 shelves b, c, e and uses b+c and c+e together; turn 2
+ * shelves b, c, d (e DROPPED) and uses only c+d together. Before turn 2's
+ * answer lands, b and c share the shelf and were used together EARLIER,
+ * and e is still warm from turn 1. */
+function twoTurns(): ReplayEnvelope[] {
+  return [
+    binding(1, "ex:memory-b", "memory", "the media server"),
+    binding(2, "ex:memory-c", "memory", "the blue door"),
+    binding(3, "ex:memory-d", "memory", "the harbour"),
+    binding(4, "ex:memory-e", "memory", "the old route"),
+    trace(10, "tr1", ["ex:memory-b", "ex:memory-c", "ex:memory-e"], { "ex:memory-b": "stimulus", "ex:memory-c": "stimulus", "ex:memory-e": "stimulus" }),
+    selectedEvent(11, "ex:memory-b", "tr1"),
+    selectedEvent(12, "ex:memory-c", "tr1"),
+    selectedEvent(13, "ex:memory-e", "tr1"),
+    coSelected(14, "ex:memory-b", "ex:memory-c", "tr1"),
+    coSelected(15, "ex:memory-c", "ex:memory-e", "tr1"),
+    binding(20, "ex:episode-1", "episode", "exchange: first"),
+    trace(30, "tr2", ["ex:memory-b", "ex:memory-c", "ex:memory-d"], { "ex:memory-b": "stimulus", "ex:memory-c": "stimulus", "ex:memory-d": "stimulus" }, ["ex:memory-e"]),
+    selectedEvent(31, "ex:memory-c", "tr2"),
+    selectedEvent(32, "ex:memory-d", "tr2"),
+    coSelected(33, "ex:memory-c", "ex:memory-d", "tr2"),
+    // A co-use with no trace belongs to no turn.
+    env(34, "event", { kind: "co_selected", scope: "life", owner_id: "entity:test", record_id: null, pair_ids: ["ex:memory-b", "ex:memory-d"], weight: 4, event_id: "e34", seq: 34 }),
+  ];
+}
+
+const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+describe("each turn's used-together pairs (operator 2026-11-08: more edges lit than visited)", () => {
+  it("the fold records a turn's co-use pairs on its own beat, and only its own", () => {
+    const fold = foldEnvelopes(twoTurns());
+    expect([...fold.beats.get("tr1")!.used_pairs.keys()].sort()).toEqual([key("ex:memory-b", "ex:memory-c"), key("ex:memory-c", "ex:memory-e")]);
+    expect([...fold.beats.get("tr2")!.used_pairs.keys()]).toEqual([key("ex:memory-c", "ex:memory-d")]);
+    // The traceless co-use made an edge but is no turn's pair.
+    expect(fold.edges.has(key("ex:memory-b", "ex:memory-d"))).toBe(true);
+  });
+
+  it("the recall carries THIS turn's pairs — not the earlier pair between two memories on its shelf", () => {
+    const fold = foldEnvelopes(twoTurns());
+    const e = recallEmphasis(fold, 34)!;
+    expect(e.trace_id).toBe("tr2");
+    expect(e.ids.has("ex:memory-b") && e.ids.has("ex:memory-c")).toBe(true);
+    expect([...e.pairs]).toEqual([key("ex:memory-c", "ex:memory-d")]);
+    // The pairs light as they arrive: before the turn's co-use, none.
+    expect(recallEmphasis(foldEnvelopes(twoTurns(), 32), 32)!.pairs.size).toBe(0);
+    // A ledger pick of the earlier beat shows ITS pairs.
+    expect([...canvasRecall(fold, 34, "beat:tr1")!.pairs].sort()).toEqual([key("ex:memory-b", "ex:memory-c"), key("ex:memory-c", "ex:memory-e")]);
+  });
+
+  it("a pair deposited before its node re-keyed (graph id -> row id) still names the drawn edge", () => {
+    const envs = [
+      binding(1, "ex:memory-b1", "memory", "the media server"),
+      binding(2, "ex:memory-c1", "memory", "the blue door"),
+      trace(10, "tr1", ["ex:memory-b1", "ex:memory-c1"], { "ex:memory-b1": "stimulus", "ex:memory-c1": "stimulus" }),
+      // An edge row of b (relation title) resolves onto b's GRAPH node; c's
+      // row reveals itself and re-keys c at once.
+      coSelected(11, "row-edge", "row-c", "tr1", [
+        { record_id: "row-edge", title: "ex:memory-b1 knows", graph_id: "ex:memory-b1" },
+        { record_id: "row-c", title: "the blue door", graph_id: "ex:memory-c1" },
+      ]),
+      // b's own row is revealed later: b re-keys to row-b.
+      env(12, "event", { kind: "listed", scope: "life", owner_id: "entity:test", record_id: "row-b", pair_ids: null, weight: 0, matched: false, event_id: "e12", seq: 12 }, {
+        display: { record_id: "row-b", graph_id: "ex:memory-b1", title: "the media server" } as ReplayEnvelope["display"],
+      }),
+    ];
+    const fold = foldEnvelopes(envs);
+    expect([...fold.beats.get("tr1")!.used_pairs.keys()]).toEqual([key("ex:memory-b1", "row-c")]);
+    const e = recallEmphasis(fold, 12)!;
+    expect([...e.pairs]).toEqual([key("row-b", "row-c")]);
+    expect(fold.edges.has(key("row-b", "row-c"))).toBe(true);
+  });
+});
+
+describe("what the canvas lights under the recall", () => {
+  it("edgeDimTarget: under the recall only this turn's pairs are lit; other drivers keep both-ends-lit", () => {
+    const shelf = new Set(["b", "c", "d"]);
+    const pairs = new Set([key("c", "d")]);
+    expect(edgeDimTarget(shelf, pairs, "c", "d", key("c", "d"))).toBe(1);
+    // Both ends on the shelf, used together only EARLIER: dimmed.
+    expect(edgeDimTarget(shelf, pairs, "b", "c", key("b", "c"))).toBe(DIMMED_EDGE);
+    // A born-linked edge between two shelf memories: dimmed (no turn uses it).
+    expect(edgeDimTarget(shelf, pairs, "c", "d", null)).toBe(DIMMED_EDGE);
+    // Hover/selection/filter: lit when both ends are emphasized (unchanged).
+    expect(edgeDimTarget(shelf, null, "b", "c", key("b", "c"))).toBe(1);
+    expect(edgeDimTarget(shelf, null, "b", "e", key("b", "e"))).toBe(DIMMED_EDGE);
+    expect(edgeDimTarget(null, null, "b", "e", key("b", "e"))).toBe(1);
+  });
+
+  it("edgeWarmthShown: under the recall green means used THIS turn, never multi-turn warmth", () => {
+    const pairs = new Set([key("c", "d")]);
+    expect(edgeWarmthShown(pairs, key("c", "d"), 0)).toBe(TURN_PAIR_WARMTH);
+    expect(edgeWarmthShown(pairs, key("b", "c"), 0.9)).toBe(0);
+    expect(edgeWarmthShown(null, key("b", "c"), 0.9)).toBe(0.9);
+  });
+
+  it("nodeGlowShown: under the recall only the shelf glows (stepped back); at rest the warmth glows as before", () => {
+    const shelf = new Set(["b"]);
+    expect(nodeGlowShown(shelf, "b", 0.8)).toBeCloseTo(0.8 * RECALL_GLOW_SCALE);
+    expect(nodeGlowShown(shelf, "e", 0.8)).toBe(0);
+    expect(nodeGlowShown(null, "e", 0.8)).toBe(0.8);
+  });
+
+  it("on a real fold: green lit edges = this turn's pairs; the dropped warm memory does not glow", () => {
+    const fold = foldEnvelopes(twoTurns());
+    const temporal = computeTemporalActivation(fold.attention);
+    const recall = recallEmphasis(fold, 34)!;
+    // Resting view: three warm trails (two from turn 1), e still warm.
+    const warmAtRest = [...fold.edges.values()].filter((e) => pairWarmth(temporal.pairs.get(e.key) ?? 0) > 0).length;
+    expect(warmAtRest).toBe(4);
+    expect(nodeWarmth(temporal.records.get("ex:memory-e") ?? 0)).toBeGreaterThan(0.02);
+    // Under the recall.
+    const greenLit = [...fold.edges.values()].filter(
+      (e) => edgeDimTarget(recall.ids, recall.pairs, e.a, e.b, e.key) === 1 && edgeWarmthShown(recall.pairs, e.key, pairWarmth(temporal.pairs.get(e.key) ?? 0)) > 0,
+    );
+    expect(greenLit.map((e) => e.key)).toEqual([key("ex:memory-c", "ex:memory-d")]);
+    const glowing = [...fold.nodes.values()].filter((n) => nodeGlowShown(recall.ids, n.id, nodeWarmth(temporal.records.get(n.id) ?? 0)) > 0.02).map((n) => n.id);
+    expect(glowing).not.toContain("ex:memory-e");
+    expect(glowing.sort()).toEqual(["ex:memory-b", "ex:memory-c", "ex:memory-d"]);
   });
 });

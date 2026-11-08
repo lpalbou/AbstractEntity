@@ -4,6 +4,17 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The recall highlight lights only what this turn used.** While a recall was lit, the graph
+  still drew the green "warm together" lines of earlier turns at full strength (954 on Nerin's
+  turn trace 57c187ee before he answered), and memories an earlier recall had picked, including
+  ones dropped this turn, kept a faint glow. Now each turn records the pairs it used together.
+  While the highlight is on, only those pairs are green (561 on that turn, every pair among its
+  34 matched memories). Every other line dims like the memories that were not recalled, and only
+  the memories recalled for this turn glow (55 on that turn). The highlight still clears when he
+  answers. The resting view is unchanged. Its legend now says what "recent" means: hovering
+  "warm together" or "warm now" says it covers about the last N turns (14 on Nerin's life
+  today), with older turns fainter (operator 2026-11-08: "it selects more nodes & edges on the
+  graph than have been visited").
 - **Detail shows a memory's summary, who wrote it, and how it was understood before.** Opening a
   session summary showed an empty shell ("The fuller summary arrives once this memory is
   recalled", and "The words as saved: none kept"). Now Detail leads with the summary the gateway

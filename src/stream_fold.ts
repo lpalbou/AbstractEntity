@@ -185,6 +185,13 @@ export interface BeatState {
   used_record_ids: string[];
   prompt_token_estimate: number | null;
   committed: boolean;
+  /** The pairs THIS turn used together (its co_selected events), keyed by
+   * the fold's edge key at deposit time; the endpoints are the node ids as
+   * they resolved then. Readers re-resolve them (a later graph -> row merge
+   * re-keys a node), exactly like `selected`. The recall highlight greens
+   * only these (operator 2026-11-08: "it selects more nodes & edges on the
+   * graph than have been visited"). Small: one shelf's matched pairs. */
+  used_pairs: Map<string, readonly [string, string]>;
 }
 
 export interface SessionMarker {
@@ -263,7 +270,7 @@ export function createFoldState(): FoldState {
 
 // ------------------------------------------------------------- helpers
 
-function edgeKey(a: string, b: string): string {
+export function edgeKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
@@ -506,6 +513,7 @@ function getBeat(state: FoldState, trace_id: string, seq: number): BeatState {
       used_record_ids: [],
       prompt_token_estimate: null,
       committed: false,
+      used_pairs: new Map(),
     };
     state.beats.set(trace_id, beat);
     state.beat_order.push(trace_id);
@@ -731,12 +739,15 @@ function applyEvent(state: FoldState, env: ReplayEnvelope): void {
       pushAttentionEvent(state.attention, scopeKey, {
         kind,
         record_id: null,
-        pair_key: edgeKey(na.id, nb.id),
+        pair_key: key,
         weight: eventWeight(kind, p.weight),
         ttl_activity: null,
         seq: env.seq,
         trace_id: env.trace_id ?? null,
       });
+      // The turn's own record of what it used together (its beat).
+      const beat = env.trace_id ? state.beats.get(env.trace_id) : undefined;
+      if (beat && !beat.used_pairs.has(key)) beat.used_pairs.set(key, [na.id, nb.id]);
     } else {
       // Merged self-pair: still real activity on the axis — occupies a
       // window slot (engine parity) but credits no rendered edge.

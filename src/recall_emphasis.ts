@@ -14,7 +14,7 @@
  * mechanism (the hover mechanism); nothing here draws.
  */
 
-import type { BeatState, FoldState } from "./stream_fold";
+import { edgeKey, type BeatState, type FoldState } from "./stream_fold";
 
 /** The three classes a person reads (the ledger's own grouping:
  * "present by right / from continuity / matched"; "both" = matched +
@@ -42,6 +42,11 @@ export interface RecallEmphasis {
   classes: Map<string, RecallClass>;
   /** node id -> the raw admission label (self/stm/stimulus/both). */
   labels: Map<string, string>;
+  /** Edge keys ("a|b", the fold's edges) of the pairs THIS turn used
+   * together — its co_selected events so far, re-resolved to today's node
+   * ids. Two memories that merely share the shelf, or that earlier turns
+   * used together, are not in it. */
+  pairs: Set<string>;
   /** Counts over the SHELF (beat.selected), node or not — the truth the
    * ledger line states ("50 on the shelf (6 present by right, …)"). */
   counts: { total: number; self: number; stm: number; matched: number };
@@ -126,7 +131,22 @@ export function beatEmphasis(fold: FoldState, beat: BeatState): RecallEmphasis |
     if (cls) classes.set(nodeId, cls);
     if (label) labels.set(nodeId, label);
   }
-  return { trace_id: beat.trace_id, ids, classes, labels, counts };
+  return { trace_id: beat.trace_id, ids, classes, labels, counts, pairs: turnPairs(fold, beat) };
+}
+
+/** The pairs a turn used together, as today's edge keys: each endpoint
+ * re-resolves through graph_to_row (a node re-keyed after the deposit);
+ * a pair whose ends merged into one node, or whose end no longer resolves,
+ * names no edge and is skipped. */
+export function turnPairs(fold: FoldState, beat: BeatState): Set<string> {
+  const pairs = new Set<string>();
+  for (const [a, b] of beat.used_pairs.values()) {
+    const ra = resolveNodeId(fold, a);
+    const rb = resolveNodeId(fold, b);
+    if (ra === null || rb === null || ra === rb) continue;
+    pairs.add(edgeKey(ra, rb));
+  }
+  return pairs;
 }
 
 /** The legend line: "50 memories recalled for this turn: 6 present by
@@ -162,6 +182,52 @@ export function emphasisDriver(args: {
   if (args.hover || args.selected) return "focus";
   if (args.recall) return "recall";
   return null;
+}
+
+/** Emphasis targets the canvas eases toward (1 = full). */
+export const DIMMED_NODE = 0.12;
+export const DIMMED_EDGE = 0.08;
+
+/** The dim target of one edge this frame. `turnPairs` is the recall's
+ * pairs when the RECALL drives the canvas (else null): then an edge is lit
+ * only when this turn used its pair — two shelf memories that merely share
+ * the shelf, or that earlier turns used together, dim like everything off
+ * the shelf (operator 2026-11-08: "it selects more nodes & edges on the
+ * graph than have been visited"). `pairKey` is the co-use edge's key; a
+ * born-linked (structural) edge passes null — no turn uses it, so it dims
+ * under the recall. Every other driver keeps its rule: lit when both ends
+ * are emphasized. */
+export function edgeDimTarget(
+  emphasis: ReadonlySet<string> | null,
+  turnPairs: ReadonlySet<string> | null,
+  a: string,
+  b: string,
+  pairKey: string | null,
+): number {
+  if (turnPairs) return pairKey !== null && turnPairs.has(pairKey) ? 1 : DIMMED_EDGE;
+  return emphasis && !(emphasis.has(a) && emphasis.has(b)) ? DIMMED_EDGE : 1;
+}
+
+/** Under the recall the green says "used together THIS turn", one even
+ * green for every pair the turn used; outside the recall it is the
+ * multi-turn temporal warmth (unchanged). */
+export const TURN_PAIR_WARMTH = 0.75;
+
+export function edgeWarmthShown(turnPairs: ReadonlySet<string> | null, pairKey: string, warmth: number): number {
+  if (!turnPairs) return warmth;
+  return turnPairs.has(pairKey) ? TURN_PAIR_WARMTH : 0;
+}
+
+/** The "warm now" glow under the recall: only memories on this turn's
+ * shelf glow (stepped back so the recall rings carry the moment); a memory
+ * an EARLIER shelf picked — dropped this turn or never a candidate — is
+ * dimmed, never glowing. `shelf` is the recall's ids when the recall
+ * drives the canvas (else null: the resting warmth view, unchanged). */
+export const RECALL_GLOW_SCALE = 0.35;
+
+export function nodeGlowShown(shelf: ReadonlySet<string> | null, id: string, warmth: number): number {
+  if (!shelf) return warmth;
+  return shelf.has(id) ? warmth * RECALL_GLOW_SCALE : 0;
 }
 
 /** Dim ramp duration (seconds) for the CURRENT frame: the recall eases

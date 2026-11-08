@@ -24,7 +24,18 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { FoldState, NodeState, StandingState } from "./stream_fold";
 import { ADMISSION_LABELS } from "./stream_types";
-import { canvasRecall, dimRampSec, emphasisDriver, recallLegendParts, resolveSelection, type RecallClass } from "./recall_emphasis";
+import {
+  canvasRecall,
+  DIMMED_NODE,
+  dimRampSec,
+  edgeDimTarget,
+  edgeWarmthShown,
+  emphasisDriver,
+  nodeGlowShown,
+  recallLegendParts,
+  resolveSelection,
+  type RecallClass,
+} from "./recall_emphasis";
 import "./graph_canvas.css";
 import {
   canvasLabel,
@@ -1025,8 +1036,16 @@ export function GraphCanvas({
         else anim.set(key, next);
         return next;
       };
-      const nodeDim = (id: string) => easedDim(id, emphasis && !emphasis.has(id) ? 0.12 : 1);
-      const edgeDim = (a: string, b: string) => easedDim(`${a}\u0000${b}`, emphasis && !(emphasis.has(a) && emphasis.has(b)) ? 0.08 : 1);
+      const nodeDim = (id: string) => easedDim(id, emphasis && !emphasis.has(id) ? DIMMED_NODE : 1);
+      // Under the RECALL only the pairs this turn used stay lit and green,
+      // and only its shelf glows (recall_emphasis.edgeDimTarget /
+      // nodeGlowShown); both are null for every other driver. Co-use edges
+      // ease under their own key; born-linked edges under an "s" key, so
+      // the two never fight over one eased value.
+      const turnPairs = driver === "recall" && recall ? recall.pairs : null;
+      const glowShelf = driver === "recall" && recall ? recall.ids : null;
+      const edgeDim = (a: string, b: string, pairKey: string | null) =>
+        easedDim(pairKey ?? `s\u0000${a}\u0000${b}`, edgeDimTarget(emphasis, turnPairs, a, b, pairKey));
 
       // The search/lens overlay floats over the canvas top-left — text
       // drawn under it becomes unreadable double-exposure (both review
@@ -1083,7 +1102,7 @@ export function GraphCanvas({
         if (!la || !lb) continue;
         const a = toScreen(la.x, la.y);
         const b = toScreen(lb.x, lb.y);
-        const dim = edgeDim(se.a, se.b);
+        const dim = edgeDim(se.a, se.b, null);
         ctx.globalAlpha = dim;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -1144,7 +1163,7 @@ export function GraphCanvas({
         const b = toScreen(lb.x, lb.y);
         const age = scrubSeq - e.last_seq;
         const recent = age >= 0 && age <= pulseWindow ? 1 - age / pulseWindow : 0;
-        const warmth = pairWarmth(temporal.pairs.get(e.key) ?? 0);
+        const warmth = edgeWarmthShown(turnPairs, e.key, pairWarmth(temporal.pairs.get(e.key) ?? 0));
         // Co-use edges are far more transparent now (operator 2026-07-15
         // (f): hundreds of count-1 trails made an unreadable hairball).
         // A one-time co-use is a near-invisible whisper (0.045); lifetime
@@ -1155,7 +1174,7 @@ export function GraphCanvas({
           e.count <= 1 ? 0.045 : Math.min(0.3, 0.07 + Math.log1p(e.count) * 0.07),
           warmth * 0.4,
         );
-        ctx.globalAlpha = edgeDim(e.a, e.b);
+        ctx.globalAlpha = edgeDim(e.a, e.b, e.key);
         // The GREEN trail always draws (memory's investigator, c5458: the
         // amber "just traveled" flash used to REPLACE the green — so the
         // warmest edges, being the most recently traveled, were exactly
@@ -1298,8 +1317,10 @@ export function GraphCanvas({
         // shows no bloom; size already carries its lifetime weight. Drawn
         // UNDER the fill so the kind color stays crisp.
         // While a recall is lit, the warm bloom steps back so the recall
-        // rings carry the moment (green = warmth must not fight them).
-        const warmth = nodeWarmth(temporal.records.get(node.id) ?? 0) * (driver === "recall" ? 0.35 : 1);
+        // rings carry the moment (green = warmth must not fight them), and
+        // only the shelf glows: a memory an earlier shelf picked is dimmed,
+        // never glowing (operator 2026-11-08).
+        const warmth = nodeGlowShown(glowShelf, node.id, nodeWarmth(temporal.records.get(node.id) ?? 0));
         if (!isGhost && warmth > 0.02) {
           const bloomR = r * (1.7 + warmth * 1.5);
           const glow = ctx.createRadialGradient(p.x, p.y, r * 0.6, p.x, p.y, bloomR);
