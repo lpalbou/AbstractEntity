@@ -2380,6 +2380,36 @@ body {
   opacity: 0.32;
 }
 
+/* A line that just landed while the reader follows live: a discreet accent
+ * wash on the row and its left edge, fading over ~1.8 s (operator
+ * 2026-11-08: "a nice and discreet animation / flash to inform of a new
+ * event"). Runs once per row mount; the row keeps its colour key. */
+.el_row_new {
+  animation: el_row_land 1.8s ease-out;
+}
+
+@keyframes el_row_land {
+  0% {
+    background: color-mix(in srgb, var(--ea-accent) 26%, transparent);
+    border-left-color: var(--ea-accent);
+  }
+  35% {
+    background: color-mix(in srgb, var(--ea-accent) 18%, transparent);
+    border-left-color: var(--ea-accent);
+  }
+  100% {
+    background: transparent;
+    border-left-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .el_row_new {
+    animation: none;
+    border-left-color: var(--ea-accent);
+  }
+}
+
 /* What he is doing now, above the ledger. */
 .now_line {
   display: flex;

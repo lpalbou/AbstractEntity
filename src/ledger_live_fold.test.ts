@@ -225,6 +225,36 @@ describe("live follow", () => {
     expect(el.scrollTop).toBe(kept);
   });
 
+  it("wired to a list: content growing after a landing (Markdown rendering, a line growing in place) keeps the bottom in view", () => {
+    const { el } = fakeList();
+    const content = {} as Element;
+    const refs = { stick: { current: true }, lastTop: { current: 0 } };
+    attachLiveFollow(el, refs, () => {}, FakeObserver, content);
+    el.scrollHeight += 700; // rows rendered their words a beat after the count moved
+    FakeObserver.resize(content);
+    expect(el.scrollTop).toBe(el.scrollHeight - el.clientHeight);
+  });
+
+  it("wired to a list: content growing does not move a reader who scrolled up", () => {
+    const { el, scroll } = fakeList();
+    const content = {} as Element;
+    const refs = { stick: { current: true }, lastTop: { current: 0 } };
+    attachLiveFollow(el, refs, () => {}, FakeObserver, content);
+    scroll(el.scrollTop - 400);
+    const kept = el.scrollTop;
+    el.scrollHeight += 700;
+    FakeObserver.resize(content);
+    expect(el.scrollTop).toBe(kept);
+  });
+
+  it("only the lines past the newest seen index count as landed, oldest first", async () => {
+    const { landedIndices } = await import("./ledger_panel");
+    const lines = [{ index: 3 }, { index: 7 }, { index: 9 }, { index: 12 }];
+    expect(landedIndices(lines, 7)).toEqual([9, 12]);
+    expect(landedIndices(lines, 12)).toEqual([]);
+    expect(landedIndices([], 0)).toEqual([]);
+  });
+
   it("wired to a list: revealing the hidden tab lands on the newest line", () => {
     const { el } = fakeList();
     el.clientHeight = 0; // display:none: scrolling is a no-op

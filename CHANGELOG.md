@@ -4,6 +4,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The ledger follows the newest events only while you are at the bottom, and each landing flashes.**
+  The live follow now watches the list's content, not only its box: a row that renders its words a beat
+  after it landed, or a line that grows in place, moved the list without moving the follow, so the view
+  fell a few lines short of the newest event. Rows that land while you follow live get a discreet accent
+  wash that fades over ~1.8 s (none under reduced motion, where only the left edge marks them); nothing
+  flashes while his life is still streaming in. Rows are keyed by their place in the fold, so a window
+  slide no longer remounts (or re-flashes) them. Scrolled up, the list stays where you left it and the
+  "N new lines below" pill counts what landed, as before (operator 2026-11-08).
 - **The ledger keeps following even if the live connection stalls.** While live, the page checks
   every 20 seconds that it holds the gateway's latest events; if the connection went quiet while
   newer events exist, it fetches what it missed and reconnects.

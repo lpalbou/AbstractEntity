@@ -211,6 +211,17 @@ function LedgerKey(props: { showQuiet: boolean }): React.ReactElement {
 /** Distance from the bottom that still counts as "at the bottom". */
 const FOLLOW_SLACK_PX = 80;
 
+/** How long a landed row keeps its flash class (the CSS fade is shorter). */
+export const LANDING_FLASH_MS = 4000;
+
+/** Indices of the lines that landed after `prevTop` (the newest index the
+ * reader had seen). Pure, so the flash set is testable without a DOM. */
+export function landedIndices(lines: ReadonlyArray<{ index: number }>, prevTop: number): number[] {
+  const out: number[] = [];
+  for (let i = lines.length - 1; i >= 0 && lines[i].index > prevTop; i--) out.push(lines[i].index);
+  return out.reverse();
+}
+
 /** The live follow after a scroll event. At the bottom it follows; only a
  * scroll that moved UP (the reader) detaches it. Lines landing grow the
  * list without moving it and our own jump to the bottom only moves down,
@@ -244,6 +255,7 @@ export function attachLiveFollow(
   refs: FollowRefs,
   onAtBottom: () => void,
   Observer: typeof ResizeObserver = ResizeObserver,
+  content?: Element | null,
 ): () => void {
   const onScroll = () => {
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
@@ -251,12 +263,18 @@ export function attachLiveFollow(
     if (refs.stick.current && gap <= FOLLOW_SLACK_PX) onAtBottom();
     refs.lastTop.current = el.scrollTop;
   };
+  // Fires when the list is revealed (its own box changes) AND when its
+  // CONTENT grows (operator 2026-11-08: "keep tracking the last events"):
+  // a landed row renders its Markdown a beat after the row count moved,
+  // and a line that grows in place moves no count at all — observing the
+  // container alone missed both, so the follow fell a few lines short.
   const revealed = new Observer(() => {
     if (refs.stick.current && el.clientHeight > 0) jumpToBottom(el, refs.lastTop);
   });
   refs.stick.current = true;
   jumpToBottom(el, refs.lastTop);
   revealed.observe(el as unknown as Element);
+  if (content) revealed.observe(content);
   el.addEventListener("scroll", onScroll, { passive: true });
   return () => {
     revealed.disconnect();
@@ -333,12 +351,20 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
   // this job — weave rows and boundary rows have no current marker.
   const stickRef = useRef(true);
   const lastTopRef = useRef(0);
+  const innerRef = useRef<HTMLDivElement | null>(null);
   const seenRef = useRef({ rows: renderItems.length, showQuiet });
   const [missedBelow, setMissedBelow] = useState(0);
+  // Lines that landed while the reader watched live: their rows get the
+  // landing flash (a discreet accent wash that fades). The first fold and
+  // the catch-up stream are not landings — nothing flashes until his life
+  // has streamed in; the set forgets a line after the flash has faded so a
+  // row remounted later (a window slide) does not flash again.
+  const freshRef = useRef<Set<number>>(new Set());
+  const topIndexRef = useRef<number | null>(null);
   useEffect(() => {
     const el = listRef.current;
     if (!el || !props.live) return;
-    return attachLiveFollow(el, { stick: stickRef, lastTop: lastTopRef }, () => setMissedBelow(0));
+    return attachLiveFollow(el, { stick: stickRef, lastTop: lastTopRef }, () => setMissedBelow(0), ResizeObserver, innerRef.current);
   }, [props.live]);
   useEffect(() => {
     // Runs on every visible LINE (a weave grows in place, its row count
@@ -347,7 +373,16 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
     const seen = seenRef.current;
     const landed = seen.showQuiet === showQuiet ? renderItems.length - seen.rows : 0;
     seenRef.current = { rows: renderItems.length, showQuiet };
+    const top = lines.length > 0 ? lines[lines.length - 1].index : -1;
+    const prevTop = topIndexRef.current;
+    topIndexRef.current = top;
     if (!props.live) return;
+    if (prevTop !== null && !props.loadingNote && top > prevTop) {
+      const fresh = freshRef.current;
+      const added = landedIndices(lines, prevTop);
+      added.forEach((i) => fresh.add(i));
+      window.setTimeout(() => added.forEach((i) => fresh.delete(i)), LANDING_FLASH_MS);
+    }
     const el = listRef.current;
     if (!el) return;
     if (stickRef.current) {
@@ -356,7 +391,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
     } else if (landed > 0) {
       setMissedBelow((n) => n + landed);
     }
-  }, [visible.length, renderItems.length, showQuiet, props.live]);
+  }, [lines, visible.length, renderItems.length, showQuiet, props.live, props.loadingNote]);
 
   const renderRow = (renderItem: RenderItem, rowIdx: number): React.ReactElement => {
       if (renderItem.kind === "weave") {
@@ -370,7 +405,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
         return (
           <React.Fragment key={key}>
             <div
-              className={`el_row el_tone_${weaveTone} el_weave ${reached ? "" : "el_row_future"}`}
+              className={`el_row el_tone_${weaveTone} el_weave ${reached ? "" : "el_row_future"} ${freshRef.current.has(last.index) ? "el_row_new" : ""}`}
               onClick={(e) => {
                 if (fromLink(e)) return;
                 setExpandedWeaves((prev) => {
@@ -452,8 +487,10 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
       const target = lineTarget(line);
       return (
         <div
-          key={`${line.seq}-${rowIdx}`}
-          className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""} ${target ? "el_row_open" : ""}`}
+          // Keyed by the line's place in the fold, not its place in the
+          // window: a window slide must not remount (and re-flash) rows.
+          key={`${line.seq}-${index}`}
+          className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""} ${target ? "el_row_open" : ""} ${freshRef.current.has(index) ? "el_row_new" : ""}`}
           title={
             target
               ? target.startsWith("beat:")
@@ -509,6 +546,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
       ) : null}
       <LedgerKey showQuiet={showQuiet} />
       <div className="el_list" ref={listRef}>
+       <div className="el_list_inner" ref={innerRef}>
         {windowed.hiddenBefore > 0 ? (
           <div className="el_window_note">
             <WordsLine text={`${windowed.hiddenBefore} earlier lines — scrub the timeline to bring them into view`} />
@@ -518,8 +556,9 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           const day = dayUtc(rowStamp(renderItem));
           const prevDay = rowIdx > 0 ? dayUtc(rowStamp(windowed.rows[rowIdx - 1])) : "";
           const row = renderRow(renderItem, rowIdx);
+          const firstIndex = renderItem.kind === "line" ? renderItem.item.index : renderItem.items[0].index;
           return day && day !== prevDay ? (
-            <React.Fragment key={`d-${day}-${rowIdx}`}>
+            <React.Fragment key={`d-${day}-${firstIndex}`}>
               <div className="el_date">{dayLabelUtc(rowStamp(renderItem))}</div>
               {row}
             </React.Fragment>
@@ -563,6 +602,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
             </div>
           )
         ) : null}
+       </div>
       </div>
     </div>
   );
