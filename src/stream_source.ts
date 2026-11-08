@@ -1490,11 +1490,13 @@ export interface MentionWire {
 
 /** Mention `entity` in the conversation `sessionId`: the gateway runs `text` as a visit turn of
  * that entity (its visit bound to this session) and records the reply as a turn of the session
- * with its `author`. Ten minutes, as a visit turn (a mention IS one). */
+ * with its `author`. `repeat_of`: the person's own turn of this session that carried the same
+ * words (the gateway marks the mention turn with it; 422 `repeat_of_unknown` when it is not a
+ * turn of this session). Ten minutes, as a visit turn (a mention IS one). */
 export async function postMention(
   baseUrl: string,
   sessionId: string,
-  body: { entity: string; text: string; mention_index: number },
+  body: { entity: string; text: string; mention_index: number; repeat_of?: string },
   token: string | null,
   timeoutMs = 600000,
 ): Promise<MentionWire> {
@@ -1519,21 +1521,6 @@ export async function postMention(
     return { status: res.status, body: parsed, code: bodyCode || res.headers.get("X-Gateway-Error-Code") || null };
   } finally {
     clearTimeout(timer);
-  }
-}
-
-/** Does this gateway serve the mentions route? Asked by method: the route is POST-only, so a
- * GET on it answers 405 where it exists and 404 where it does not (an older gateway). Anything
- * else (signed out, unreachable) is "unknown". */
-export async function probeMentionRoute(baseUrl: string): Promise<"offered" | "absent" | "unknown"> {
-  try {
-    const res = await fetch(joinBaseUrl(baseUrl, "api/gateway/sessions/mention-route-probe/mentions"), {
-      credentials: "include",
-      headers: readHeaders({ Accept: "application/json" }),
-    });
-    return res.status === 405 ? "offered" : res.status === 404 ? "absent" : "unknown";
-  } catch {
-    return "unknown";
   }
 }
 

@@ -6,14 +6,16 @@
  * conversation's session. A mention is a chip picked from the kit's `@` list (fed by
  * `GET /entities`, minus the entity being visited), never `@` read out of the text. On send the
  * person's turn goes to the visited entity exactly as before; then each mention, in the order it
- * was picked, is one `POST /sessions/{session_id}/mentions {entity, text, mention_index}`, the
- * next only once the previous answered (so the second entity sees the first one's answer), and
- * each reply is shown as a turn with its author.
+ * was picked, is one `POST /sessions/{session_id}/mentions {entity, text, mention_index,
+ * repeat_of?}`, the next only once the previous answered (so the second entity sees the first
+ * one's answer), and each reply is shown as a turn with its author. In a visit, the gateway also
+ * says the reply to the entity being visited (`mirrors`): one small line says so.
  *
  * Outcomes (contract): 409 = "<name> is in another conversation", go on to the next; 503 = the
- * gateway's sentence, the message goes back to the composer; 404 = this one cannot be mentioned
- * (hidden is missing), unless the gateway has no mentions route at all (an older gateway): then
- * one sentence, "This gateway does not offer mentions yet", and the list is switched off.
+ * gateway's sentence, the message goes back to the composer; 404 with `entity_not_found` = this
+ * one cannot be mentioned (hidden is missing); a 404 without that code = the gateway has no
+ * mentions route (an older gateway): one sentence, "This gateway does not offer mentions yet",
+ * and the list is switched off; 422 `repeat_of_unknown` = the gateway's sentence.
  *
  * DOM-free; pinned by visit_mentions.test.ts.
  */
@@ -33,7 +35,7 @@ import type { ChatComposerProps } from "./vendor/abstractchat/conversation";
 export const MENTIONS_UNAVAILABLE = "This gateway does not offer mentions yet";
 
 /** The `GET /entities` row slice a mention list reads. */
-export type MentionableEntity = { name: string; slug: string; avatar?: ChatAvatarLook | null };
+export type MentionableEntity = { name: string; slug: string; entity_id?: string; avatar?: ChatAvatarLook | null };
 
 /** The sentence under a chip the first time its name is picked in this conversation. */
 export function mentionNotice(candidate: Pick<ChatMentionCandidate, "name">): string {
@@ -68,33 +70,58 @@ export function mentionCandidatesFor(
   return out;
 }
 
+/** Where the gateway also said a mention's reply (`mirrors`, a visit lane): the visited entity's
+ * live visit, by `entity_id`; `error` when that visit refused it (the mention still stands). */
+export type MentionMirror = { entityId: string; error: string | null };
+
+export function mentionMirrors(value: unknown): MentionMirror[] {
+  if (!Array.isArray(value)) return [];
+  const out: MentionMirror[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const entityId = typeof row.entity_id === "string" ? row.entity_id.trim() : "";
+    if (!entityId) continue;
+    out.push({ entityId, error: typeof row.error === "string" && row.error.trim() ? row.error.trim() : null });
+  }
+  return out;
+}
+
+/** The one small line under a mirrored reply: "Also said to Castor." (each entity by the name
+ * `GET /entities` gives it, else its id as served), and the visits that refused it. Null when
+ * there is no mirror (a plain chat). */
+export function mirrorLine(mirrors: readonly MentionMirror[], nameOf: (entityId: string) => string | null): string | null {
+  if (!mirrors.length) return null;
+  const said = mirrors.filter((m) => !m.error).map((m) => nameOf(m.entityId) || m.entityId);
+  const parts: string[] = [];
+  if (said.length) parts.push(`Also said to ${said.join(" and ")}.`);
+  for (const m of mirrors) if (m.error) parts.push(`Not said to ${nameOf(m.entityId) || m.entityId}: ${m.error}`);
+  return parts.join(" ");
+}
+
 export type MentionOutcome =
   /** 200: the entity answered; its reply is a turn of the session, `author` names it. */
-  | { kind: "reply"; reply: string; author: ChatAuthor | null }
+  | { kind: "reply"; reply: string; author: ChatAuthor | null; mirrors: MentionMirror[] }
   /** 409: its one life is in another conversation (or the visit door's own 409): skip to the next. */
   | { kind: "elsewhere"; sentence: string }
   /** 503: it cannot answer now: stop; the message goes back to the composer. */
   | { kind: "cannot_answer"; sentence: string }
-  /** 404 on a gateway that has the route: this entity cannot be mentioned (hidden = missing). */
+  /** 404 `entity_not_found`: this entity cannot be mentioned (hidden = missing). */
   | { kind: "not_offerable"; sentence: string }
-  /** 404 on a gateway without the route: no mentions on this gateway. */
+  /** 404 without that code: the gateway has no mentions route. */
   | { kind: "route_missing" }
   /** Anything else: stop; the message goes back to the composer. */
   | { kind: "failed"; sentence: string };
 
 const detailOf = (body: Record<string, unknown> | null): string => (body && typeof body.detail === "string" ? body.detail.trim() : "");
 
-/**
- * What one mention's answer means. `routeOffered` decides a 404: true (the gateway has the
- * route) = this entity cannot be mentioned; false = the gateway has no mentions; null (not
- * known) = treated as this entity, never as the whole gateway.
- */
-export function mentionOutcome(name: string, wire: MentionWire, routeOffered: boolean | null): MentionOutcome {
+/** What one mention's answer means (the contract's codes, never the words of a sentence). */
+export function mentionOutcome(name: string, wire: MentionWire): MentionOutcome {
   const detail = detailOf(wire.body);
   if (wire.status >= 200 && wire.status < 300) {
     const reply = wire.body && typeof wire.body.reply === "string" ? wire.body.reply : "";
     if (!reply.trim()) return { kind: "failed", sentence: `${name}'s answer arrived without words.` };
-    return { kind: "reply", reply, author: chatAuthorOf(wire.body?.author) };
+    return { kind: "reply", reply, author: chatAuthorOf(wire.body?.author), mirrors: mentionMirrors(wire.body?.mirrors) };
   }
   if (wire.status === 409) {
     if (wire.code === "in_another_conversation" || !detail) return { kind: "elsewhere", sentence: `${name} is in another conversation.` };
@@ -102,8 +129,11 @@ export function mentionOutcome(name: string, wire: MentionWire, routeOffered: bo
   }
   if (wire.status === 503) return { kind: "cannot_answer", sentence: `${detail || `${name} cannot answer right now.`} Your message is back in the composer.` };
   if (wire.status === 404) {
-    if (routeOffered === false) return { kind: "route_missing" };
-    return { kind: "not_offerable", sentence: `${name} cannot be mentioned here.` };
+    if (wire.code === "entity_not_found") return { kind: "not_offerable", sentence: `${name} cannot be mentioned here.` };
+    return { kind: "route_missing" };
+  }
+  if (wire.status === 422 && wire.code === "repeat_of_unknown") {
+    return { kind: "failed", sentence: `${detail || "This message is not a turn of this conversation."} Your message is back in the composer.` };
   }
   return { kind: "failed", sentence: `${name} did not answer: ${detail || `HTTP ${wire.status}`}. Your message is back in the composer.` };
 }
@@ -111,10 +141,9 @@ export function mentionOutcome(name: string, wire: MentionWire, routeOffered: bo
 export type MentionRunDeps = {
   /** One `POST /sessions/{session_id}/mentions` (rejects only on a network failure). */
   post(mention: ChatMentionSent): Promise<MentionWire>;
-  /** Whether the gateway has the route (asked once, on the first 404 of the run). */
-  routeOffered(): Promise<boolean | null>;
-  /** A reply, shown as a turn with its author, as soon as it arrives. */
-  onReply(mention: ChatMentionSent, reply: string, author: ChatAuthor | null): void;
+  /** A reply, shown as a turn with its author as soon as it arrives, and where else the gateway
+   * said it (`mirrors`). */
+  onReply(mention: ChatMentionSent, reply: string, author: ChatAuthor | null, mirrors: MentionMirror[]): void;
 };
 
 export type MentionRunResult = {
@@ -138,7 +167,6 @@ export type MentionRunResult = {
 export async function runMentions(mentions: readonly ChatMentionSent[], deps: MentionRunDeps): Promise<MentionRunResult> {
   const result: MentionRunResult = { sentences: [], keepDraft: false, unsent: [], unavailable: false, refused: [] };
   const ordered = [...mentions].sort((a, b) => a.index - b.index);
-  let routeOffered: boolean | null | undefined;
   for (let i = 0; i < ordered.length; i++) {
     const mention = ordered[i];
     let wire: MentionWire;
@@ -150,10 +178,9 @@ export async function runMentions(mentions: readonly ChatMentionSent[], deps: Me
       result.unsent = ordered.slice(i);
       return result;
     }
-    if (wire.status === 404 && routeOffered === undefined) routeOffered = await deps.routeOffered();
-    const outcome = mentionOutcome(mention.name, wire, routeOffered ?? null);
+    const outcome = mentionOutcome(mention.name, wire);
     if (outcome.kind === "reply") {
-      deps.onReply(mention, outcome.reply, outcome.author);
+      deps.onReply(mention, outcome.reply, outcome.author, outcome.mirrors);
       continue;
     }
     if (outcome.kind === "route_missing") {

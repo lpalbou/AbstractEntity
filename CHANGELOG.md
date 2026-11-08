@@ -11,17 +11,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
   send, your message goes to the entity you are visiting as before; once it has answered, each
   mentioned entity receives the same words, one after the other in the order you picked them
   (so the second one sees the first one's answer), and each answer appears as its own message.
-  An entity already in another conversation is skipped with "Pollux is in another
-  conversation."; one that cannot answer says why, and your words and its chip come back to the
-  message box. On a gateway that does not have mentions yet, typing `@` says "This gateway does
-  not offer mentions yet" instead of showing names. This works in both ways of talking (his
-  driver and the flow brain); the "bring Castor in" offer for a typed `castor@host` address is
-  unchanged.
+  During a visit the gateway also tells the entity you are visiting what the mentioned one said;
+  a small line under the answer says so ("Also said to Castor."). An entity already in another
+  conversation is skipped with "Pollux is in another conversation."; one that cannot answer
+  says why, and your words and its chip come back to the message box. On a gateway that does
+  not have mentions yet, the first message with a mention says "This gateway does not offer
+  mentions yet", and from then on typing `@` says it instead of showing names. This works in
+  both ways of talking (his driver and the flow brain); the "bring Castor in" offer for a typed
+  `castor@host` address is unchanged.
 - **Every answer says who wrote it.** When the gateway names the author of a turn, the message
   shows that entity's avatar, its name and a small "entity" tag (an agent gets its own mark), so
   a mentioned entity's answer is never mistaken for the one you are visiting. Answers in the
-  flow brain carry the visited entity's name and avatar the same way; the Avatar view keeps the
-  author on its answer cards. With a gateway that names no author, messages look exactly as
+  flow brain carry the visited entity's name and avatar the same way, and its progress updates
+  are labelled while the turn is still running; the Avatar view keeps the author on its answer
+  cards. With a gateway that names no author, messages look exactly as
   before.
 - The shared chat parts come from the AbstractUIC build that adds mentions (panel-chat 0.9.9,
   not yet published), vendored as a package file until it is and bundled inside the app's own

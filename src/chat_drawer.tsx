@@ -25,7 +25,7 @@ import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat
 import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage } from "./vendor/abstractchat/conversation";
-import { MENTIONS_UNAVAILABLE, chipsToRestore, mentionCandidatesFor, runMentions, visitMentionProps, type MentionableEntity } from "./visit_mentions";
+import { MENTIONS_UNAVAILABLE, chipsToRestore, mentionCandidatesFor, mirrorLine, runMentions, visitMentionProps, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -63,7 +63,7 @@ import { resolveMentions } from "./entity_handle";
 import { foldVisitStatus } from "./visit_status_poll";
 import { ChatMessageList, splitVisitDecoration, toolGaugeTrustworthy, type DrawerMessage } from "./chat_message_list";
 export { splitVisitDecoration } from "./chat_message_list";
-import { getEntitySeat, listEntities, postMention, probeMentionRoute, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
+import { getEntitySeat, listEntities, postMention, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import { RefusalLine, type SubstrateChoice } from "./mind_voice_settings";
@@ -194,7 +194,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const [mentionStatus, setMentionStatus] = useState<string | null>(null);
   const [mentionsUnavailable, setMentionsUnavailable] = useState<string | null>(null);
   const mentionRowsRef = useRef<Promise<MentionableEntity[]> | null>(null);
-  const mentionRouteRef = useRef<Promise<boolean | null> | null>(null);
+  /** The rows once read (to name the entities a reply was also said to). */
+  const mentionRowsReadRef = useRef<MentionableEntity[]>([]);
   const mentionRefusedRef = useRef<Set<string>>(new Set());
   // THE FLOW-BRAIN LANE (operator tasking c5190; door acceptance GREEN
   // c5246): an alternative brain for the conversation — each prompt is ONE
@@ -764,42 +765,36 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     publicVisit.refresh();
   }, [brain, baseUrl, entity, runId, token, publicVisit.refresh]);
 
-  /** Does this gateway serve the mentions route? Asked once (again after an unknown answer); a
-   * gateway without it gets the one sentence and no names. */
-  const mentionRouteOffered = useCallback((): Promise<boolean | null> => {
-    if (!mentionRouteRef.current) {
-      mentionRouteRef.current = probeMentionRoute(baseUrl).then((state) => {
-        if (state === "absent") setMentionsUnavailable(MENTIONS_UNAVAILABLE);
-        if (state === "unknown") mentionRouteRef.current = null;
-        return state === "offered" ? true : state === "absent" ? false : null;
-      });
-    }
-    return mentionRouteRef.current;
-  }, [baseUrl]);
   /** The `@` list: `GET /entities` (read once per drawer) minus the entity being visited and the
    * ones the gateway refused to mention, with each one's look. */
   const mentionCandidates = useCallback(
     async (query: string) => {
       if (!mentionRowsRef.current) {
-        const rows = listEntities(baseUrl).then((list) => list.map((e): MentionableEntity => ({ name: e.name, slug: e.slug, avatar: e.avatar ?? null })));
+        const rows = listEntities(baseUrl).then((list) => list.map((e): MentionableEntity => ({ name: e.name, slug: e.slug, ...(e.entity_id ? { entity_id: e.entity_id } : {}), avatar: e.avatar ?? null })));
         mentionRowsRef.current = rows;
-        rows.catch(() => {
+        rows.then((read) => { mentionRowsReadRef.current = read; }, () => {
           if (mentionRowsRef.current === rows) mentionRowsRef.current = null;
         });
       }
-      const [rows, offered] = await Promise.all([mentionRowsRef.current, mentionRouteOffered()]);
-      return offered === false ? [] : mentionCandidatesFor(rows, entity, query, mentionRefusedRef.current);
+      return mentionCandidatesFor(await mentionRowsRef.current, entity, query, mentionRefusedRef.current);
     },
-    [baseUrl, entity, mentionRouteOffered],
+    [baseUrl, entity],
   );
   /** After the person's turn landed: each mention, in pick order, one call after the other; each
-   * reply is a turn with its author. A 503 or a failure puts the words and the unsent chips back. */
+   * reply is a turn with its author (and, in a visit, one small line: who else heard it). A 503 or
+   * a failure puts the words and the unsent chips back. `repeatOf`: the person's own turn of the
+   * session (the flow lane's summoned run); a visit turn lives in the entity's home, not in the
+   * session, so the visit lane sends none. */
   const sendMentions = useCallback(
-    async (sessionId: string, text: string, sent: ChatMentionSent[], chips: ChatMention[]): Promise<void> => {
+    async (sessionId: string, text: string, sent: ChatMentionSent[], chips: ChatMention[], repeatOf: string | null): Promise<void> => {
+      const nameOf = (id: string) => mentionRowsReadRef.current.find((r) => r.entity_id === id)?.name ?? null;
       const result = await runMentions(sent, {
-        post: (m) => postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index }, token),
-        routeOffered: mentionRouteOffered,
-        onReply: (m, reply, author) => push({ role: "assistant", content: reply, title: m.name, ...(author ? { author } : {}) }),
+        post: (m) => postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index, ...(repeatOf ? { repeat_of: repeatOf } : {}) }, token),
+        onReply: (m, reply, author, mirrors) => {
+          push({ role: "assistant", content: reply, title: m.name, ...(author ? { author } : {}) });
+          const line = mirrorLine(mirrors, nameOf);
+          if (line) push({ role: "system", content: line });
+        },
       });
       for (const id of result.refused) mentionRefusedRef.current.add(id);
       if (result.unavailable) setMentionsUnavailable(MENTIONS_UNAVAILABLE);
@@ -810,7 +805,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         if (back.length) setMentionChips((cur) => (cur.length ? cur : back));
       }
     },
-    [baseUrl, token, push, mentionRouteOffered],
+    [baseUrl, token, push],
   );
   /** The conversation a mention joins: the open visit's session, or the flow lane's (minted with
    * its first message). None: no `@` list (an older door that names no session). */
@@ -886,12 +881,12 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       }
       setDraft("");
       push({ role: "user", content: flowText });
-      void sendFlow(flowText).then(({ landed, sessionId }) => {
+      void sendFlow(flowText).then(({ landed, sessionId, runId: turnRunId }) => {
         if (!mentionsSent.length) return;
         // His turn did not land (failed, queued, stopped): the mentions were not sent.
         if (!landed || !sessionId) { chipsBack(); return; }
         setBusy("turn");
-        return sendMentions(sessionId, flowText, mentionsSent, sentChips).finally(() => setBusy("idle"));
+        return sendMentions(sessionId, flowText, mentionsSent, sentChips, turnRunId).finally(() => setBusy("idle"));
       });
       return;
     }
@@ -972,7 +967,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           setRunId(null);
         }
         // His answer is in the thread: now each mention, in order (busy until the last answered).
-        if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, words, mentionsSent, sentChips);
+        if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, words, mentionsSent, sentChips, null);
         chipsBack();
       })
       .catch((e: Error & { status?: number }) => {

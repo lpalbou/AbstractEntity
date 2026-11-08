@@ -85,19 +85,30 @@ describe("the visit chat's wiring (source pins)", () => {
 
   it("the mentions run after the person's turn landed, in both lanes, never invented sessions", () => {
     const visitTurn = src.indexOf("sendVisitTurn(baseUrl, entity, runId, text, token, speaker, attachments)");
-    const visitMentions = src.indexOf("if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, words, mentionsSent, sentChips);");
+    // The visit turn lives in the entity's home, not in the session: no repeat_of there.
+    const visitMentions = src.indexOf("if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, words, mentionsSent, sentChips, null);");
     expect(visitTurn).toBeGreaterThan(0);
     expect(visitMentions).toBeGreaterThan(visitTurn);
-    expect(src).toContain("void sendFlow(flowText).then(({ landed, sessionId }) => {");
-    expect(src).toContain("return sendMentions(sessionId, flowText, mentionsSent, sentChips).finally(() => setBusy(\"idle\"));");
+    expect(src).toContain("void sendFlow(flowText).then(({ landed, sessionId, runId: turnRunId }) => {");
+    // The flow lane's summoned run is the person's turn of the session: the mentions' repeat_of.
+    expect(src).toContain("return sendMentions(sessionId, flowText, mentionsSent, sentChips, turnRunId).finally(() => setBusy(\"idle\"));");
     // The visit's session is the door's (open answer / visit status), never minted here.
     expect(src).toContain('setVisitSession(typeof r.session_id === "string" && r.session_id ? { runId: r.run_id, sessionId: r.session_id } : null);');
     expect(src).toMatch(/const mentionSession = brain === "driver" \? \(runId && visitSession\?\.runId === runId \? visitSession\.sessionId : null\)/);
   });
 
   it("the @ list excludes the visited entity and mentions post the words as typed with their index", () => {
-    expect(src).toContain("mentionCandidatesFor(rows, entity, query, mentionRefusedRef.current)");
-    expect(src).toContain("postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index }, token)");
+    expect(src).toContain("mentionCandidatesFor(await mentionRowsRef.current, entity, query, mentionRefusedRef.current)");
+    expect(src).toContain("postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index, ...(repeatOf ? { repeat_of: repeatOf } : {}) }, token)");
+    // A mirrored reply gets one small line, never the mirrored turn's own answer.
+    expect(src).toContain("const line = mirrorLine(mirrors, nameOf);");
+    expect(src).toContain('if (line) push({ role: "system", content: line });');
+    // The flow lane resolves the summoned run as the person's turn.
+    const hook = fs.readFileSync(path.join(__dirname, "use_flow_conversation.ts"), "utf8");
+    expect(hook).toContain("turnRunId = r.run_id;");
+    expect(hook).toContain(".then((landed): FlowTurnSettled => ({ landed, sessionId, runId: turnRunId }));");
+    // No probe: a 404's code decides (entity_not_found vs a missing route).
+    expect(src).not.toContain("probeMentionRoute");
   });
 
   it("the castor@host meet offer is untouched", () => {

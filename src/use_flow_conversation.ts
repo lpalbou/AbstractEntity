@@ -27,7 +27,8 @@ export interface FlowConversationApi {
   /** Open the conversation view (resuming a stored unclosed session). */
   startConversation(): void;
   /** Resolves once the turn settled: `landed` = his answer reached the thread (so a mention can
-   * follow it), `sessionId` = the conversation's session (minted on the first message). */
+   * follow it), `sessionId` = the conversation's session (minted on the first message), `runId` =
+   * the person's turn in it (a mention's `repeat_of`). */
   sendFlow(text: string, opts?: { queue?: boolean; park?: boolean }): Promise<FlowTurnSettled>;
   endFlowConversation(): void;
   /** Stop waiting on the current poll — the run keeps ticking server-side. */
@@ -41,7 +42,7 @@ export interface FlowConversationApi {
   stepAway(): void;
 }
 
-export type FlowTurnSettled = { landed: boolean; sessionId: string | null };
+export type FlowTurnSettled = { landed: boolean; sessionId: string | null; runId: string | null };
 
 export function useFlowConversation(io: {
   baseUrl: string;
@@ -296,6 +297,7 @@ export function useFlowConversation(io: {
       const gen = ++pollGenRef.current;
       if (!flowSessionRef.current) flowSessionRef.current = flowSession.mint(entity);
       const sessionId = flowSessionRef.current;
+      let turnRunId: string | null = null;
       // NO substrate override (lane adversary P1-5): the summon resolver
       // ranks request > home substrate.yaml, so a mount-time copy pinned
       // here would defeat a Settings change mid-conversation. The gateway
@@ -349,6 +351,7 @@ export function useFlowConversation(io: {
             return false;
           }
           // The summoned run executes async in the runner — poll to
+          turnRunId = r.run_id;
           setFlowRunId(r.run_id); setFlowView(null);
           // terminal on the gateway's replay view (flow_lane.followRunToTerminal; the poll is its fallback).
           // 600s: tool rounds (entity-life 0.0.10, ≤3 bounded) add 2-3
@@ -380,7 +383,7 @@ export function useFlowConversation(io: {
           // newer poll (e.g. the goodbye) still runs (finding 1's stomp).
           if (pollGenRef.current === gen) setBusy("idle");
         })
-        .then((landed): FlowTurnSettled => ({ landed, sessionId }));
+        .then((landed): FlowTurnSettled => ({ landed, sessionId, runId: turnRunId }));
     },
     [baseUrl, entity, entityName, token, push],
   );

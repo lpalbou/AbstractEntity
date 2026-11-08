@@ -3,7 +3,8 @@
  * untracked/entity-mentions-2026-11-08/CONTRACT-mentions.md): the `@` list (GET /entities minus
  * the entity being visited), the per-mention outcome rule (409 skip, 503 back to the composer,
  * 404 this one / the whole gateway), the sequential run (each mention after the previous
- * answered, in pick order), and the transport (POST /sessions/{id}/mentions; the route probe).
+ * answered, in pick order), where else a reply was said (mirrors), and the transport
+ * (POST /sessions/{id}/mentions with repeat_of; the codes decide a 404).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMention, ChatMentionSent } from "@abstractframework/panel-chat";
@@ -12,14 +13,16 @@ import {
   MENTIONS_UNAVAILABLE,
   chipsToRestore,
   mentionCandidatesFor,
+  mentionMirrors,
   mentionNotice,
   mentionOutcome,
+  mirrorLine,
   runMentions,
   visitMentionProps,
   type MentionableEntity,
 } from "./visit_mentions";
-import { listEntities, postMention, probeMentionRoute, type MentionWire } from "./stream_source";
-import { avatarVisitHistory } from "./avatar_visit";
+import { listEntities, postMention, type MentionWire } from "./stream_source";
+import { avatarVisitHistory, publicVisitMessages } from "./avatar_visit";
 
 const ROWS: MentionableEntity[] = [
   { name: "Nerin", slug: "nerin", avatar: { style: "watch-halo", color: "#2a9d8f" } },
@@ -31,7 +34,7 @@ const ROWS: MentionableEntity[] = [
 const CASTOR = { name: "Castor", slug: "castor" };
 const AUTHOR = { kind: "entity", name: "Castor", entity_id: "ent-castor", identity_ref: "entity:castor#3", avatar: { style: "watch-halo", color: "#2a9d8f" } };
 const sent = (id: string, name: string, index: number): ChatMentionSent => ({ id, name, kind: "entity", index });
-const ok = (reply: string, author: unknown = AUTHOR): MentionWire => ({ status: 200, body: { run_id: "r", reply, author, mention_index: 0 }, code: null });
+const ok = (reply: string, author: unknown = AUTHOR, mirrors: unknown = []): MentionWire => ({ status: 200, body: { run_id: "r", reply, author, mention_index: 0, mirrors }, code: null });
 const refused = (status: number, code: string | null, detail?: string): MentionWire => ({ status, body: detail ? { detail, ...(code ? { code } : {}) } : null, code });
 
 describe("the @ list", () => {
@@ -66,32 +69,37 @@ describe("the @ list", () => {
 
 describe("one mention's answer", () => {
   it("200: the reply and its author", () => {
-    expect(mentionOutcome("Castor", ok("Hello from Castor."), true)).toEqual({ kind: "reply", reply: "Hello from Castor.", author: AUTHOR });
-    expect(mentionOutcome("Castor", ok("Hi.", null), true)).toEqual({ kind: "reply", reply: "Hi.", author: null });
-    expect(mentionOutcome("Castor", ok("  "), true).kind).toBe("failed");
+    expect(mentionOutcome("Castor", ok("Hello from Castor."))).toEqual({ kind: "reply", reply: "Hello from Castor.", author: AUTHOR, mirrors: [] });
+    expect(mentionOutcome("Castor", ok("Hi.", null))).toEqual({ kind: "reply", reply: "Hi.", author: null, mirrors: [] });
+    expect(mentionOutcome("Castor", ok("  ")).kind).toBe("failed");
+    const mirrored = mentionOutcome("Castor", ok("Hi.", AUTHOR, [{ entity_id: "ent-nerin", run_id: "v1", turn_id: "t2", reply: "Thanks, Castor." }]));
+    expect(mirrored.kind === "reply" ? mirrored.mirrors : null).toEqual([{ entityId: "ent-nerin", error: null }]);
   });
 
   it("409: in another conversation (the door's own 409s say their sentence), skipped", () => {
-    expect(mentionOutcome("Castor", refused(409, "in_another_conversation", "Castor is in another conversation (session s-9). One conversation at a time…"), true)).toEqual({ kind: "elsewhere", sentence: "Castor is in another conversation." });
-    expect(mentionOutcome("Castor", refused(409, "entity_paused", "Castor is paused."), true)).toEqual({ kind: "elsewhere", sentence: "Castor is paused." });
-    expect(mentionOutcome("Castor", refused(409, null), true)).toEqual({ kind: "elsewhere", sentence: "Castor is in another conversation." });
+    expect(mentionOutcome("Castor", refused(409, "in_another_conversation", "Castor is in another conversation (session s-9). One conversation at a time…"))).toEqual({ kind: "elsewhere", sentence: "Castor is in another conversation." });
+    expect(mentionOutcome("Castor", refused(409, "entity_paused", "Castor is paused."))).toEqual({ kind: "elsewhere", sentence: "Castor is paused." });
+    expect(mentionOutcome("Castor", refused(409, null))).toEqual({ kind: "elsewhere", sentence: "Castor is in another conversation." });
   });
 
   it("503: the gateway's sentence, and the message goes back to the composer", () => {
-    expect(mentionOutcome("Castor", refused(503, "entity_cannot_answer", "Castor cannot answer: no mind is set."), true)).toEqual({ kind: "cannot_answer", sentence: "Castor cannot answer: no mind is set. Your message is back in the composer." });
-    expect(mentionOutcome("Castor", refused(503, null), true).kind).toBe("cannot_answer");
+    expect(mentionOutcome("Castor", refused(503, "entity_cannot_answer", "Castor cannot answer: no mind is set."))).toEqual({ kind: "cannot_answer", sentence: "Castor cannot answer: no mind is set. Your message is back in the composer." });
+    expect(mentionOutcome("Castor", refused(503, null)).kind).toBe("cannot_answer");
   });
 
-  it("404: this entity cannot be mentioned, unless the gateway has no mentions route", () => {
-    expect(mentionOutcome("Castor", refused(404, null, "entity 'castor' not found"), true)).toEqual({ kind: "not_offerable", sentence: "Castor cannot be mentioned here." });
-    expect(mentionOutcome("Castor", refused(404, null, "Not Found"), false)).toEqual({ kind: "route_missing" });
-    // Not known: the one entity, never the whole gateway.
-    expect(mentionOutcome("Castor", refused(404, null), null).kind).toBe("not_offerable");
+  it("404 entity_not_found: this entity cannot be mentioned; a 404 without that code: no mentions route", () => {
+    expect(mentionOutcome("Castor", refused(404, "entity_not_found", "entity 'castor' not found"))).toEqual({ kind: "not_offerable", sentence: "Castor cannot be mentioned here." });
+    expect(mentionOutcome("Castor", refused(404, null, "Not Found"))).toEqual({ kind: "route_missing" });
+    expect(mentionOutcome("Castor", refused(404, null))).toEqual({ kind: "route_missing" });
+  });
+
+  it("422 repeat_of_unknown: the gateway's sentence, the message back", () => {
+    expect(mentionOutcome("Castor", refused(422, "repeat_of_unknown", "repeat_of 'r-1' is not a turn of this conversation"))).toEqual({ kind: "failed", sentence: "repeat_of 'r-1' is not a turn of this conversation Your message is back in the composer." });
   });
 
   it("anything else stops with the gateway's words", () => {
-    expect(mentionOutcome("Castor", refused(500, null, "boom"), true)).toEqual({ kind: "failed", sentence: "Castor did not answer: boom. Your message is back in the composer." });
-    expect(mentionOutcome("Castor", refused(422, null), true).sentence).toContain("HTTP 422");
+    expect(mentionOutcome("Castor", refused(500, null, "boom"))).toEqual({ kind: "failed", sentence: "Castor did not answer: boom. Your message is back in the composer." });
+    expect(mentionOutcome("Castor", refused(422, null)).sentence).toContain("HTTP 422");
   });
 });
 
@@ -116,19 +124,18 @@ describe("the mentions of one message", () => {
     const replies: string[] = [];
     const run = runMentions([sent("pollux", "Pollux", 1), sent("castor", "Castor", 0)], {
       post: p.post,
-      routeOffered: async () => true,
-      onReply: (m, reply, author) => replies.push(`${m.name}:${reply}:${author?.name ?? "-"}`),
+      onReply: (m, reply, author, mirrors) => replies.push(`${m.name}:${reply}:${author?.name ?? "-"}:${mirrors.map((x) => x.entityId).join(",")}`),
     });
     await tick();
     expect(p.calls.map((m) => m.id)).toEqual(["castor"]);
     p.answer(ok("one"));
     await tick();
     // Castor's reply is on screen before Pollux is asked (Pollux reads it).
-    expect(replies).toEqual(["Castor:one:Castor"]);
+    expect(replies).toEqual(["Castor:one:Castor:"]);
     expect(p.calls.map((m) => m.id)).toEqual(["castor", "pollux"]);
-    p.answer(ok("two", { ...AUTHOR, name: "Pollux" }));
+    p.answer(ok("two", { ...AUTHOR, name: "Pollux" }, [{ entity_id: "ent-nerin", run_id: "v1", turn_id: "t3", reply: "ok" }]));
     expect(await run).toEqual({ sentences: [], keepDraft: false, unsent: [], unavailable: false, refused: [] });
-    expect(replies).toEqual(["Castor:one:Castor", "Pollux:two:Pollux"]);
+    expect(replies).toEqual(["Castor:one:Castor:", "Pollux:two:Pollux:ent-nerin"]);
   });
 
   it("a 409 is said and the next one still runs", async () => {
@@ -136,7 +143,6 @@ describe("the mentions of one message", () => {
     const posted: string[] = [];
     const out = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], {
       post: async (m) => (posted.push(m.id), answers.shift()!),
-      routeOffered: async () => true,
       onReply: () => undefined,
     });
     expect(posted).toEqual(["castor", "pollux"]);
@@ -148,7 +154,6 @@ describe("the mentions of one message", () => {
     const posted: string[] = [];
     const out = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)], {
       post: async (m) => (posted.push(m.id), answers.shift()!),
-      routeOffered: async () => true,
       onReply: () => undefined,
     });
     expect(posted).toEqual(["castor", "pollux"]);
@@ -157,40 +162,44 @@ describe("the mentions of one message", () => {
     expect(out.sentences).toEqual(["Pollux cannot answer: asleep. Your message is back in the composer."]);
   });
 
-  it("a 404 asks the gateway once whether it has the route: yes = that entity is no longer offered", async () => {
-    const probe = vi.fn(async () => true);
+  it("404 entity_not_found: that entity is no longer offered, the next still runs", async () => {
     const out = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], {
-      post: async () => refused(404, null, "entity not found"),
-      routeOffered: probe,
+      post: async () => refused(404, "entity_not_found", "entity not found"),
       onReply: () => undefined,
     });
-    expect(probe).toHaveBeenCalledTimes(1);
     expect(out.refused).toEqual(["castor", "pollux"]);
     expect(out.keepDraft).toBe(false);
     expect(out.sentences).toEqual(["Castor cannot be mentioned here.", "Pollux cannot be mentioned here."]);
   });
 
-  it("no route: the one sentence, mentions off, nothing more is sent", async () => {
+  it("no route (a 404 without entity_not_found): the one sentence, mentions off, nothing more is sent", async () => {
     const posted: string[] = [];
     const out = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], {
       post: async (m) => (posted.push(m.id), refused(404, null, "Not Found")),
-      routeOffered: async () => false,
       onReply: () => undefined,
     });
     expect(posted).toEqual(["castor"]);
     expect(out).toEqual({ sentences: [MENTIONS_UNAVAILABLE], keepDraft: false, unsent: [], unavailable: true, refused: [] });
   });
 
-  it("a successful run never asks for the route", async () => {
-    const probe = vi.fn(async () => true);
-    await runMentions([sent("castor", "Castor", 0)], { post: async () => ok("hi"), routeOffered: probe, onReply: () => undefined });
-    expect(probe).not.toHaveBeenCalled();
+  it("where else a reply was said: one small line, by name; a refusal there is stated", () => {
+    expect(mentionMirrors([{ entity_id: "ent-nerin", run_id: "v", turn_id: "t", reply: "x" }, { entity_id: "ent-vega", run_id: "w", error: "Vega is paused." }, { run_id: "no-id" }, null])).toEqual([
+      { entityId: "ent-nerin", error: null },
+      { entityId: "ent-vega", error: "Vega is paused." },
+    ]);
+    expect(mentionMirrors(undefined)).toEqual([]);
+    const names: Record<string, string> = { "ent-nerin": "Nerin", "ent-pollux": "Pollux" };
+    const nameOf = (id: string) => names[id] ?? null;
+    expect(mirrorLine([], nameOf)).toBeNull();
+    expect(mirrorLine([{ entityId: "ent-nerin", error: null }], nameOf)).toBe("Also said to Nerin.");
+    expect(mirrorLine([{ entityId: "ent-nerin", error: null }, { entityId: "ent-pollux", error: null }], nameOf)).toBe("Also said to Nerin and Pollux.");
+    // An id the list does not name is shown as served, never guessed.
+    expect(mirrorLine([{ entityId: "ent-nerin", error: null }, { entityId: "ent-vega", error: "Vega is paused." }], nameOf)).toBe("Also said to Nerin. Not said to ent-vega: Vega is paused.");
   });
 
   it("an unreachable gateway stops the run and hands everything back", async () => {
     const out = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], {
       post: async () => { throw new Error("Failed to fetch"); },
-      routeOffered: async () => true,
       onReply: () => undefined,
     });
     expect(out.keepDraft).toBe(true);
@@ -244,9 +253,11 @@ describe("the transport", () => {
     expect(JSON.parse(String(seen[0].init.body))).toEqual({ entity: "castor", text: "hi @all", mention_index: 2 });
     expect((seen[0].init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
     expect(first).toEqual({ status: 409, body: { detail: "Castor is in another conversation.", code: "in_another_conversation", session_id: "s-9" }, code: "in_another_conversation" });
-    const second = await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0 }, null);
+    const second = await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0, repeat_of: "run-turn-1" }, null);
     expect(second.code).toBe("entity_cannot_answer");
     expect(second.status).toBe(503);
+    expect(JSON.parse(String(seen[1].init.body))).toEqual({ entity: "castor", text: "hi", mention_index: 0, repeat_of: "run-turn-1" });
+    expect("repeat_of" in JSON.parse(String(seen[0].init.body))).toBe(false);
   });
 
   it("a body that is not JSON is null, not a throw", async () => {
@@ -254,28 +265,14 @@ describe("the transport", () => {
     expect(await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0 }, null)).toEqual({ status: 502, body: null, code: null });
   });
 
-  it("the route probe asks by method: 405 = offered, 404 = absent, anything else unknown", async () => {
-    const statuses = [405, 404, 401];
-    const urls: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
-      urls.push(`${init?.method || "GET"} ${url}`);
-      return new Response("{}", { status: statuses.shift()! });
-    }));
-    expect(await probeMentionRoute("http://gw")).toBe("offered");
-    expect(await probeMentionRoute("http://gw")).toBe("absent");
-    expect(await probeMentionRoute("http://gw")).toBe("unknown");
-    expect(urls[0]).toBe("GET http://gw/api/gateway/sessions/mention-route-probe/mentions");
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
-    expect(await probeMentionRoute("http://gw")).toBe("unknown");
-  });
-
   it("GET /entities rows carry the identity look the list draws", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ entities: [
       { name: "Castor", slug: "castor", identity: { rev: 3, avatar: { style: "watch-halo", color: "#2a9d8f", watch_code: "h" } } },
-      { name: "Pollux", slug: "pollux", identity: null },
+      { name: "Pollux", slug: "pollux", entity_id: "ent-pollux", identity: null },
     ] }), { status: 200 })));
     const rows = await listEntities("http://gw");
     expect(rows.map((r) => r.avatar)).toEqual([{ style: "watch-halo", color: "#2a9d8f" }, null]);
+    expect(rows.map((r) => r.entity_id)).toEqual([undefined, "ent-pollux"]);
   });
 });
 
@@ -289,5 +286,13 @@ describe("the avatar view keeps who answered", () => {
     expect(out.find((m) => m.id === "a1")!.author).toEqual(AUTHOR);
     expect("author" in out.find((m) => m.id === "u1")!).toBe(false);
     expect("author" in out.find((m) => m.id === "a2")!).toBe(false);
+  });
+
+  it("a live update is labelled from the view as it streams (its author), none when the view names nobody", () => {
+    const update = (id: string, extra: Record<string, unknown> = {}) => ({ id, text: `update ${id}`, run_id: "flow-root", source_call_ids: ["c"], iteration: 1, ...extra });
+    const rows = publicVisitMessages({ run_id: "flow-root", public_updates: [update("u1", { author: AUTHOR }), update("u2"), update("u3", { author: { kind: "robot" } })] });
+    expect(rows.find((m) => m.id.endsWith("u1"))!.author).toEqual(AUTHOR);
+    expect("author" in rows.find((m) => m.id.endsWith("u2"))!).toBe(false);
+    expect("author" in rows.find((m) => m.id.endsWith("u3"))!).toBe(false);
   });
 });

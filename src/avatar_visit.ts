@@ -3,7 +3,7 @@ import { publicUpdate } from "./vendor/abstractchat/conversation";
 import type { DrawerMessage } from "./chat_message_list";
 import { screenDiaryFences } from "./flow_lane";
 import type { IdentityRef, VisitConversationState, VisitPublicWait } from "./stream_source";
-import { compareReplayOrder, type ReplayView } from "@abstractframework/panel-chat";
+import { chatAuthorOf, compareReplayOrder, type ReplayView } from "@abstractframework/panel-chat";
 
 const row = (v: unknown): Record<string, unknown> | null => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
 export type EntityPublicMessage = ChatMessage & {
@@ -66,7 +66,10 @@ export function publicVisitMessages(state: VisitConversationState): EntityPublic
     const id = `${update.runId}:public:${update.id}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    result.push({ id, role: "assistant", kind: "public_update", runId: update.runId, content: update.text, source: "public_update", publicUpdate: update, ...sourceOrder(p) });
+    // Who said it, as the live view serves it (the turn's author on the view's messages, gateway
+    // 2026-11-08): labelled while the turn is live, not only once the answer is saved.
+    const author = chatAuthorOf(p.author);
+    result.push({ id, role: "assistant", kind: "public_update", runId: update.runId, content: update.text, source: "public_update", publicUpdate: update, ...sourceOrder(p), ...(author ? { author } : {}) });
   }
   for (const raw of state.public_messages || []) {
     const p = row(raw);
