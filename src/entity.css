@@ -1049,6 +1049,12 @@ body {
   min-height: 120px;
   overflow-y: auto;
 }
+/* A user turn's attachment chip is a record of what was handed over, not an
+ * unavailable action: the kit draws a chip without a click as disabled. */
+.cd_thread .pc-chat-attachment-chip:disabled {
+  opacity: 1;
+  cursor: default;
+}
 
 .cd_close_btn {
   background: var(--bg-raise);

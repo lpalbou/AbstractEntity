@@ -65,7 +65,8 @@ export { splitVisitDecoration } from "./chat_message_list";
 import { getEntitySeat, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
-import type { SubstrateChoice } from "./mind_voice_settings";
+import { RefusalLine, type SubstrateChoice } from "./mind_voice_settings";
+import { attachmentChips, attachmentRecords, turnRefusal, visitTurnPayload, type PendingFile } from "./visit_attachments";
 import type { ReplayEnvelope } from "./stream_types";
 import { TurnDetailModal } from "./turn_detail_modal";
 import { WordsLine } from "./words_line";
@@ -230,8 +231,12 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     };
   }, [baseUrl, entity]);
   // Files handed to the entity (maintainer ask, 2026-07-09): dropped or
-  // picked, uploaded to his workspace/shared, referenced in the next turn.
-  const [pendingFiles, setPendingFiles] = useState<Array<{ name: string; path: string }>>([]);
+  // picked, uploaded to his workspace/shared, attached to the next turn by
+  // the path the workspace write returned (visit_attachments.ts).
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  /** The door's sentence when it refused a turn before it ran (an attachment
+   * it cannot take); the words and files are back in the composer. */
+  const [refusal, setRefusal] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -330,13 +335,15 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const turnLive = busy === "turn";
 
 
-  const push = useCallback((msg: Omit<DrawerMessage, "id">) => {
+  const push = useCallback((msg: Omit<DrawerMessage, "id">): string => {
     idRef.current += 1;
+    const id = `m${idRef.current}`;
     // Never hand React (or any card) a non-string content — the object-as-
     // child class killed the whole app once (React #31, maintainer's
     // critical 2026-07-08 23:49). Coerce at the single entry point.
     const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content ?? "");
-    setMessages((prev) => [...prev, { ...msg, content, id: `m${idRef.current}`, ts: new Date().toISOString() }]);
+    setMessages((prev) => [...prev, { ...msg, content, id, ts: new Date().toISOString() }]);
+    return id;
   }, []);
 
   // THE FLOW-BRAIN LANE lives in its own hook (fable5 consolidation plan
@@ -426,7 +433,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               // (presence + MEMORIES + words). Fold the decoration behind
               // a one-line context card; the card shows the words.
               const { context, text } = splitVisitDecoration(msg.content);
-              rebuilt.push({ id: `r${++mid}`, role: "user", content: text, ...(context ? { context } : {}) });
+              // The files the door recorded on this turn, as chips.
+              const attached = attachmentChips(attachmentRecords(msg.attachments));
+              rebuilt.push({ id: `r${++mid}`, role: "user", content: text, ...(context ? { context } : {}), ...(attached.length ? { attachments: attached } : {}) });
             } else if (msg.role === "assistant") {
               // Past turns keep their tool evidence (memory forensics c74:
               // rehydrated turns had NO modal, so the screenshot could only
@@ -687,18 +696,22 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           ? `Note: ${pdfs.map((f) => f.name).join(", ")} will land as raw PDF bytes — unreadable to him until the extraction lane ships. A .txt/.md copy reads today.`
           : null,
       );
-      const landed: Array<{ name: string; path: string }> = [];
+      const landed: PendingFile[] = [];
+      setRefusal(null);
       try {
         for (const file of files) {
           const bytes = new Uint8Array(await file.arrayBuffer());
           const dest = `shared/${safeName(file.name)}`;
-          await writeEntityWorkspaceFile(baseUrl, entity, dest, bytes, token);
-          landed.push({ name: file.name, path: dest });
+          // The turn names the file by the path the write RETURNED (the
+          // contract), never by the one we asked for.
+          const written = await writeEntityWorkspaceFile(baseUrl, entity, dest, bytes, token);
+          if (typeof written?.path !== "string" || !written.path) throw new Error("the workspace write answered without the file's path");
+          landed.push({ name: file.name, path: written.path, bytes: typeof written.size === "number" ? written.size : bytes.length, ...(file.type ? { content_type: file.type } : {}) });
         }
         setPendingFiles((prev) => [...prev, ...landed]);
         push({
           role: "system",
-          content: `Placed in his workspace: ${landed.map((f) => f.path).join(", ")} — he can read ${landed.length === 1 ? "it" : "them"} with read_file. Referenced in your next message.`,
+          content: `Placed in his workspace: ${landed.map((f) => f.path).join(", ")}. Attached to your next message.`,
           level: "info",
         });
       } catch (e) {
@@ -766,14 +779,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
 
   const send = useCallback(() => {
     if (avatarMode && avatarSendsDuringWork({ turnInFlight: busy === "turn", pendingQuestion: Boolean(pendingQuestion), fresh: brain === "flow" || publicVisit.fresh, status: publicState?.status, readyForInput: publicState?.ready_for_input })) { void sendDuringWork(); return; }
-    let text = draft.trim();
-    // Reference any handed-over files so the entity knows to read them.
-    if (pendingFiles.length > 0) {
-      const refs = pendingFiles.map((f) => `- ${f.path}`).join("\n");
-      const preface = `I've placed ${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"} in your workspace (read with read_file):\n${refs}`;
-      text = text ? `${preface}\n\n${text}` : preface;
-    }
-    if (!text || busy !== "idle") return;
+    const words = draft.trim();
+    if ((!words && pendingFiles.length === 0) || busy !== "idle") return;
     if (brain === "flow") {
       if (!flowActive) return;
       if (pendingFiles.length > 0 && warnOnce("files-lane")) {
@@ -796,9 +803,28 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       return;
     }
     if (!runId) return;
+    // Files ride the turn as attachments (the runtime labels images itself);
+    // files that are not images keep one plain line in the words.
+    const payload = visitTurnPayload(words, pendingFiles);
+    if ("refusal" in payload) {
+      setNote(payload.refusal);
+      return;
+    }
+    const { text, attachments } = payload;
+    const sentFiles = pendingFiles;
     setDraft("");
     setPendingFiles([]);
-    push({ role: "user", content: text });
+    setRefusal(null);
+    setNote(null);
+    const chips = attachmentChips(sentFiles);
+    const sentId = push({ role: "user", content: text, ...(chips.length ? { attachments: chips } : {}) });
+    // A turn that did not run hands its words AND its files back (retry is
+    // one click, never a retype or a re-drop) — unless newer typing already
+    // claimed the composer.
+    const handBack = () => {
+      setDraft((cur) => cur || words);
+      if (sentFiles.length) setPendingFiles((cur) => [...sentFiles, ...cur]);
+    };
     // Through the REF (pulse adversary N7): `envelopes` is not a dep of
     // this callback, so the prop is stale-bounded — the ref is the live
     // tail (same pattern as closeSeqRef below).
@@ -810,7 +836,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     // The speaker rides on every turn: in a rejoined room the session opener
     // may differ from who is typing NOW — attribution follows the voice.
     const speaker = participant.trim() || undefined;
-    sendVisitTurn(baseUrl, entity, runId, text, token, speaker)
+    sendVisitTurn(baseUrl, entity, runId, text, token, speaker, attachments)
       .then((r: VisitTurnResult) => {
         // BODY-STATUS RULE (walkthrough lesson, §5 contract item 4): the
         // door answers HTTP 200 with status:"failed"+error — transport
@@ -821,7 +847,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           // A failed turn hands the words BACK (c5330: retry must be one
           // click, never a retype) — unless newer typing already claimed
           // the composer.
-          setDraft((cur) => cur || text);
+          handBack();
           return;
         }
         // The turn's facts ride WITH the reply as a discreet badge (the
@@ -851,6 +877,16 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         }
       })
       .catch((e: Error & { status?: number }) => {
+        // The door refused the turn before it ran (an attachment it cannot
+        // take): he never heard it, so the message leaves the thread and
+        // goes back to the composer under the door's sentence.
+        const refused = turnRefusal(e, refusalText);
+        if (refused !== null) {
+          setMessages((prev) => prev.filter((m) => m.id !== sentId));
+          setRefusal(refused);
+          handBack();
+          return;
+        }
         push({
           role: "system",
           content:
@@ -859,7 +895,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               : `The turn failed: ${refusalText(e)}`,
           level: "error",
         });
-        setDraft((cur) => cur || text);
+        handBack();
       })
       .finally(() => setBusy("idle"));
   }, [draft, runId, busy, baseUrl, entity, entityName, token, push, pendingFiles, participant, brain, flowActive, sendFlow, avatarMode, publicState?.status, publicState?.ready_for_input, publicVisit.fresh, pendingQuestion, sendDuringWork]);
@@ -1337,6 +1373,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               <WordsLine text={note} />
             </div>
           ) : null}
+          {refusal ? <RefusalLine text={refusal} tone="error" /> : null}
           {pendingFiles.length > 0 ? (
             <div className="cd_files">
               {pendingFiles.map((f, i) => (
@@ -1344,7 +1381,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
                   📎 {f.name}
                   <button
                     className="cd_file_x"
-                    onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+                    onClick={() => { setRefusal(null); setPendingFiles((prev) => prev.filter((_, j) => j !== i)); }}
                     title="Don't reference this file (it stays in his workspace)"
                   >
                     ×
@@ -1398,7 +1435,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             disabled={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy !== "idle"}
             rows={2}
             onAttach={() => fileInputRef.current?.click()}
-            attachLabel="Give a file (placed in the workspace, read with read_file)"
+            attachLabel="Give a file (placed in his workspace and attached to your next message; an image is shown to him)"
             attachPending={uploading}
             attachDisabled={busy !== "idle"}
             trailingActions={runId || (avatarMode && flowActive) ? <VisitVoiceButtons voice={voice} route={sttRouteText(voicePrefs, voiceDefaults.value)} disabled={busy === "closing"} /> : undefined}

@@ -1452,6 +1452,12 @@ export function flowConversationCommand(baseUrl: string, runId: string, type: "i
   return postJson(joinBaseUrl(baseUrl, "api/gateway/commands"), { command_id: randomId(), run_id: runId, type, payload, client_id: "abstractentity" }, token);
 }
 
+/** `attachments`: files already written into his workspace, each by the
+ * exact workspace-relative path the workspace write returned (mounts/<name>/…
+ * allowed). The door records them and refuses a path it cannot take (404
+ * unknown, 403 outside the workspace or a read-refused mount, 400 a
+ * directory, 413 over the cap); the runtime shows the images to the model
+ * with this turn (visit_attachments.ts). */
 export function sendVisitTurn(
   baseUrl: string,
   entity: string,
@@ -1459,9 +1465,11 @@ export function sendVisitTurn(
   text: string,
   token: string | null,
   speaker?: string,
+  attachments: Array<{ path: string }> = [],
 ): Promise<VisitTurnResult> {
   const body: Record<string, unknown> = { text };
   if (speaker?.trim()) body["speaker"] = speaker.trim();
+  if (attachments.length > 0) body["attachments"] = attachments.map((a) => ({ path: a.path }));
   // Same 10-min budget as the hosted lane (20-tool-call turns are legal).
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`), body, token, 600000);
 }
@@ -1678,7 +1686,14 @@ export interface VisitTranscript {
    * the ledger; the transcript now serves them so past turns keep their
    * tool evidence after a reload). Absent on pre-fix gateways and on
    * turns older than the answer-record trail — honest absence. */
-  turns: Array<{ role: string; content: string; tool_details?: Array<{ name: string; arg?: string; result?: string; success?: boolean }> }>;
+  turns: Array<{
+    role: string;
+    content: string;
+    tool_details?: Array<{ name: string; arg?: string; result?: string; success?: boolean }>;
+    /** A user turn's attachments as the door recorded them ({path, bytes,
+     * sha256, content_type}; the visit history entry's `attachments`). */
+    attachments?: unknown;
+  }>;
   warnings?: string[];
 }
 

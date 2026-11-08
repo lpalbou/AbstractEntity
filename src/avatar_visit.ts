@@ -93,7 +93,7 @@ export function avatarVisitHistory(messages: DrawerMessage[], updates: ChatMessa
     // projection will show either its applied answer or its retained late reply.
     if (local.source === "local_question_answer") return false;
     return m.role === "user" || m.role === "assistant";
-  }).map((m) => ({ id: m.id, role: m.role, kind: m.kind || (m.role === "user" ? "prompt" : "answer"), runId: m.runId || runId || undefined, content: m.role === "assistant" ? screenDiaryFences(m.content).display : m.content, ts: m.ts }));
+  }).map((m) => ({ id: m.id, role: m.role, kind: m.kind || (m.role === "user" ? "prompt" : "answer"), runId: m.runId || runId || undefined, content: m.role === "assistant" ? screenDiaryFences(m.content).display : m.content, ts: m.ts, ...(m.role === "user" && m.attachments?.length ? { attachments: m.attachments } : {}) }));
   // The newest public event leads while work is in progress; the final answer is last once it lands.
   const latestReply = working ? null : [...safe].reverse().find((m) => m.role === "assistant");
   return [...safe.filter((m) => m !== latestReply), ...ordered, ...(latestReply ? [latestReply] : [])];

@@ -4,6 +4,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **A file you give him rides your message, and an image is shown to him.** A file dropped or
+  picked in the chat still lands in his workspace, and the next message now carries it as an
+  attachment, named by the path the workspace write returned. The gateway checks and records
+  each one, and the runtime shows the images to his model with that message, as every other
+  client does. The app no longer adds "I've placed N files in your workspace (read with
+  read_file)" for images: the runtime writes that line itself. A file that is not an image keeps
+  one plain line naming its path. An image with no words is not sent (a message without words is
+  not a turn), and the note says to add a few words. Your message shows each attachment as a chip
+  (its kind, size and name; the path and exact size on hover; no thumbnail, since the chat never
+  loads an image), and a rejoined visit rebuilds the chips from the gateway's records. When the
+  gateway refuses an attachment (a missing file, a path outside his workspace, a folder, a file
+  over the size cap), its sentence shows above the composer and your words and files go back
+  into it. This needs the gateway and runtime that read attachments (a gateway without them
+  ignores the field, so he would not hear about the file); ship them together.
 - **The recall highlight lights only what this turn used.** While a recall was lit, the graph
   still drew the green "warm together" lines of earlier turns at full strength (954 on Nerin's
   turn trace 57c187ee before he answered), and memories an earlier recall had picked, including
