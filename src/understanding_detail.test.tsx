@@ -254,12 +254,15 @@ describe("the stream and the hover cards use the served summary as served", () =
   it("a hover card leads with the read's served summary, never his answer's lead derived from the words", () => {
     const ep = node({ kind: "episode", graph_id: "ex:episode-3d", digest: null });
     const text = String(R.SERVED_EPISODE.text);
-    expect(cardSummary(ep, { phase: "ready", text, served: String(R.SERVED_EPISODE.digest) }, "castor")).toEqual({
+    const read = readUnderstanding(R.SERVED_EPISODE, "episode");
+    if (!read.served) throw new Error("the fixture is a served read");
+    expect(cardSummary(ep, { phase: "ready", text, served: read.understanding }, "castor", "UTC")).toEqual({
       kind: "words",
       text: "Admin asked what I found; I pointed to the **UNHCR** portal and its 2026 tables.",
       plain: false,
+      provenance: "his own words · first formed · 8 Nov 2026",
     });
     // Not served (older gateway / not computed yet): the exchange's lead, as before.
-    expect(cardSummary(ep, { phase: "ready", text, served: null }, "castor")).toEqual({ kind: "words", text: "I found the **UNHCR** portal and its 2026 tables.", plain: false });
+    expect(cardSummary(ep, { phase: "ready", text, served: null }, "castor")).toEqual({ kind: "words", text: "I found the **UNHCR** portal and its 2026 tables.", plain: false, provenance: null });
   });
 });

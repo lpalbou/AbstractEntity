@@ -9,9 +9,12 @@ import { describe, expect, it } from "vitest";
 import {
   asOfWords,
   authorWords,
+  cardProvenance,
   causeWords,
   earlierVersions,
+  isMechanicalMethod,
   MECHANICAL_WORDS,
+  PLACEHOLDER_WORDS,
   provenanceLine,
   provenanceWords,
   readUnderstanding,
@@ -81,6 +84,29 @@ describe("as of when, and why", () => {
     expect(provenanceLine(provenanceWords({ authored_by: { kind: "entity-mind", id: "nerin" }, digest_method: "authored-v1", cause: "formation", understood_at: "2026-11-07T12:00:00Z", reader: null }, UTC))).toBe(
       "His own words · understood as of 7 Nov 2026 · first formed",
     );
+  });
+});
+
+describe("the hover card's hint, in Detail's words", () => {
+  it("who wrote it, why (the cause's head), the day — from the served fields only", () => {
+    const u = readUnderstanding(SERVED, "summary");
+    if (!u.served) throw new Error("fixture must be served");
+    expect(cardProvenance(u.understanding, UTC)).toBe("a passive memory process, part of him (qwen/qwen3.8-27b) · rewritten after new evidence · 8 Nov 2026");
+    expect(cardProvenance({ authored_by: { kind: "capability-model", id: "x" }, digest_method: "authored-backfill-v1", cause: "backfill", understood_at: "2026-11-07T15:48:50.027470+00:00", reader: { provider: "p", model: "qwen/qwen3.8-27b" } }, UTC)).toBe(
+      "a passive memory process, part of him (qwen/qwen3.8-27b) · backfilled · 7 Nov 2026",
+    );
+    expect(cardProvenance({ authored_by: { kind: "entity-mind", id: "nerin" }, digest_method: "authored-v1", cause: null, understood_at: null, reader: null })).toBe("his own words");
+  });
+
+  it("a mechanical reading is a placeholder — the clause of Detail's MECHANICAL_WORDS", () => {
+    expect(PLACEHOLDER_WORDS).toBe("a placeholder until he understands it");
+    expect(MECHANICAL_WORDS.endsWith(PLACEHOLDER_WORDS)).toBe(true);
+    expect(cardProvenance({ authored_by: { kind: "mechanical", id: "mechanical-v2" }, digest_method: "mechanical-v2", cause: "formation", understood_at: "2026-11-07T12:00:00Z", reader: null }, UTC)).toBe(PLACEHOLDER_WORDS);
+    expect(cardProvenance({ authored_by: null, digest_method: "mechanical-flow-v1", cause: null, understood_at: null, reader: null })).toBe(PLACEHOLDER_WORDS);
+    expect(cardProvenance({ authored_by: { kind: "unrecorded", id: null }, digest_method: "mechanical-v1", cause: null, understood_at: null, reader: null })).toBe(PLACEHOLDER_WORDS);
+    expect(isMechanicalMethod("mechanical-v2")).toBe(true);
+    expect(isMechanicalMethod("authored-backfill-v1")).toBe(false);
+    expect(isMechanicalMethod(null)).toBe(false);
   });
 });
 

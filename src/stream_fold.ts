@@ -67,6 +67,11 @@ export interface NodeState {
    * rewritten in place). null until one at or before this fold position
    * served it. Never kept for a diary record. */
   digest?: string | null;
+  /** Which reading `digest` is (memory's digest_version), set with it;
+   * null when the stream served the digest without one (snapshot payload
+   * rows). The hover card's read compares it with the record's current
+   * reading (hover_card.currentReading). */
+  digest_version?: number | null;
   /** Belief lifecycle: set once a closure names this record. */
   closed: { kind: string; reason: string; seq: number; replacement_ids: string[] } | null;
   /** The BOOK entry id (diary projections; from binding provenance) — the
@@ -448,7 +453,11 @@ function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
   // The served summary (a binding's display carries the current reading):
   // the record's digest, used as served — never derived from its words.
   const dg = display.digest;
-  if (typeof dg === "string" && dg.trim() && node.kind !== "relation" && !isDiaryGraphId(node.graph_id ?? node.id)) node.digest = dg;
+  if (typeof dg === "string" && dg.trim() && node.kind !== "relation" && !isDiaryGraphId(node.graph_id ?? node.id)) {
+    node.digest = dg;
+    const dv = display.digest_version;
+    node.digest_version = typeof dv === "number" && Number.isFinite(dv) ? dv : null;
+  }
   detectBookkeeping(node, display);
 }
 
@@ -668,7 +677,10 @@ function resolveUsageNode(state: FoldState, rowId: string, display: DisplayBlock
       node.bookkeeping = node.bookkeeping || graphNode.bookkeeping;
       // The binding's served summary and its method (the row side may not
       // have seen a recall yet).
-      if (!node.digest && graphNode.digest) node.digest = graphNode.digest;
+      if (!node.digest && graphNode.digest) {
+        node.digest = graphNode.digest;
+        node.digest_version = graphNode.digest_version ?? null;
+      }
       if (!node.digest_method && graphNode.digest_method) node.digest_method = graphNode.digest_method;
       state.nodes.delete(graphId);
       rekeyNodeInEdges(state, graphId, rowId);
@@ -879,7 +891,11 @@ function applySnapshot(state: FoldState, env: ReplayEnvelope): void {
     const node = resolveUsageNode(state, rid, { record_id: rid, title: row.title, token_estimate: row.token_estimate }, env.seq);
     // The row's digest is that record's summary: kept on its own node only
     // (an edge row resolves onto its source), never on a diary record.
-    if (!blocks && node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && !isDiaryGraphId(rid) && typeof row.digest === "string" && row.digest.trim()) node.digest = row.digest;
+    if (!blocks && node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && !isDiaryGraphId(rid) && typeof row.digest === "string" && row.digest.trim()) {
+      node.digest = row.digest;
+      // A payload row names no reading: which one it is, is unknown.
+      if (node.digest_version != null) node.digest_version = null;
+    }
   }
   // Each block names its record by row and graph id (the pairing, first
   // class) and carries its digest and digest_method (applyDisplayToNode:

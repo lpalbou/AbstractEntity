@@ -10,9 +10,12 @@
  *   stripped — node_label.shapeLabel — its later lines kept, so Markdown
  *   headings and lists stay readable); a private diary entry reads "a
  *   diary entry"; a record with no title shows its id's head;
- * - summary: the record's full digest as the stream served it at or
- *   before the scrub position (stream_fold NodeState.digest — never kept
- *   for a diary record); none otherwise (absent, never invented);
+ * - summary (nodeCardText, the topic card's exemplar): the record's full
+ *   digest as the stream served it at or before the scrub position
+ *   (stream_fold NodeState.digest — never kept for a diary record); none
+ *   otherwise (absent, never invented). A memory's own hover card leads
+ *   with its CURRENT understanding instead (cardSummary/currentReading:
+ *   the record read, the fold's text only until it arrives);
  * - topic cards: the topic's readable words, then its exemplar — the
  *   memory the runtime chose as most representative — by its summary
  *   (or title) when the fold holds it and it is not private.
@@ -29,6 +32,7 @@ import { isDiaryShaped } from "./episode_parse";
 import { Words } from "./verbatim_view";
 import { readCard } from "./world_model_view";
 import { sourceWords } from "./world_model_sources";
+import { cardProvenance, isMechanicalMethod, PLACEHOLDER_WORDS, servedDigest, type Understanding } from "./understanding";
 
 export interface CardText {
   /** Markdown, inline (one line of prose; headings/bold render, never
@@ -154,20 +158,67 @@ function digestOf(node: NodeState): string | null {
   return typeof node.digest === "string" && node.digest.trim() ? node.digest.trim() : null;
 }
 
-/** Does the card need to read the record's words? Only when the fold holds
- * no summary, the record is not diary-shaped (NEVER read from a card), and
- * Detail itself would read it on open (record_detail_parts.wordsReadOnOpen:
- * relation rows and engine acts carry no words). */
+/** Does the card read the record? Whenever the record is not diary-shaped
+ * (NEVER read from a card) and Detail itself would read it on open
+ * (record_detail_parts.wordsReadOnOpen: relation rows and engine acts carry
+ * no words) — a digest the fold holds too: it is the reading that entered
+ * the context then, and the record's understanding is rewritten in place
+ * (a backfill turns a mechanical digest into his prose), so only the read
+ * knows the current one (operator 2026-11-08: the card still showed the
+ * old mechanical digest of a backfilled record). */
 export function needsWords(node: NodeState): boolean {
   if (isDiaryNode(node)) return false;
-  if (!wordsReadOnOpen(node)) return false;
-  return digestOf(node) === null;
+  return wordsReadOnOpen(node);
+}
+
+/** The record's current understanding as its read served it
+ * (understanding.ts) — the fields the card shows and compares. */
+export type ServedReading = Pick<Understanding, "digest" | "digest_version" | "digest_method" | "authored_by" | "reader" | "cause" | "understood_at">;
+
+/** What the card's read holds: reading; the words (`served`: the record's
+ * current understanding, null when the gateway does not serve it); or
+ * nothing to show, with why. */
+export type HoverWords = { phase: "reading" } | { phase: "ready"; text: string; served: ServedReading | null } | { phase: "none"; message: string };
+
+/** The summary the card leads with and its hint (understanding.cardProvenance). */
+export interface CardReading {
+  text: string;
+  /** Under the summary, in Detail's words; null when nothing is known of
+   * who wrote it (a fold digest that is not mechanical). */
+  provenance: string | null;
+  /** The record read's current understanding (else the fold's reading). */
+  current: boolean;
+}
+
+/** The fold's reading is newer than the read's only when both name their
+ * version and the fold's is higher (a rewrite landed on the stream after
+ * the card read the record). */
+function foldIsNewer(fold: number | null | undefined, served: number | null): boolean {
+  return typeof fold === "number" && typeof served === "number" && fold > served;
+}
+
+/** Which reading the card shows: the record read's current understanding
+ * (its served digest) — unless the fold holds a newer one; else the
+ * fold's digest (the reading that entered the context at the scrub
+ * position), shown while the read is under way or when the read serves
+ * none, with the placeholder hint when its method is mechanical. A text is
+ * never rewritten: an old mechanical digest is superseded, never repaired.
+ * Never for a diary record. */
+export function currentReading(node: NodeState, served: ServedReading | null, timeZone?: string): CardReading | null {
+  if (isDiaryNode(node)) return null;
+  const fold = digestOf(node);
+  const own = served ? servedDigest(served) : null;
+  if (own && served && !(fold && foldIsNewer(node.digest_version, served.digest_version))) {
+    return { text: own, provenance: cardProvenance(served, timeZone), current: true };
+  }
+  if (fold) return { text: fold, provenance: isMechanicalMethod(node.digest_method) ? PLACEHOLDER_WORDS : null, current: false };
+  return null;
 }
 
 export type CardSummary =
   | { kind: "diary"; text: string }
-  | { kind: "floor"; name: string; lines: string[]; threads: string[]; feeling: string | null }
-  | { kind: "words"; text: string; plain: boolean }
+  | { kind: "floor"; name: string; lines: string[]; threads: string[]; feeling: string | null; provenance: string | null }
+  | { kind: "words"; text: string; plain: boolean; provenance: string | null }
   | { kind: "reading" }
   | { kind: "none"; text: string };
 
@@ -175,29 +226,28 @@ function dayOf(stamp: string | null): string {
   return String(stamp ?? "").slice(0, 10);
 }
 
-/** What the card says first, per kind, from the fold's digest, else the
- * stored summary the record read served (`words.served`), else the words
- * just read (`words`; null while unread), through the parses Detail uses
- * (a served summary is used as served, never derived from the words):
+/** What the card says first, per kind: the record's current understanding
+ * (currentReading: the read's served digest, the fold's digest until it
+ * arrives), else the words just read (`words`; null while unread), through
+ * the parses Detail uses (a served summary is used as served, never
+ * derived from the words):
  * - a diary record: DIARY_CARD_LINE, never its words;
  * - a world model: its card (world_model_view.readCard) — the evidence
  *   floor's name, count, days, threads and standing feeling, or its lead;
- * - a lived moment: its digest, else his answer's lead
- *   (world_model_sources.sourceWords, the exchange parse) when no summary
- *   is served;
- * - a dream: its summary as written (not Markdown);
+ * - a lived moment: its summary, else his answer's lead
+ *   (world_model_sources.sourceWords, the exchange parse) when none is
+ *   served;
+ * - a dream: its understanding as Markdown (Detail's rule); the sleep
+ *   pass's own summary — the fold's, or its words — as written;
  * - everything else (lessons, interests, identity, summaries, …): the
- *   whole words. */
-export function cardSummary(
-  node: NodeState,
-  words: { phase: "reading" } | { phase: "ready"; text: string; served: string | null } | { phase: "none"; message: string } | null,
-  entity: string,
-): CardSummary | null {
+ *   whole words.
+ * Every summary carries its hint (`provenance`; null when unknown). */
+export function cardSummary(node: NodeState, words: HoverWords | null, entity: string, timeZone?: string): CardSummary | null {
   if (isDiaryNode(node)) return { kind: "diary", text: DIARY_CARD_LINE };
-  const served = words && words.phase === "ready" && words.served && words.served.trim() ? words.served.trim() : null;
-  const digest = digestOf(node) ?? served;
+  const reading = currentReading(node, words && words.phase === "ready" ? words.served : null, timeZone);
   const read = words && words.phase === "ready" && words.text.trim() ? words.text.trim() : null;
-  const text = digest ?? read;
+  const text = reading?.text ?? read;
+  const provenance = reading?.provenance ?? null;
   if (!text) {
     if (words?.phase === "reading") return { kind: "reading" };
     if (words?.phase === "none") return { kind: "none", text: words.message };
@@ -211,16 +261,16 @@ export function cardSummary(
         const days = shape.first ? (dayOf(shape.first) === dayOf(shape.last) ? `, ${dayOf(shape.first)}` : `, ${dayOf(shape.first)} to ${dayOf(shape.last)}`) : "";
         lines.push(`${shape.count} lived ${shape.count === 1 ? "memory" : "memories"}${days}${shape.kinds ? ` (${shape.kinds})` : ""}`);
       }
-      return { kind: "floor", name: shape.name, lines, threads: shape.threads, feeling: shape.feeling ? shape.feeling.replace(/^Standing feeling:\s*/, "") : null };
+      return { kind: "floor", name: shape.name, lines, threads: shape.threads, feeling: shape.feeling ? shape.feeling.replace(/^Standing feeling:\s*/, "") : null, provenance };
     }
-    return { kind: "words", text: shape.lead || text, plain: false };
+    return { kind: "words", text: shape.lead || text, plain: false, provenance };
   }
-  if (node.kind === "dream") return { kind: "words", text, plain: true };
-  if (node.kind === "episode" && !digest) {
+  if (node.kind === "dream") return { kind: "words", text, plain: !reading?.current, provenance };
+  if (node.kind === "episode" && !reading) {
     const lead = sourceWords(text, entity);
-    return { kind: "words", text: lead.phase === "ready" && lead.lead ? lead.lead : text, plain: false };
+    return { kind: "words", text: lead.phase === "ready" && lead.lead ? lead.lead : text, plain: false, provenance };
   }
-  return { kind: "words", text, plain: false };
+  return { kind: "words", text, plain: false, provenance };
 }
 
 /** The record's kind in plain words (the line Detail opens with). */

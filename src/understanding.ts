@@ -27,8 +27,12 @@ export const NOT_YET = "not computed yet";
 /** The one sentence a gateway without the understanding fields gets. */
 export const UNSERVED_SENTENCE = "This gateway does not serve stored understanding yet.";
 
+/** What mechanical words are, in the card's few words (MECHANICAL_WORDS'
+ * own clause: one wording, Detail and the hover card). */
+export const PLACEHOLDER_WORDS = "a placeholder until he understands it";
+
 /** Mechanical words (a `mechanical-*` digest): a placeholder. */
-export const MECHANICAL_WORDS = "mechanical — a placeholder until he understands it";
+export const MECHANICAL_WORDS = `mechanical — ${PLACEHOLDER_WORDS}`;
 
 /** Who wrote a reading (abstractmemory understanding.AUTHOR_KINDS, plus
  * memory's "unrecorded" for an older reading it did not see written). */
@@ -224,13 +228,19 @@ export function readUnderstanding(body: Body, kind: string | undefined): Underst
 
 const filled = (s: string | null | undefined): string | null => (typeof s === "string" && s.trim() ? s.trim() : null);
 
+/** A `mechanical-*` digest method: the driver's floor, not an understanding
+ * (memory's method names; read from the served field, never the text). */
+export function isMechanicalMethod(digestMethod: string | null | undefined): boolean {
+  return (filled(digestMethod) ?? "").startsWith("mechanical");
+}
+
 /** Who wrote the words, in end-user words (no ids, no labels). */
 export function authorWords(author: ServedAuthor | null, digestMethod: string | null, reader: ServedReader | null): string {
   if (!author) return `who wrote it: ${NOT_YET}`;
   if (author.kind === "entity-mind") return "his own words";
   if (author.kind === "capability-model") return `a passive memory process, part of him (${filled(reader?.model) ?? `model ${NOT_YET}`})`;
   if (author.kind === "operator") return "set by the operator";
-  if (author.kind === "mechanical" || (filled(digestMethod) ?? "").startsWith("mechanical")) return MECHANICAL_WORDS;
+  if (author.kind === "mechanical" || isMechanicalMethod(digestMethod)) return MECHANICAL_WORDS;
   if (author.kind === "unrecorded") return "who wrote it was not recorded";
   return `written by ${author.kind.replace(/[_-]+/g, " ")}`;
 }
@@ -283,6 +293,26 @@ export function provenanceWords(
 export function provenanceLine(p: ProvenanceWords): string {
   const who = p.who.charAt(0).toUpperCase() + p.who.slice(1);
   return `${who} · ${p.when} · ${p.why}`;
+}
+
+/** The hover card's hint under the summary, in Detail's words: a
+ * mechanical reading is PLACEHOLDER_WORDS; any other is who wrote it
+ * (authorWords), why — the head of causeWords, before its " — " gloss
+ * ("backfilled") — and the day it is understood as of. A part the gateway
+ * has not computed is left out of the hint (Detail names it). */
+export function cardProvenance(
+  u: Pick<Understanding, "authored_by" | "digest_method" | "cause" | "understood_at" | "reader">,
+  timeZone?: string,
+): string {
+  const who = authorWords(u.authored_by, u.digest_method, u.reader);
+  // Detail's rule (authorWords), and a mechanical method with no author
+  // recorded: still the driver's floor.
+  if (who === MECHANICAL_WORDS || (!u.authored_by && isMechanicalMethod(u.digest_method))) return PLACEHOLDER_WORDS;
+  const parts = [who];
+  if (filled(u.cause)) parts.push(causeWords(u.cause).split(" — ")[0]);
+  const at = filled(u.understood_at);
+  if (at) parts.push(dayWords(at, timeZone));
+  return parts.join(" · ");
 }
 
 /** The readings before the current one (memory marks it `current`),

@@ -77,6 +77,9 @@ export interface DisplayBlock {
    * replay.py: BINDING display blocks carry the current reading's digest,
    * rewritten in place). Never on a diary block. */
   digest?: string | null;
+  /** Which reading `digest` is (memory's digest_version: 0 = the record's
+   * first, mechanical or not; each rewrite adds one). */
+  digest_version?: number | null;
 }
 
 export interface ReplayEnvelope {

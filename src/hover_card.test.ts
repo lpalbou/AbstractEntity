@@ -13,6 +13,7 @@ import {
   canvasLabel,
   cardKindLine,
   cardSummary,
+  currentReading,
   DIARY_CARD_LINE,
   isDiaryNode,
   markdownTitle,
@@ -23,7 +24,9 @@ import {
   placeCard,
   topicActions,
   topicExemplarText,
+  type ServedReading,
 } from "./hover_card";
+import { PLACEHOLDER_WORDS } from "./understanding";
 import { Words } from "./verbatim_view";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, display?: Record<string, unknown>): ReplayEnvelope {
@@ -251,28 +254,30 @@ describe("cardSummary — the summary every card leads with, per kind", () => {
       lines: ["12 lived memories, 2026-10-01 to 2026-11-01 (9 episodes, 3 summaries)"],
       threads: ["housing", "refugees"],
       feeling: "warm toward the work",
+      provenance: null,
     });
     // An authored card: its lead.
     expect(cardSummary(node("ex:world_model-w"), ready("He sees housing as a slow emergency.\n\nSince then two counts rose."), "nerin")).toEqual({
       kind: "words",
       text: "He sees housing as a slow emergency.",
       plain: false,
+      provenance: null,
     });
   });
 
-  it("a lived moment: its digest when the fold holds one, else his answer's lead", () => {
-    expect(cardSummary(node("ex:episode-e"), ready(EXCHANGE), "nerin")).toEqual({ kind: "words", text: "I found the **UNHCR** portal and its 2026 tables.", plain: false });
+  it("a lived moment: its digest when the fold holds one and the read serves none, else his answer's lead", () => {
+    expect(cardSummary(node("ex:episode-e"), ready(EXCHANGE), "nerin")).toEqual({ kind: "words", text: "I found the **UNHCR** portal and its 2026 tables.", plain: false, provenance: null });
     const withDigest = { ...node("ex:episode-e"), digest: "person:admin: what did you find? nerin: the portal." };
-    expect(cardSummary(withDigest, ready(EXCHANGE), "nerin")).toEqual({ kind: "words", text: "person:admin: what did you find? nerin: the portal.", plain: false });
+    expect(cardSummary(withDigest, ready(EXCHANGE), "nerin")).toEqual({ kind: "words", text: "person:admin: what did you find? nerin: the portal.", plain: false, provenance: null });
   });
 
-  it("a dream: its summary as written (not Markdown)", () => {
-    expect(cardSummary(node("ex:dream-d"), ready("Dream: revised `card A"), "nerin")).toEqual({ kind: "words", text: "Dream: revised `card A", plain: true });
+  it("a dream: the sleep pass's own summary as written (not Markdown)", () => {
+    expect(cardSummary(node("ex:dream-d"), ready("Dream: revised `card A"), "nerin")).toEqual({ kind: "words", text: "Dream: revised `card A", plain: true, provenance: null });
   });
 
   it("lessons, interests, identity and summaries: the whole words", () => {
     for (const id of ["ex:lesson-l", "ex:interest-i", "ex:value-v", "ex:summary-s"]) {
-      expect(cardSummary(node(id), ready("All of **its** words."), "nerin")).toEqual({ kind: "words", text: "All of **its** words.", plain: false });
+      expect(cardSummary(node(id), ready("All of **its** words."), "nerin")).toEqual({ kind: "words", text: "All of **its** words.", plain: false, provenance: null });
     }
   });
 
@@ -300,9 +305,9 @@ describe("cardSummary — the summary every card leads with, per kind", () => {
     expect(needsWords({ ...node("ex:lesson-l"), redacted: true })).toBe(false);
   });
 
-  it("reads only what the fold does not hold, and nothing Detail would not read", () => {
+  it("reads every record Detail would read — one whose digest the fold holds too (rewritten in place) — and nothing else", () => {
     expect(needsWords(node("ex:world_model-w"))).toBe(true);
-    expect(needsWords({ ...node("ex:episode-e"), digest: "held" })).toBe(false);
+    expect(needsWords({ ...node("ex:episode-e"), digest: "held" })).toBe(true);
     expect(needsWords({ ...node("ex:lesson-l"), kind: "relation" })).toBe(false);
     expect(needsWords({ ...node("ex:lesson-l"), bookkeeping: true })).toBe(false);
   });
@@ -310,6 +315,92 @@ describe("cardSummary — the summary every card leads with, per kind", () => {
   it("names the kind the way Detail opens", () => {
     expect(cardKindLine(node("ex:world_model-w"))).toBe("His working model of someone or something");
     expect(cardKindLine(node("ex:episode-e"))).toBe("A lived moment");
+  });
+});
+
+/** nerin's moment from the operator's screenshot (2026-11-08), as his store
+ * keeps it: reading 0 is the driver's mechanical digest (one line, the
+ * answer's own "###" and "-" inline), reading 1 the backfill's prose. */
+const OLD_MECHANICAL =
+  "person:admin: so why did you stop exploring the world ? you thought that by looking 8 sites you would get a world view of where we are and what's happening? why did you decided to stop and sleep? nerin: You’re right to challenge that. , not using their substantive claims ### Promising leads found - WFP’s hunger hotspots";
+const BACKFILLED: ServedReading = {
+  digest: "Admin challenged me for stopping my exploration of the world after reviewing only **eight sites**. I admitted that I had mistaken initial breadth for sufficiency.",
+  digest_version: 1,
+  digest_method: "authored-backfill-v1",
+  authored_by: { kind: "capability-model", id: "endpoint:compat-theforge-nvidia/qwen/qwen3.8-27b" },
+  reader: { provider: "endpoint:compat-theforge-nvidia", model: "qwen/qwen3.8-27b" },
+  cause: "backfill",
+  understood_at: "2026-11-07T15:48:50.027470+00:00",
+};
+const BACKFILL_HINT = "a passive memory process, part of him (qwen/qwen3.8-27b) · backfilled · 7 Nov 2026";
+
+describe("the card leads with the record's CURRENT understanding (operator 2026-11-08: the backfilled moment still showed its mechanical digest)", () => {
+  const ID = "ex:episode-caeae4edfb36ab4fe6c4f36386";
+  const recalled = foldEnvelopes([
+    binding(1, ID, "episode", "exchange: so why did you stop exploring the world ? you thought that by looking…", { digest: OLD_MECHANICAL, digest_method: "mechanical-v2", digest_version: 0 }),
+  ]);
+  const ep = recalled.nodes.get(ID)!;
+  const ready = (served: ServedReading | null) => ({ phase: "ready" as const, text: "person:admin:\nso why did you stop?\n\nnerin:\nYou’re right to challenge that.", served });
+
+  it("the fold keeps which reading its digest is (memory's digest_version), set with the digest", () => {
+    expect(ep.digest).toBe(OLD_MECHANICAL);
+    expect(ep.digest_version).toBe(0);
+    expect(ep.digest_method).toBe("mechanical-v2");
+    // A later binding carrying reading 2 moves both together.
+    const later = foldEnvelopes([binding(1, ID, "episode", "t", { digest: OLD_MECHANICAL, digest_version: 0 }), binding(2, ID, "episode", "t", { digest: "He kept looking.", digest_version: 2 })]);
+    expect([later.nodes.get(ID)!.digest, later.nodes.get(ID)!.digest_version]).toEqual(["He kept looking.", 2]);
+    // A snapshot payload row names no reading: unknown.
+    const row = foldEnvelopes([binding(1, ID, "episode", "t", { digest: "x", digest_version: 3 }), snapshot(5, [{ record_id: ID, title: "t", digest: "y" }])]);
+    expect([row.nodes.get(ID)!.digest, row.nodes.get(ID)!.digest_version]).toEqual(["y", null]);
+  });
+
+  it("the card reads a record whose digest the fold holds (its understanding is rewritten in place)", () => {
+    expect(needsWords(ep)).toBe(true);
+  });
+
+  it("the read's served digest replaces the fold's mechanical one, with its provenance in Detail's words", () => {
+    expect(cardSummary(ep, ready(BACKFILLED), "nerin", "UTC")).toEqual({ kind: "words", text: BACKFILLED.digest, plain: false, provenance: BACKFILL_HINT });
+    expect(currentReading(ep, BACKFILLED, "UTC")).toEqual({ text: BACKFILLED.digest, provenance: BACKFILL_HINT, current: true });
+  });
+
+  it("while the read is under way (or failed) the fold's text shows, marked a placeholder when its method is mechanical", () => {
+    expect(cardSummary(ep, { phase: "reading" }, "nerin", "UTC")).toEqual({ kind: "words", text: OLD_MECHANICAL, plain: false, provenance: PLACEHOLDER_WORDS });
+    expect(cardSummary(ep, null, "nerin", "UTC")).toEqual({ kind: "words", text: OLD_MECHANICAL, plain: false, provenance: PLACEHOLDER_WORDS });
+    expect(cardSummary(ep, { phase: "none", message: "his words could not be read (HTTP 500)" }, "nerin")!.kind).toBe("words");
+    // The fold's text is never rewritten: shown as held, "###" and all.
+    expect(currentReading(ep, null)!.text).toBe(OLD_MECHANICAL);
+  });
+
+  it("a fold reading NEWER than the read's (a rewrite landed after the card read) stays; equal or unknown versions take the read's", () => {
+    const newer = { ...ep, digest: "He went back out to look.", digest_method: "authored-v1", digest_version: 2 };
+    expect(currentReading(newer, BACKFILLED)).toEqual({ text: "He went back out to look.", provenance: null, current: false });
+    expect(currentReading({ ...ep, digest_version: 1 }, BACKFILLED)!.current).toBe(true);
+    expect(currentReading({ ...ep, digest_version: null }, BACKFILLED)!.current).toBe(true);
+    expect(currentReading(ep, { ...BACKFILLED, digest_version: null })!.current).toBe(true);
+  });
+
+  it("a read that serves no digest yet (not computed / older gateway) leaves the fold's", () => {
+    expect(currentReading(ep, { ...BACKFILLED, digest: null })).toEqual({ text: OLD_MECHANICAL, provenance: PLACEHOLDER_WORDS, current: false });
+    expect(cardSummary(ep, ready(null), "nerin")).toEqual({ kind: "words", text: OLD_MECHANICAL, plain: false, provenance: PLACEHOLDER_WORDS });
+  });
+
+  it("a current reading that is itself mechanical says so", () => {
+    const mech: ServedReading = { ...BACKFILLED, digest: "person:admin: hi nerin: hello", digest_method: "mechanical-v2", authored_by: { kind: "mechanical", id: "mechanical-v2" }, reader: null, cause: "formation" };
+    expect(currentReading(ep, mech)!.provenance).toBe(PLACEHOLDER_WORDS);
+  });
+
+  it("a dream's understanding renders as Markdown (Detail's rule); its own sleep-pass summary as written", () => {
+    const dream = { ...ep, kind: "dream", digest: "Dream: revised `card A", digest_method: "mechanical-dream-v1", digest_version: 0 };
+    expect(cardSummary(dream, ready({ ...BACKFILLED, digest: "The night **joined** two threads." }), "nerin", "UTC")).toMatchObject({ text: "The night **joined** two threads.", plain: false });
+    expect(cardSummary(dream, { phase: "reading" }, "nerin")).toMatchObject({ text: "Dream: revised `card A", plain: true });
+  });
+
+  it("THE DIARY GUARD: a diary record is never read and never shows a served reading", () => {
+    const diary = foldEnvelopes([binding(1, "ex:diary-q", "diary", "an entry", { diary: true })]).nodes.get("ex:diary-q")!;
+    expect(needsWords(diary)).toBe(false);
+    expect(currentReading(diary, BACKFILLED)).toBeNull();
+    expect(cardSummary(diary, ready(BACKFILLED), "nerin")).toEqual({ kind: "diary", text: DIARY_CARD_LINE });
+    expect(currentReading({ ...ep, graph_id: "ex:diary-q", id: "row-q" }, BACKFILLED)).toBeNull();
   });
 });
 

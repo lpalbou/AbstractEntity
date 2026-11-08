@@ -52,6 +52,7 @@ import { CardActions, CardSummaryBlock, HoverCardBox, useHoverWords } from "./gr
 import { recordTitle } from "./record_detail";
 import { writeSectionOpen } from "./section_disclosure";
 import { Words } from "./verbatim_view";
+import { WordsLine } from "./words_line";
 import { nodeLabel, summaryLabel } from "./node_label";
 import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
@@ -96,8 +97,9 @@ export interface GraphCanvasProps {
   onSelect(id: string | null): void;
   /** The gateway life this graph reads from (null for file/demo sources):
    * the topic communities (topics shape the layout whenever they exist —
-   * topic_layout.ts) and the words a hover card shows when the fold holds
-   * no summary (graph_hover_card.useHoverWords; never a diary record's). */
+   * topic_layout.ts) and the record read a hover card leads with — its
+   * current understanding (graph_hover_card.useHoverWords; never a diary
+   * record's). */
   gatewaySource: TopicSource | null;
   /** The "topics" toggle: soft halos + labels over the grouped layout
    * (never a different graph). */
@@ -1639,8 +1641,9 @@ export function GraphCanvas({
   const cardNodeId = card?.kind === "node" ? card.id : null;
   const hoverNode = cardNodeId ? fold.nodes.get(cardNodeId) ?? null : null;
   const hoverText = hoverNode ? nodeCardText(hoverNode) : null;
-  // The words the card shows when the fold holds no summary (read after a
-  // short rest on the memory; never a diary record's).
+  // The record's words and current understanding (read after a short rest
+  // on the memory; never a diary record's): its summary replaces the
+  // fold's reading when it arrives (hover_card.currentReading).
   const hoverWords = useHoverWords(gatewaySource, hoverNode);
   const hoverSummary = hoverNode ? cardSummary(hoverNode, hoverWords, gatewaySource?.entity ?? "") : null;
   // Which topic a memory belongs to — any member, diary and identity too
@@ -1775,7 +1778,7 @@ export function GraphCanvas({
               <div className="gc_hc_kindline">{cardKindLine(hoverNode)}</div>
               <CardSummaryBlock summary={hoverSummary} />
               {hoverNode.closed ? (
-                <div className="gc_hc_note">closed: {hoverNode.closed.kind} — {hoverNode.closed.reason}</div>
+                <WordsLine text={`closed: ${hoverNode.closed.kind}${hoverNode.closed.reason ? ` — ${hoverNode.closed.reason}` : ""}`} className="gc_hc_note" />
               ) : null}
               <div className="gc_hc_rows">
                 <span>used</span>

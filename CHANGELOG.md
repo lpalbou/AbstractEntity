@@ -4,6 +4,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **A memory's hover card shows what he understands it as now.** On a moment the overnight
+  backfill had rewritten (Nerin's "so why did you stop exploring the world…"), the graph's card
+  still showed the old one-line mechanical summary, with the answer's "###" and "-" run into the
+  sentence. The card took its summary from the moment the memory was last recalled and only read
+  the record when it had none. Now it always reads the record when the pointer rests on a memory
+  (a quarter of a second, as before) and shows the summary the gateway stores today, in place of
+  the older one as soon as it arrives; a newer reading that reached the graph after the read
+  still wins. Under the summary, a small line says who wrote it and why, in the words Detail
+  uses ("a passive memory process, part of him (qwen/qwen3.8-27b) · backfilled · 7 Nov 2026"),
+  or "a placeholder until he understands it" for a mechanical summary. An old mechanical text is
+  never rewritten by the app; it is replaced by his current understanding. A dream's
+  understanding now renders as Markdown, as in Detail. The card's notes, a world model's lines
+  and threads, and a closed memory's reason go through the shared Markdown renderer like the
+  rest. Diary entries are still never read from a card.
 - **A file you give him rides your message, and an image is shown to him.** A file dropped or
   picked in the chat still lands in his workspace, and the next message now carries it as an
   attachment, named by the path the workspace write returned. The gateway checks and records

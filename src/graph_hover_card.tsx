@@ -5,32 +5,41 @@
  * its facts, then what to do with it. The text selection is pure
  * (hover_card.ts); this module draws it and reads the words a card needs.
  *
- * Reading: when the fold holds no summary, the card reads the record's
- * words through the app's shared reader (verbatim_view.readRecordWords: a
- * GET, cached) — after HOVER_READ_DELAY_MS on the same memory, so a sweep
- * across the graph does not fire a read per node; leaving the memory
- * cancels it. A diary-shaped record is NEVER read from a card.
+ * Reading: the card reads the record through the app's shared reader
+ * (verbatim_view.readRecordWords: a GET, one in flight per record) — its
+ * current understanding, which replaces the fold's digest when it arrives
+ * (the fold's is the reading that entered the context then; a backfill
+ * rewrites it in place) — after HOVER_READ_DELAY_MS on the same memory, so
+ * a sweep across the graph does not fire a read per node; leaving the
+ * memory cancels it. A diary-shaped record is NEVER read from a card.
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { NodeState } from "./stream_fold";
 import type { VerbatimSource } from "./verbatim_modal";
-import { readRecordWords, Words } from "./verbatim_view";
+import { readRecordWords, Words, type RecordWords } from "./verbatim_view";
 import { servedDigest } from "./understanding";
 import { WordsLine } from "./words_line";
-import { needsWords, placeCard, type CardAction, type CardActionId, type CardSummary } from "./hover_card";
+import { needsWords, placeCard, type CardAction, type CardActionId, type CardSummary, type HoverWords } from "./hover_card";
+
+export type { HoverWords } from "./hover_card";
 
 /** How long the pointer rests on a memory before its words are read. */
 export const HOVER_READ_DELAY_MS = 250;
 
-/** `served`: the stored summary the record read served (understanding.ts);
- * null when the gateway does not serve it or has not computed it yet. */
-export type HoverWords = { phase: "reading" } | { phase: "ready"; text: string; served: string | null } | { phase: "none"; message: string };
+/** A record read as the card holds it: its words and its current
+ * understanding (`served`; null when the gateway does not serve it) —
+ * "none" when it has neither words nor a stored summary. */
+export function hoverWordsOf(w: RecordWords): HoverWords {
+  const served = w.understanding && w.understanding.served ? w.understanding.understanding : null;
+  if (!w.text.trim() && !(served && servedDigest(served))) return { phase: "none", message: "no words are kept for this memory" };
+  return { phase: "ready", text: w.text, served };
+}
 
-/** The words a card shows for `node` when the fold holds no summary —
- * read once the pointer has rested HOVER_READ_DELAY_MS; null when the card
- * needs none (a digest is held, a diary record, a relation row…). */
+/** The words and current understanding a card shows for `node` — read
+ * once the pointer has rested HOVER_READ_DELAY_MS; null when the card
+ * reads nothing (a diary record, a relation row…). */
 export function useHoverWords(source: VerbatimSource | null, node: NodeState | null): HoverWords | null {
   const graphId = node ? node.graph_id ?? node.id : null;
   const need = Boolean(node && source && needsWords(node));
@@ -44,9 +53,7 @@ export function useHoverWords(source: VerbatimSource | null, node: NodeState | n
       setState({ key: graphId, words: { phase: "reading" } });
       readRecordWords(source, graphId, kind)
         .then((w) => {
-          if (!live) return;
-          const served = w.understanding && w.understanding.served ? servedDigest(w.understanding.understanding) : null;
-          setState({ key: graphId, words: w.text.trim() || served ? { phase: "ready", text: w.text, served } : { phase: "none", message: "no words are kept for this memory" } });
+          if (live) setState({ key: graphId, words: hoverWordsOf(w) });
         })
         .catch((e: Error & { status?: number }) => {
           if (!live) return;
@@ -107,41 +114,54 @@ export const HoverCardBox = React.forwardRef(function HoverCardBox(
   );
 });
 
+/** Who wrote the summary, why, as of when — Detail's words, small, under it. */
+function CardProvenance({ text }: { text: string | null }): React.ReactElement | null {
+  return text ? <WordsLine text={text} className="gc_hc_prov" /> : null;
+}
+
 /** The summary block: the record's words through the shared renderer (a
- * dream's as written), a world model's card as its floor, a diary
- * record's line, or a reading note. */
+ * dream's own sleep-pass summary as written), a world model's card as its
+ * floor, a diary record's line, or a reading note; then its provenance. */
 export function CardSummaryBlock({ summary }: { summary: CardSummary | null }): React.ReactElement | null {
   if (!summary) return null;
-  if (summary.kind === "diary") return <div className="gc_hc_quiet">{summary.text}</div>;
-  if (summary.kind === "reading") return <div className="gc_hc_quiet">reading his words…</div>;
-  if (summary.kind === "none") return <div className="gc_hc_quiet">{summary.text}</div>;
+  if (summary.kind === "diary") return <WordsLine text={summary.text} className="gc_hc_quiet" />;
+  if (summary.kind === "reading") return <WordsLine text="reading his words…" className="gc_hc_quiet" />;
+  if (summary.kind === "none") return <WordsLine text={summary.text} className="gc_hc_quiet" />;
   if (summary.kind === "floor") {
     return (
-      <div className="gc_hc_summary gc_hc_floor">
-        <div className="gc_hc_floor_name">
-          <WordsLine text={`What he knows of ${summary.name}`} />
+      <>
+        <div className="gc_hc_summary gc_hc_floor">
+          <div className="gc_hc_floor_name">
+            <WordsLine text={`What he knows of ${summary.name}`} />
+          </div>
+          {summary.lines.map((l) => (
+            <WordsLine key={l} text={l} />
+          ))}
+          {summary.threads.length ? (
+            <div className="gc_hc_threads">
+              {summary.threads.map((t) => (
+                <span key={t} className="gc_hc_thread">
+                  <WordsLine text={t} inline />
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {summary.feeling ? (
+            <div className="gc_hc_feeling">
+              <WordsLine text={summary.feeling} />
+            </div>
+          ) : null}
         </div>
-        {summary.lines.map((l) => (
-          <div key={l}>{l}</div>
-        ))}
-        {summary.threads.length ? (
-          <div className="gc_hc_threads">
-            {summary.threads.map((t) => (
-              <span key={t} className="gc_hc_thread">
-                {t}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {summary.feeling ? (
-          <div className="gc_hc_feeling">
-            <WordsLine text={summary.feeling} />
-          </div>
-        ) : null}
-      </div>
+        <CardProvenance text={summary.provenance} />
+      </>
     );
   }
-  return summary.plain ? <div className="gc_hc_summary gc_hc_plain">{summary.text}</div> : <Words text={summary.text} className="gc_hc_summary" />;
+  return (
+    <>
+      {summary.plain ? <div className="gc_hc_summary gc_hc_plain">{summary.text}</div> : <Words text={summary.text} className="gc_hc_summary" />}
+      <CardProvenance text={summary.provenance} />
+    </>
+  );
 }
 
 /** The card's actions: real buttons (keyboard-focusable, tappable), the
