@@ -1,5 +1,5 @@
 {
-  "_comment": "Record reads (GET …/entities/{e}/records/{id}/verbatim) as the understanding-pass gateway serves them: memory's display block verbatim (understanding.understanding_fields), null for what is not computed yet, never omitted; versions as the journal keeps them (UnderstandingVersion.to_dict). OLD_GATEWAY is the same read before the fields. Shared by src/understanding*.test.* and untracked/understanding-detail-shots/shots.mjs.",
+  "_comment": "Record reads (GET …/entities/{e}/records/{id}/verbatim) in the shape abstractgateway 1b3832b7 serves (entity_understanding.py): the fifteen fields top-level, null where the store holds none, then `versions` = memory's list verbatim (oldest first; a mechanical reading's reader is {}; `current` marks the reading the record holds now). OLD_GATEWAY is the same read before the fields. The exact gateway answers are pinned in gateway_understanding_1b3832b7.json. Shared by src/understanding*.test.* and untracked/understanding-detail-shots/shots.mjs.",
   "SERVED": {
     "record_id": "ex:summary-5c1e",
     "title": "session reflection: owntime",
@@ -14,11 +14,24 @@
     "digest_method": "authored-v1",
     "digest_version": 2,
     "version_count": 3,
-    "authored_by": { "kind": "capability-model", "id": "summaries" },
-    "reader": { "provider": "theforge-nvidia", "model": "qwen/qwen3.8-27b", "thinking": null },
+    "authored_by": {
+      "kind": "capability-model",
+      "id": "summaries"
+    },
+    "reader": {
+      "provider": "theforge-nvidia",
+      "model": "qwen/qwen3.8-27b",
+      "thinking": null
+    },
     "understood_at": "2026-11-08T12:00:00+00:00",
     "cause": "evidence",
     "replaced_by": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
     "versions": [
       {
         "record_id": "ex:summary-5c1e",
@@ -26,10 +39,16 @@
         "field": "digest",
         "text": "session reflection: owntime — 4 episodes, 2 lookups (survey, archive)",
         "digest_method": "mechanical-v2",
-        "author": { "kind": "mechanical", "id": "mechanical-v2" },
+        "author": {
+          "kind": "mechanical",
+          "id": "mechanical-v2"
+        },
         "reader": {},
-        "cause": { "cause": "formation" },
-        "understood_at": "2026-11-06T12:00:00+00:00"
+        "cause": {
+          "cause": "formation"
+        },
+        "understood_at": "2026-11-06T12:00:00+00:00",
+        "current": false
       },
       {
         "record_id": "ex:summary-5c1e",
@@ -37,10 +56,21 @@
         "field": "digest",
         "text": "He looked back on a quiet day of *reading*.",
         "digest_method": "authored-v1",
-        "author": { "kind": "capability-model", "id": "summaries" },
-        "reader": { "provider": "theforge-nvidia", "model": "qwen/qwen3.8-27b", "thinking": null },
-        "cause": { "cause": "backfill", "task_id": "t-1" },
-        "understood_at": "2026-11-07T12:00:00+00:00"
+        "author": {
+          "kind": "capability-model",
+          "id": "summaries"
+        },
+        "reader": {
+          "provider": "theforge-nvidia",
+          "model": "qwen/qwen3.8-27b",
+          "thinking": null
+        },
+        "cause": {
+          "cause": "backfill",
+          "task_id": "t-1"
+        },
+        "understood_at": "2026-11-07T12:00:00+00:00",
+        "current": false
       },
       {
         "record_id": "ex:summary-5c1e",
@@ -48,10 +78,21 @@
         "field": "digest",
         "text": "He closed the day on the **survey** and kept the open question for tomorrow.",
         "digest_method": "authored-v1",
-        "author": { "kind": "capability-model", "id": "summaries" },
-        "reader": { "provider": "theforge-nvidia", "model": "qwen/qwen3.8-27b", "thinking": null },
-        "cause": { "cause": "evidence", "task_id": "t-2" },
-        "understood_at": "2026-11-08T12:00:00+00:00"
+        "author": {
+          "kind": "capability-model",
+          "id": "summaries"
+        },
+        "reader": {
+          "provider": "theforge-nvidia",
+          "model": "qwen/qwen3.8-27b",
+          "thinking": null
+        },
+        "cause": {
+          "cause": "evidence",
+          "task_id": "t-2"
+        },
+        "understood_at": "2026-11-08T12:00:00+00:00",
+        "current": true
       }
     ]
   },
@@ -69,6 +110,12 @@
     "understood_at": null,
     "cause": null,
     "replaced_by": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
     "versions": null
   },
   "SERVED_CARD": {
@@ -81,8 +128,15 @@
     "digest_method": "authored-card-v1",
     "digest_version": 1,
     "version_count": 2,
-    "authored_by": { "kind": "entity-mind", "id": "castor" },
-    "reader": { "provider": "openai", "model": "gpt-5.6-terra", "thinking": null },
+    "authored_by": {
+      "kind": "entity-mind",
+      "id": "castor"
+    },
+    "reader": {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "thinking": null
+    },
     "understood_at": "2026-11-08T12:00:00+00:00",
     "cause": "evidence",
     "target": "person:admin",
@@ -90,24 +144,42 @@
     "card_revision": 3,
     "source_count": 12,
     "replaced_by": null,
+    "narrated": null,
+    "narration_version": null,
     "versions": [
       {
         "version": 0,
         "text": "What I know of admin:\n- 2026-11-01: welcomed me",
         "digest_method": "mechanical-card-v2",
-        "author": { "kind": "mechanical", "id": "mechanical-card-v2" },
+        "author": {
+          "kind": "mechanical",
+          "id": "mechanical-card-v2"
+        },
         "reader": {},
-        "cause": { "cause": "formation" },
-        "understood_at": "2026-11-01T12:00:00+00:00"
+        "cause": {
+          "cause": "formation"
+        },
+        "understood_at": "2026-11-01T12:00:00+00:00",
+        "current": false
       },
       {
         "version": 1,
         "text": "Admin trusts me with my own time and checks the sources I cite.",
         "digest_method": "authored-card-v1",
-        "author": { "kind": "entity-mind", "id": "castor" },
-        "reader": { "provider": "openai", "model": "gpt-5.6-terra", "thinking": null },
-        "cause": { "cause": "evidence" },
-        "understood_at": "2026-11-08T12:00:00+00:00"
+        "author": {
+          "kind": "entity-mind",
+          "id": "castor"
+        },
+        "reader": {
+          "provider": "openai",
+          "model": "gpt-5.6-terra",
+          "thinking": null
+        },
+        "cause": {
+          "cause": "evidence"
+        },
+        "understood_at": "2026-11-08T12:00:00+00:00",
+        "current": true
       }
     ]
   },
@@ -122,29 +194,58 @@
     "digest_method": "authored-v1",
     "digest_version": 1,
     "version_count": 2,
-    "authored_by": { "kind": "entity-mind", "id": "castor" },
-    "reader": { "provider": "openai", "model": "gpt-5.6-terra", "thinking": null },
+    "authored_by": {
+      "kind": "entity-mind",
+      "id": "castor"
+    },
+    "reader": {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "thinking": null
+    },
     "understood_at": "2026-11-08T12:00:00+00:00",
     "cause": "formation",
     "replaced_by": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
     "versions": [
       {
         "version": 0,
         "text": "person:admin: what did you find? castor: I found the UNHCR portal…",
         "digest_method": "mechanical-v2",
-        "author": { "kind": "mechanical", "id": "mechanical-v2" },
+        "author": {
+          "kind": "mechanical",
+          "id": "mechanical-v2"
+        },
         "reader": {},
-        "cause": { "cause": "formation" },
-        "understood_at": "2026-11-07T12:00:00+00:00"
+        "cause": {
+          "cause": "formation"
+        },
+        "understood_at": "2026-11-07T12:00:00+00:00",
+        "current": false
       },
       {
         "version": 1,
         "text": "Admin asked what I found; I pointed to the **UNHCR** portal and its 2026 tables.",
         "digest_method": "authored-v1",
-        "author": { "kind": "entity-mind", "id": "castor" },
-        "reader": { "provider": "openai", "model": "gpt-5.6-terra", "thinking": null },
-        "cause": { "cause": "formation" },
-        "understood_at": "2026-11-08T12:00:00+00:00"
+        "author": {
+          "kind": "entity-mind",
+          "id": "castor"
+        },
+        "reader": {
+          "provider": "openai",
+          "model": "gpt-5.6-terra",
+          "thinking": null
+        },
+        "cause": {
+          "cause": "formation"
+        },
+        "understood_at": "2026-11-08T12:00:00+00:00",
+        "current": true
       }
     ]
   },

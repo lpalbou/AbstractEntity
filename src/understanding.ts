@@ -1,12 +1,15 @@
 /**
  * A memory's stored understanding, as the gateway serves it (understanding
- * pass, backlog entity 0001; DESIGN §4/§10): the record read
- * (GET …/records/{id}/verbatim) carries memory's display block verbatim —
+ * pass, backlog entity 0001; abstractgateway entity_understanding.py at
+ * 1b3832b7): the record read (GET …/records/{id}/verbatim) carries memory's
+ * fields under memory's names, all fifteen on every non-diary answer —
  * `digest, digest_method, digest_version, version_count, authored_by
- * {kind, id}, reader {provider, model, thinking}, understood_at, cause` and
- * `versions` (every reading the record has had); a card adds `target,
- * target_type, card_revision, source_count`. Absent values are served as
- * `null`, never omitted.
+ * {kind, id}, reader {provider, model, thinking}, understood_at, cause,
+ * target, target_type, card_revision, source_count, narrated,
+ * narration_version, replaced_by` — null where the store holds none, never
+ * omitted; plus `versions`, memory's list verbatim (oldest first, each row
+ * with `author`, `reader` ({} for a mechanical reading), `cause` {cause, …}
+ * and `current`). A diary-shaped answer carries none of it.
  *
  * Three states, never confused:
  *   - a value: shown;
@@ -41,9 +44,11 @@ export interface ServedReader {
 }
 
 /** One reading the record has had (abstractmemory UnderstandingVersion,
- * as the journal keeps it: `author`, `reader`, `cause` {cause, …}). */
+ * as the journal keeps it: `author`, `reader`, `cause` {cause, …}, and
+ * `current` on the reading the record holds now). */
 export interface UnderstandingVersion {
   version: number;
+  current: boolean;
   text: string;
   author: ServedAuthor | null;
   reader: ServedReader | null;
@@ -70,11 +75,28 @@ export interface Understanding {
 
 export type UnderstandingRead = { served: true; understanding: Understanding } | { served: false; missing: string[] };
 
-/** The keys every record read carries (null when not computed yet). */
-export const UNDERSTANDING_KEYS = ["digest", "digest_method", "digest_version", "version_count", "authored_by", "reader", "understood_at", "cause", "versions"] as const;
+/** The fifteen keys every non-diary block carries (null when not computed
+ * yet): abstractgateway entity_understanding.UNDERSTANDING_KEYS. */
+export const BLOCK_KEYS = [
+  "digest",
+  "digest_method",
+  "digest_version",
+  "version_count",
+  "authored_by",
+  "reader",
+  "understood_at",
+  "cause",
+  "target",
+  "target_type",
+  "card_revision",
+  "source_count",
+  "narrated",
+  "narration_version",
+  "replaced_by",
+] as const;
 
-/** The card key this app reads (a world model's read carries it). */
-export const CARD_KEYS = ["target_type"] as const;
+/** The keys every non-diary record read carries: the block, then `versions`. */
+export const UNDERSTANDING_KEYS = [...BLOCK_KEYS, "versions"] as const;
 
 type Body = Record<string, unknown>;
 
@@ -130,7 +152,7 @@ function versionCause(v: unknown, bad: string[], at: string): string | null {
   return null;
 }
 
-const VERSION_KEYS = ["version", "text", "author", "reader", "cause", "understood_at", "digest_method"] as const;
+const VERSION_KEYS = ["version", "text", "author", "reader", "cause", "understood_at", "digest_method", "current"] as const;
 
 function readVersions(v: unknown, missing: string[], bad: string[]): UnderstandingVersion[] | null {
   if (v === null) return null;
@@ -157,8 +179,13 @@ function readVersions(v: unknown, missing: string[], bad: string[]): Understandi
       if (text === null && !bad.includes(`${at}.text`)) bad.push(`${at}.text`);
       return;
     }
+    if (typeof row.current !== "boolean") {
+      bad.push(`${at}.current`);
+      return;
+    }
     out.push({
       version,
+      current: row.current,
       text,
       author: authorOrNull(row.author, bad, `${at}.author`),
       reader: readerOrNull(row.reader, bad, `${at}.reader`),
@@ -172,10 +199,9 @@ function readVersions(v: unknown, missing: string[], bad: string[]): Understandi
 
 /** The record read's understanding: served (every key present, each of its
  * type) or not, with the keys it lacks or could not read. `kind` is the
- * record's kind (a world model's read carries the card keys). */
+ * record's kind (only a world model's type is read). */
 export function readUnderstanding(body: Body, kind: string | undefined): UnderstandingRead {
   const missing: string[] = UNDERSTANDING_KEYS.filter((k) => !(k in body));
-  if (kind === "world_model") missing.push(...CARD_KEYS.filter((k) => !(k in body)));
   if (missing.length) return { served: false, missing };
   const bad: string[] = [];
   const understanding: Understanding = {
@@ -259,12 +285,11 @@ export function provenanceLine(p: ProvenanceWords): string {
   return `${who} · ${p.when} · ${p.why}`;
 }
 
-/** The readings before the current one, newest first (null: not computed
- * yet). The current reading is the one numbered `digest_version`. */
-export function earlierVersions(u: Pick<Understanding, "versions" | "digest_version">): UnderstandingVersion[] | null {
+/** The readings before the current one (memory marks it `current`),
+ * newest first (null: not computed yet). */
+export function earlierVersions(u: Pick<Understanding, "versions">): UnderstandingVersion[] | null {
   if (u.versions === null) return null;
-  const rows = u.digest_version === null ? u.versions : u.versions.filter((v) => v.version !== u.digest_version);
-  return [...rows].sort((a, b) => b.version - a.version);
+  return u.versions.filter((v) => !v.current).sort((a, b) => b.version - a.version);
 }
 
 /** One earlier reading's head: "7 Nov 2026 · mechanical — … · first formed". */

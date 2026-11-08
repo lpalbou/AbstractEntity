@@ -851,6 +851,15 @@ function applySnapshot(state: FoldState, env: ReplayEnvelope): void {
   beat.used_record_ids = Array.isArray(p.used_record_ids) ? p.used_record_ids.map(String) : [];
   beat.prompt_token_estimate = typeof p.prompt_token_estimate === "number" ? p.prompt_token_estimate : null;
   beat.committed = true;
+  // The gateway's recall blocks (abstractgateway entity_understanding
+  // with_recalled, 1b3832b7): one per recalled formed non-diary record,
+  // {record_id (row id), graph_id, kind, …the fifteen understanding
+  // fields}; `digest` is the reading that entered THIS context. When the
+  // envelope carries them they are where digests come from; the payload
+  // rows give them only in streams without the blocks (exported files,
+  // enrich=false).
+  const recalled = (env.display as { recalled?: unknown } | undefined)?.recalled;
+  const blocks = Array.isArray(recalled) ? recalled.filter((b): b is DisplayBlock & { record_id: string } => typeof b === "object" && b !== null && typeof (b as DisplayBlock).record_id === "string") : null;
   // Snapshot display rows carry title+digest for what entered the context —
   // the richest node text in the stream; adopt for untitled nodes.
   for (const row of Array.isArray(p.display) ? p.display : []) {
@@ -859,7 +868,14 @@ function applySnapshot(state: FoldState, env: ReplayEnvelope): void {
     const node = resolveUsageNode(state, rid, { record_id: rid, title: row.title, token_estimate: row.token_estimate }, env.seq);
     // The row's digest is that record's summary: kept on its own node only
     // (an edge row resolves onto its source), never on a diary record.
-    if (node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && !isDiaryGraphId(rid) && typeof row.digest === "string" && row.digest.trim()) node.digest = row.digest;
+    if (!blocks && node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && !isDiaryGraphId(rid) && typeof row.digest === "string" && row.digest.trim()) node.digest = row.digest;
+  }
+  // Each block names its record by row and graph id (the pairing, first
+  // class) and carries its digest and digest_method (applyDisplayToNode:
+  // never on a relation or a diary record).
+  for (const block of blocks ?? []) {
+    if (!block.record_id) continue;
+    resolveUsageNode(state, block.record_id, block, env.seq);
   }
 }
 

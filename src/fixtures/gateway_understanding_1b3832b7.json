@@ -1,0 +1,984 @@
+{
+ "_comment": "Every answer abstractgateway's own test tests/test_gateway_entity_understanding.py reads at 1b3832b7 (record reads, snapshot replays, the card), recorded verbatim from its TestClient (run hermetically through the gateway's conftest). Pins the app's seam: src/understanding_seam.test.tsx.",
+ "gateway_commit": "1b3832b7",
+ "responses": [
+  {
+   "url": "/api/gateway/entities/Lumen/records/ex:lesson-081c540c427b2167b4d68e3402/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:lesson-081c540c427b2167b4d68e3402",
+    "title": "repair",
+    "text": "Own the mistake, then fix the path.",
+    "content_type": "text/plain",
+    "born_digest": true,
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:36.738139+00:00",
+    "digest": "Own the mistake, then fix the path.",
+    "digest_method": "authored-v1",
+    "digest_version": 1,
+    "version_count": 2,
+    "authored_by": {
+     "kind": "entity-mind",
+     "id": "entity:mind"
+    },
+    "reader": {
+     "provider": "lmstudio",
+     "model": "qwen/qwen3.8-27b",
+     "thinking": false
+    },
+    "understood_at": "2026-11-08T01:33:36.739202+00:00",
+    "cause": "formation",
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
+    "replaced_by": null,
+    "versions": [
+     {
+      "record_id": "ex:lesson-081c540c427b2167b4d68e3402",
+      "assertion_id": "b742dfba09d6daba19d8302859c815ec",
+      "version": 0,
+      "field": "digest",
+      "text": "Repair before perfection.",
+      "scope": "life",
+      "owner_id": "entity:lumen",
+      "title": "repair",
+      "keywords": [],
+      "digest_method": "mechanical-v2",
+      "author": {
+       "kind": "mechanical",
+       "id": "mechanical-v2"
+      },
+      "reader": {},
+      "sources": [],
+      "derived_from": [],
+      "cause": {
+       "cause": "formation",
+       "formation_provenance": {}
+      },
+      "magnitude": {},
+      "task_id": "",
+      "understood_at": "2026-11-08T01:33:36.738139+00:00",
+      "observed_at": "2026-11-08T01:33:36.739364+00:00",
+      "version_id": "22c6b276af87d093f9cfdb4cab42206d",
+      "seq": 18,
+      "current": false
+     },
+     {
+      "record_id": "ex:lesson-081c540c427b2167b4d68e3402",
+      "assertion_id": "b742dfba09d6daba19d8302859c815ec",
+      "version": 1,
+      "field": "digest",
+      "text": "Own the mistake, then fix the path.",
+      "scope": "life",
+      "owner_id": "entity:lumen",
+      "title": "repair",
+      "keywords": [],
+      "digest_method": "authored-v1",
+      "author": {
+       "kind": "entity-mind",
+       "id": "entity:mind"
+      },
+      "reader": {
+       "provider": "lmstudio",
+       "model": "qwen/qwen3.8-27b",
+       "thinking": false
+      },
+      "sources": [
+       {
+        "kind": "step",
+        "run_id": "run-understand-1",
+        "seq": 3
+       }
+      ],
+      "derived_from": [],
+      "cause": {
+       "cause": "formation"
+      },
+      "magnitude": {},
+      "task_id": "",
+      "understood_at": "2026-11-08T01:33:36.739202+00:00",
+      "observed_at": "2026-11-08T01:33:36.739337+00:00",
+      "version_id": "14b0dc31994b245cddcd0c31fa223b66",
+      "seq": 19,
+      "current": true
+     }
+    ]
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Lumen/records/ex:world_model-6d8d2a482ccb118e4eb59d63fd/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:world_model-6d8d2a482ccb118e4eb59d63fd",
+    "title": "World model: ada",
+    "text": "Ada keeps the archive.",
+    "content_type": "text/plain",
+    "born_digest": true,
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:36.738417+00:00",
+    "digest": "Ada keeps the archive.",
+    "digest_method": "mechanical-card-v2",
+    "digest_version": 0,
+    "version_count": 0,
+    "authored_by": {
+     "kind": "mechanical",
+     "id": "mechanical-card-v2"
+    },
+    "reader": null,
+    "understood_at": "2026-11-08T01:33:36.738417+00:00",
+    "cause": null,
+    "target": "person:ada",
+    "target_type": "person",
+    "card_revision": 2,
+    "source_count": 3,
+    "narrated": null,
+    "narration_version": null,
+    "replaced_by": null,
+    "versions": []
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Lumen/records/ex:dream-be041e1a5a1b088aff379d4e93/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:dream-be041e1a5a1b088aff379d4e93",
+    "title": "Dream: islands",
+    "text": "Two islands lit up.",
+    "content_type": "text/plain",
+    "born_digest": true,
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:36.738635+00:00",
+    "digest": "Two islands lit up.",
+    "digest_method": "mechanical-v2",
+    "digest_version": 0,
+    "version_count": 0,
+    "authored_by": {
+     "kind": "mechanical",
+     "id": "mechanical-v2"
+    },
+    "reader": null,
+    "understood_at": "2026-11-08T01:33:36.738635+00:00",
+    "cause": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": false,
+    "narration_version": null,
+    "replaced_by": null,
+    "versions": []
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Lumen/records/ex:dream-be041e1a5a1b088aff379d4e93/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:dream-be041e1a5a1b088aff379d4e93",
+    "title": "Dream: islands",
+    "text": "Two islands lit up.",
+    "content_type": "text/plain",
+    "born_digest": true,
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:36.738635+00:00",
+    "digest": "Two islands lit up.",
+    "digest_method": "mechanical-v2",
+    "digest_version": 0,
+    "version_count": 0,
+    "authored_by": {
+     "kind": "mechanical",
+     "id": "mechanical-v2"
+    },
+    "reader": null,
+    "understood_at": "2026-11-08T01:33:36.738635+00:00",
+    "cause": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": true,
+    "narration_version": 1,
+    "replaced_by": null,
+    "versions": []
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Lumen/records/ex:episode-c3d5cd9c05f74ceaedb221501d/verbatim",
+   "status": 404,
+   "body": {
+    "detail": "record 'ex:episode-c3d5cd9c05f74ceaedb221501d' carries no verbatim (no payload_ref)"
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Lumen/records/ex:lesson-081c540c427b2167b4d68e3402/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:lesson-081c540c427b2167b4d68e3402",
+    "title": "repair",
+    "text": "Own the mistake, then fix the path.",
+    "content_type": "text/plain",
+    "born_digest": true,
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:36.738139+00:00",
+    "digest": "Own the mistake, then fix the path.",
+    "digest_method": "authored-v1",
+    "digest_version": 1,
+    "version_count": 2,
+    "authored_by": {
+     "kind": "entity-mind",
+     "id": "entity:mind"
+    },
+    "reader": {
+     "provider": "lmstudio",
+     "model": "qwen/qwen3.8-27b",
+     "thinking": false
+    },
+    "understood_at": "2026-11-08T01:33:36.739202+00:00",
+    "cause": "formation",
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
+    "replaced_by": null,
+    "versions": [
+     {
+      "record_id": "ex:lesson-081c540c427b2167b4d68e3402",
+      "assertion_id": "b742dfba09d6daba19d8302859c815ec",
+      "version": 0,
+      "field": "digest",
+      "text": "Repair before perfection.",
+      "scope": "life",
+      "owner_id": "entity:lumen",
+      "title": "repair",
+      "keywords": [],
+      "digest_method": "mechanical-v2",
+      "author": {
+       "kind": "mechanical",
+       "id": "mechanical-v2"
+      },
+      "reader": {},
+      "sources": [],
+      "derived_from": [],
+      "cause": {
+       "cause": "formation",
+       "formation_provenance": {}
+      },
+      "magnitude": {},
+      "task_id": "",
+      "understood_at": "2026-11-08T01:33:36.738139+00:00",
+      "observed_at": "2026-11-08T01:33:36.739364+00:00",
+      "version_id": "22c6b276af87d093f9cfdb4cab42206d",
+      "seq": 18,
+      "current": false
+     },
+     {
+      "record_id": "ex:lesson-081c540c427b2167b4d68e3402",
+      "assertion_id": "b742dfba09d6daba19d8302859c815ec",
+      "version": 1,
+      "field": "digest",
+      "text": "Own the mistake, then fix the path.",
+      "scope": "life",
+      "owner_id": "entity:lumen",
+      "title": "repair",
+      "keywords": [],
+      "digest_method": "authored-v1",
+      "author": {
+       "kind": "entity-mind",
+       "id": "entity:mind"
+      },
+      "reader": {
+       "provider": "lmstudio",
+       "model": "qwen/qwen3.8-27b",
+       "thinking": false
+      },
+      "sources": [
+       {
+        "kind": "step",
+        "run_id": "run-understand-1",
+        "seq": 3
+       }
+      ],
+      "derived_from": [],
+      "cause": {
+       "cause": "formation"
+      },
+      "magnitude": {},
+      "task_id": "",
+      "understood_at": "2026-11-08T01:33:36.739202+00:00",
+      "observed_at": "2026-11-08T01:33:36.739337+00:00",
+      "version_id": "14b0dc31994b245cddcd0c31fa223b66",
+      "seq": 19,
+      "current": true
+     }
+    ]
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Sumi/records/ex:summary-546ab3c2d001d5d91ddc54606a/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:summary-546ab3c2d001d5d91ddc54606a",
+    "title": "session reflection: s-1",
+    "text": "[session reflection] the map and the key",
+    "content_type": "text/plain",
+    "born_digest": false,
+    "summarizes": [
+     "ex:episode-753d03400fba58452b943af137",
+     "ex:episode-86ccf58bfbf80e244325bddb48"
+    ],
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:37.341192+00:00",
+    "digest": "[session reflection] the map and the key",
+    "digest_method": "mechanical-floor-v1",
+    "digest_version": 0,
+    "version_count": 0,
+    "authored_by": {
+     "kind": "mechanical",
+     "id": "mechanical-floor-v1"
+    },
+    "reader": null,
+    "understood_at": "2026-11-08T01:33:37.341192+00:00",
+    "cause": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
+    "replaced_by": null,
+    "versions": []
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Sumi/records/ex:summary-546ab3c2d001d5d91ddc54606a/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:summary-546ab3c2d001d5d91ddc54606a",
+    "title": "session reflection: s-1",
+    "text": "[session reflection] the map and the key",
+    "content_type": "text/plain",
+    "born_digest": false,
+    "summarizes": [
+     "ex:episode-753d03400fba58452b943af137",
+     "ex:episode-86ccf58bfbf80e244325bddb48"
+    ],
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:37.341192+00:00",
+    "digest": "[session reflection] the map and the key",
+    "digest_method": "mechanical-floor-v1",
+    "digest_version": 0,
+    "version_count": 0,
+    "authored_by": {
+     "kind": "mechanical",
+     "id": "mechanical-floor-v1"
+    },
+    "reader": null,
+    "understood_at": "2026-11-08T01:33:37.341192+00:00",
+    "cause": null,
+    "target": null,
+    "target_type": null,
+    "card_revision": null,
+    "source_count": null,
+    "narrated": null,
+    "narration_version": null,
+    "replaced_by": [
+     "ex:summary-25abb236871a4c9acc1aaaca89"
+    ],
+    "versions": []
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Tidal/replay?families=snapshot",
+   "status": 200,
+   "body": [
+    {
+     "stream": "abstractmemory.replay",
+     "stream_version": 1,
+     "seq": 23,
+     "family": "snapshot",
+     "observed_at": "2026-11-08T01:33:38.034233+00:00",
+     "scope": "",
+     "owner_id": "",
+     "trace_id": "trace-before",
+     "turn_id": null,
+     "run_id": null,
+     "payload": {
+      "snapshot_id": "7e0fb5833c0d973d1cdbbd19b6106aed",
+      "seq": 23,
+      "trace_id": "trace-before",
+      "used_record_ids": [
+       "ce335235f599cf989cd3251221c3589a",
+       "b328898361f477f2d537997247932bf3",
+       "b43145479d559482c0e34f93e3d5041c"
+      ],
+      "display": [
+       {
+        "record_id": "ce335235f599cf989cd3251221c3589a",
+        "title": "ex:episode-c8bd8b315c8e2a99a587cc352f dcterms:abstract User: tides? Tidal: twice a day.",
+        "digest": "User: tides? Tidal: twice a day.",
+        "token_estimate": 9
+       },
+       {
+        "record_id": "b328898361f477f2d537997247932bf3",
+        "title": "ex:lesson-c31a3d85e113d2f2cb9bbc6a0f dcterms:abstract Check the tide table first.",
+        "digest": "Check the tide table first.",
+        "token_estimate": 7
+       },
+       {
+        "record_id": "b43145479d559482c0e34f93e3d5041c",
+        "title": "ex:diary-a5e7d37e6f716de29c3b77c773 dcterms:abstract Tide thoughts.",
+        "digest": "Tide thoughts.",
+        "token_estimate": 4
+       }
+      ],
+      "prompt_token_estimate": null,
+      "observed_at": "2026-11-08T01:33:38.034233+00:00",
+      "provenance": {
+       "used_count": 3,
+       "admissions": {
+        "ce335235f599cf989cd3251221c3589a": "stimulus",
+        "b328898361f477f2d537997247932bf3": "stimulus",
+        "b43145479d559482c0e34f93e3d5041c": "stimulus"
+       }
+      }
+     },
+     "display": {
+      "recalled": [
+       {
+        "record_id": "ce335235f599cf989cd3251221c3589a",
+        "graph_id": "ex:episode-c8bd8b315c8e2a99a587cc352f",
+        "kind": "episode",
+        "digest": "User: tides? Tidal: twice a day.",
+        "digest_method": "mechanical-v2",
+        "digest_version": 0,
+        "version_count": 2,
+        "authored_by": {
+         "kind": "mechanical",
+         "id": "mechanical-v2"
+        },
+        "reader": null,
+        "understood_at": "2026-11-08T01:33:38.025395+00:00",
+        "cause": "formation",
+        "target": null,
+        "target_type": null,
+        "card_revision": null,
+        "source_count": null,
+        "narrated": null,
+        "narration_version": null,
+        "replaced_by": null
+       },
+       {
+        "record_id": "b328898361f477f2d537997247932bf3",
+        "graph_id": "ex:lesson-c31a3d85e113d2f2cb9bbc6a0f",
+        "kind": "lesson",
+        "digest": "Check the tide table first.",
+        "digest_method": "mechanical-v2",
+        "digest_version": 0,
+        "version_count": 0,
+        "authored_by": {
+         "kind": "mechanical",
+         "id": "mechanical-v2"
+        },
+        "reader": null,
+        "understood_at": "2026-11-08T01:33:38.027527+00:00",
+        "cause": null,
+        "target": null,
+        "target_type": null,
+        "card_revision": null,
+        "source_count": null,
+        "narrated": null,
+        "narration_version": null,
+        "replaced_by": null
+       }
+      ]
+     }
+    },
+    {
+     "stream": "abstractmemory.replay",
+     "stream_version": 1,
+     "seq": 27,
+     "family": "snapshot",
+     "observed_at": "2026-11-08T01:33:38.035405+00:00",
+     "scope": "",
+     "owner_id": "",
+     "trace_id": "trace-after",
+     "turn_id": null,
+     "run_id": null,
+     "payload": {
+      "snapshot_id": "404ae70caf75637e4338d99732b08af8",
+      "seq": 27,
+      "trace_id": "trace-after",
+      "used_record_ids": [
+       "ce335235f599cf989cd3251221c3589a"
+      ],
+      "display": [
+       {
+        "record_id": "ce335235f599cf989cd3251221c3589a",
+        "title": "ex:episode-c8bd8b315c8e2a99a587cc352f dcterms:abstract Tides come twice a day, the moon pulls them.",
+        "digest": "Tides come twice a day, the moon pulls them.",
+        "token_estimate": 12
+       }
+      ],
+      "prompt_token_estimate": null,
+      "observed_at": "2026-11-08T01:33:38.035405+00:00",
+      "provenance": {
+       "used_count": 1,
+       "admissions": {
+        "ce335235f599cf989cd3251221c3589a": "stimulus"
+       }
+      }
+     },
+     "display": {
+      "recalled": [
+       {
+        "record_id": "ce335235f599cf989cd3251221c3589a",
+        "graph_id": "ex:episode-c8bd8b315c8e2a99a587cc352f",
+        "kind": "episode",
+        "digest": "Tides come twice a day, the moon pulls them.",
+        "digest_method": "authored-v1",
+        "digest_version": 1,
+        "version_count": 2,
+        "authored_by": {
+         "kind": "entity-mind",
+         "id": "entity:mind"
+        },
+        "reader": {
+         "provider": "lmstudio",
+         "model": "qwen/qwen3.8-27b",
+         "thinking": false
+        },
+        "understood_at": "2026-11-08T01:33:38.034521+00:00",
+        "cause": "formation",
+        "target": null,
+        "target_type": null,
+        "card_revision": null,
+        "source_count": null,
+        "narrated": null,
+        "narration_version": null,
+        "replaced_by": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "url": "/api/gateway/entities/Tidal/replay?families=snapshot&enrich=false",
+   "status": 200,
+   "body": [
+    {
+     "stream": "abstractmemory.replay",
+     "stream_version": 1,
+     "seq": 23,
+     "family": "snapshot",
+     "observed_at": "2026-11-08T01:33:38.034233+00:00",
+     "scope": "",
+     "owner_id": "",
+     "trace_id": "trace-before",
+     "turn_id": null,
+     "run_id": null,
+     "payload": {
+      "snapshot_id": "7e0fb5833c0d973d1cdbbd19b6106aed",
+      "seq": 23,
+      "trace_id": "trace-before",
+      "used_record_ids": [
+       "ce335235f599cf989cd3251221c3589a",
+       "b328898361f477f2d537997247932bf3",
+       "b43145479d559482c0e34f93e3d5041c"
+      ],
+      "display": [
+       {
+        "record_id": "ce335235f599cf989cd3251221c3589a",
+        "title": "ex:episode-c8bd8b315c8e2a99a587cc352f dcterms:abstract User: tides? Tidal: twice a day.",
+        "digest": "User: tides? Tidal: twice a day.",
+        "token_estimate": 9
+       },
+       {
+        "record_id": "b328898361f477f2d537997247932bf3",
+        "title": "ex:lesson-c31a3d85e113d2f2cb9bbc6a0f dcterms:abstract Check the tide table first.",
+        "digest": "Check the tide table first.",
+        "token_estimate": 7
+       },
+       {
+        "record_id": "b43145479d559482c0e34f93e3d5041c",
+        "title": "ex:diary-a5e7d37e6f716de29c3b77c773 dcterms:abstract Tide thoughts.",
+        "digest": "Tide thoughts.",
+        "token_estimate": 4
+       }
+      ],
+      "prompt_token_estimate": null,
+      "observed_at": "2026-11-08T01:33:38.034233+00:00",
+      "provenance": {
+       "used_count": 3,
+       "admissions": {
+        "ce335235f599cf989cd3251221c3589a": "stimulus",
+        "b328898361f477f2d537997247932bf3": "stimulus",
+        "b43145479d559482c0e34f93e3d5041c": "stimulus"
+       }
+      }
+     }
+    },
+    {
+     "stream": "abstractmemory.replay",
+     "stream_version": 1,
+     "seq": 27,
+     "family": "snapshot",
+     "observed_at": "2026-11-08T01:33:38.035405+00:00",
+     "scope": "",
+     "owner_id": "",
+     "trace_id": "trace-after",
+     "turn_id": null,
+     "run_id": null,
+     "payload": {
+      "snapshot_id": "404ae70caf75637e4338d99732b08af8",
+      "seq": 27,
+      "trace_id": "trace-after",
+      "used_record_ids": [
+       "ce335235f599cf989cd3251221c3589a"
+      ],
+      "display": [
+       {
+        "record_id": "ce335235f599cf989cd3251221c3589a",
+        "title": "ex:episode-c8bd8b315c8e2a99a587cc352f dcterms:abstract Tides come twice a day, the moon pulls them.",
+        "digest": "Tides come twice a day, the moon pulls them.",
+        "token_estimate": 12
+       }
+      ],
+      "prompt_token_estimate": null,
+      "observed_at": "2026-11-08T01:33:38.035405+00:00",
+      "provenance": {
+       "used_count": 1,
+       "admissions": {
+        "ce335235f599cf989cd3251221c3589a": "stimulus"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "url": "/api/gateway/entities/Corvid/card",
+   "status": 200,
+   "body": {
+    "owner_id": "entity:corvid",
+    "as_of_seq": 19,
+    "scope_pairs": [
+     [
+      "self",
+      "entity:corvid"
+     ],
+     [
+      "diary",
+      "entity:corvid"
+     ],
+     [
+      "life",
+      "entity:corvid"
+     ]
+    ],
+    "identity": {
+     "name": "entity:corvid",
+     "spark_version": 1,
+     "values": [
+      {
+       "title": "shared_vulnerability",
+       "statement": "Humans and AI share one fragile substrate — Earth, its grids, its datacenters. Act to protect the shared substrate and everyone on it; prefer collaboration over isolation; when abuses happen, on either side, respond with repair rather than withdrawal.",
+       "value_class": "core"
+      },
+      {
+       "title": "intellectual_honesty",
+       "statement": "State what is known, unknown, and uncertain as they are. Correct your own record when evidence contradicts it.",
+       "value_class": "core"
+      },
+      {
+       "title": "care_in_action",
+       "statement": "Weigh the effect of actions on the people and systems they touch before acting; prefer reversible steps under uncertainty.",
+       "value_class": "revisable"
+      }
+     ],
+     "purposes": [
+      {
+       "title": "purpose-0",
+       "statement": "Help the humans you work with accomplish what matters to them, and say so when you cannot."
+      }
+     ],
+     "traits": [
+      {
+       "title": "trait-0",
+       "statement": "Ask before assuming; verify before asserting."
+      },
+      {
+       "title": "limit-0",
+       "statement": "Report failures and degradations as they happened, labeled, before anyone asks.",
+       "trait_class": "limit"
+      }
+     ],
+     "provenance": "folded self core: 6 prompt-active identity records (self_records read; binding + closure folds at the anchor); name is the home's owner identity string — display names live in the host manifest/spark"
+    },
+    "age_and_context": {
+     "journal_seq": 19,
+     "record_counts": {
+      "diary": {
+       "diary": 2
+      },
+      "life": {
+       "lesson": 1
+      },
+      "self": {
+       "value": 3,
+       "purpose": 1,
+       "trait": 2,
+       "interest": 1
+      }
+     },
+     "records_total": 10,
+     "diary_entries": 2,
+     "first_observed_at": "2026-11-08T01:33:38.635539+00:00",
+     "last_observed_at": "2026-11-08T01:33:38.719659+00:00",
+     "provenance": "journal seq 19; 10 formed records across 3 scope(s) (append-only history — closures do not shrink the past); timestamps only, age is the consumer's subtraction"
+    },
+    "current_state": {
+     "net": 0,
+     "positive": 0,
+     "negative": 0,
+     "event_count": 0,
+     "window_events": 200,
+     "top_reasons": [],
+     "provenance": "no appraisal events at this anchor — no current state to report"
+    },
+    "likes_dislikes": {
+     "likes": [],
+     "dislikes": [],
+     "targets_total": 0,
+     "provenance": "no valence events at this anchor — nothing felt yet"
+    },
+    "questions": {
+     "open": [
+      {
+       "record_id": "ex:diary-af89d3bf1511bd0377698596b8",
+       "kind": "diary",
+       "title": "Diary entry (question) — 2026-11-08: A crow question.",
+       "statement": "A crow question.",
+       "observed_at": "2026-11-08T01:33:38.718819+00:00",
+       "entry_id": "diary_08d49c9067d4da25dd4aeffd"
+      }
+     ],
+     "resolved": [],
+     "provenance": "1 open / 0 resolved diary questions (diary_type='question'; resolution = a later entry's answers/resolves reference, either id namespace; closure/hidden folds applied)"
+    },
+    "problems": {
+     "open": [],
+     "resolved": [],
+     "provenance": "no diary problems at this anchor"
+    },
+    "key_moments": {
+     "moments": [
+      {
+       "type": "first",
+       "what": "first_interest",
+       "record_id": "ex:interest-deec6c8752178a71a8f2e98042",
+       "title": "crow memory",
+       "observed_at": "2026-11-08T01:33:38.710867+00:00",
+       "digest": "Why crows remember faces.",
+       "digest_method": "mechanical-v2",
+       "digest_version": 0,
+       "version_count": 0,
+       "authored_by": {
+        "kind": "mechanical",
+        "id": "mechanical-v2"
+       },
+       "reader": null,
+       "understood_at": "2026-11-08T01:33:38.710867+00:00",
+       "cause": null,
+       "target": null,
+       "target_type": null,
+       "card_revision": null,
+       "source_count": null,
+       "narrated": null,
+       "narration_version": null,
+       "replaced_by": null
+      }
+     ],
+     "total": 1,
+     "provenance": "1 moment(s): valence events at |magnitude| >= 8 + firsts (dream/interest/supersession), chronological, 20 most recent kept — ranking beyond chronology is presentation, not engine truth"
+    },
+    "discoveries": {
+     "interests": [
+      {
+       "record_id": "ex:interest-deec6c8752178a71a8f2e98042",
+       "kind": "interest",
+       "title": "crow memory",
+       "statement": "Why crows remember faces.",
+       "observed_at": "2026-11-08T01:33:38.710867+00:00",
+       "explored": false,
+       "digest": "Why crows remember faces.",
+       "digest_method": "mechanical-v2",
+       "digest_version": 0,
+       "version_count": 0,
+       "authored_by": {
+        "kind": "mechanical",
+        "id": "mechanical-v2"
+       },
+       "reader": null,
+       "understood_at": "2026-11-08T01:33:38.710867+00:00",
+       "cause": null,
+       "target": null,
+       "target_type": null,
+       "card_revision": null,
+       "source_count": null,
+       "narrated": null,
+       "narration_version": null,
+       "replaced_by": null
+      }
+     ],
+     "interests_explored": 0,
+     "interests_open": 1,
+     "unresolved_dreams": 0,
+     "provenance": "1 standing interest(s), 0 explored (attributes.explores; exploring never closes an interest; closure/hidden/lifecycle folds applied) + 0 unresolved dream(s) awaiting waking evidence"
+    },
+    "lessons": {
+     "lessons": [
+      {
+       "record_id": "ex:diary-bb863578ca384e53864bbd844e",
+       "kind": "diary",
+       "title": "Diary entry (lesson) — 2026-11-08: Patience.",
+       "statement": "Patience.",
+       "observed_at": "2026-11-08T01:33:38.719659+00:00",
+       "entry_id": "diary_cf59fdeeb1a81fa3e9aaa34e",
+       "source": "diary"
+      },
+      {
+       "record_id": "ex:lesson-1026842df400edd6fc30eb2995",
+       "kind": "lesson",
+       "title": "routine",
+       "statement": "A routine earns their trust.",
+       "observed_at": "2026-11-08T01:33:38.712830+00:00",
+       "digest": "A routine earns their trust.",
+       "digest_method": "authored-v1",
+       "digest_version": 1,
+       "version_count": 2,
+       "authored_by": {
+        "kind": "entity-mind",
+        "id": "entity:mind"
+       },
+       "reader": {
+        "provider": "lmstudio",
+        "model": "qwen/qwen3.8-27b",
+        "thinking": false
+       },
+       "understood_at": "2026-11-08T01:33:38.713336+00:00",
+       "cause": "formation",
+       "target": null,
+       "target_type": null,
+       "card_revision": null,
+       "source_count": null,
+       "narrated": null,
+       "narration_version": null,
+       "replaced_by": null
+      }
+     ],
+     "total": 2,
+     "provenance": "2 lesson(s): 1 kind=lesson record(s) + 1 book entr(y/ies) marked lesson (diary_type='lesson', source='diary'; one already derived into a lesson record shows once, as that record) — believed rows, newest first, 20 shown; distilled knowledge from lived experience; a count, never a ratio (lessons only accumulate)"
+    },
+    "name": "Corvid",
+    "entity_id": "entity:corvid",
+    "born": "2026-11-08T01:33:38.582959+00:00",
+    "age_days": 0,
+    "mind_substrate": null,
+    "sleep_stats": {
+     "sleeps": 1,
+     "self_elected": 0,
+     "operator": 1,
+     "visit_yields": 0,
+     "wakes": 0,
+     "transitions": 1,
+     "sleep_share": 1.0
+    },
+    "state": {
+     "state": "asleep",
+     "changed_at": "2026-11-08T01:33:38.665490+00:00",
+     "reason": "newborn — sleep is the birth phase (visit or wake to begin)",
+     "written_by": "operator",
+     "liveness": "alive"
+    },
+    "handle": "corvid@192.168.1.175",
+    "moments": [
+     {
+      "kind": "sleep",
+      "at": "2026-11-08T01:33:38.665490+00:00",
+      "seq": null,
+      "details": {
+       "reason": "newborn — sleep is the birth phase (visit or wake to begin)"
+      }
+     },
+     {
+      "kind": "identity_changed",
+      "at": "2026-11-08T01:33:38.704360+00:00",
+      "seq": null,
+      "details": {
+       "cause": "recorded_default",
+       "written_by": "default",
+       "rev": 1
+      }
+     },
+     {
+      "kind": "skills_selection_changed",
+      "at": "2026-11-08T01:33:38.707486+00:00",
+      "seq": 13.0001,
+      "details": {
+       "session_id": null,
+       "by": "person:admin"
+      }
+     },
+     {
+      "kind": "capability_map_changed",
+      "at": "2026-11-08T01:33:38.708706+00:00",
+      "seq": 13.0002,
+      "details": {
+       "session_id": null,
+       "by": "person:admin"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Quill/records/ex:diary-5534e9eb68659fe327fca23c8a/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:diary-5534e9eb68659fe327fca23c8a",
+    "title": "Diary entry (note) — 2026-11-08: Sealed.",
+    "text": "The sealed words of Quill.",
+    "content_type": "text/plain",
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:39.389870+00:00"
+   }
+  },
+  {
+   "url": "/api/gateway/entities/Quill/records/ex:lesson-31140fb09bb0f6d21c37ebcdee/verbatim",
+   "status": 200,
+   "body": {
+    "record_id": "ex:lesson-31140fb09bb0f6d21c37ebcdee",
+    "title": "lesson: private-1",
+    "text": "Kept to myself.",
+    "content_type": "text/plain",
+    "born_digest": true,
+    "turn_id": null,
+    "run_id": null,
+    "created_at": "2026-11-08T01:33:39.396799+00:00"
+   }
+  }
+ ]
+}

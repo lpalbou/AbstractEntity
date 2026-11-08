@@ -16,7 +16,6 @@ import {
   provenanceWords,
   readUnderstanding,
   servedDigest,
-  UNDERSTANDING_KEYS,
   versionHead,
 } from "./understanding";
 import READS from "./fixtures/understanding_record_reads.json";
@@ -24,6 +23,15 @@ import READS from "./fixtures/understanding_record_reads.json";
 const { SERVED, SERVED_CARD, NULLS, OLD_GATEWAY } = READS as unknown as Record<"SERVED" | "SERVED_CARD" | "NULLS" | "OLD_GATEWAY", Record<string, unknown> & { versions: Array<Record<string, unknown>> }>;
 
 const UTC = "UTC";
+
+/** The contract, spelled out (abstractgateway entity_understanding.py
+ * UNDERSTANDING_KEYS at 1b3832b7, plus the record read's `versions`) —
+ * never imported from the module under test, so dropping a key there goes
+ * red here. */
+const CONTRACT = [
+  "digest", "digest_method", "digest_version", "version_count", "authored_by", "reader", "understood_at", "cause",
+  "target", "target_type", "card_revision", "source_count", "narrated", "narration_version", "replaced_by", "versions",
+];
 
 describe("who wrote it, in his words", () => {
   it("names each author kind the gateway serves", () => {
@@ -98,19 +106,17 @@ describe("reading the record read", () => {
   });
 
   it("names every key an older gateway lacks", () => {
-    expect(readUnderstanding(OLD_GATEWAY, "summary")).toEqual({ served: false, missing: [...UNDERSTANDING_KEYS] });
-    for (const key of UNDERSTANDING_KEYS) {
+    expect(readUnderstanding(OLD_GATEWAY, "summary")).toEqual({ served: false, missing: CONTRACT });
+    for (const key of CONTRACT) {
       const body: Record<string, unknown> = { ...SERVED };
       delete body[key];
       expect(readUnderstanding(body, "summary"), key).toEqual({ served: false, missing: [key] });
     }
   });
 
-  it("a card's read also carries its type", () => {
-    expect(readUnderstanding(SERVED_CARD, "world_model").served).toBe(true);
-    const body: Record<string, unknown> = { ...SERVED_CARD };
-    delete body.target_type;
-    expect(readUnderstanding(body, "world_model")).toEqual({ served: false, missing: ["target_type"] });
+  it("a card's read carries its type", () => {
+    const u = readUnderstanding(SERVED_CARD, "world_model");
+    expect(u.served && u.understanding.target_type).toBe("person");
   });
 
   it("refuses a value of the wrong shape out loud (named, never shown as a guess)", () => {
@@ -119,11 +125,14 @@ describe("reading the record read", () => {
     const versions = [{ ...SERVED.versions[0] } as Record<string, unknown>];
     delete versions[0].author;
     expect(readUnderstanding({ ...SERVED, versions }, "summary")).toEqual({ served: false, missing: ["versions[0].author"] });
+    const unmarked = [{ ...SERVED.versions[0] } as Record<string, unknown>];
+    delete unmarked[0].current;
+    expect(readUnderstanding({ ...SERVED, versions: unmarked }, "summary")).toEqual({ served: false, missing: ["versions[0].current"] });
   });
 });
 
 describe("earlier understandings", () => {
-  it("lists every reading but the current one, newest first", () => {
+  it("lists every reading but the current one (memory's `current`), newest first", () => {
     const u = readUnderstanding(SERVED, "summary");
     if (!u.served) throw new Error("fixture must be served");
     const rows = earlierVersions(u.understanding)!;
@@ -133,6 +142,6 @@ describe("earlier understandings", () => {
   });
 
   it("is empty for a record never rewritten", () => {
-    expect(earlierVersions({ versions: [], digest_version: 0 })).toEqual([]);
+    expect(earlierVersions({ versions: [] })).toEqual([]);
   });
 });
