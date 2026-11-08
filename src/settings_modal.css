@@ -622,6 +622,10 @@
   flex: 0 1 8rem;
   max-width: 8rem;
 }
+/* A refused change reads as an error, at the status lines' size. */
+.stg_error.wsp_status_refused {
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
 
 /* The kit panels inside take the page's width (they cap themselves at 640 px elsewhere). */
 .stg .idn,

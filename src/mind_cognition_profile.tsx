@@ -4,24 +4,27 @@
  *
  * - What each part of thinking uses: Summaries and memory details, Understanding and dreams,
  *   Extraction. Each is the kit's shared ProviderModelPicker with "Same as the mind" | "Custom"; the
- *   line under it says what that part uses now ("Same as the mind (gpt-5.6-terra)" or
- *   "theforge-nvidia · qwen/qwen3.8-27b").
+ *   line under it says what that part uses now ("Same as the mind (gpt-5.6-terra)",
+ *   "theforge-nvidia · qwen/qwen3.8-27b", or "No mind chosen yet" when the gateway cannot name one).
  * - Memory: memories retrieved per turn (1..400), rebuild sensitivity (0..1), rebuilds per turn at
  *   most (0..10). The kit has no number or slider component: the three are number fields in the
  *   kit's setting rows (the modal's input style), sensitivity included.
  *
- * Every change saves itself (`PUT …/cognition-profile`), then the page reads the profile again and
- * shows what the gateway stores. A refusal shows the gateway's sentence and the field returns to the
- * stored value. A gateway without the route (404) gets one sentence and the controls stay visible,
- * disabled. A member who may not configure him sees them disabled with the access sentence.
+ * Every change saves itself (`PUT …/cognition-profile`; a number on Enter or when the field is left),
+ * then the page reads the profile again and shows what the gateway stores. Saves run one at a time;
+ * the same save twice in a row is sent once. Each control keeps its own status line, cleared when that
+ * control changes. A refusal shows the gateway's sentence as an error and the field returns to the
+ * stored value — unless something new was typed meanwhile, which stays. A gateway without the route
+ * (404) gets one sentence and the controls stay visible, disabled. A member who may not configure him
+ * sees them disabled with the access sentence.
  *
  * Pure parts (`cognitionProfileOf`, `profileValueOf`, `profileSaveBody`, `readCognitionProfile`,
- * `saveCognitionChange`, `afterSave`) carry the rules so the tests pin them without a DOM.
+ * `saveCognitionChange`, `afterSave`, `profileController`) carry the rules so the tests pin them
+ * without a DOM.
  */
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AfSettingRow, AfSettingsGroup, ProviderModelPicker, type ProviderModelPickerValue } from "@abstractframework/ui-kit";
 
-import { authRefusedMsg } from "./gateway_session";
 import { accessRefusal, RefusalLine, useEntityAccess } from "./mind_voice_settings";
 import {
   discoveryModelCapabilities,
@@ -38,18 +41,26 @@ import { WordsLine } from "./words_line";
 
 // ------------------------------------------------------------------ words
 
-/** The first gateway release that serves the cognition profile (gateway 1013). 0.21.0 is the
- * release in preparation without the route; set this to the release that ships it. */
+/** The first gateway release that serves the cognition profile (gateway 1013, in abstractgateway's
+ * changelog.d after the 0.21.0 merge); set this to the release that ships it. */
 export const COGNITION_PROFILE_GATEWAY_VERSION = "0.22.0";
 
 /** The one sentence a gateway without the route gets (contract: no silent hiding). */
 export const COGNITION_PROFILE_UNAVAILABLE = `This gateway does not offer the cognition profile yet (gateway ≥ ${COGNITION_PROFILE_GATEWAY_VERSION}).`;
 
-export const COGNITION_PARTS: ReadonlyArray<{ id: CognitionCapability; label: string }> = [
+/** The line of a part that follows a mind the gateway cannot name (no text model yet). */
+export const NO_MIND_YET = "No mind chosen yet";
+
+export const COGNITION_PARTS: ReadonlyArray<{ id: CognitionCapability; label: string; help?: string }> = [
   { id: "summaries", label: "Summaries and memory details" },
   { id: "understanding", label: "Understanding and dreams" },
-  { id: "extraction", label: "Extraction" },
+  { id: "extraction", label: "Extraction", help: "Pulls facts and names out of what he reads and hears. Not used yet." },
 ];
+
+export const PARTS_HELP = "Each part thinks with the mind unless you choose another model for it. Every change saves itself.";
+export const FOLLOWS_THE_MIND = "Follows the mind if you change it.";
+export const MEMORY_HELP =
+  "A rebuild is when a new memory or a surprise makes him revisit what he already understood. Every change saves itself when you press Enter or leave the field.";
 
 export type MemoryField = "shelf_size" | "sensitivity" | "cap_per_turn";
 
@@ -62,14 +73,7 @@ export const MEMORY_FIELDS: ReadonlyArray<{ id: MemoryField; label: string; help
     max: 400,
     step: 1,
   },
-  {
-    id: "sensitivity",
-    label: "Rebuild sensitivity",
-    help: "How easily a new memory or a surprise makes him revisit what he already understood.",
-    min: 0,
-    max: 1,
-    step: 0.05,
-  },
+  { id: "sensitivity", label: "Rebuild sensitivity", help: "How easily a new memory or a surprise starts a rebuild.", min: 0, max: 1, step: 0.05 },
   { id: "cap_per_turn", label: "Rebuilds per turn, at most", help: "A safety cap. 0 = only while he rests.", min: 0, max: 10, step: 1 },
 ];
 
@@ -77,9 +81,12 @@ export const MEMORY_FIELDS: ReadonlyArray<{ id: MemoryField; label: string; help
 
 const CAPABILITY_SOURCES = ["profile", "mind"];
 const SETTING_SOURCES = ["profile", "default"];
+const MIND_SOURCES = ["entity", "gateway", "unset"];
 
 /** The GET/PUT answer, checked against the contract. A missing or mistyped field throws a sentence
- * naming it (loud: a gateway that drifted from the contract must not show a half-true page). */
+ * naming it (loud: a gateway that drifted from the contract must not show a half-true page). The one
+ * absence the contract allows: `effective: null` on a part that follows a mind the gateway cannot
+ * name (`mind.source: "unset"`). */
 export function cognitionProfileOf(raw: unknown): EntityCognitionProfile {
   const fail = (path: string): never => {
     throw new Error(`The gateway's answer about his thinking has no valid ${path}.`);
@@ -91,19 +98,24 @@ export function cognitionProfileOf(raw: unknown): EntityCognitionProfile {
   const oneOf = (v: unknown, allowed: string[], path: string): string => (typeof v === "string" && allowed.includes(v) ? v : fail(path));
 
   const root = obj(raw, "profile");
+  const mind = obj(root.mind, "mind");
+  const mindUnset = oneOf(mind.source, MIND_SOURCES, "mind.source") === "unset";
+  if (!mindUnset) str(mind.model, "mind.model");
   const caps = obj(root.capabilities, "capabilities");
   for (const { id } of COGNITION_PARTS) {
     const at = `capabilities.${id}`;
     const entry = obj(caps[id], at);
     const choice = obj(entry.choice, `${at}.choice`);
-    if (choice.inherit !== "mind") {
+    const inherits = choice.inherit === "mind";
+    if (!inherits) {
       str(choice.provider, `${at}.choice.provider`);
       str(choice.model, `${at}.choice.model`);
     }
+    oneOf(entry.source, CAPABILITY_SOURCES, `${at}.source`);
+    if (entry.effective === null && inherits && mindUnset) continue;
     const effective = obj(entry.effective, `${at}.effective`);
     str(effective.provider, `${at}.effective.provider`);
     str(effective.model, `${at}.effective.model`);
-    oneOf(entry.source, CAPABILITY_SOURCES, `${at}.source`);
   }
   const recall = obj(root.recall, "recall");
   num(recall.shelf_size, "recall.shelf_size");
@@ -112,8 +124,6 @@ export function cognitionProfileOf(raw: unknown): EntityCognitionProfile {
   num(rebuild.sensitivity, "rebuild.sensitivity");
   num(rebuild.cap_per_turn, "rebuild.cap_per_turn");
   oneOf(rebuild.source, SETTING_SOURCES, "rebuild.source");
-  const mind = obj(root.mind, "mind");
-  str(mind.model, "mind.model");
   return root as unknown as EntityCognitionProfile;
 }
 
@@ -134,7 +144,7 @@ export function profileValueOf(profile: EntityCognitionProfile): ProfileValue {
     const { choice, effective, source } = profile.capabilities[id];
     parts[id] = {
       picker: isInherit(choice) ? { provider: "", model: "" } : { provider: choice.provider, model: choice.model, reasoning: choice.thinking || "" },
-      line: source === "mind" ? `Same as the mind (${effective.model})` : `${effective.provider} · ${effective.model}`,
+      line: !effective ? NO_MIND_YET : source === "mind" ? `Same as the mind (${effective.model})` : `${effective.provider} · ${effective.model}`,
     };
   }
   return {
@@ -186,6 +196,9 @@ export function profileSaveBody(change: ProfileChange, profile: EntityCognitionP
 // ------------------------------------------------------------ read and save
 
 export type ProfileAt = CognitionCapability | MemoryField;
+/** What a control holds before it is stored: a picker value or a field's text. */
+export type ProfileDraft = ProviderModelPickerValue | string;
+export type ProfileStatus = { text: string; tone: "" | "ok" | "refused" };
 
 export interface ProfileState {
   phase: "reading" | "ready" | "unavailable" | "error";
@@ -193,17 +206,57 @@ export interface ProfileState {
   error: string | null;
   /** What is being chosen or typed and not stored yet. */
   drafts: { parts: Partial<Record<CognitionCapability, ProviderModelPickerValue>>; memory: Partial<Record<MemoryField, string>> };
-  /** The last save, under the control it came from. */
-  status: { at: ProfileAt; text: string; tone: "" | "ok" | "refused" } | null;
+  /** Each control's own status line (its last save), cleared when that control changes. */
+  status: Partial<Record<ProfileAt, ProfileStatus>>;
 }
 
-export const PROFILE_READING: ProfileState = { phase: "reading", profile: null, error: null, drafts: { parts: {}, memory: {} }, status: null };
+export const PROFILE_READING: ProfileState = { phase: "reading", profile: null, error: null, drafts: { parts: {}, memory: {} }, status: {} };
 
 export type ProfileRead = Pick<ProfileState, "phase" | "profile" | "error">;
 
+const isPart = (at: ProfileAt): at is CognitionCapability => COGNITION_PARTS.some((p) => p.id === at);
+
+/** The same choice or the same text (a picker value without reasoning equals one with ""). */
+export function sameDraft(a: ProfileDraft | undefined, b: ProfileDraft | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  if (typeof a === "string" || typeof b === "string") return a === b;
+  const key = (v: ProviderModelPickerValue) => [v.provider, v.model, v.reasoning].map((x) => String(x || "").trim()).join("\u0000");
+  return key(a) === key(b);
+}
+
+/** What a control shows: its draft, else the stored value. */
+export function shownValue(state: ProfileState, at: ProfileAt): ProfileDraft | undefined {
+  const value = state.profile ? profileValueOf(state.profile) : null;
+  if (isPart(at)) return state.drafts.parts[at] ?? value?.parts[at].picker;
+  return state.drafts.memory[at] ?? value?.memory[at];
+}
+
+function withDraft(drafts: ProfileState["drafts"], at: ProfileAt, draft: ProfileDraft | undefined): ProfileState["drafts"] {
+  const parts = { ...drafts.parts };
+  const memory = { ...drafts.memory };
+  if (isPart(at)) {
+    if (draft === undefined) delete parts[at];
+    else parts[at] = draft as ProviderModelPickerValue;
+  } else if (draft === undefined) delete memory[at];
+  else memory[at] = draft as string;
+  return { parts, memory };
+}
+
+function withStatus(state: ProfileState, at: ProfileAt, status: ProfileStatus | null): ProfileState {
+  const next = { ...state.status };
+  if (status) next[at] = status;
+  else delete next[at];
+  return { ...state, status: next };
+}
+
+/** The gateway's own sentence. Only when it gave none: a plain one for the status. */
 function refusalSentence(e: unknown): string {
-  const err = e as Error & { status?: number };
-  return err.status === 401 || err.status === 403 ? authRefusedMsg(err.status, err.message) : err.message || String(e);
+  const err = e as Error & { status?: number; detail?: string };
+  const said = (err.detail ?? err.message ?? "").trim();
+  if (said) return said;
+  if (err.status === 401) return "Sign in to change his settings.";
+  if (err.status === 403) return "You may not change his settings.";
+  return String(e);
 }
 
 /** GET: ready with the checked profile, unavailable on 404, else the error in a sentence. */
@@ -229,20 +282,76 @@ export async function saveCognitionChange(baseUrl: string, entity: string, token
   return { saved: true, read: await readCognitionProfile(baseUrl, entity) };
 }
 
-function withoutDraft(drafts: ProfileState["drafts"], at: ProfileAt): ProfileState["drafts"] {
-  const parts = { ...drafts.parts };
-  const memory = { ...drafts.memory };
-  delete parts[at as CognitionCapability];
-  delete memory[at as MemoryField];
-  return { parts, memory };
+/** The state after a save of `sent` from control `at`: the re-read profile and "Saved", or the stored
+ * profile kept with the refusal sentence. The control drops its draft only while the draft is still
+ * what was sent: something typed or chosen during the save stays. */
+export function afterSave(state: ProfileState, at: ProfileAt, outcome: SaveOutcome, sent: ProfileDraft): ProfileState {
+  const draft = isPart(at) ? state.drafts.parts[at] : state.drafts.memory[at];
+  const drafts = sameDraft(draft, sent) ? withDraft(state.drafts, at, undefined) : state.drafts;
+  if (!outcome.saved) return withStatus({ ...state, drafts }, at, { text: outcome.sentence, tone: "refused" });
+  return withStatus({ ...state, ...outcome.read, drafts }, at, outcome.read.phase === "ready" ? { text: "Saved", tone: "ok" } : null);
 }
 
-/** The state after a save: the re-read profile and "Saved", or the stored profile kept with the
- * refusal sentence. Either way the control drops its draft and shows the stored value. */
-export function afterSave(state: ProfileState, at: ProfileAt, outcome: SaveOutcome): ProfileState {
-  const drafts = withoutDraft(state.drafts, at);
-  if (!outcome.saved) return { ...state, drafts, status: { at, text: outcome.sentence, tone: "refused" } };
-  return { ...state, ...outcome.read, drafts, status: outcome.read.phase === "ready" ? { at, text: "Saved", tone: "ok" } : null };
+/** The state the controls read and write; `get` is always the latest (no render in between). */
+export interface ProfileStore {
+  get(): ProfileState;
+  set(update: (s: ProfileState) => ProfileState): void;
+}
+
+export interface ProfileController {
+  /** A picker's change. */
+  part(part: CognitionCapability, value: ProviderModelPickerValue): void;
+  /** A number field's text, as typed (saved by `commit`). */
+  field(field: MemoryField, text: string): void;
+  /** Enter, or the field left: save what it holds. */
+  commit(field: MemoryField): void;
+  /** Resolves once every queued save has landed. */
+  idle(): Promise<void>;
+}
+
+/** The controls' rules, without React: one save at a time (each sees the profile the previous one
+ * left); a save identical to the one on its way for that control is not sent again (a keyboard pick
+ * reports twice; Enter then leaving the field commits twice); a control's status clears when it
+ * changes; a draft stays until it is stored, refused, or back to the stored value. */
+export function profileController(store: ProfileStore, send: (body: CognitionProfilePut) => Promise<SaveOutcome>): ProfileController {
+  let queue: Promise<void> = Promise.resolve();
+  const inFlight = new Map<ProfileAt, string>();
+
+  const save = (at: ProfileAt, body: CognitionProfilePut, sent: ProfileDraft) => {
+    const key = JSON.stringify(body);
+    if (inFlight.get(at) === key) return;
+    inFlight.set(at, key);
+    store.set((s) => withStatus(s, at, { text: "Saving…", tone: "" }));
+    queue = queue.then(async () => {
+      const outcome = await send(body);
+      if (inFlight.get(at) === key) inFlight.delete(at);
+      store.set((s) => afterSave(s, at, outcome, sent));
+    });
+  };
+
+  return {
+    part(part, value) {
+      const state = store.get();
+      if (!state.profile || sameDraft(shownValue(state, part), value)) return;
+      const pending = pickerPending(value);
+      const body = pending ? null : profileSaveBody({ part, value }, state.profile);
+      store.set((s) => withStatus({ ...s, drafts: withDraft(s.drafts, part, body || pending ? value : undefined) }, part, null));
+      if (body) save(part, body, value);
+    },
+    field(field, text) {
+      if (sameDraft(shownValue(store.get(), field), text)) return;
+      store.set((s) => withStatus({ ...s, drafts: withDraft(s.drafts, field, text) }, field, null));
+    },
+    commit(field) {
+      const { profile, drafts } = store.get();
+      const text = drafts.memory[field];
+      if (!profile || text === undefined) return;
+      const body = profileSaveBody({ field, text }, profile);
+      if (body) save(field, body, text);
+      else store.set((s) => (sameDraft(s.drafts.memory[field], text) ? { ...s, drafts: withDraft(s.drafts, field, undefined) } : s));
+    },
+    idle: () => queue,
+  };
 }
 
 // ------------------------------------------------------------------ view
@@ -258,9 +367,9 @@ export interface CognitionProfileViewProps {
 }
 
 function StatusLine({ state, at }: { state: ProfileState; at: ProfileAt }): React.ReactElement | null {
-  const status = state.status;
-  if (!status || status.at !== at) return null;
-  if (status.tone === "refused") return <RefusalLine text={status.text} />;
+  const status = state.status[at];
+  if (!status) return null;
+  if (status.tone === "refused") return <RefusalLine text={status.text} tone="error" />;
   return (
     <div className={`wsp_status${status.tone ? ` wsp_status_${status.tone}` : ""}`} role="status" aria-live="polite" data-cognition-status={at}>
       <WordsLine text={status.text} />
@@ -284,15 +393,15 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
           <WordsLine text={state.error} />
         </div>
       ) : null}
-      <AfSettingsGroup title="What each part of thinking uses" help="Each part thinks with the mind unless you choose another model for it. Every change saves itself.">
+      <AfSettingsGroup title="What each part of thinking uses" help={PARTS_HELP}>
         {refused ? <RefusalLine text={refused} /> : null}
         {state.phase === "reading" ? (
           <div className="wsp_status" role="status">
             <WordsLine text="Reading…" />
           </div>
         ) : null}
-        {COGNITION_PARTS.map(({ id, label }) => (
-          <AfSettingRow key={id} label={label} stack setting={`cognition-${id}`}>
+        {COGNITION_PARTS.map(({ id, label, help }) => (
+          <AfSettingRow key={id} label={label} help={help} stack setting={`cognition-${id}`}>
             <div className="wsp_picker mcp_part">
               <ProviderModelPicker
                 value={state.drafts.parts[id] ?? value?.parts[id].picker ?? { provider: "", model: "" }}
@@ -301,7 +410,7 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
                 customModeLabel="Custom"
                 inheritLabel="Model default"
                 optionsInDefaultMode={false}
-                defaultHint="A change of mind changes this too."
+                defaultHint={FOLLOWS_THE_MIND}
                 fetchProviders={() => discoveryProviders(baseUrl)}
                 fetchModels={(provider) => discoveryProviderModels(baseUrl, provider)}
                 fetchModelCapabilities={(model, provider) => discoveryModelCapabilities(baseUrl, model, provider)}
@@ -317,7 +426,7 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
           </AfSettingRow>
         ))}
       </AfSettingsGroup>
-      <AfSettingsGroup title="Memory" help="Every change saves itself when you leave the field.">
+      <AfSettingsGroup title="Memory" help={MEMORY_HELP}>
         {refused ? <RefusalLine text={refused} /> : null}
         {MEMORY_FIELDS.map((f) => (
           <React.Fragment key={f.id}>
@@ -336,8 +445,8 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
                 onChange={(e) => onField(f.id, e.target.value)}
                 onBlur={() => onCommit(f.id)}
                 onKeyDown={(e) => {
-                  // Enter saves through the blur, so the value is written once.
-                  if (e.key === "Enter") e.currentTarget.blur();
+                  // Enter saves in place: the focus stays in the field (Tab goes on to the next one).
+                  if (e.key === "Enter") onCommit(f.id);
                 }}
               />
             </AfSettingRow>
@@ -364,66 +473,29 @@ export function EntityCognitionProfile({
   token: string | null;
   mindKey?: string;
 }): React.ReactElement {
+  const latest = useRef<ProfileState>(PROFILE_READING);
   const [state, setState] = useState<ProfileState>(PROFILE_READING);
-  const latest = useRef(state);
-  latest.current = state;
-  // Saves run one after another: each sees the stored profile the previous one left.
-  const queue = useRef<Promise<void>>(Promise.resolve());
+  const store = useMemo<ProfileStore>(
+    () => ({
+      get: () => latest.current,
+      set: (update) => {
+        latest.current = update(latest.current);
+        setState(latest.current);
+      },
+    }),
+    [],
+  );
+  const controller = useMemo(() => profileController(store, (body) => saveCognitionChange(baseUrl, entity, token, body)), [store, baseUrl, entity, token]);
   const { access, error: accessError } = useEntityAccess(baseUrl, entity);
   const refused = accessRefusal(access) || accessError;
 
   useEffect(() => {
     let alive = true;
-    readCognitionProfile(baseUrl, entity).then((read) => alive && setState((s) => ({ ...s, ...read })));
+    readCognitionProfile(baseUrl, entity).then((read) => alive && store.set((s) => ({ ...s, ...read })));
     return () => {
       alive = false;
     };
-  }, [baseUrl, entity, mindKey]);
+  }, [baseUrl, entity, mindKey, store]);
 
-  const save = useCallback(
-    (at: ProfileAt, body: CognitionProfilePut) => {
-      setState((s) => ({ ...s, status: { at, text: "Saving…", tone: "" } }));
-      queue.current = queue.current.then(async () => {
-        const outcome = await saveCognitionChange(baseUrl, entity, token, body);
-        setState((s) => afterSave(s, at, outcome));
-      });
-    },
-    [baseUrl, entity, token],
-  );
-
-  const onPart = useCallback(
-    (part: CognitionCapability, next: ProviderModelPickerValue) => {
-      const profile = latest.current.profile;
-      if (!profile) return;
-      const body = pickerPending(next) ? null : profileSaveBody({ part, value: next }, profile);
-      if (!body && !pickerPending(next)) {
-        setState((s) => ({ ...s, drafts: withoutDraft(s.drafts, part) }));
-        return;
-      }
-      setState((s) => ({ ...s, drafts: { ...s.drafts, parts: { ...s.drafts.parts, [part]: next } } }));
-      if (body) save(part, body);
-    },
-    [save],
-  );
-
-  const onField = useCallback((field: MemoryField, text: string) => {
-    setState((s) => ({ ...s, drafts: { ...s.drafts, memory: { ...s.drafts.memory, [field]: text } } }));
-  }, []);
-
-  const onCommit = useCallback(
-    (field: MemoryField) => {
-      const { profile, drafts } = latest.current;
-      const text = drafts.memory[field];
-      if (!profile || text === undefined) return;
-      const body = profileSaveBody({ field, text }, profile);
-      if (!body) {
-        setState((s) => ({ ...s, drafts: withoutDraft(s.drafts, field) }));
-        return;
-      }
-      save(field, body);
-    },
-    [save],
-  );
-
-  return <CognitionProfileView baseUrl={baseUrl} state={state} refused={refused} onPart={onPart} onField={onField} onCommit={onCommit} />;
+  return <CognitionProfileView baseUrl={baseUrl} state={state} refused={refused} onPart={controller.part} onField={controller.field} onCommit={controller.commit} />;
 }

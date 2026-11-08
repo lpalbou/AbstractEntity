@@ -378,7 +378,7 @@ function MindTab({
           <span>His own time still uses the previous mind until his next day; restart it to switch now.</span>
         </p>
       ) : null}
-      <AfSettingsGroup title="Model" help="Every change saves itself. “Gateway default” follows the gateway's text model.">
+      <AfSettingsGroup title="Mind" help="Every change saves itself. “Gateway default” follows the gateway's text model.">
         <EntityMindPicker
           baseUrl={baseUrl}
           entity={entity}

@@ -22,14 +22,19 @@ All notable changes to `@abstractframework/entity` are recorded here.
   per turn.** Under the mind's model, three rows (Summaries and memory details, Understanding and
   dreams, Extraction) each offer "Same as the mind" or a model of their own, with its reasoning; the
   line under each row says what it uses now, e.g. "Same as the mind (gpt-5.6-terra)" or
-  "theforge-nvidia · qwen/qwen3.8-27b". A Memory card sets the memories he brings to mind per turn
-  (1-400, default 50), how easily something new makes him revisit what he understood (0-1, default
-  0.5), and how many rebuilds a turn may run at most (0-10, default 3; 0 = only while he rests).
-  Every change saves itself and the page reads back what was stored; a refused value shows the
-  gateway's sentence and the field returns to its stored value. Someone who may not configure him
-  sees the controls disabled with the reason; a gateway that does not offer these settings yet says
-  so in one sentence and leaves them visible but disabled (needs the gateway's cognition profile
-  route, `GET/PUT /entities/{name}/cognition-profile`).
+  "theforge-nvidia · qwen/qwen3.8-27b", or "No mind chosen yet" while the gateway has no text model
+  (the rest of the panel stays usable). Extraction says what it is (facts and names pulled out of
+  what he reads and hears) and that it is not used yet. A Memory card explains what a rebuild is and
+  sets the memories he brings to mind per turn (1-400, default 50), how easily something new starts
+  a rebuild (0-1, default 0.5), and how many rebuilds a turn may run at most (0-10, default 3; 0 =
+  only while he rests). Every change saves itself, a number when you press Enter (the focus stays
+  in the field) or leave it, and the page reads back what was stored; the same save is sent once,
+  and what you type while a save is on its way is kept. Each control keeps its own status line,
+  cleared when you change it; a refused value shows the gateway's own sentence as an error and the
+  field returns to its stored value. The first card is titled "Mind", like the rows that follow it.
+  Someone who may not configure him sees the controls disabled with the reason; a gateway that does
+  not offer these settings yet says so in one sentence and leaves them visible but disabled (needs
+  the gateway's cognition profile route, `GET/PUT /entities/{name}/cognition-profile`).
 
 ### Changed
 

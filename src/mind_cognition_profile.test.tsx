@@ -13,17 +13,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   COGNITION_PROFILE_UNAVAILABLE,
   CognitionProfileView,
+  FOLLOWS_THE_MIND,
+  MEMORY_HELP,
+  NO_MIND_YET,
   PROFILE_READING,
   afterSave,
   cognitionProfileOf,
   pickerPending,
+  profileController,
   profileSaveBody,
   profileValueOf,
   readCognitionProfile,
   saveCognitionChange,
   type ProfileState,
+  type SaveOutcome,
 } from "./mind_cognition_profile";
-import { getEntityCognitionProfile, putEntityCognitionProfile, type EntityCognitionProfile } from "./stream_source";
+import { getEntityCognitionProfile, putEntityCognitionProfile, type CognitionProfilePut, type EntityCognitionProfile } from "./stream_source";
 import { SettingsPanel } from "./workspace_panel";
 
 const MIND = { provider: "openai", model: "gpt-5.6-terra", thinking: null };
@@ -213,7 +218,7 @@ describe("Settings → Mind: a home without a profile", () => {
     expect(html).not.toContain("entity-settings-refusal");
     // The help lines are the contract's words.
     expect(html).toContain("How many memories he may bring to mind for each turn, in visits and in his own time. A running day picks it up at its next start.");
-    expect(html).toContain("How easily a new memory or a surprise makes him revisit what he already understood.");
+    expect(html).toContain("How easily a new memory or a surprise starts a rebuild.");
     expect(html).toContain("A safety cap. 0 = only while he rests.");
   });
 
@@ -234,7 +239,7 @@ describe("choosing theforge-nvidia · qwen/qwen3.8-27b for summaries", () => {
     ]);
     expect(calls[0].body).toEqual({ capabilities: { summaries: { provider: "theforge-nvidia", model: "qwen/qwen3.8-27b" } } });
     const before: ProfileState = { ...ready(DEFAULTS), drafts: { parts: { summaries: { ...FORGE, reasoning: "" } }, memory: {} } };
-    const after = afterSave(before, "summaries", outcome);
+    const after = afterSave(before, "summaries", outcome, { ...FORGE, reasoning: "" });
     expect(after.profile).toEqual(WITH_FORGE);
     expect(after.drafts.parts.summaries).toBeUndefined();
     const html = page(after);
@@ -254,17 +259,25 @@ describe("a refusal", () => {
     gateway({ PUT: [422, { detail: RANGE }], GET: [200, DEFAULTS] });
     const outcome = await saveCognitionChange("http://gw.test", "nerin", "tok", profileSaveBody({ field: "shelf_size", text: "500" }, DEFAULTS)!);
     expect(calls.map((c) => c.method)).toEqual(["PUT"]);
-    const after = afterSave(typed, "shelf_size", outcome);
+    const after = afterSave(typed, "shelf_size", outcome, "500");
     const html = page(after);
     expect(inputValue(html, "shelf_size")).toBe("50");
-    expect(html).toMatch(new RegExp(`data-testid="entity-settings-refusal"><div class="pc-md wl_line"><p[^>]*>${RANGE.replace(/\./g, "\\.")}<`));
+    expect(html).toMatch(
+      new RegExp(`<div class="stg_error wsp_status_refused" role="alert"[^>]*data-tone="error"><div class="pc-md wl_line"><p[^>]*>${RANGE.replace(/\./g, "\\.")}<`),
+    );
     expect(after.profile).toEqual(DEFAULTS);
   });
 
-  it("a creator-bound refusal (403) reads as the door's refusal with the gateway's sentence", async () => {
+  it("a 403 is the gateway's sentence itself, also from a {reason_code, message} detail; no sentence → a plain one", async () => {
     gateway({ PUT: [403, { detail: NOT_CREATOR }] });
-    const outcome = await saveCognitionChange("http://gw.test", "nerin", null, { rebuild: { cap_per_turn: 5 } });
-    expect(outcome).toEqual({ saved: false, sentence: `The door refused: ${NOT_CREATOR}` });
+    expect(await saveCognitionChange("http://gw.test", "nerin", null, { rebuild: { cap_per_turn: 5 } })).toEqual({ saved: false, sentence: NOT_CREATOR });
+    const offered = "Summaries and memory details: qwen/qwen3.8-27b is not a model this gateway offers to creators.";
+    gateway({ PUT: [403, { detail: { reason_code: "model_not_offered", message: offered } }] });
+    expect(await saveCognitionChange("http://gw.test", "nerin", null, { capabilities: { summaries: { ...FORGE } } })).toEqual({ saved: false, sentence: offered });
+    gateway({ PUT: [401, ""] });
+    expect(await saveCognitionChange("http://gw.test", "nerin", null, {})).toEqual({ saved: false, sentence: "Sign in to change his settings." });
+    gateway({ PUT: [403, "<html>proxy</html>"] });
+    expect(await saveCognitionChange("http://gw.test", "nerin", null, {})).toEqual({ saved: false, sentence: "You may not change his settings." });
   });
 });
 
@@ -330,8 +343,203 @@ describe("in the Settings modal", () => {
   it("each change goes through one save step, and his mind's change reads the profile again", () => {
     const src = fs.readFileSync(path.join(__dirname, "mind_cognition_profile.tsx"), "utf8");
     expect(src.split("saveCognitionChange(baseUrl, entity, token, body)").length - 1).toBe(1);
-    expect(src).toContain("}, [baseUrl, entity, mindKey]);");
+    expect(src).toContain("}, [baseUrl, entity, mindKey, store]);");
     const panel = fs.readFileSync(path.join(__dirname, "workspace_panel.tsx"), "utf8");
     expect(panel).toContain("mindKey={substrate ? `${substrate.provider}|${substrate.model}|${substrate.thinking ?? \"\"}` : \"\"}");
+  });
+});
+
+// ------------------------------------------------------------ review fixes (2026-11-08)
+
+/** The controller on a plain store, its saves answered by hand (each save waits for its reply). */
+function harness(initial: ProfileState) {
+  let state = initial;
+  const sends: CognitionProfilePut[] = [];
+  const replies: Array<(o: SaveOutcome) => void> = [];
+  const controller = profileController(
+    { get: () => state, set: (update) => void (state = update(state)) },
+    (body) => {
+      sends.push(body);
+      return new Promise<SaveOutcome>((resolve) => replies.push(resolve));
+    },
+  );
+  return { c: controller, sends, replies, get state() { return state; } };
+}
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const storedRead = (profile: EntityCognitionProfile): SaveOutcome => ({ saved: true, read: { phase: "ready", profile, error: null } });
+const withShelf = (n: number): EntityCognitionProfile => ({ ...DEFAULTS, recall: { ...DEFAULTS.recall, shelf_size: n, source: "profile" } });
+
+describe("(1) a slow save keeps what was typed during it", () => {
+  it("typed 13 while 120 saved: 13 stays (not reset to 120), and the next key sends 130", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.field("shelf_size", "120");
+    h.c.commit("shelf_size");
+    await flush();
+    expect(h.sends).toEqual([{ recall: { shelf_size: 120 } }]);
+    h.c.field("shelf_size", "13");
+    h.replies[0](storedRead(withShelf(120)));
+    await h.c.idle();
+    expect(h.state.profile?.recall.shelf_size).toBe(120);
+    expect(h.state.drafts.memory.shelf_size).toBe("13");
+    expect(inputValue(page(h.state), "shelf_size")).toBe("13");
+    h.c.field("shelf_size", "130");
+    h.c.commit("shelf_size");
+    await flush();
+    expect(h.sends[1]).toEqual({ recall: { shelf_size: 130 } });
+  });
+
+  it("a refusal returns the field to the stored value only if nothing new was typed", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.field("shelf_size", "500");
+    h.c.commit("shelf_size");
+    await flush();
+    h.c.field("shelf_size", "60");
+    h.replies[0]({ saved: false, sentence: RANGE });
+    await h.c.idle();
+    expect(h.state.drafts.memory.shelf_size).toBe("60");
+    const quiet = harness(ready(DEFAULTS));
+    quiet.c.field("shelf_size", "500");
+    quiet.c.commit("shelf_size");
+    await flush();
+    quiet.replies[0]({ saved: false, sentence: RANGE });
+    await quiet.c.idle();
+    expect(quiet.state.drafts.memory.shelf_size).toBeUndefined();
+    expect(inputValue(page(quiet.state), "shelf_size")).toBe("50");
+  });
+
+  it("a picker choice made during a save of another stays", () => {
+    const before: ProfileState = { ...ready(DEFAULTS), drafts: { parts: { summaries: { provider: "lmstudio", model: "" } }, memory: {} } };
+    const after = afterSave(before, "summaries", storedRead(WITH_FORGE), { ...FORGE });
+    expect(after.drafts.parts.summaries).toEqual({ provider: "lmstudio", model: "" });
+  });
+});
+
+describe("(2) a mind the gateway cannot name", () => {
+  /** abstractgateway entity_cognition_profile.py: effective null on inheriting parts, mind unset. */
+  const UNSET: EntityCognitionProfile = {
+    ...DEFAULTS,
+    capabilities: {
+      summaries: { choice: { inherit: "mind" }, effective: null, source: "mind" },
+      understanding: { choice: { inherit: "mind" }, effective: null, source: "mind" },
+      extraction: { choice: { ...FORGE }, effective: { ...FORGE, thinking: null }, source: "profile" },
+    },
+    rebuild: { ...DEFAULTS.rebuild, sources: { sensitivity: "default", cap_per_turn: "default" } },
+    mind: { provider: null, model: null, thinking: null, source: "unset", note: "This gateway has no text model yet." },
+  };
+
+  it("is a valid answer: those rows say No mind chosen yet, and the panel stays usable", async () => {
+    gateway({ GET: [200, UNSET] });
+    const read = await readCognitionProfile("http://gw.test", "nerin");
+    expect(read.phase).toBe("ready");
+    const v = profileValueOf(read.profile!);
+    expect(v.parts.summaries.line).toBe(NO_MIND_YET);
+    expect(v.parts.understanding.line).toBe(NO_MIND_YET);
+    expect(v.parts.extraction.line).toBe("theforge-nvidia · qwen/qwen3.8-27b");
+    const html = page({ ...PROFILE_READING, ...read });
+    expect(row(html, "summaries")).toContain(NO_MIND_YET);
+    expect(html).not.toMatch(/<input[^>]*disabled=""/);
+    expect(html).not.toMatch(/<button[^>]*role="tab"[^>]*disabled=""/);
+    expect(html).not.toContain("data-cognition-error");
+  });
+
+  it("a null elsewhere is still a contract break", () => {
+    const customNull = structuredClone(UNSET);
+    customNull.capabilities.extraction.effective = null;
+    expect(() => cognitionProfileOf(customNull)).toThrow(/capabilities\.extraction\.effective/);
+    const knownMind = structuredClone(DEFAULTS);
+    knownMind.capabilities.summaries.effective = null;
+    expect(() => cognitionProfileOf(knownMind)).toThrow(/capabilities\.summaries\.effective/);
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), mind: { provider: null, model: null, source: "entity" } })).toThrow(/mind\.model/);
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), mind: { ...MIND, source: "elsewhere" } })).toThrow(/mind\.source/);
+  });
+});
+
+describe("(3) keyboard: Enter saves in place, and the same save is sent once", () => {
+  it("Enter then leaving the field writes once", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.field("shelf_size", "80");
+    h.c.commit("shelf_size");
+    h.c.commit("shelf_size");
+    await flush();
+    expect(h.sends).toEqual([{ recall: { shelf_size: 80 } }]);
+    h.replies[0](storedRead(withShelf(80)));
+    await h.c.idle();
+    h.c.commit("shelf_size");
+    await flush();
+    expect(h.sends).toHaveLength(1);
+  });
+
+  it("a model picked by keyboard (reported twice) is saved once, its Saving… kept", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.part("summaries", { ...FORGE, reasoning: "" });
+    h.c.part("summaries", { ...FORGE, reasoning: "" });
+    await flush();
+    expect(h.sends).toEqual([{ capabilities: { summaries: { ...FORGE } } }]);
+    expect(h.state.status.summaries).toEqual({ text: "Saving…", tone: "" });
+    h.replies[0](storedRead(WITH_FORGE));
+    await h.c.idle();
+    h.c.part("summaries", { ...FORGE });
+    await flush();
+    expect(h.sends).toHaveLength(1);
+    expect(h.state.status.summaries).toEqual({ text: "Saved", tone: "ok" });
+  });
+
+  it("the field's Enter commits without blurring (the focus stays; Tab goes on to the next field)", () => {
+    const src = fs.readFileSync(path.join(__dirname, "mind_cognition_profile.tsx"), "utf8");
+    expect(src).toContain('if (e.key === "Enter") onCommit(f.id);');
+    expect(src).not.toContain(".blur()");
+  });
+});
+
+describe("(4) every control keeps its own status", () => {
+  it("a refusal under one field survives the next field's Saved", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.field("shelf_size", "500");
+    h.c.commit("shelf_size");
+    h.c.field("sensitivity", "0.7");
+    h.c.commit("sensitivity");
+    await flush();
+    h.replies[0]({ saved: false, sentence: RANGE });
+    await flush();
+    h.replies[1](storedRead({ ...DEFAULTS, rebuild: { ...DEFAULTS.rebuild, sensitivity: 0.7, source: "profile" } }));
+    await h.c.idle();
+    expect(h.sends).toEqual([{ recall: { shelf_size: 500 } }, { rebuild: { sensitivity: 0.7 } }]);
+    expect(h.state.status).toEqual({ shelf_size: { text: RANGE, tone: "refused" }, sensitivity: { text: "Saved", tone: "ok" } });
+    const html = page(h.state);
+    expect(html).toContain(RANGE);
+    expect(html).toMatch(/data-cognition-status="sensitivity"[^>]*><div class="pc-md wl_line"><p[^>]*>Saved</);
+  });
+
+  it("a stale Saved leaves when that control changes (a half-chosen provider, a new keystroke)", () => {
+    const h = harness({ ...ready(WITH_FORGE), status: { summaries: { text: "Saved", tone: "ok" }, shelf_size: { text: RANGE, tone: "refused" } } });
+    h.c.part("summaries", { provider: "lmstudio", model: "" });
+    expect(h.state.status.summaries).toBeUndefined();
+    expect(h.state.drafts.parts.summaries).toEqual({ provider: "lmstudio", model: "" });
+    expect(h.state.status.shelf_size).toEqual({ text: RANGE, tone: "refused" });
+    h.c.field("shelf_size", "6");
+    expect(h.state.status.shelf_size).toBeUndefined();
+    expect(h.sends).toEqual([]);
+  });
+});
+
+describe("(5) words", () => {
+  it("the panel says the mind throughout, explains rebuilds and Extraction, and a refusal reads as an error", () => {
+    const html = page({ ...ready(DEFAULTS), status: { cap_per_turn: { text: "Rebuilds per turn must be a whole number from 0 to 10.", tone: "refused" } } });
+    expect(count(html, FOLLOWS_THE_MIND)).toBe(3);
+    expect(html).not.toContain("A change of mind");
+    expect(html).toContain(MEMORY_HELP);
+    expect(MEMORY_HELP).toMatch(/^A rebuild is when a new memory or a surprise makes him revisit what he already understood\./);
+    expect(row(html, "extraction")).toContain("Pulls facts and names out of what he reads and hears. Not used yet.");
+    expect(html).toMatch(/class="stg_error wsp_status_refused" role="alert"[^>]*data-tone="error"/);
+    expect(html).not.toContain("door");
+    const settings = renderToStaticMarkup(
+      <SettingsPanel baseUrl="http://gw.test" entity="nerin" entityName="nerin" token={null} substrate={null} onSubstrateChange={() => {}} initialSection="mind" onClose={() => {}} />,
+    );
+    expect(settings).toMatch(/af-settings-group__title"[^>]*>Mind</);
+    expect(settings).not.toMatch(/af-settings-group__title"[^>]*>Model</);
+  });
+
+  it("the access sentence stays a note, not an error", () => {
+    expect(page(ready(DEFAULTS), NOT_CREATOR)).toMatch(/class="wsp_status wsp_status_refused" role="note"[^>]*data-tone="note"/);
   });
 });

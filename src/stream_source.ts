@@ -1955,13 +1955,19 @@ export interface CognitionModelRoute {
   thinking?: string | null;
 }
 
-/** The GET answer (also the PUT answer). */
+/** The GET answer (also the PUT answer). `effective` is null only on a part that follows a mind the
+ * gateway cannot name (`mind.source: "unset"`, no text model yet; `mind.note` says what to do). */
 export interface EntityCognitionProfile {
   schema_version: number;
-  capabilities: Record<CognitionCapability, { choice: CognitionCapabilityChoice; effective: CognitionModelRoute; source: "profile" | "mind" }>;
+  capabilities: Record<CognitionCapability, { choice: CognitionCapabilityChoice; effective: CognitionModelRoute | null; source: "profile" | "mind" }>;
   recall: { shelf_size: number; source: "profile" | "default"; applies_to_running_loop?: string };
-  rebuild: { sensitivity: number; cap_per_turn: number; source: "profile" | "default" };
-  mind: CognitionModelRoute & { source: "entity" | "gateway" };
+  rebuild: {
+    sensitivity: number;
+    cap_per_turn: number;
+    source: "profile" | "default";
+    sources?: { sensitivity?: "profile" | "default"; cap_per_turn?: "profile" | "default" };
+  };
+  mind: { provider: string | null; model: string | null; thinking?: string | null; source: "entity" | "gateway" | "unset"; note?: string };
 }
 
 /** A PUT body: any subset; an absent key keeps, `null` resets to the default. */
@@ -1983,15 +1989,17 @@ export async function getEntityCognitionProfile(baseUrl: string, entity: string)
 }
 
 /** Save a change; the answer is the GET shape. A refusal rejects with the gateway's own sentence
- * (`detail`) and its HTTP status. */
+ * (`detail`, "" when it gave none; a `{message}` detail gives its message) and its HTTP status. */
 export async function putEntityCognitionProfile(baseUrl: string, entity: string, token: string | null, body: CognitionProfilePut): Promise<unknown> {
   const url = joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/cognition-profile`);
   const res = await fetch(url, { credentials: "include", method: "PUT", headers: authHeaders(token), body: JSON.stringify(body) });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    const detail = refusalDetail(text).trim();
-    const err = new Error(detail && !detail.startsWith("<") ? detail : `HTTP ${res.status}`) as Error & { status?: number };
+    const said = refusalDetail(text).trim();
+    const detail = said && !said.startsWith("<") ? said : "";
+    const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number; detail?: string };
     err.status = res.status;
+    err.detail = detail;
     throw err;
   }
   return res.json() as Promise<unknown>;

@@ -61,11 +61,18 @@ export function useEntityAccess(baseUrl: string, entity: string): { access: Enti
   return state;
 }
 
-/** The sentence line under a control the caller may not use, or under one the gateway refused (the
- * kit tooltip carries it too). The words go through the shared renderer. */
-export function RefusalLine({ text }: { text: string }): React.ReactElement {
+/** The sentence line under a control the caller may not use (a note), or under a change the gateway
+ * refused (`tone="error"`: the modal's error style, announced). The kit tooltip carries it too; the
+ * words go through the shared renderer. */
+export function RefusalLine({ text, tone = "note" }: { text: string; tone?: "note" | "error" }): React.ReactElement {
   return (
-    <div className="wsp_status wsp_status_refused" role="note" data-af-tip={text} data-testid="entity-settings-refusal">
+    <div
+      className={tone === "error" ? "stg_error wsp_status_refused" : "wsp_status wsp_status_refused"}
+      role={tone === "error" ? "alert" : "note"}
+      data-af-tip={text}
+      data-testid="entity-settings-refusal"
+      data-tone={tone}
+    >
       <WordsLine text={text} />
     </div>
   );
