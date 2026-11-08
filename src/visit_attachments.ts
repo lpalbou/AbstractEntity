@@ -85,27 +85,18 @@ export function attachmentChips(records: AttachmentRecord[]): ChatAttachment[] {
   });
 }
 
-/** The one line naming the files that are not images (the runtime labels
- * images itself); null when every file is an image. */
-export function nonImageMention(files: AttachmentRecord[]): string | null {
-  const paths = files.filter((f) => !isImageAttachment(f)).map((f) => f.path);
-  if (paths.length === 0) return null;
-  return paths.length === 1
-    ? `I've placed ${paths[0]} in your workspace (read it with read_file).`
-    : `I've placed ${paths.length} files in your workspace (read them with read_file): ${paths.join(", ")}`;
-}
-
-/** What one visit turn sends: the words (with the non-image line ahead of
- * them) and every file as `{path}`. Images with no words are a turn (the door
- * accepts an empty text when attachments are present); only a message with
- * neither words nor files is nothing to send. */
+/** What one visit turn sends: the words as typed and every file as `{path}`.
+ * The app adds NO line about the files: the runtime names every attachment
+ * itself, image or not ("(attached: x.pdf — a PDF document …; read_file
+ * opens it)"), so a line here named non-images twice (gateway owner,
+ * 2026-11-08). Files with no words are a turn (the door accepts an empty
+ * text when attachments are present); only a message with neither words nor
+ * files is nothing to send. */
 export function visitTurnPayload(
   words: string,
   files: PendingFile[],
 ): { text: string; attachments: Array<{ path: string }> } | { refusal: string } {
-  const said = words.trim();
-  const mention = nonImageMention(files);
-  const text = [mention, said].filter(Boolean).join("\n\n");
+  const text = words.trim();
   if (!text && files.length === 0) return { refusal: "There is nothing to send." };
   return { text, attachments: files.map((f) => ({ path: f.path })) };
 }

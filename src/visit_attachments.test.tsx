@@ -13,7 +13,7 @@ import { avatarVisitHistory } from "./avatar_visit";
 import { ChatMessageList } from "./chat_message_list";
 import { RefusalLine } from "./mind_voice_settings";
 import { refusalText, sendVisitTurn, setGatewayToken } from "./stream_source";
-import { attachmentChips, attachmentRecords, nonImageMention, turnRefusal, visitTurnPayload, type PendingFile } from "./visit_attachments";
+import { attachmentChips, attachmentRecords, turnRefusal, visitTurnPayload, type PendingFile } from "./visit_attachments";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -52,19 +52,17 @@ describe("the visit turn POST", () => {
     ]);
   });
 
-  it("keeps one plain line naming the files that are not images, and none for the image", () => {
+  it("adds no line about the files — the runtime names every attachment itself, image or not", () => {
     const payload = visitTurnPayload("compare these", [PNG, PDF, CSV]);
     if ("refusal" in payload) throw new Error(payload.refusal);
     expect(payload.attachments).toEqual([{ path: PNG.path }, { path: PDF.path }, { path: CSV.path }]);
-    expect(payload.text).toBe("I've placed 2 files in your workspace (read them with read_file): shared/notes.pdf, mounts/lab/data.csv\n\ncompare these");
-    expect(payload.text).not.toContain(PNG.path);
-    expect(payload.text.split("\n\n")[0]).not.toContain("\n");
-    expect(nonImageMention([PDF])).toBe("I've placed shared/notes.pdf in your workspace (read it with read_file).");
-    expect(nonImageMention([PNG])).toBeNull();
+    expect(payload.text).toBe("compare these");
+    expect(payload.text).not.toContain(PDF.path);
+    expect(payload.text).not.toContain("read_file");
   });
 
-  it("a file alone is a turn (an image with empty text); nothing at all is not", () => {
-    expect(visitTurnPayload("", [PDF])).toEqual({ text: "I've placed shared/notes.pdf in your workspace (read it with read_file).", attachments: [{ path: PDF.path }] });
+  it("a file alone is a turn (empty text); nothing at all is not", () => {
+    expect(visitTurnPayload("", [PDF])).toEqual({ text: "", attachments: [{ path: PDF.path }] });
     expect(visitTurnPayload("  ", [PNG])).toEqual({ text: "", attachments: [{ path: PNG.path }] });
     expect(visitTurnPayload("  ", [])).toEqual({ refusal: "There is nothing to send." });
   });
