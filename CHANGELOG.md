@@ -4,6 +4,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The Book folds by day.** Each day is now one row: its date, how many entries he wrote that
+  day and, while it is folded, the first entry's opening words on one line. Every day is folded
+  except the newest, so the Book opens on what he wrote last. A click on a day (or the arrow
+  keys, Enter) unfolds or folds it, and the days you open or close stay that way for the rest of
+  the browser session. A diary line in the Ledger, a diary mark on the timeline or "Show in Book"
+  on a graph card unfolds the entry's day, marks the entry and scrolls to it. As before, the Book
+  reads nothing on its own: an entry's words are read only when you open it (a click, or Enter).
+  The days are the shared disclosure list from the UI kit, so the list works with the keyboard
+  (arrows, Home/End, typing a date) like the other lists in the framework.
 - **Health's drive rows say how many, in words.** With one open question and one interest, the
   rows read "0/1 resolved" and "0/1 explored", which looked like nothing at all. They now read
   "1 open question · none resolved yet" and "1 interest · none explored yet", or "3 questions ·

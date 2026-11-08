@@ -21,8 +21,26 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { DisclosureList, type DisclosureListHandle, type DisclosureSelection } from "@abstractframework/ui-kit";
 
-import { selectDiaryEntries, type BookEntry } from "./book_reader_select";
+import {
+  bookDayOf,
+  bookEntryRowKey,
+  bookEntryText,
+  bookRows,
+  bookSessionStore,
+  groupBookDays,
+  newestDayKey,
+  readBookDayChoices,
+  selectDiaryEntries,
+  withBookDayChoice,
+  writeBookDayChoices,
+  type BookDay,
+  type BookDayChoices,
+  type BookEntry,
+  type BookRow,
+  type BookRowData,
+} from "./book_reader_select";
 import type { FoldState, NodeState } from "./stream_fold";
 import { VerbatimModal, type VerbatimSource } from "./verbatim_modal";
 import { fromLink, WordsLine } from "./words_line";
@@ -50,34 +68,121 @@ export function bookDate(iso: string): { day: string; time: string } {
   };
 }
 
+/** A day row's date: the first entry's day, in the reader's words. */
+function dayLabel(day: BookDay): string {
+  return bookDate(day.entries[0]?.bornAt ?? "").day;
+}
+
+/** A click followed by a double-click's activation is one gesture. */
+const DOUBLE_CLICK_MS = 500;
+
 export function BookReader({ fold, verbatimSource, focus = null }: BookReaderProps): React.ReactElement {
-  const listRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<DisclosureListHandle | null>(null);
   const focusRow = focus ? (fold.graph_to_row.get(focus.id) ?? focus.id) : null;
-  useEffect(() => {
-    if (!focusRow) return;
-    // After the tab is shown (the drawer reveals it in the same commit).
-    const t = window.setTimeout(() => {
-      const el = listRef.current?.querySelector(`[data-entry="${CSS.escape(focusRow)}"]`);
-      el?.scrollIntoView({ block: "center" });
-    }, 60);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRow, focus?.nonce]);
   const [open, setOpen] = useState<NodeState | null>(null);
 
   const entries = useMemo<BookEntry[]>(() => selectDiaryEntries(fold), [fold]);
+  // One row per day, folded except the newest (operator 2026-11-08); a
+  // reader's own unfolding and folding is remembered for the session.
+  const days = useMemo(() => groupBookDays(entries), [entries]);
+  const newest = newestDayKey(days);
+  const scope = verbatimSource ? `${verbatimSource.baseUrl}|${verbatimSource.entity}` : "file";
+  const [choiceScope, setChoiceScope] = useState(scope);
+  const [choices, setChoices] = useState<BookDayChoices>(() => readBookDayChoices(bookSessionStore(), scope));
+  if (choiceScope !== scope) {
+    setChoiceScope(scope);
+    setChoices(readBookDayChoices(bookSessionStore(), scope));
+  }
+  const [selection, setSelection] = useState<DisclosureSelection | null>(null);
 
-  // Group by day so the narrative reads as a journal, not a flat list.
-  const byDay = useMemo(() => {
-    const groups: Array<{ day: string; rows: BookEntry[] }> = [];
-    for (const e of entries) {
-      const { day } = bookDate(e.bornAt);
-      const last = groups[groups.length - 1];
-      if (last && last.day === day) last.rows.push(e);
-      else groups.push({ day, rows: [e] });
+  // An entry asked for (a ledger diary line, a diary mark, "Show in Book"):
+  // its day unfolds and it is marked — reading nothing. Settled once the
+  // Book holds the entry (a live entry may land after the ask).
+  const focusSig = focusRow ? `${focusRow}#${focus?.nonce ?? 0}` : null;
+  const [seenFocus, setSeenFocus] = useState<string | null>(null);
+  if (focusSig !== seenFocus) {
+    const day = focusRow ? bookDayOf(days, focusRow) : null;
+    if (!focusRow || day !== null) {
+      setSeenFocus(focusSig);
+      if (day !== null && focusRow) {
+        setChoices((c) => withBookDayChoice(c, day, true));
+        setSelection({ entityId: focusRow, rowKey: bookEntryRowKey(focusRow) });
+      }
     }
-    return groups;
-  }, [entries]);
+  }
+  useEffect(() => {
+    if (!seenFocus || !focusRow) return;
+    // After the tab is shown (the drawer reveals it in the same commit).
+    const t = window.setTimeout(() => listRef.current?.scrollToRow(bookEntryRowKey(focusRow), "center"), 60);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seenFocus]);
+
+  useEffect(() => writeBookDayChoices(bookSessionStore(), choiceScope, choices), [choiceScope, choices]);
+
+  const lastClickToggle = useRef(0);
+  const toggleDay = (key: string) => setChoices((c) => withBookDayChoice(c, key, !(Object.prototype.hasOwnProperty.call(c, key) ? c[key] : key === newest)));
+  const openable = (e: BookEntry) => !e.sealed && Boolean(e.node.entry_id) && Boolean(verbatimSource);
+  // Reading an entry is its own act: a click on it, Enter or a double-click.
+  // Moving through the list (arrows, Space, typeahead) only marks a row.
+  const activate = (row: BookRow) => {
+    const d = row.data;
+    if (d.kind === "day") {
+      if (Date.now() - lastClickToggle.current > DOUBLE_CLICK_MS) toggleDay(d.day.key);
+      return;
+    }
+    if (openable(d.entry)) setOpen(d.entry.node);
+  };
+
+  const rows = useMemo(() => bookRows(days, choices, newest, dayLabel), [days, choices, newest]);
+
+  const renderRow = (row: BookRow): React.ReactNode => {
+    const d = row.data;
+    if (d.kind === "day") {
+      const n = d.day.entries.length;
+      return (
+        <span
+          className="book_day_head"
+          onClick={(ev) => {
+            if (fromLink(ev) || ev.detail > 1) return;
+            lastClickToggle.current = Date.now();
+            toggleDay(d.day.key);
+          }}
+        >
+          <span className="book_day_date">{row.textValue}</span>
+          <span className="book_day_count">{`${n} ${n === 1 ? "entry" : "entries"}`}</span>
+          {d.open ? null : (
+            <span className="book_day_first">
+              <WordsLine text={bookEntryText(d.day.entries[0])} inline />
+            </span>
+          )}
+        </span>
+      );
+    }
+    const e = d.entry;
+    const { time } = bookDate(e.bornAt);
+    const can = openable(e);
+    return (
+      <span
+        data-entry={e.node.id}
+        className={`book_entry_row ${e.sealed ? "book_entry_sealed" : ""} ${can ? "" : "book_entry_closed"}`}
+        onClick={(ev) => !fromLink(ev) && can && setOpen(e.node)}
+        title={
+          e.sealed
+            ? "A private entry — the words are sealed (sole-author). Only the act of writing it is visible."
+            : can
+              ? "Read this entry (opens the diary door — recorded as a visible read in his stream)"
+              : "This entry cannot be opened here (exported file, or no entry id)"
+        }
+      >
+        {time ? <span className="book_time">{time}</span> : null}
+        <span className="book_entry_title">
+          <WordsLine text={bookEntryText(e)} inline />
+        </span>
+        {e.sealed ? <span className="book_seal">sealed</span> : null}
+      </span>
+    );
+  };
 
   return (
     <div className="book_reader">
@@ -92,39 +197,18 @@ export function BookReader({ fold, verbatimSource, focus = null }: BookReaderPro
           <WordsLine text="Nothing in the book yet. The diary is what he ELECTS to keep — it fills as he writes, never automatically." />
         </div>
       ) : (
-        <div className="book_list" ref={listRef}>
-          {byDay.map((group) => (
-            <div key={group.day} className="book_day_group">
-              <div className="book_day">{group.day}</div>
-              {group.rows.map((e) => {
-                const { time } = bookDate(e.bornAt);
-                const openable = !e.sealed && Boolean(e.node.entry_id) && Boolean(verbatimSource);
-                return (
-                  <button
-                    key={e.node.id}
-                    data-entry={e.node.id}
-                    className={`book_entry ${e.sealed ? "book_entry_sealed" : ""} ${e.node.id === focusRow ? "book_entry_focus" : ""}`}
-                    disabled={!openable}
-                    onClick={(ev) => !fromLink(ev) && openable && setOpen(e.node)}
-                    title={
-                      e.sealed
-                        ? "A private entry — the words are sealed (sole-author). Only the act of writing it is visible."
-                        : openable
-                          ? "Read this entry (opens the diary door — recorded as a visible read in his stream)"
-                          : "This entry cannot be opened here (exported file, or no entry id)"
-                    }
-                  >
-                    {time ? <span className="book_time">{time}</span> : null}
-                    <span className="book_entry_title">
-                      <WordsLine text={e.sealed ? "a private entry" : e.node.title || "an entry"} inline />
-                    </span>
-                    {e.sealed ? <span className="book_seal">sealed</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+        <DisclosureList<BookRowData>
+          ref={listRef}
+          className="book_days"
+          ariaLabel="His book, by day"
+          rows={rows}
+          selection={selection}
+          onSelect={setSelection}
+          onToggleExpand={(_key, row) => row.data && row.data.kind === "day" && toggleDay(row.data.day.key)}
+          onActivate={(_sel, row) => activate(row as BookRow)}
+          renderRow={(row) => renderRow(row as BookRow)}
+          scrollOnSelect={false}
+        />
       )}
       {open && verbatimSource ? (
         <VerbatimModal node={open} source={verbatimSource} diaryReason="operator review (book)" onClose={() => setOpen(null)} />

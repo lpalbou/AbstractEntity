@@ -1838,6 +1838,7 @@ body {
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   line-height: 1.5;
 }
+/* A day's heading in a world model's sources (world_model_sources.tsx). */
 .book_day_group {
   padding: 4px 0 8px;
 }
@@ -1848,25 +1849,76 @@ body {
   color: var(--ea-accent);
   opacity: 0.85;
 }
-.book_entry {
+/* The days are the kit's disclosure rows (DisclosureList): a day row is a
+ * panel head — date, count and, folded, the first entry's words on one
+ * line — and its entries hang under it. */
+.book_days {
+  padding: 4px 6px 12px;
+}
+.book_days .af-disclosure__row[data-depth="0"] {
+  margin-top: 6px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-radius: 0;
+  border-top: 1px solid var(--line);
+}
+.book_days .af-disclosure__row[data-depth="0"]:first-child {
+  margin-top: 0;
+  border-top-color: transparent;
+}
+.book_days .af-disclosure__row[data-depth="1"] {
+  align-items: baseline;
+  border-left: 2px solid color-mix(in srgb, var(--standing) 40%, transparent);
+  border-radius: 0 var(--radius-md, 6px) var(--radius-md, 6px) 0;
+  margin-left: 14px;
+  padding-left: 10px;
+}
+/* An entry has no chevron: its margin is the indent, not a blank slot. */
+.book_days .af-disclosure__row[data-depth="1"] > .af-disclosure__chevron--spacer {
+  display: none;
+}
+.book_days .af-disclosure__row[data-depth="1"]:hover {
+  border-left-color: var(--standing);
+}
+.book_day_head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  cursor: pointer;
+}
+.book_day_date {
+  font-weight: 600;
+  color: var(--ea-accent);
+  letter-spacing: 0.02em;
+}
+.book_day_count {
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim, #8b98ad);
+}
+/* The folded day's first words: one line, the rest behind an ellipsis
+ * (the whole entry is one click away, unfolded). */
+.book_day_first {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-style: italic;
+  color: var(--text-dim, #8b98ad);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.book_entry_row {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: baseline;
   gap: 10px;
-  width: 100%;
-  text-align: left;
-  padding: 6px 12px;
-  background: none;
-  border: none;
-  border-left: 2px solid color-mix(in srgb, var(--standing) 40%, transparent);
-  color: var(--text, #e2e8f0);
   cursor: pointer;
-  font: inherit;
 }
-.book_entry:not(:disabled):hover {
-  background: color-mix(in srgb, var(--standing) 8%, transparent);
-  border-left-color: var(--standing);
-}
-.book_entry:disabled {
+.book_entry_closed {
   cursor: default;
   color: var(--text-dim, #8b98ad);
 }
@@ -2051,11 +2103,6 @@ body {
   color: var(--text-dim);
 }
 
-.book_entry_focus {
-  background: color-mix(in srgb, var(--standing) 14%, transparent);
-  border-left-color: var(--standing);
-}
-
 .book_time {
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: var(--text-dim, #8b98ad);
@@ -2064,6 +2111,8 @@ body {
 }
 .book_entry_title {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 .book_entry_sealed .book_entry_title {
