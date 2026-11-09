@@ -274,6 +274,18 @@ function displayTitle(env: ReplayEnvelope, fallback: string): string {
   return fallback;
 }
 
+/** The words a phase_changed line names a state by: the phase bar's own
+ * pill labels for the five states (visit · idle · work · personal · sleep,
+ * spec v25 FIVE-STATE-LIFE-CYCLE) and "stopped" for the kill switch. */
+export const LEDGER_PHASE_WORDS: Readonly<Record<string, string>> = {
+  visit: "visit",
+  idle: "idle",
+  work: "work",
+  personal: "personal",
+  sleep: "sleep",
+  stopped: "stopped",
+};
+
 export function ledgerLine(env: ReplayEnvelope): LedgerLine {
   const base = {
     seq: env.seq,
@@ -685,27 +697,25 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         };
       }
       if (p.kind === "phase_changed") {
-        // THE transition marker (semantics c1466 design; contract in
-        // spec/entity_phases.json): {old, new (phase KEYS), cause (closed
-        // set), principal? (absent on auto-transitions)}. One line per
-        // transition — the graph's edges made visible in the life.
-        // AWAKE-NEVER-RENDERS guard (spec v6; adversary-B finding 4): the
-        // marker contract says phase KEYS only, but the writer is still
-        // reserved-unspelled — if a future writer leaks a state-axis word,
-        // the timeline must not print "awake" as a PHASE. Non-phase words
-        // render verbatim-labeled (the chip's honesty pattern), never bare.
-        const PHASE_KEYS = new Set(["visit", "work", "personal", "sleep"]);
+        // THE transition marker (spec/entity_phases.json; contract v3). Both
+        // writers serve {from, to (phase or status words), cause}: the
+        // gateway's (entity_phase._announce: + name, phase, toggles,
+        // stopped, since, rev, generation, sentence) and the runtime loop's
+        // (life.append_phase_changed). The contract is from/to — no other
+        // key is read. One line per transition: the graph's edges, and the
+        // moves into and out of idle and stopped, made visible in the life.
+        // AWAKE-NEVER-RENDERS guard (spec v6; adversary-B finding 4): a word
+        // outside the five states and stopped renders verbatim-labeled (the
+        // chip's honesty pattern), never bare — "awake" is never a phase.
         const phaseWord = (v: unknown): string => {
           if (typeof v !== "string" || !v) return "?";
-          const w = v.toLowerCase();
-          return PHASE_KEYS.has(w) ? w : `non-phase word: “${v}”`;
+          return LEDGER_PHASE_WORDS[v.toLowerCase()] ?? `non-phase word: “${v}”`;
         };
         const cause = typeof p["cause"] === "string" && p["cause"] ? String(p["cause"]) : "";
-        const principal = typeof p["principal"] === "string" && p["principal"] ? tidy(String(p["principal"])) : "";
         return {
           ...base,
-          title: `⭢ Phase: ${phaseWord(p["old"])} → ${phaseWord(p["new"])}`,
-          detail: `${cause ? `cause: ${cause}` : "cause unrecorded"}${principal ? ` — by ${principal}` : ""}`,
+          title: `⭢ Phase: ${phaseWord(p["from"])} → ${phaseWord(p["to"])}`,
+          detail: cause ? `cause: ${cause}` : "cause unrecorded",
           subject_id: null,
           tone: "session",
         };

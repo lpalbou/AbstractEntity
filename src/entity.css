@@ -793,8 +793,8 @@ body {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-/* THE PHASE BAR (operator ruling 2026-11-08; phase_bar_controls.tsx): four kit chips and one
- * power button. Quiet = neither current nor allowed; pressed (a toggle allowed) = the kit's
+/* THE PHASE BAR (operator ruling 2026-11-08; phase_bar_controls.tsx): five kit chips (idle ·
+ * visit · work · personal · sleep) and one power button. Quiet = neither current nor allowed; pressed (a toggle allowed) = the kit's
  * pressed chip with a filled ring; lit (the current phase) = gold and blooming, never dimmed,
  * even when it has nothing to offer. */
 .ec_phase_bar {
@@ -5072,9 +5072,12 @@ body {
 .eix_phase_bar {
   flex: 1 1 100%;
 }
-/* A tile is narrow: the four phase words fit one row without their glyphs. */
+/* A tile is narrow: the five state words fit one row without their glyphs, a little tighter. */
 .eix_phase_bar .ec_pb_glyph {
   display: none;
+}
+.eix_phase_bar .ec_pb_pill.af-chip {
+  padding-inline: 6px;
 }
 .eix_phase_bar .ec_pb_sentence {
   flex: 1 1 100%;
@@ -6437,7 +6440,7 @@ body {
   .entity_controls > .ec_phase_bar {
     flex: 0 0 100%;
   }
-  /* The four phase words fit one row without their glyphs. */
+  /* The five state words fit one row without their glyphs. */
   .ec_pb_glyph {
     display: none;
   }

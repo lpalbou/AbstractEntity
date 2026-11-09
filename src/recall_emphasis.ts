@@ -104,6 +104,46 @@ export function canvasRecall(fold: FoldState, scrubSeq: number, selectedId: stri
   return contextOn ? recallEmphasis(fold, scrubSeq) : null;
 }
 
+/** HOVER PREVIEW (operator 2026-11-09): resting the mouse on a ledger line
+ * that opens a recall — "He holds these in mind", the recall line, their
+ * click target `beat:<trace>` (ledger_lines.lineTarget) — lights that
+ * recall's memories in the graph and dims the rest, exactly as its click
+ * does; leaving the line restores what was lit. `target` is the line's
+ * click target; any other line previews nothing (null). */
+export function recallPreviewOf(target: string | null): string | null {
+  return target !== null && target.startsWith("beat:") ? target : null;
+}
+
+/** The selection the canvas lights: the hovered recall line's beat while
+ * the mouse rests on it — the click's own selection id, so the canvas
+ * lights it through the click path (canvasRecall) — else the click's
+ * selection. Detail keeps the click's selection either way. */
+export function canvasSelection(selectedId: string | null, preview: string | null): string | null {
+  return preview ?? selectedId;
+}
+
+/** A ledger row's pointer handlers for the preview: entering with a MOUSE
+ * previews the row's recall (or clears an earlier preview: a row that
+ * opens no recall previews nothing); leaving clears it. Touch has no
+ * hover: a tap stays a selection (the row's click). No handlers without a
+ * preview sink. */
+export interface PreviewPointer {
+  pointerType: string;
+}
+export function recallHoverHandlers(
+  target: string | null,
+  onPreview: ((id: string | null) => void) | undefined,
+): { onPointerEnter?(e: PreviewPointer): void; onPointerLeave?(e: PreviewPointer): void } {
+  if (!onPreview) return {};
+  const beat = recallPreviewOf(target);
+  return {
+    onPointerEnter: (e) => {
+      if (e.pointerType === "mouse") onPreview(beat);
+    },
+    onPointerLeave: () => onPreview(null),
+  };
+}
+
 /** THE "CONTEXT" TOGGLE (operator 2026-11-08: "there must be a toggle to
  * show/hide the currently selected memories so the reader can explore the
  * rest of the graph"). Labelled by what it shows, pressed = on (toggles

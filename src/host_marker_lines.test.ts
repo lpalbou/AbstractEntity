@@ -207,3 +207,35 @@ describe("malformed payloads never fabricate claims (adversary pins)", () => {
     expect(bare.subject_id).toBeNull();
   });
 });
+
+describe("phase_changed (the gateway's marker, entity_phase._announce; the runtime loop's, life.append_phase_changed)", () => {
+  // The live shape (castor seq 102207.0002, operator test 2026-11-09): from/to/cause, no old/new.
+  const SERVED = { kind: "phase_changed", name: "castor", from: "visit", to: "sleep", phase: "sleep", toggles: { personal: false }, stopped: false, rev: 11, generation: 0, cause: "visit_closed", sentence: "Asleep until you wake him." };
+
+  it("names the transition by the served from/to and its cause", () => {
+    const line = ledgerLine(hostEnv(30, SERVED));
+    expect(line.title).toBe("⭢ Phase: visit → sleep");
+    expect(line.detail).toBe("cause: visit_closed");
+    expect(line.tone).toBe("session");
+    expect(line.subject_id).toBeNull();
+  });
+
+  it("idle and stopped are states with their own words, never a non-phase word", () => {
+    expect(ledgerLine(hostEnv(31, { ...SERVED, from: "sleep", to: "idle", phase: "idle", cause: "maintenance_done" })).title).toBe("⭢ Phase: sleep → idle");
+    expect(ledgerLine(hostEnv(32, { ...SERVED, from: "idle", to: "stopped", phase: "stopped", stopped: true, cause: "operator_stop" })).title).toBe("⭢ Phase: idle → stopped");
+    expect(ledgerLine(hostEnv(33, { ...SERVED, from: "stopped", to: "idle", cause: "operator_resume" })).title).toBe("⭢ Phase: stopped → idle");
+    for (const w of ["visit", "idle", "work", "personal", "sleep", "stopped"]) {
+      expect(ledgerLine(hostEnv(34, { ...SERVED, from: w, to: w })).title).not.toContain("non-phase word");
+    }
+  });
+
+  it("the contract is from/to: the v1 keys old/new are not read", () => {
+    const line = ledgerLine(hostEnv(35, { kind: "phase_changed", old: "visit", new: "sleep", cause: "visit_closed" }));
+    expect(line.title).toBe("⭢ Phase: ? → ?");
+  });
+
+  it("a word outside the states renders labeled, never bare (AWAKE-NEVER-RENDERS)", () => {
+    expect(ledgerLine(hostEnv(36, { ...SERVED, from: "awake" })).title).toBe("⭢ Phase: non-phase word: “awake” → sleep");
+    expect(ledgerLine(hostEnv(37, { ...SERVED, cause: undefined })).detail).toBe("cause unrecorded");
+  });
+});

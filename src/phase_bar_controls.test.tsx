@@ -10,7 +10,7 @@ import { findVerbToggleLabels } from "@abstractframework/ui-kit";
 import { describe, expect, it } from "vitest";
 
 import { LOOP_CRASHED, OWN_TIME_REVOKED, STOPPED_TOGGLE, phaseBody } from "./fixtures/phase_bodies";
-import { STOP_CONSEQUENCE, WORK_IDLE, phaseBarRead, phaseBarView, sinceWords, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { IDLE_NOT_NOW, STOP_CONSEQUENCE, WORK_IDLE, phaseBarRead, phaseBarView, sinceWords, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
 import { PhaseBarControls, confirmSentence } from "./phase_bar_controls";
 import { PHASE_BAR_UNSERVED, type ServedPhase } from "./phase_bar_source";
 
@@ -52,11 +52,30 @@ describe("PhaseBarControls", () => {
     expect(render(read("visit", { next: { phase: null, sentence: "When the visit closes, he returns to what he was doing." } }))).not.toContain("ec_pb_then");
   });
 
-  it("idle: nothing lit, the toggles as they are, the gateway's sentence", () => {
+  it("idle: the idle indicator lit (no pressed state, no click, the gateway's sentence as its tooltip), the toggles as they are", () => {
     const html = render(read("idle"));
-    expect(html).not.toContain("ec_pb_lit");
+    expect(html.match(/ec_pb_lit/g)).toHaveLength(1);
+    const idle = pill(html, "idle");
+    expect(idle).toContain("ec_pb_lit");
+    expect(idle).toContain("disabled");
+    expect(idle).not.toContain("aria-pressed");
+    expect(idle).not.toContain("ec_pb_toggle");
+    expect(idle).not.toContain("ec_pb_ring");
+    expect(idle).toContain('title="Awake and reachable; nothing of his own is running. Own time is off; he stays awake."');
+    expect(idle).toMatch(/>○ <\/span>idle<\/span><\/button>$/);
     expect(pill(html, "personal")).toContain('aria-pressed="false"');
     expect(html).toContain("Awake and reachable; nothing of his own is running.");
+    // Idle comes first, then the four phases.
+    expect(buttons(html).slice(0, 5).map((b) => b.match(/ec_pb_(idle|visit|work|personal|sleep)\b/)![1])).toEqual(["idle", "visit", "work", "personal", "sleep"]);
+  });
+
+  it("any other state: the idle indicator unlit, disabled, saying what idle is", () => {
+    for (const phase of ["visit", "work", "personal", "sleep"] as const) {
+      const idle = pill(render(read(phase)), "idle");
+      expect(idle).not.toContain("ec_pb_lit");
+      expect(idle).toContain("disabled");
+      expect(idle).toContain(`title="${IDLE_NOT_NOW}"`);
+    }
   });
 
   it("stopped: Resume (not red), the toggles and sleep disabled with the gateway's words, the visit pill offers Resume and visit; the page can move the sentence to its banner", () => {
@@ -154,7 +173,7 @@ describe("PhaseBarControls", () => {
     expect(button(html, "ec_pb_confirm_no")).not.toContain("disabled");
     const busy = render(read("personal"), { busy: "personal", confirm: null });
     expect(button(busy, "ec_pb_power")).not.toContain("disabled");
-    for (const key of ["visit", "work", "personal", "sleep"]) expect(pill(busy, key)).toContain("disabled");
+    for (const key of ["idle", "visit", "work", "personal", "sleep"]) expect(pill(busy, key)).toContain("disabled");
     const stopping = render(read("personal"), { busy: null, stopping: true, confirm: null });
     const power = button(stopping, "ec_pb_power")!;
     expect(power).toContain("ec_pb_busy");

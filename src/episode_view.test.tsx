@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 
 import type { NodeState } from "./stream_fold";
 import { parseLivedExchange } from "./episode_parse";
-import { EpisodeBody, episodeSummary, HowHeGotThere, LivedExchangeView, lookupsFact, momentFact, momentTitle, notRunWords, speakerName } from "./episode_view";
+import { EpisodeBody, episodeSummary, HowHeGotThere, LivedExchangeView, lookupsFact, momentContext, momentFact, notRunWords, servedTitle, speakerName, TITLE_PENDING } from "./episode_view";
+import { nodeCardText } from "./hover_card";
 import { cachedWordsAnswer, exchangeSpeakers, VerbatimTurns } from "./verbatim_view";
 import { createFoldState } from "./stream_fold";
 import { Inspector } from "./inspector";
@@ -57,9 +58,9 @@ function node(over: Partial<NodeState> = {}): NodeState {
 const facts = (extra: React.ReactNode) => <dl className="ei_facts">{extra}<dt>born</dt><dd>then</dd></dl>;
 
 describe("the episode's Detail", () => {
-  it("leads with what kind of moment it was, its lookups, the facts, then the summary, then the exchange", () => {
+  it("leads with its served title, what kind of moment it was, its lookups, the facts, then the summary, then the exchange", () => {
     const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: OWN, note: null, turnId: "t-0006", born: false } }} renderFacts={facts} />);
-    const order = ["A moment of his own time", "<dt>moment</dt><dd>his own time · tick 6</dd>", "<dt>lookups</dt><dd>2 — he searched the web once and read a diary entry · one more did not run</dd>", "<dt>born</dt>", "Summary", "ADB attributes the weaker outlook", "The exchange", "His own time began with", "nerin answered", "How he got there"];
+    const order = ['<h3 class="ei_title">', "ADB attributes the weaker outlook", "</h3>", "<dt>moment</dt><dd>his own time · tick 6</dd>", "<dt>lookups</dt><dd>2 — he searched the web once and read a diary entry · one more did not run</dd>", "<dt>born</dt>", "Summary", "ep_summary_text", "The exchange", "His own time began with", "nerin answered", "How he got there"];
     let at = -1;
     for (const piece of order) {
       const next = html.indexOf(piece);
@@ -76,36 +77,73 @@ describe("the episode's Detail", () => {
     const html = renderToStaticMarkup(<EpisodeBody node={node({ digest })} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: "t-0001", born: false } }} renderFacts={facts} />);
     expect(html).toContain("Thank you—I&#x27;m here, attentive, and glad to meet you. How are you?");
     expect(html).toContain("The summary saved with the record, as it was saved.");
-    expect(html).not.toContain("ADB attributes");
+    expect(html.slice(html.indexOf("Summary"))).not.toContain("ADB attributes");
     expect(html).not.toContain("fuller summary arrives");
     expect(html.indexOf("Summary")).toBeLessThan(html.indexOf("The exchange"));
   });
 
-  it("names who spoke the way the heading does", () => {
+  it("names who spoke the way the context line does", () => {
     const html = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: null, born: false } }} renderFacts={facts} />);
-    expect(html).toContain("A conversation with admin");
+    expect(html).toContain('<p class="ep_context">A conversation with admin</p>');
     expect(html).toContain(">admin said<");
     expect(html).not.toContain("person:admin said");
   });
 
+  // Operator live test 2026-11-09 (record ex:episode-5116a685c70e98568ef98b499e): the hover card
+  // showed the authored title, Detail "A visit with admin" — a title the app made up.
+  const AUTHORED = "Castor's reflections when asked about being the first entity on AbstractFramework";
+  const heading = (html: string) => html.match(/<h3[^>]*>.*?<\/h3>/)![0];
+
+  it("the heading is the record's served title, the same the hover card shows, never a title the app makes", () => {
+    const n = node({ title: AUTHORED, visit_id: "visit-castor-1", owner_id: "entity:castor" });
+    const html = renderToStaticMarkup(<EpisodeBody node={n} entity="castor" state={{ phase: "ready", words: { text: VISIT.replace(/nerin/g, "castor"), note: null, turnId: "t-0002", born: false } }} renderFacts={facts} />);
+    expect(heading(html)).toContain("Castor&#x27;s reflections when asked about being the first entity on AbstractFramework");
+    expect(heading(html)).not.toContain("A visit with");
+    expect(servedTitle(n)).toBe(nodeCardText(n).title);
+    // A mechanical title reads as the card reads it: the runtime's "exchange:" scaffolding stripped.
+    const mechanical = node();
+    expect(servedTitle(mechanical)).toBe(nodeCardText(mechanical).title);
+    expect(heading(renderToStaticMarkup(<EpisodeBody node={mechanical} entity="nerin" state={{ phase: "loading" }} renderFacts={facts} />))).not.toContain("exchange:");
+    // Who it was with stays, as a context line under the title.
+    expect(html).toContain('<p class="ep_context">A visit with admin</p>');
+    expect(html.indexOf("</h3>")).toBeLessThan(html.indexOf("ep_context"));
+  });
+
+  it("a record with no title yet says its title is being written, never one of the app's", () => {
+    for (const title of ["", "   "]) {
+      const n = node({ title, visit_id: "visit-castor-1" });
+      expect(servedTitle(n)).toBeNull();
+      const ready = renderToStaticMarkup(<EpisodeBody node={n} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: null, born: false } }} renderFacts={facts} />);
+      expect(heading(ready)).toBe(`<h3 class="ei_title ep_title_pending">${TITLE_PENDING}</h3>`);
+      expect(TITLE_PENDING).toBe("Title being written…");
+      for (const state of [{ phase: "loading" } as const, { phase: "none", message: "No words are kept for this moment." } as const]) {
+        expect(heading(renderToStaticMarkup(<EpisodeBody node={n} entity="nerin" state={state} renderFacts={facts} />))).toBe(`<h3 class="ei_title ep_title_pending">${TITLE_PENDING}</h3>`);
+      }
+    }
+  });
+
   it("shows only the facts the record gives while his words are read, and says why words are missing", () => {
     const loading = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "loading" }} renderFacts={facts} />);
-    expect(loading).toContain("A lived moment");
+    expect(heading(loading)).toContain("ADB attributes the weaker outlook");
+    expect(loading).not.toContain("ep_context");
     expect(loading).not.toContain("<dt>moment</dt>");
     expect(loading).toContain("reading his words…");
     const none = renderToStaticMarkup(<EpisodeBody node={node()} entity="nerin" state={{ phase: "none", message: "No words are kept for this moment." }} renderFacts={facts} />);
     expect(none).toContain("No words are kept for this moment.");
   });
 
-  it("names a conversation, a visit and a visit's start by who was there", () => {
+  it("names a conversation and a visit by who was there; his own time and a visit's start need no context line", () => {
     const visit = parseLivedExchange(VISIT, "nerin")!;
-    expect(momentTitle(visit, false)).toBe("A conversation with admin");
-    expect(momentTitle(visit, true)).toBe("A visit with admin");
+    expect(momentContext(visit, false)).toBe("A conversation with admin");
+    expect(momentContext(visit, true)).toBe("A visit with admin");
+    expect(momentContext(null, true)).toBeNull();
+    expect(momentContext(parseLivedExchange(OWN, "nerin")!, false)).toBeNull();
     expect(momentFact(visit, true, "t-0002")).toBe("a visit · turn 2");
     expect(momentFact(visit, false, null)).toBe("a conversation");
     expect(lookupsFact(visit)).toBe("none — he answered without looking anything up");
     const door = parseLivedExchange("(the door):\nlaurent has arrived.\n\nnerin:\nWelcome.", "nerin")!;
-    expect(momentTitle(door, false)).toBe("The start of a visit");
+    expect(momentContext(door, true)).toBeNull();
+    expect(momentFact(door, true, null)).toBe("the start of a visit");
     expect(exchangeSpeakers(door)).toEqual([]);
     expect(exchangeSpeakers(visit)).toEqual(["person:admin"]);
     expect(exchangeSpeakers(parseLivedExchange(OWN, "nerin")!)).toEqual([]);
@@ -194,9 +232,10 @@ describe("the Detail tab", () => {
     );
   };
 
-  it("shows an episode as a lived moment, facts first", () => {
+  it("shows an episode as a lived moment under its served title, facts first", () => {
     const html = detail(node());
-    expect(html).toContain("A lived moment");
+    expect(html).toMatch(/<h3 class="ei_title"><div class="[^"]*">.*ADB attributes the weaker outlook/);
+    expect(html).not.toContain("A lived moment");
     expect(html.indexOf("<dt>born</dt>")).toBeLessThan(html.indexOf("Summary"));
     expect(html.indexOf("Summary")).toBeLessThan(html.indexOf("The exchange"));
   });

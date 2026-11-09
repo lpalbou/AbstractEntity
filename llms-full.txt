@@ -1522,12 +1522,13 @@ message forms none. Sleep is when the entity consolidates what it has formed.
 
 ## Reading the phase bar
 
-- **Four pills**: `visit`, `work`, `personal`, `sleep`. The current state is
-  lit in gold. Idle and stopped light no pill.
+- **Five pills**: `idle`, `visit`, `work`, `personal`, `sleep`, one per state.
+  The current state is lit in gold. Stopped lights no pill.
 - **personal** is the one toggle. Pressed (a filled ring) means own time is
   granted. It can be pressed while another pill is lit: with **work** lit and
   **personal** pressed, its own time resumes after the jobs.
-- **visit** opens the conversation; **work** is an indicator; **sleep** offers
+- **idle** and **work** are indicators, with nothing to click; hover idle for
+  the gateway's sentence. **visit** opens the conversation; **sleep** offers
   "sleep now" and lights while the entity sleeps.
 - **Stop** or **Resume**, apart from the pills.
 - **Retry** appears when its own time is granted but not running, with the

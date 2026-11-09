@@ -107,8 +107,10 @@ describe("the canonical phase graph (spec/entity_phases.json)", () => {
 });
 
 describe("this app's derivation maps onto the artifact's keys", () => {
-  it("the phase bar's four pills are exactly the artifact's phase keys (idle and stopped light none)", () => {
-    expect([...PHASE_SLOT_KEYS].sort()).toEqual([...PHASE_KEYS].sort());
+  it("the phase bar's five pills are the artifact's phase keys plus its idle status (the five states, v25; operator live test 2026-11-09); stopped lights none", () => {
+    expect([...PHASE_SLOT_KEYS].sort()).toEqual([...PHASE_KEYS, "idle"].sort());
+    expect(Object.keys(graph.statuses)).toContain("idle");
+    expect(PHASE_SLOT_KEYS).not.toContain("stopped");
   });
 
   it("v6/v7 record the c203+dm#82 rulings: awake-never-renders + drives-are-drivers, invariants + machine floor", () => {

@@ -1,8 +1,9 @@
 /**
  * The phase bar (operator ruling 2026-11-08, contract v2 + v3 deltas; pure rules in phase_bar.ts):
- * four kit chips and one power button. `visit`, `work` and `sleep` are indicators (lit when
- * current; work has no click, v3: no work switch); `personal` is the one toggle (pressed = allowed,
- * a ring filled when pressed) that lights as well when current. The labels are the phase words in
+ * five kit chips, one per state of the life cycle, and one power button. `idle`, `visit`, `work`
+ * and `sleep` are indicators (lit when current; idle and work have no click, v3: no work switch);
+ * `personal` is the one toggle (pressed = allowed, a ring filled when pressed) that lights as well
+ * when current. The labels are the phase words in
  * every state; a short state word may sit beside one ("waiting"). "Stop", "sleep now" and "Resume
  * and visit" confirm inline, in the bar; Stop's confirmation says it cancels his own time.
  */

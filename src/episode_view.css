@@ -3,6 +3,20 @@
  * in the Detail look; every colour is a theme token, so the light and dark
  * themes both hold; nothing is wider than the panel on a phone. */
 
+/* The heading while the record has no title yet: quiet, never a title. */
+.ep_title_pending {
+  color: var(--text-dim);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Who the moment was with, under the served title. */
+.ep_context {
+  margin: -2px 0 8px;
+  color: var(--text-dim);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
 .ep_h {
   margin: 0 0 6px;
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));

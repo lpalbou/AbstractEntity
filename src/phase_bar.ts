@@ -5,18 +5,21 @@
  * life_state, what a click asks for, and what a write's answer means. No DOM, so the tests pin
  * every rule.
  *
- * - Four pills. `visit`, `work` and `sleep` are indicators (lit when current; a click on visit opens
- *   a visit, on sleep offers "sleep now"; work has no click: it lights while he works, and its
- *   tooltip names the current job and since when, and how many jobs are queued — v3 D1, there is
- *   no work switch). `personal` is the one TOGGLE: pressed = allowed, and it lights as well when
- *   it is the current phase. Labels never change (toggles show state, never verbs).
+ * - Five pills, one per state of the life cycle (spec v25 FIVE-STATE-LIFE-CYCLE). `idle`, `visit`,
+ *   `work` and `sleep` are indicators (lit when current; a click on visit opens a visit, on sleep
+ *   offers "sleep now"; idle and work have no click: idle lights while he is awake with nothing
+ *   running, its tooltip the gateway's sentence — the operator's live test 2026-11-09; work lights
+ *   while he works, and its tooltip names the current job and since when, and how many jobs are
+ *   queued — v3 D1, there is no work switch). `personal` is the one TOGGLE: pressed = allowed, and
+ *   it lights as well when it is the current phase. Labels never change (toggles show state, never
+ *   verbs; indicators never look like buttons).
  * - What a pill may do, and its tooltip when it may not, come from the served `can` (§1.5), never a
  *   client rule: "sleep now" during a visit or while asleep (§13: only while asleep; once a sleep
  *   has ended, idle included, it is offered again), a toggle while stopped. One exception
  *   the contract asks for (§6.1, §8.3): while stopped the visit pill offers "Resume and visit", two
  *   visible acts, never a silent bypass.
- * - `idle` lights nothing (awake, reachable, nothing to do, own time not granted; a newborn starts
- *   there); `stopped` lights nothing either and turns the one power button into "Resume".
+ * - `idle` lights its own indicator (awake, reachable, nothing to do, own time not granted; a
+ *   newborn starts there); `stopped` lights nothing and turns the one power button into "Resume".
  * - One power button, apart from the pills: red "Stop" while he runs, "Resume" when stopped. Stop
  *   is the kill switch: never held by a write in flight, a refusal, a failed read or the first
  *   read; only a stopped entity (then Resume) or a gateway without the bar holds it. A stop that
@@ -41,11 +44,12 @@ import { formatExactTime, formatShortDate, timeValueMs } from "@abstractframewor
 
 import { PHASE_BAR_UNSERVED, parsePhaseBar, type PhaseBar, type PhaseCan, type PhaseCanEntry, type PhaseMarker, type PhaseToggles, type PhaseWire, type PhaseWork } from "./phase_bar_source";
 
-export type PhaseSlotKey = "visit" | "work" | "personal" | "sleep";
-export const PHASE_SLOT_KEYS: readonly PhaseSlotKey[] = ["visit", "work", "personal", "sleep"];
+export type PhaseSlotKey = "idle" | "visit" | "work" | "personal" | "sleep";
+/** Idle first: the state he rests in and returns to (a newborn's, a resumed entity's). */
+export const PHASE_SLOT_KEYS: readonly PhaseSlotKey[] = ["idle", "visit", "work", "personal", "sleep"];
 
 /** What a click asks for. */
-export type PhaseBarAct = "visit" | "work" | "personal" | "sleep" | "stop" | "resume" | "retry";
+export type PhaseBarAct = PhaseSlotKey | "stop" | "resume" | "retry";
 
 /** The newest rev and generation a read has seen (the stale rule's floor). */
 export interface PhaseSeen {
@@ -76,12 +80,14 @@ export interface PhaseBarUi {
 }
 
 export const PHASE_LABELS: Record<PhaseSlotKey, string> = {
+  idle: "idle",
   visit: "visit",
   work: "work",
   personal: "personal",
   sleep: "sleep",
 };
 export const PHASE_GLYPHS: Record<PhaseSlotKey, string> = {
+  idle: "○",
   visit: "💬",
   work: "🛠",
   personal: "⏻",
@@ -137,6 +143,8 @@ export interface PhaseBarView {
   live: boolean;
 }
 
+/** The unlit idle pill: what idle is, said once (the lit pill says the gateway's sentence). */
+export const IDLE_NOT_NOW = "Not idle now. He is idle when he is awake and reachable with nothing running: no visit, no job, no own time.";
 /** The unlit work pill (v3 D1): no switch, a job starts it. */
 export const WORK_IDLE = "Not working now. Work starts when a job is queued for him: a request from you or from an entity allowed to ask him.";
 export const PERSONAL_ALLOWED = "Personal time is allowed: he explores his own ideas, sleeps for maintenance when he needs to and wakes by himself.";
@@ -219,6 +227,10 @@ function slotView(bar: PhaseBar, key: PhaseSlotKey, writing: boolean, offerResum
   const lit = bar.phase === key;
   const base = { key, label: PHASE_LABELS[key], glyph: PHASE_GLYPHS[key], lit };
   switch (key) {
+    case "idle":
+      // An indicator: nothing to click. Lit (or stopped): the gateway's sentence, then what comes
+      // after (the gateway's next, else "Own time is off; he stays awake.").
+      return { ...base, disabled: true, title: lit ? [bar.sentence, afterLine(bar)].filter(Boolean).join(" ") : bar.stopped ? bar.sentence : IDLE_NOT_NOW, badge: "" };
     case "visit": {
       const waiting = lit ? (bar.visit?.waiting_for ?? null) : null;
       if (!bar.can.visit.allowed) {
@@ -439,6 +451,9 @@ export function phaseActPlan(read: PhaseBarRead, act: PhaseBarAct): PhaseActPlan
     case "visit":
       if (!bar.can.visit.allowed) return bar.stopped ? { kind: "confirm", confirm: "resume_visit" } : refused(bar.can.visit);
       return bar.phase === "visit" ? { kind: "show_visit" } : { kind: "open_visit" };
+    case "idle":
+      // An indicator: idle is where he rests, never a request.
+      return { kind: "none" };
     case "work":
       // An indicator: there is no work switch (v3 D1).
       return { kind: "none" };

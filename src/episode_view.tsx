@@ -4,8 +4,11 @@
  * summary of that episode. the rest are the additional data related to
  * it."):
  *
- * - EpisodeDetail (the Detail tab): what kind of moment it was and the
- *   record's facts, then its summary (its stored understanding when the
+ * - EpisodeDetail (the Detail tab): the record's served title — the
+ *   same the graph's hover card shows (hover_card.markdownTitle), never a
+ *   title the app makes up (operator 2026-11-09); while none is served,
+ *   "Title being written…" — then who it was with, the record's facts,
+ *   then its summary (its stored understanding when the
  *   gateway serves it, with who wrote it, as of when and its earlier
  *   readings; else the digest a recall served, else the saved title, said
  *   so), then the exchange, then how he got there.
@@ -27,6 +30,8 @@ import { turnLabel } from "./ledger_lines";
 import { describeToolAsk } from "./turn_probe_parse";
 import { Fold, ToolCall } from "./turn_probe_views";
 import { exchangeSpeakers, readRecordWords, VerbatimTurns, Words, type RecordWords } from "./verbatim_view";
+import { markdownTitle } from "./hover_card";
+import { WordsLine } from "./words_line";
 import { restBlocksAsText } from "./verbatim_parse";
 import { servedDigest, UNSERVED_SENTENCE } from "./understanding";
 import { DigestNotYet, EarlierUnderstandings, ProvenanceLine } from "./understanding_view";
@@ -49,11 +54,22 @@ export function speakerName(id: string): string {
   return String(id || "").replace(/^(person|agent|entity):/, "").split("@", 1)[0];
 }
 
-/** The card's heading. */
-export function momentTitle(ex: LivedExchange | null, visit: boolean): string {
-  if (!ex) return "A lived moment";
-  if (ex.ownTime) return "A moment of his own time";
-  if (ex.door) return "The start of a visit";
+/** The heading while the record has no title yet (his words for it are
+ * still being written). */
+export const TITLE_PENDING = "Title being written…";
+
+/** The heading: the record's served title as Markdown, the hover card's own
+ * text for it (hover_card.markdownTitle); null while none is served. */
+export function servedTitle(node: Pick<NodeState, "title">): string | null {
+  const title = markdownTitle(node.title);
+  return title ? title : null;
+}
+
+/** The context line under the heading: who the moment was with ("A visit
+ * with admin"); null where the moment fact already says it all (his own
+ * time, a visit's start) or before his words are read. Never the heading. */
+export function momentContext(ex: LivedExchange | null, visit: boolean): string | null {
+  if (!ex || ex.ownTime || ex.door) return null;
   return `${visit ? "A visit with" : "A conversation with"} ${speakerName(ex.cueSpeaker)}`;
 }
 
@@ -247,6 +263,8 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
   const understanding = read && read.served ? read.understanding : null;
   const unserved = Boolean(read && !read.served);
   const stored = understanding ? servedDigest(understanding) : null;
+  const title = servedTitle(node);
+  const context = momentContext(ex, visit);
   const extra = ex ? (
     <>
       <dt>moment</dt>
@@ -257,7 +275,8 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
   ) : null;
   return (
     <>
-      <h3 className="ei_title">{momentTitle(ex, visit)}</h3>
+      <h3 className={`ei_title${title ? "" : " ep_title_pending"}`}>{title ? <WordsLine text={title} /> : TITLE_PENDING}</h3>
+      {context ? <p className="ep_context">{context}</p> : null}
       {renderFacts(extra)}
       <section className="ep_summary">
         <h4 className="ep_h">Summary</h4>

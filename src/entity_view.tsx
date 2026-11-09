@@ -24,7 +24,7 @@ import { MeetConsole } from "./meet_console";
 import { MeetReader } from "./meet_reader";
 import { GraphCanvas, KIND_COLORS, relationGlyph, type RelationGlyph } from "./graph_canvas";
 import { ContextToggle } from "./context_toggle";
-import { contextAvailability, contextToggleView, readContextChoice, sessionStore, writeContextChoice } from "./recall_emphasis";
+import { canvasSelection, contextAvailability, contextToggleView, readContextChoice, sessionStore, writeContextChoice } from "./recall_emphasis";
 import { IdentityCardContent } from "./identity_card";
 import {
   AfTopBarActions,
@@ -137,6 +137,9 @@ export function EntityView(): React.ReactElement {
   const [live, setLive] = useState(false);
   const [liveStatus, setLiveStatus] = useState<"open" | "reconnecting" | "closed" | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** The recall a ledger line under the mouse previews in the graph (`beat:<trace>`), or null:
+   * the canvas lights it as if clicked, Detail keeps the click's selection. */
+  const [recallPreview, setRecallPreview] = useState<string | null>(null);
   const [showQuiet, setShowQuiet] = useState(false);
   const [gatewayUrl, setGatewayUrl] = useState("");
   /** Live view of the resolved base for deferred work (the auth check may
@@ -465,6 +468,7 @@ export function EntityView(): React.ReactElement {
     setSourceLabel(label);
     setScrubIndex(-1);
     setSelectedId(null);
+    setRecallPreview(null);
     setPlaying(next.length > 0);
     setError(null);
   }, []);
@@ -1260,6 +1264,7 @@ export function EntityView(): React.ReactElement {
       setEnvelopes([]);
       setScrubIndex(-1);
       setSelectedId(null);
+      setRecallPreview(null);
       // ALL state axes clear together (adversary P0: cognition/serverLife
       // survived the index return, painting Castor's working pulse +
       // billed spend over the roster — a same-screen cross-entity lie).
@@ -2154,7 +2159,7 @@ export function EntityView(): React.ReactElement {
             fold={fold}
             temporal={temporal}
             scrubSeq={scrubSeq}
-            selectedId={selectedId}
+            selectedId={canvasSelection(selectedId, recallPreview)}
             searchIds={emphasisIds}
             focusToken={focusToken}
             layoutKey={sourceKind === "gateway" && entityName ? entityName : sourceLabel || null}
@@ -2422,6 +2427,7 @@ export function EntityView(): React.ReactElement {
                       setSelectedId(id);
                       if (id) setRequestedTab({ tab: "detail", nonce: Date.now() });
                     }}
+                    onPreviewRecall={setRecallPreview}
                     showQuiet={showQuiet}
                     onToggleQuiet={() => setShowQuiet((v) => !v)}
                     loadingNote={bootProgress}

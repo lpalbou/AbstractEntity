@@ -4,6 +4,19 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **An idle pill.** The phase bar now shows all five states: idle, visit, work, personal, sleep.
+  Idle lights while he is awake and reachable with nothing running; it has nothing to click, and
+  its tooltip is the gateway's sentence ("Awake and reachable; nothing of his own is running.").
+- **The ledger names phase changes again.** A phase change read "Phase: ? → ?"; it now says
+  "Phase: visit → sleep" with its cause, and names idle and stopped as states.
+- **Detail shows the memory's own title.** A lived moment's Detail heading is the title the memory
+  carries, the same as its card in the graph, not one the app made up ("A visit with admin").
+  While no title is written yet it says "Title being written…". Who the moment was with stays as
+  a small line under the title.
+- **Hover a recall in the ledger to see it in the graph.** Resting the mouse on "He holds these in
+  mind" (or its recall line) lights those memories in the graph and dims the rest, as a click
+  does; moving away brings back what was lit. On a touch screen a tap still selects it.
+
 - **Five states: visit, idle, work, own time, sleep — and no work switch.** The phase bar follows
   the gateway's v3 phases (operator ruling 2026-11-09). Work is no longer a toggle: the work pill
   lights while he works on a job someone queued for him (you, or an entity allowed to ask him) and

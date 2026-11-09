@@ -2,6 +2,9 @@
  * The memory ledger beside the graph (the fork monitor's right panel,
  * with the WHY visible): one human line per envelope up to the scrub
  * position. Clicking a line scrubs to it; lines about a node select it.
+ * Resting the mouse on a line that opens a recall ("He holds these in
+ * mind") lights that recall in the graph, as its click does, until the
+ * mouse leaves it (recall_emphasis.recallHoverHandlers).
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +13,8 @@ import { AF_MEDIA, AfMemoryHintChip, useAfMedia } from "@abstractframework/ui-ki
 
 import { isDiaryGraphId } from "./stream_fold";
 
-import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, type IndexedLine, type LedgerLineFold } from "./ledger_lines";
+import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, type IndexedLine, type LedgerLine, type LedgerLineFold } from "./ledger_lines";
+import { recallHoverHandlers } from "./recall_emphasis";
 import type { ReplayEnvelope } from "./stream_types";
 import { fromLink, WordsLine } from "./words_line";
 
@@ -19,6 +23,10 @@ export interface LedgerPanelProps {
   scrubIndex: number;
   onJump(index: number): void;
   onSelectSubject(id: string | null): void;
+  /** The recall a line under the mouse previews in the graph (`beat:<trace>`, the line's click
+   * target), null when the mouse leaves it or rests on a line that opens no recall. Mouse only:
+   * on touch a tap stays a selection. */
+  onPreviewRecall?(id: string | null): void;
   /** Hide quiet lines (considered/audit) by default. */
   showQuiet: boolean;
   onToggleQuiet(): void;
@@ -359,9 +367,85 @@ export function attachLiveFollow(
   };
 }
 
+export interface LedgerLineRowProps {
+  line: LedgerLine;
+  /** The line's place in the fold (the scrub index a click jumps to). */
+  index: number;
+  /** Inside his own time (the time cell's hint says the tick). */
+  own?: boolean;
+  /** At or before the scrub position. */
+  reached: boolean;
+  /** The scrub position's own line. */
+  current: boolean;
+  /** Landed while the reader watched live (the landing flash). */
+  fresh: boolean;
+  onJump(index: number): void;
+  onSelectSubject(id: string | null): void;
+  onPreviewRecall?(id: string | null): void;
+}
+
+/** One ledger line: a click scrubs to it and opens what it is about (a
+ * memory in Detail, a diary entry in the Book, a recall's shelf); the mouse
+ * resting on a line that opens a recall previews it in the graph. */
+export function LedgerLineRow(props: LedgerLineRowProps): React.ReactElement {
+  const { line, index } = props;
+  const target = lineTarget(line);
+  return (
+    <div
+      className={`el_row el_tone_${line.tone} ${props.reached ? "" : "el_row_future"} ${props.current ? "el_row_current" : ""} ${target ? "el_row_open" : ""} ${props.fresh ? "el_row_new" : ""}`}
+      title={
+        target
+          ? target.startsWith("beat:")
+            ? "Open what came to mind at this moment"
+            : isDiaryGraphId(target)
+              ? "Show this entry in his Book, marked (reading its words there is a separate click, recorded in his biography)"
+              : "Open this memory in Detail"
+          : // nothing to open: the whole text is at least on hover (the row clamps it)
+            [line.title, line.detail].filter(Boolean).join("\n")
+      }
+      onClick={(e) => {
+        if (fromLink(e)) return;
+        props.onJump(index);
+        if (target) props.onSelectSubject(target);
+      }}
+      {...recallHoverHandlers(target, props.onPreviewRecall)}
+    >
+      <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, props.own)} />
+      <div className="el_row_body">
+        <div className="el_title">
+          <WordsLine text={line.title} />
+        </div>
+        {line.detail ? (
+          <div className="el_detail">
+            <WordsLine text={line.detail} />
+          </div>
+        ) : null}
+        {line.hint && line.subject_id ? (
+          // G1's render half on the biography itself (plan c2596:
+          // "the hint of writing must carry the direct link").
+          // uic's chip — rule zero structural (click-to-open, no
+          // resolve-on-display); the transport is the Detail tab,
+          // whose inline verbatim already reads through the diary
+          // door with cache + marker honesty (dm#28 surface).
+          <AfMemoryHintChip
+            label="reopen his words"
+            entryId={line.hint.entry_id}
+            kind={line.hint.kind}
+            title={`Open this entry in the Detail tab (book key ${line.hint.entry_id})`}
+            onOpen={() => props.onSelectSubject(line.subject_id)}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
-  const { envelopes, scrubIndex, showQuiet } = props;
+  const { envelopes, scrubIndex, showQuiet, onPreviewRecall } = props;
   const listRef = useRef<HTMLDivElement | null>(null);
+  // A preview never outlives the ledger (a hidden or closed panel fires no
+  // pointer leave): the graph returns to what the click lit.
+  useEffect(() => () => onPreviewRecall?.(null), [onPreviewRecall]);
   // Incremental line fold (ledger_lines.foldLedgerLines): appends extend
   // it, a mid-array host-marker insert rebuilds it, and every change
   // yields a NEW lines array so the memos below see the live tail.
@@ -483,6 +567,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           <React.Fragment key={key}>
             <div
               className={`el_row el_tone_${weaveTone} el_weave ${reached ? "" : "el_row_future"} ${freshRef.current.has(last.index) ? "el_row_new" : ""}`}
+              {...recallHoverHandlers(null, props.onPreviewRecall)}
               onClick={(e) => {
                 if (fromLink(e)) return;
                 setExpandedWeaves((prev) => {
@@ -548,6 +633,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           <div
             key={`b-${line.seq}-${rowIdx}`}
             className={`el_row el_boundary ${reached ? "" : "el_row_future"}`}
+            {...recallHoverHandlers(null, props.onPreviewRecall)}
             onClick={(e) => !fromLink(e) && props.onJump(index)}
           >
             <div className="el_boundary_title">
@@ -561,56 +647,21 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
           </div>
         );
       }
-      const target = lineTarget(line);
       return (
-        <div
+        <LedgerLineRow
           // Keyed by the line's place in the fold, not its place in the
           // window: a window slide must not remount (and re-flash) rows.
           key={`${line.seq}-${index}`}
-          className={`el_row el_tone_${line.tone} ${reached ? "" : "el_row_future"} ${isCurrent ? "el_row_current" : ""} ${target ? "el_row_open" : ""} ${freshRef.current.has(index) ? "el_row_new" : ""}`}
-          title={
-            target
-              ? target.startsWith("beat:")
-                ? "Open what came to mind at this moment"
-                : isDiaryGraphId(target)
-                  ? "Show this entry in his Book, marked (reading its words there is a separate click, recorded in his biography)"
-                  : "Open this memory in Detail"
-              : // nothing to open: the whole text is at least on hover (the row clamps it)
-                [line.title, line.detail].filter(Boolean).join("\n")
-          }
-          onClick={(e) => {
-            if (fromLink(e)) return;
-            props.onJump(index);
-            if (target) props.onSelectSubject(target);
-          }}
-        >
-          <TimeCell iso={line.observed_at} hint={rowHint(line.seq, null, line.turn_id, line.observed_at, renderItem.item.own)} />
-          <div className="el_row_body">
-            <div className="el_title">
-              <WordsLine text={line.title} />
-            </div>
-            {line.detail ? (
-              <div className="el_detail">
-                <WordsLine text={line.detail} />
-              </div>
-            ) : null}
-            {line.hint && line.subject_id ? (
-              // G1's render half on the biography itself (plan c2596:
-              // "the hint of writing must carry the direct link").
-              // uic's chip — rule zero structural (click-to-open, no
-              // resolve-on-display); the transport is the Detail tab,
-              // whose inline verbatim already reads through the diary
-              // door with cache + marker honesty (dm#28 surface).
-              <AfMemoryHintChip
-                label="reopen his words"
-                entryId={line.hint.entry_id}
-                kind={line.hint.kind}
-                title={`Open this entry in the Detail tab (book key ${line.hint.entry_id})`}
-                onOpen={() => props.onSelectSubject(line.subject_id)}
-              />
-            ) : null}
-          </div>
-        </div>
+          line={line}
+          index={index}
+          own={renderItem.item.own}
+          reached={reached}
+          current={isCurrent}
+          fresh={freshRef.current.has(index)}
+          onJump={props.onJump}
+          onSelectSubject={props.onSelectSubject}
+          onPreviewRecall={props.onPreviewRecall}
+        />
       );
   };
 
@@ -624,7 +675,7 @@ export function LedgerPanel(props: LedgerPanelProps): React.ReactElement {
       <LedgerKey showQuiet={showQuiet} />
       {/* tabIndex −1: a click gives the list keyboard focus, so ArrowUp /
           PageUp / Home scroll it and count as the reader's own gesture. */}
-      <div className="el_list" ref={listRef} tabIndex={-1}>
+      <div className="el_list" ref={listRef} tabIndex={-1} onPointerLeave={() => onPreviewRecall?.(null)}>
        <div className="el_list_inner" ref={innerRef}>
         {windowed.hiddenBefore > 0 ? (
           <div className="el_window_note">
