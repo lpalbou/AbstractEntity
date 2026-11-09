@@ -623,7 +623,7 @@ body {
   min-width: 0;
 }
 
-/* ---- @handle mention affordance: bring another entity into a meet. */
+/* ---- the meet offer: an entity picked as an @ chip, brought into a meet. */
 .cd_mentions {
   display: flex;
   flex-wrap: wrap;
@@ -641,11 +641,6 @@ body {
 }
 .cd_mention_btn:hover {
   background: color-mix(in srgb, var(--ea-accent) 22%, var(--bg-raise));
-}
-.cd_mentions_note {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  font-style: italic;
 }
 
 /* ---- the observable close: spinner + the reflection's acts, live. */

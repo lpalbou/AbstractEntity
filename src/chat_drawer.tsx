@@ -25,7 +25,7 @@ import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat
 import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage } from "./vendor/abstractchat/conversation";
-import { MENTIONS_UNAVAILABLE, chipsToRestore, mentionCandidatesFor, mirrorLine, runMentions, visitMentionProps, type MentionableEntity } from "./visit_mentions";
+import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, flowMentionKey, heldAfterRun, meetOffers, mentionCandidatesFor, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -59,7 +59,6 @@ import {
 } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import { ownVisitSignal, type ClientVisitSignal } from "./entity_state";
-import { resolveMentions } from "./entity_handle";
 import { foldVisitStatus } from "./visit_status_poll";
 import { ChatMessageList, splitVisitDecoration, toolGaugeTrustworthy, type DrawerMessage } from "./chat_message_list";
 export { splitVisitDecoration } from "./chat_message_list";
@@ -140,13 +139,9 @@ export interface ChatDrawerProps {
    * path (maintainer 2026-07-10 20:56: "still not working despite being
    * authenticated"). */
   onAuthRefused(): void;
-  /** The roster (for @handle mention resolution) + this gateway's local
-   * addresses (lan ip, gateway host, loopback) — operator 2026-07-15:
-   * mentioning `castor@<local>` in a visit offers to convene a meet. */
-  roster?: Array<{ slug: string; name: string }>;
-  localAddresses?: string[];
-  /** Convene a meet with the current entity + the mentioned one (opens the
-   * meet console pre-filled). Cross-gateway is not wired yet. */
+  /** Convene a meet with the current entity + one picked as an `@` chip
+   * (operator 2026-07-15; offered from the chip since 2026-11-09, never
+   * read out of the typed words). Opens the meet console pre-filled. */
   onConveneWith?(otherSlug: string): void;
   /** FIRST-HAND VISIT TRUTH flows UP (dm#94 exclusivity incident: the
    * header rendered "personal · resting" while this drawer conducted a
@@ -164,7 +159,7 @@ export interface ChatDrawerProps {
 }
 
 export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
-  const { baseUrl, entity, entityName, token, authUserId, envelopes, onAuthRefused, roster, localAddresses, onConveneWith, onVisitStateChange } = props;
+  const { baseUrl, entity, entityName, token, authUserId, envelopes, onAuthRefused, onConveneWith, onVisitStateChange } = props;
   /** Identity derives from the session principal — never typed, never
    * spoofable client-side (the door verifies regardless; this is the
    * honest display of what will be stamped). */
@@ -200,6 +195,12 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   /** The rows once read (to name the entities a reply was also said to). */
   const mentionRowsReadRef = useRef<MentionableEntity[]>([]);
   const mentionRefusedRef = useRef<Set<string>>(new Set());
+  /** A message whose mentions stopped partway (a 503, a failed call): sending the same words again
+   * asks only its mentions not answered (visit_mentions.ts, mentionResendPlan). */
+  const heldMentionsRef = useRef<HeldMentions | null>(null);
+  /** The flow lane's mention key, kept for its whole conversation (flowMentionKey). */
+  const flowMentionKeyRef = useRef<string | null>(null);
+  const flowMentionKeySeq = useRef(0);
   // THE FLOW-BRAIN LANE (operator tasking c5190; door acceptance GREEN
   // c5246): an alternative brain for the conversation — each prompt is ONE
   // summon of the entity-chat VisualFlow (recall → lived turn → elections →
@@ -799,11 +800,12 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   );
   /** After the person's turn landed: each mention, in pick order, one call after the other; each
    * reply is a turn with its author (and, in a visit, one small line: who else heard it). A 503 or
-   * a failure puts the words and the unsent chips back. `repeatOf`: the person's own turn of the
-   * session (the flow lane's summoned run); a visit turn lives in the entity's home, not in the
-   * session, so the visit lane sends none. */
+   * a failure puts the words and the unsent chips back, and holds the message for its resend.
+   * `repeatOf`: the person's own turn of the session (the flow lane's summoned run); a visit turn
+   * lives in the entity's home, not in the session, so the visit lane sends none. `answeredBefore`
+   * (a resend): who answered this message already; `notes`: sentences said before the outcome. */
   const sendMentions = useCallback(
-    async (sessionId: string, text: string, sent: ChatMentionSent[], chips: ChatMention[], repeatOf: string | null): Promise<void> => {
+    async (sessionId: string, text: string, sent: ChatMentionSent[], chips: ChatMention[], repeatOf: string | null, answeredBefore: string[] = [], notes: string[] = []): Promise<void> => {
       const nameOf = (id: string) => mentionRowsReadRef.current.find((r) => r.entity_id === id)?.name ?? null;
       const result = await runMentions(sent, {
         post: (m) => postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index, ...(repeatOf ? { repeat_of: repeatOf } : {}) }, token),
@@ -815,7 +817,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       });
       for (const id of result.refused) mentionRefusedRef.current.add(id);
       if (result.unavailable) setMentionsUnavailable(MENTIONS_UNAVAILABLE);
-      setMentionStatus(result.sentences.length ? result.sentences.join(" ") : null);
+      heldMentionsRef.current = heldAfterRun(sessionId, text, repeatOf, result, answeredBefore);
+      const sentences = [...notes, ...result.sentences];
+      setMentionStatus(sentences.length ? sentences.join(" ") : null);
       if (result.keepDraft) {
         setDraft((cur) => cur || text);
         const back = chipsToRestore(chips, result.unsent);
@@ -827,11 +831,15 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   /** The conversation a mention joins: the open visit's session, or the flow lane's (minted with
    * its first message). None: no `@` list (an older door that names no session). */
   const mentionSession = brain === "driver" ? (runId && visitSession?.runId === runId ? visitSession.sessionId : null) : flowActive ? flowSessionId : null;
-  const mentionSessionKey = brain === "driver" ? (mentionSession ? `visit:${mentionSession}` : null) : flowActive ? `flow:${flowSessionId || "new"}` : null;
-  // A new conversation starts with no chips and no sentence from the last one.
+  // The flow lane keeps the key it started with when its first message mints the session id: the
+  // first-use notice is once per conversation, not once more after the first send.
+  flowMentionKeyRef.current = flowMentionKey(flowMentionKeyRef.current, flowActive, flowSessionId, () => `new:${++flowMentionKeySeq.current}`);
+  const mentionSessionKey = brain === "driver" ? (mentionSession ? `visit:${mentionSession}` : null) : flowMentionKeyRef.current;
+  // A new conversation starts with no chips, no sentence and no held message from the last one.
   useEffect(() => {
     setMentionChips([]);
     setMentionStatus(null);
+    heldMentionsRef.current = null;
   }, [mentionSessionKey]);
 
   const sendDuringWork = useCallback(async () => {
@@ -866,15 +874,43 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     finally { replyInFlight.current = false; setReplyPending(false); }
   }, [draft, runId, flowRunId, flowView, brain, baseUrl, entity, token, pendingFiles.length, pendingQuestion, answerPublic, replyContext, publicState, publicVisit.refresh]);
 
-  const send = useCallback((mentionsSent: ChatMentionSent[] = []) => {
+  const send = useCallback((picked: ChatMentionSent[] = []) => {
+    // Each entity once: a duplicate pick keeps its first index.
+    const mentionsSent = orderedMentions(picked);
     if (avatarMode && avatarSendsDuringWork({ turnInFlight: busy === "turn", pendingQuestion: Boolean(pendingQuestion), fresh: brain === "flow" || publicVisit.fresh, status: publicState?.status, readyForInput: publicState?.ready_for_input })) {
       // A mention runs after a full turn, never inside the work in progress.
       if (mentionsSent.length) { setMentionStatus("A mention goes with a full message: send it once the current turn has finished. Your words and mentions are kept."); return; }
-      void sendDuringWork(); return;
+      // Words sent into the work in progress are a new message: a held one is let go.
+      heldMentionsRef.current = null; void sendDuringWork(); return;
     }
     const words = draft.trim();
     if ((!words && pendingFiles.length === 0) || busy !== "idle") return;
     if (mentionsSent.length && !words) { setMentionStatus(`Write a message for ${mentionsSent.map((m) => m.name).join(" and ")}: a mention carries your words.`); return; }
+    // A RESEND (client review 2026-11-09): the same words, with chips, after a send whose mentions
+    // stopped partway, in the same conversation. Only those mentions are asked, with the message's
+    // own `repeat_of` and first index: no new visit turn, no new summon, no new person's turn in
+    // the thread; an entity that already answered is said, never asked again. Any other send is a
+    // new message, and the held one is let go.
+    const held = heldMentionsRef.current;
+    heldMentionsRef.current = null;
+    const resend = mentionResendPlan(held, mentionSession, words, mentionsSent);
+    if (held && resend) {
+      const answeredLine = alreadyAnsweredLine(resend.alreadyAnswered);
+      if (!resend.ask.length) {
+        heldMentionsRef.current = held;
+        const answeredKeys = new Set(resend.alreadyAnswered.map((m) => `${m.kind}:${m.id}`));
+        setMentionChips((cur) => cur.filter((c) => !answeredKeys.has(`${c.kind}:${c.id}`)));
+        setMentionStatus(answeredLine);
+        return;
+      }
+      const askedChips = chipsToRestore(mentionChipsRef.current, resend.ask);
+      setMentionStatus(null);
+      setMentionChips([]);
+      setDraft("");
+      setBusy("turn");
+      void sendMentions(held.sessionId, held.resend.text, resend.ask, askedChips, held.resend.repeatOf, held.answered, answeredLine ? [answeredLine] : []).finally(() => setBusy("idle"));
+      return;
+    }
     // The chips as picked (for their looks), cleared from the composer like the words.
     const sentChips = mentionsSent.length ? chipsToRestore(mentionChipsRef.current, mentionsSent) : [];
     const chipsBack = () => { if (sentChips.length) setMentionChips((cur) => (cur.length ? cur : sentChips)); };
@@ -1162,16 +1198,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     [busy, envelopes],
   );
 
-  // @HANDLE MENTIONS (operator 2026-07-15): mentioning another entity by
-  // its handle in the draft offers to bring it into a meet. Resolved
-  // against the roster + this gateway's local addresses; a remote address
-  // is honestly "not yet" (cross-gateway meets are a future).
-  const mentions = useMemo(
-    () => (roster && localAddresses ? resolveMentions(draft, roster, localAddresses, entity) : []),
-    [draft, roster, localAddresses, entity],
-  );
-  const summonable = mentions.filter((m) => m.kind === "local");
-  const remoteMention = mentions.find((m) => m.kind === "remote");
+  // THE MEET OFFER (operator 2026-07-15): an entity picked as an `@` chip
+  // can also be convened into a meet with this one. From the chip only
+  // (2026-11-09): nothing is read out of the typed words (no-heuristics
+  // ruling), so `castor@host` in a message is just text.
+  const meetable = onConveneWith ? meetOffers(mentionChips) : [];
   const focusMsg = useMemo(() => {
     if (!focusMid) return null;
     const m = messages.find((x) => x.id === focusMid);
@@ -1502,28 +1533,22 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             </div>
           ) : null}
           {dropActive ? <div className="cd_drop_hint">drop to place in {entityName}'s workspace</div> : null}
-          {/* @HANDLE SUMMON (operator 2026-07-15): a mentioned local entity
-            * offers to be convened into a meet with the current one; a
-            * remote handle is honestly "not yet" (cross-gateway is a
-            * future). A 1:1 visit can't host a second entity — the meet is
-            * the multi-entity primitive, so the mention BRIDGES to it. */}
-          {onConveneWith && summonable.length > 0 ? (
+          {/* THE MEET OFFER (operator 2026-07-15): an entity picked as an `@`
+            * chip can be convened into a meet with the current one. A 1:1
+            * visit can't host a second entity — the meet is the multi-entity
+            * primitive, so the chip BRIDGES to it. */}
+          {onConveneWith && meetable.length > 0 ? (
             <div className="cd_mentions">
-              {summonable.map((m) => (
+              {meetable.map((m) => (
                 <button
                   key={m.slug}
                   className="cd_mention_btn"
-                  onClick={() => onConveneWith(m.slug!)}
-                  title={`Convene a meet with ${entityName} and ${m.display} — you steer, each answers in its own voice (a 1:1 visit can't host two; the meet is where they talk together).`}
+                  onClick={() => onConveneWith(m.slug)}
+                  title={`Convene a meet with ${entityName} and ${m.name} — you steer, each answers in its own voice (a 1:1 visit can't host two; the meet is where they talk together).`}
                 >
-                  🤝 bring {m.display} in
+                  🤝 bring {m.name} in
                 </button>
               ))}
-            </div>
-          ) : null}
-          {onConveneWith && summonable.length === 0 && remoteMention ? (
-            <div className="cd_mentions cd_mentions_note">
-              {remoteMention.raw} is on another gateway — cross-gateway meets aren't wired yet (local handles only for now).
             </div>
           ) : null}
           <input

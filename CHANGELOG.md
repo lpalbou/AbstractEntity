@@ -4,6 +4,31 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Sending a message again after a mention could not answer asks only who has not answered.**
+  When one of the entities you mentioned cannot answer (it is asleep, say) or the call fails, the
+  message box keeps your words and only the chips of the entities that were not asked, as before.
+  Sending those same words again now asks only those entities, in their original order: the
+  entity you are visiting does not hear your message a second time, your message is not shown
+  twice, and an entity that already answered is never asked again (if you pick it again, a line
+  says "Castor already answered this message." instead). Changing the words makes it a new
+  message, sent as usual. An entity picked twice in one message is asked once.
+- **The "will read this conversation's history" line shows once per flow-brain conversation.**
+  It used to show a second time after the first message, because the conversation's name changed
+  when that message started it.
+- **An older gateway that answers "Method Not Allowed" gets the same sentence as one that
+  answers "Not Found":** "This gateway does not offer mentions yet". A refusal the gateway names
+  (with its own code) is never taken for a missing route: it shows the gateway's words, and your
+  message comes back.
+- **"Bring Castor in" comes from a picked name, not from typed text.** The offer to bring another
+  entity into a meet used to appear when the message contained an address such as
+  `castor@192.168.1.146`, which the app guessed from the words. It now appears for each entity
+  you pick with `@` (the button sits above the message box, beside the chips), and typed text is
+  never read for it. An address of another gateway, which could only ever say "not supported
+  yet", is no longer looked for.
+- The shared chat parts are re-vendored from the AbstractUIC build with the same fixes in the kit
+  (panel-chat 0.9.9 repacked at aca0b07, still unpublished): a name already picked is not offered
+  again ("Already mentioned."), Enter waits while the `@` list is still loading, chips are not
+  sent while the gateway has no mentions, and the `@` list spans a phone-width message box.
 - **The phase bar follows the gateway's second phase contract.** What each pill may do now comes
   from the gateway itself, with its reason when it may not: "sleep now" is greyed during a visit
   ("He is in a visit; end it to let him sleep.") and right after a sleep; while he is stopped the
@@ -80,8 +105,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   says why, and your words and its chip come back to the message box. On a gateway that does
   not have mentions yet, the first message with a mention says "This gateway does not offer
   mentions yet", and from then on typing `@` says it instead of showing names. This works in
-  both ways of talking (his driver and the flow brain); the "bring Castor in" offer for a typed
-  `castor@host` address is unchanged.
+  both ways of talking (his driver and the flow brain).
 - **Every answer says who wrote it.** When the gateway names the author of a turn, the message
   shows that entity's avatar, its name and a small "entity" tag (an agent gets its own mark), so
   a mentioned entity's answer is never mistaken for the one you are visiting. Answers in the

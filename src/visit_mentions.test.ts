@@ -11,14 +11,21 @@ import type { ChatMention, ChatMentionSent } from "@abstractframework/panel-chat
 
 import {
   MENTIONS_UNAVAILABLE,
+  alreadyAnsweredLine,
   chipsToRestore,
+  flowMentionKey,
+  heldAfterRun,
+  meetOffers,
   mentionCandidatesFor,
   mentionMirrors,
   mentionNotice,
   mentionOutcome,
+  mentionResendPlan,
   mirrorLine,
+  orderedMentions,
   runMentions,
   visitMentionProps,
+  type HeldMentions,
   type MentionableEntity,
 } from "./visit_mentions";
 import { listEntities, postMention, type MentionWire } from "./stream_source";
@@ -87,10 +94,20 @@ describe("one mention's answer", () => {
     expect(mentionOutcome("Castor", refused(503, null)).kind).toBe("cannot_answer");
   });
 
-  it("404 entity_not_found: this entity cannot be mentioned; a 404 without that code: no mentions route", () => {
+  it("404 entity_not_found: this entity cannot be mentioned; a 404 without a code: no mentions route", () => {
     expect(mentionOutcome("Castor", refused(404, "entity_not_found", "entity 'castor' not found"))).toEqual({ kind: "not_offerable", sentence: "Castor cannot be mentioned here." });
     expect(mentionOutcome("Castor", refused(404, null, "Not Found"))).toEqual({ kind: "route_missing" });
     expect(mentionOutcome("Castor", refused(404, null))).toEqual({ kind: "route_missing" });
+  });
+
+  it("an uncoded 405 is the route missing too (the door codes every refusal), never 'did not answer'", () => {
+    expect(mentionOutcome("Castor", refused(405, null, "Method Not Allowed"))).toEqual({ kind: "route_missing" });
+    expect(mentionOutcome("Castor", refused(405, null))).toEqual({ kind: "route_missing" });
+  });
+
+  it("a coded refusal is never read as a missing route: a 404 or 405 with another code fails with its words", () => {
+    expect(mentionOutcome("Castor", refused(404, "session_not_found", "No such conversation."))).toEqual({ kind: "failed", sentence: "Castor did not answer: No such conversation.. Your message is back in the composer." });
+    expect(mentionOutcome("Castor", refused(405, "method_not_allowed", "No.")).kind).toBe("failed");
   });
 
   it("422 repeat_of_unknown: the gateway's sentence, the message back", () => {
@@ -134,7 +151,7 @@ describe("the mentions of one message", () => {
     expect(replies).toEqual(["Castor:one:Castor:"]);
     expect(p.calls.map((m) => m.id)).toEqual(["castor", "pollux"]);
     p.answer(ok("two", { ...AUTHOR, name: "Pollux" }, [{ entity_id: "ent-nerin", run_id: "v1", turn_id: "t3", reply: "ok" }]));
-    expect(await run).toEqual({ sentences: [], keepDraft: false, unsent: [], unavailable: false, refused: [] });
+    expect(await run).toEqual({ sentences: [], answered: [sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], keepDraft: false, unsent: [], unavailable: false, refused: [] });
     expect(replies).toEqual(["Castor:one:Castor:", "Pollux:two:Pollux:ent-nerin"]);
   });
 
@@ -146,7 +163,7 @@ describe("the mentions of one message", () => {
       onReply: () => undefined,
     });
     expect(posted).toEqual(["castor", "pollux"]);
-    expect(out).toEqual({ sentences: ["Castor is in another conversation."], keepDraft: false, unsent: [], unavailable: false, refused: [] });
+    expect(out).toEqual({ sentences: ["Castor is in another conversation."], answered: [sent("pollux", "Pollux", 1)], keepDraft: false, unsent: [], unavailable: false, refused: [] });
   });
 
   it("a 503 stops: the message and the mentions not run go back", async () => {
@@ -158,6 +175,7 @@ describe("the mentions of one message", () => {
     });
     expect(posted).toEqual(["castor", "pollux"]);
     expect(out.keepDraft).toBe(true);
+    expect(out.answered.map((m) => m.id)).toEqual(["castor"]);
     expect(out.unsent.map((m) => m.id)).toEqual(["pollux", "polaris"]);
     expect(out.sentences).toEqual(["Pollux cannot answer: asleep. Your message is back in the composer."]);
   });
@@ -179,7 +197,28 @@ describe("the mentions of one message", () => {
       onReply: () => undefined,
     });
     expect(posted).toEqual(["castor"]);
-    expect(out).toEqual({ sentences: [MENTIONS_UNAVAILABLE], keepDraft: false, unsent: [], unavailable: true, refused: [] });
+    expect(out).toEqual({ sentences: [MENTIONS_UNAVAILABLE], answered: [], keepDraft: false, unsent: [], unavailable: true, refused: [] });
+  });
+
+  it("no route on an older gateway that answers an uncoded 405: the same one sentence, nothing more sent", async () => {
+    const posted: string[] = [];
+    const out = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], {
+      post: async (m) => (posted.push(m.id), refused(405, null, "Method Not Allowed")),
+      onReply: () => undefined,
+    });
+    expect(posted).toEqual(["castor"]);
+    expect(out).toEqual({ sentences: [MENTIONS_UNAVAILABLE], answered: [], keepDraft: false, unsent: [], unavailable: true, refused: [] });
+  });
+
+  it("an entity picked twice is asked once, at its first index", async () => {
+    const posted: string[] = [];
+    const out = await runMentions([sent("castor", "Castor", 2), sent("pollux", "Pollux", 1), sent("castor", "Castor", 0)], {
+      post: async (m) => (posted.push(`${m.id}#${m.index}`), ok("yes")),
+      onReply: () => undefined,
+    });
+    expect(posted).toEqual(["castor#0", "pollux#1"]);
+    expect(out.answered.map((m) => `${m.id}#${m.index}`)).toEqual(["castor#0", "pollux#1"]);
+    expect(orderedMentions([sent("pollux", "Pollux", 1), sent("pollux", "Pollux", 0)])).toEqual([sent("pollux", "Pollux", 0)]);
   });
 
   it("where else a reply was said: one small line, by name; a refusal there is stated", () => {
@@ -214,6 +253,107 @@ describe("the mentions of one message", () => {
     ];
     expect(chipsToRestore(chips, [sent("pollux", "Pollux", 1)])).toEqual([chips[1]]);
     expect(chipsToRestore(chips, [])).toEqual([]);
+  });
+});
+
+describe("the resend of a message whose mentions stopped partway", () => {
+  const WORDS = "is the plan sound?";
+  // Castor answered, Pollux could not (503): Polaris was not asked.
+  const stopped = { keepDraft: true, answered: [sent("castor", "Castor", 0)], unsent: [sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)] };
+  const held = heldAfterRun("s-1", WORDS, "run-turn-1", stopped) as HeldMentions;
+
+  it("a stop holds the words, the repeat_of, the mentions not answered (first index) and who answered", () => {
+    expect(held).toEqual({ sessionId: "s-1", resend: { text: WORDS, repeatOf: "run-turn-1", unsent: [sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)] }, answered: ["entity:castor"] });
+    // The visit lane sends no repeat_of: held as null, resent as null.
+    expect(heldAfterRun("s-1", WORDS, null, stopped)?.resend.repeatOf).toBeNull();
+  });
+
+  it("nothing is held when nothing stopped (all answered, a 409 skip, the route missing)", async () => {
+    expect(heldAfterRun("s-1", WORDS, null, { answered: [sent("castor", "Castor", 0)], unsent: [] })).toBeNull();
+    expect(heldAfterRun("s-1", WORDS, null, { answered: [], unsent: [] })).toBeNull();
+    // From real runs: a 409 skip and an older gateway's missing route leave nothing to resend.
+    for (const wire of [refused(409, "in_another_conversation", "x"), refused(404, null), refused(405, null)]) {
+      const out = await runMentions([sent("castor", "Castor", 0)], { post: async () => wire, onReply: () => undefined });
+      expect(heldAfterRun("s-1", WORDS, null, out)).toBeNull();
+    }
+  });
+
+  it("the same words with the chips put back: ONLY those mentions, with their first index", () => {
+    expect(mentionResendPlan(held, "s-1", WORDS, [sent("pollux", "Pollux", 0), sent("polaris", "Polaris", 1)])).toEqual({ ask: [sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)], alreadyAnswered: [] });
+    // Words compared trimmed; one chip removed: the other alone, still at its first index.
+    expect(mentionResendPlan(held, "s-1", `  ${WORDS} `, [sent("polaris", "Polaris", 0)])).toEqual({ ask: [sent("polaris", "Polaris", 2)], alreadyAnswered: [] });
+  });
+
+  it("an entity that answered is never asked again, even picked again: it is said instead", () => {
+    const plan = mentionResendPlan(held, "s-1", WORDS, [sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)]);
+    expect(plan).toEqual({ ask: [sent("pollux", "Pollux", 1)], alreadyAnswered: [sent("castor", "Castor", 3)] });
+    expect(mentionResendPlan(held, "s-1", WORDS, [sent("castor", "Castor", 0)])).toEqual({ ask: [], alreadyAnswered: [sent("castor", "Castor", 3)] });
+    expect(alreadyAnsweredLine([sent("castor", "Castor", 3)])).toBe("Castor already answered this message.");
+    expect(alreadyAnsweredLine([])).toBeNull();
+  });
+
+  it("a name added since is numbered after the held ones; a duplicate pick is asked once", () => {
+    expect(mentionResendPlan(held, "s-1", WORDS, [sent("vega", "Vega", 0), sent("pollux", "Pollux", 1), sent("pollux", "Pollux", 2)])!.ask).toEqual([sent("pollux", "Pollux", 1), sent("vega", "Vega", 3)]);
+  });
+
+  it("different words, no chip, another conversation, or nothing held: a new message", () => {
+    expect(mentionResendPlan(held, "s-1", "is the plan sound now?", [sent("pollux", "Pollux", 0)])).toBeNull();
+    expect(mentionResendPlan(held, "s-1", WORDS, [])).toBeNull();
+    expect(mentionResendPlan(held, "s-2", WORDS, [sent("pollux", "Pollux", 0)])).toBeNull();
+    expect(mentionResendPlan(held, null, WORDS, [sent("pollux", "Pollux", 0)])).toBeNull();
+    expect(mentionResendPlan(null, "s-1", WORDS, [sent("pollux", "Pollux", 0)])).toBeNull();
+  });
+
+  it("a resend that stops again keeps everyone who answered, across both sends", () => {
+    const again = heldAfterRun("s-1", WORDS, "run-turn-1", { keepDraft: true, answered: [sent("pollux", "Pollux", 1)], unsent: [sent("polaris", "Polaris", 2)] }, held.answered)!;
+    expect(again.answered).toEqual(["entity:castor", "entity:pollux"]);
+    expect(again.resend.unsent).toEqual([sent("polaris", "Polaris", 2)]);
+    expect(mentionResendPlan(again, "s-1", WORDS, [sent("pollux", "Pollux", 0), sent("polaris", "Polaris", 1)])).toEqual({ ask: [sent("polaris", "Polaris", 2)], alreadyAnswered: [sent("pollux", "Pollux", 3)] });
+  });
+
+  it("end to end: a 503 after Castor answered, then the same words again asks Pollux only, at index 1", async () => {
+    const posted: string[] = [];
+    const answers = [ok("Castor here."), refused(503, "entity_cannot_answer", "Pollux cannot answer: asleep."), ok("Pollux here.")];
+    const post = async (m: ChatMentionSent) => (posted.push(`${m.id}#${m.index}`), answers.shift()!);
+    const first = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], { post, onReply: () => undefined });
+    const kept = heldAfterRun("s-1", WORDS, null, first)!;
+    const chips = chipsToRestore([{ id: "castor", name: "Castor", kind: "entity" }, { id: "pollux", name: "Pollux", kind: "entity" }], first.unsent);
+    expect(chips.map((c) => c.id)).toEqual(["pollux"]);
+    const plan = mentionResendPlan(kept, "s-1", WORDS, chips.map((c, index) => ({ id: c.id, name: c.name, kind: c.kind, index })))!;
+    const second = await runMentions(plan.ask, { post, onReply: () => undefined });
+    expect(posted).toEqual(["castor#0", "pollux#1", "pollux#1"]);
+    expect(heldAfterRun("s-1", WORDS, null, second, kept.answered)).toBeNull();
+  });
+});
+
+describe("the flow lane's mention key (the first-use notice is once per conversation)", () => {
+  it("kept when the first message mints the session id", () => {
+    let n = 0;
+    const fresh = () => `new:${++n}`;
+    const started = flowMentionKey(null, true, null, fresh);
+    expect(started).toBe("flow:new:1");
+    expect(flowMentionKey(started, true, "flow-session-abc", fresh)).toBe("flow:new:1");
+  });
+
+  it("a resumed conversation is keyed by its stored session; an ended one has none, the next a new key", () => {
+    let n = 0;
+    const fresh = () => `new:${++n}`;
+    expect(flowMentionKey(null, true, "stored-1", fresh)).toBe("flow:stored-1");
+    expect(flowMentionKey("flow:new:1", false, "flow-session-abc", fresh)).toBeNull();
+    expect(flowMentionKey(null, true, null, fresh)).toBe("flow:new:1");
+    expect(flowMentionKey(null, true, null, fresh)).toBe("flow:new:2");
+  });
+});
+
+describe("the meet offer (structured: from a picked chip, never from the typed words)", () => {
+  it("each picked entity once, by its slug and name; an agent chip offers no meet", () => {
+    expect(meetOffers([
+      { id: "pollux", name: "Pollux", kind: "entity" },
+      { id: "helper", name: "Helper", kind: "agent" },
+      { id: "pollux", name: "Pollux", kind: "entity" },
+      { id: "vega", name: "Vega", kind: "entity", avatar: null },
+    ])).toEqual([{ slug: "pollux", name: "Pollux" }, { slug: "vega", name: "Vega" }]);
+    expect(meetOffers([])).toEqual([]);
   });
 });
 

@@ -111,7 +111,56 @@ describe("the visit chat's wiring (source pins)", () => {
     expect(src).not.toContain("probeMentionRoute");
   });
 
-  it("the castor@host meet offer is untouched", () => {
-    expect(src).toContain("resolveMentions(draft, roster, localAddresses, entity)");
+  it("the meet offer comes from a picked chip, never from the typed words (no-heuristics ruling)", () => {
+    expect(src).toContain("const meetable = onConveneWith ? meetOffers(mentionChips) : [];");
+    expect(src).toContain("onClick={() => onConveneWith(m.slug)}");
+    expect(src).not.toContain("resolveMentions");
+    expect(src).not.toContain("entity_handle");
+    expect(src).not.toMatch(/\b(roster|localAddresses)\b/);
+    const host = fs.readFileSync(path.join(__dirname, "entity_view.tsx"), "utf8");
+    expect(host).not.toMatch(/localAddresses|rosterList/);
+    expect(host).toContain("setMeetPreset({ a: entityName, b: otherSlug });");
+  });
+
+  /** The body of `send`'s resend branch (from its test to its own return). */
+  const resendBranch = () => {
+    const start = src.indexOf("if (held && resend) {");
+    const end = src.indexOf("\n      return;\n    }\n", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    return src.slice(start, end);
+  };
+
+  it("a resend asks only the held mentions: before any person's turn, with the held words, repeat_of and answers", () => {
+    const sendAt = src.indexOf("const send = useCallback((picked: ChatMentionSent[] = []) => {");
+    const plan = src.indexOf("const resend = mentionResendPlan(held, mentionSession, words, mentionsSent);", sendAt);
+    expect(sendAt).toBeGreaterThan(0);
+    expect(plan).toBeGreaterThan(sendAt);
+    // Decided before the flow summon, the visit turn and the person's bubble of a new message.
+    expect(src.indexOf("void sendFlow(flowText)", sendAt)).toBeGreaterThan(plan);
+    expect(src.indexOf("sendVisitTurn(baseUrl, entity, runId, text, token, speaker, attachments)", sendAt)).toBeGreaterThan(plan);
+    expect(src.indexOf('push({ role: "user"', sendAt)).toBeGreaterThan(plan);
+    // The held message is consumed by any send (a different one is a new message), words sent into
+    // the work in progress included; a refused or empty send keeps it.
+    expect(src.slice(sendAt, plan + 20)).toContain("heldMentionsRef.current = null;\n    const resend");
+    expect(src.slice(sendAt, plan)).toContain("heldMentionsRef.current = null; void sendDuringWork(); return;");
+    const branch = resendBranch();
+    expect(branch).toContain("sendMentions(held.sessionId, held.resend.text, resend.ask, askedChips, held.resend.repeatOf, held.answered, answeredLine ? [answeredLine] : [])");
+    for (const never of ["sendVisitTurn", "sendFlow", "push(", "guideVisit", "flowConversationCommand"]) expect(branch).not.toContain(never);
+    // Nothing left to ask (only entities that answered): said, nothing sent, the message still held.
+    expect(branch).toContain("heldMentionsRef.current = held;");
+  });
+
+  it("each send's mentions are held after a stop, each entity once; a new conversation lets them go", () => {
+    expect(src).toContain("const mentionsSent = orderedMentions(picked);");
+    expect(src).toContain("heldMentionsRef.current = heldAfterRun(sessionId, text, repeatOf, result, answeredBefore);");
+    const effect = src.indexOf("heldMentionsRef.current = null;\n  }, [mentionSessionKey]);");
+    expect(effect).toBeGreaterThan(0);
+  });
+
+  it("the flow lane's key is kept for the whole conversation (the first-use notice shows once)", () => {
+    expect(src).toContain("flowMentionKeyRef.current = flowMentionKey(flowMentionKeyRef.current, flowActive, flowSessionId, () => `new:${++flowMentionKeySeq.current}`);");
+    expect(src).toContain('const mentionSessionKey = brain === "driver" ? (mentionSession ? `visit:${mentionSession}` : null) : flowMentionKeyRef.current;');
+    expect(src).not.toContain('flow:${flowSessionId || "new"}');
   });
 });

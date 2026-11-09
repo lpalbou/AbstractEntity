@@ -443,39 +443,9 @@ export function EntityView(): React.ReactElement {
   /** Meet console (item 14 live half, the mission's destination): convene
    * two entities into one conversation, steer it, watch both legs. */
   const [showMeetConsole, setShowMeetConsole] = useState(false);
-  /** Pre-filled seats when the meet is convened from a visit by @handle
-   * mention (operator 2026-07-15). */
+  /** Pre-filled seats when the meet is convened from a visit: an entity
+   * picked as an `@` chip offers it (operator 2026-07-15). */
   const [meetPreset, setMeetPreset] = useState<{ a: string; b: string } | null>(null);
-  /** The roster (for @handle resolution in the chat drawer) — fetched once
-   * per verified gateway; null on demo/exported sources. */
-  const [rosterList, setRosterList] = useState<Array<{ slug: string; name: string }>>([]);
-  useEffect(() => {
-    if (sourceKind !== "gateway" || !authVerified) {
-      setRosterList([]);
-      return;
-    }
-    const base = gatewayUrl.trim().replace(/\/+$/, "");
-    let cancelled = false;
-    listEntities(base)
-      .then((list) => !cancelled && setRosterList(list.map((e) => ({ slug: e.slug, name: e.name }))))
-      .catch(() => !cancelled && setRosterList([]));
-    return () => {
-      cancelled = true;
-    };
-  }, [sourceKind, authVerified, gatewayUrl]);
-  /** Every host address that means "this gateway" — for local @handle
-   * resolution (a remote address is honestly not-yet). */
-  const localAddresses = useMemo(() => {
-    const addrs = ["127.0.0.1", "localhost", "0.0.0.0"];
-    if (lanIp) addrs.push(lanIp);
-    try {
-      const u = new URL(gatewayUrl.trim() || window.location.origin);
-      if (u.hostname) addrs.push(u.hostname);
-    } catch {
-      // ignore
-    }
-    return addrs;
-  }, [lanIp, gatewayUrl]);
   /** A requested side tab (roster click = "join his room" -> chat, the
    * maintainer's ask 2026-07-09). The nonce bumps every open so SideTabs
    * re-applies even when re-entering the same entity. */
@@ -2306,8 +2276,6 @@ export function EntityView(): React.ReactElement {
                         authUserId={authState?.userId ?? null}
                         envelopes={envelopes}
                         onAuthRefused={() => void handleAuthRefused()}
-                        roster={rosterList}
-                        localAddresses={localAddresses}
                         onConveneWith={(otherSlug) => {
                           setMeetPreset({ a: entityName, b: otherSlug });
                           setShowMeetConsole(true);

@@ -13,19 +13,30 @@
  *
  * Outcomes (contract): 409 = "<name> is in another conversation", go on to the next; 503 = the
  * gateway's sentence, the message goes back to the composer; 404 with `entity_not_found` = this
- * one cannot be mentioned (hidden is missing); a 404 without that code = the gateway has no
- * mentions route (an older gateway): one sentence, "This gateway does not offer mentions yet",
- * and the list is switched off; 422 `repeat_of_unknown` = the gateway's sentence.
+ * one cannot be mentioned (hidden is missing); a 404 or 405 without a code = the gateway has no
+ * mentions route (an older gateway; every refusal of the door is coded): one sentence, "This
+ * gateway does not offer mentions yet", and the list is switched off; 422 `repeat_of_unknown` =
+ * the gateway's sentence.
+ *
+ * A message whose mentions stopped partway (a 503, a failed call) is HELD (client review
+ * 2026-11-09): the composer keeps its words and only the chips not answered, and sending the SAME
+ * words again asks only those mentions, with the same `repeat_of` and their first index — never a
+ * new turn of the person and never an entity that already answered. Different words are a new
+ * message. Each entity is asked once per message (a duplicate pick keeps its first index).
  *
  * DOM-free; pinned by visit_mentions.test.ts.
  */
 import {
   chatAuthorOf,
+  mentionKey,
+  mentionResend,
+  uniqueMentions,
   type ChatAuthor,
   type ChatAvatarLook,
   type ChatMention,
   type ChatMentionCandidate,
   type ChatMentionSent,
+  type MentionResend,
 } from "@abstractframework/panel-chat";
 
 import type { MentionWire } from "./stream_source";
@@ -128,10 +139,10 @@ export function mentionOutcome(name: string, wire: MentionWire): MentionOutcome 
     return { kind: "elsewhere", sentence: detail };
   }
   if (wire.status === 503) return { kind: "cannot_answer", sentence: `${detail || `${name} cannot answer right now.`} Your message is back in the composer.` };
-  if (wire.status === 404) {
-    if (wire.code === "entity_not_found") return { kind: "not_offerable", sentence: `${name} cannot be mentioned here.` };
-    return { kind: "route_missing" };
-  }
+  // The door codes every refusal: an uncoded 404 or 405 is the route itself missing (an older
+  // gateway). A 404 coded otherwise is not a missing route: it fails below with its words.
+  if ((wire.status === 404 || wire.status === 405) && !wire.code) return { kind: "route_missing" };
+  if (wire.status === 404 && wire.code === "entity_not_found") return { kind: "not_offerable", sentence: `${name} cannot be mentioned here.` };
   if (wire.status === 422 && wire.code === "repeat_of_unknown") {
     return { kind: "failed", sentence: `${detail || "This message is not a turn of this conversation."} Your message is back in the composer.` };
   }
@@ -149,6 +160,8 @@ export type MentionRunDeps = {
 export type MentionRunResult = {
   /** The sentences about this send (shown above the composer); empty when every mention answered. */
   sentences: string[];
+  /** The mentions that answered (200), in order: never asked again for this message. */
+  answered: ChatMentionSent[];
   /** The message goes back to the composer (a 503 or a failure stopped the run). */
   keepDraft: boolean;
   /** The mentions that did not run: the one that stopped the run and those after it. */
@@ -159,14 +172,20 @@ export type MentionRunResult = {
   refused: string[];
 };
 
+/** A message's mentions in pick order (`index`), each entity once: a duplicate pick keeps the
+ * first one's place and index. */
+export function orderedMentions(mentions: readonly ChatMentionSent[]): ChatMentionSent[] {
+  return uniqueMentions([...mentions].sort((a, b) => a.index - b.index));
+}
+
 /**
  * Send the mentions of one message in pick order (`index`, the gateway's `mention_index`), each
- * after the previous answered. `deps.post` carries the message as typed: every mentioned entity
- * receives the same words.
+ * after the previous answered, each entity once. `deps.post` carries the message as typed: every
+ * mentioned entity receives the same words.
  */
 export async function runMentions(mentions: readonly ChatMentionSent[], deps: MentionRunDeps): Promise<MentionRunResult> {
-  const result: MentionRunResult = { sentences: [], keepDraft: false, unsent: [], unavailable: false, refused: [] };
-  const ordered = [...mentions].sort((a, b) => a.index - b.index);
+  const result: MentionRunResult = { sentences: [], answered: [], keepDraft: false, unsent: [], unavailable: false, refused: [] };
+  const ordered = orderedMentions(mentions);
   for (let i = 0; i < ordered.length; i++) {
     const mention = ordered[i];
     let wire: MentionWire;
@@ -180,6 +199,7 @@ export async function runMentions(mentions: readonly ChatMentionSent[], deps: Me
     }
     const outcome = mentionOutcome(mention.name, wire);
     if (outcome.kind === "reply") {
+      result.answered.push(mention);
       deps.onReply(mention, outcome.reply, outcome.author, outcome.mirrors);
       continue;
     }
@@ -203,6 +223,82 @@ export async function runMentions(mentions: readonly ChatMentionSent[], deps: Me
 export function chipsToRestore(sent: readonly ChatMention[], unsent: readonly ChatMentionSent[]): ChatMention[] {
   const ids = new Set(unsent.map((m) => `${m.kind}:${m.id}`));
   return sent.filter((c) => ids.has(`${c.kind}:${c.id}`));
+}
+
+/**
+ * A message whose mentions stopped partway, held for its resend: the conversation it belongs to
+ * (`sessionId`), its words, `repeat_of` and the mentions not answered with their first index
+ * (`resend`, the kit's shape), and every entity that answered it (`answered`, mention keys).
+ */
+export type HeldMentions = { sessionId: string; resend: MentionResend; answered: string[] };
+
+/**
+ * What a run leaves to resend: held when a 503 or a failure stopped it with mentions not
+ * answered, else null (every mention answered, was skipped, or the route is missing).
+ * `answeredBefore`: the entities that answered the earlier sends of the same message.
+ */
+export function heldAfterRun(
+  sessionId: string,
+  text: string,
+  repeatOf: string | null,
+  result: Pick<MentionRunResult, "unsent" | "answered">,
+  answeredBefore: readonly string[] = [],
+): HeldMentions | null {
+  // `unsent` is only ever set by a stop (a 503 or a failure), never by a skip or a missing route.
+  if (!result.unsent.length) return null;
+  const answered = [...new Set([...answeredBefore, ...result.answered.map(mentionKey)])];
+  return { sessionId, resend: { text, repeatOf, unsent: result.unsent.map((m) => ({ ...m })) }, answered };
+}
+
+/** A resend: the mentions to ask, and the chips naming an entity that already answered (said,
+ * never asked). */
+export type MentionResendPlan = { ask: ChatMentionSent[]; alreadyAnswered: ChatMentionSent[] };
+
+/**
+ * What a send in the conversation `sessionId` is, given the held message: a RESEND when it is
+ * the same conversation, the same words (trimmed) and at least one chip. Then ONLY those
+ * mentions are asked — a chip not answered keeps its first index, a chip added since is
+ * numbered after them, each entity once — and never an entity that already answered this
+ * message. Null: a new message (the person's turn goes out as usual, then its mentions).
+ */
+export function mentionResendPlan(
+  held: HeldMentions | null,
+  sessionId: string | null,
+  text: string,
+  mentions: readonly ChatMentionSent[],
+): MentionResendPlan | null {
+  if (!held || !sessionId || held.sessionId !== sessionId) return null;
+  const again = mentionResend(held.resend, text, mentions);
+  if (!again) return null;
+  const done = new Set(held.answered);
+  return { ask: again.filter((m) => !done.has(mentionKey(m))), alreadyAnswered: again.filter((m) => done.has(mentionKey(m))) };
+}
+
+/** The sentence for chips that named an entity already answered: "Castor already answered this
+ * message."; null when there is none. */
+export function alreadyAnsweredLine(mentions: readonly ChatMentionSent[]): string | null {
+  if (!mentions.length) return null;
+  return `${mentions.map((m) => m.name).join(" and ")} already answered this message.`;
+}
+
+/**
+ * The flow lane's conversation key, stable for the whole conversation (the kit shows the
+ * first-use notice once per key): the key it got when it started — `flow:<session>` when it
+ * resumed a stored session, else a fresh `flow:<fresh()>` — KEPT when its first message mints the
+ * session id; null once it ended. `previous`: the key so far.
+ */
+export function flowMentionKey(previous: string | null, active: boolean, sessionId: string | null, fresh: () => string): string | null {
+  if (!active) return null;
+  return previous ?? `flow:${sessionId || fresh()}`;
+}
+
+/**
+ * The meet offers above the composer (operator 2026-07-15): each entity picked as an `@` chip
+ * (an entity of this gateway, never the one visited) can also be convened into a meet with the
+ * visited one. Structured only: never read out of the typed words (no-heuristics ruling).
+ */
+export function meetOffers(chips: readonly ChatMention[]): Array<{ slug: string; name: string }> {
+  return uniqueMentions(chips.filter((c) => c.kind === "entity")).map((c) => ({ slug: c.id, name: c.name }));
 }
 
 /** What the drawer knows about mentions in the conversation on screen. */
