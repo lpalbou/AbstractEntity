@@ -19,6 +19,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
   that was sent before a Stop can never repaint the bar after it. A gateway that only knows the
   first contract now gets the same one sentence as an older one: "This gateway does not serve the
   phase bar yet".
+- **The phase graph matches the operator's phases.** The canonical phase graph the gateway and the
+  runtime check themselves against (`spec/entity_phases.json`) now has the four phases with the
+  ruled moves between them, a phase may follow itself for work and personal time, a sleep never
+  follows a sleep, he falls asleep only when you ask or when he decides to, and turning personal
+  time off or putting him to sleep no longer takes away what you allowed; "idle" and "stopped" are
+  named as states outside the four phases.
 - **Stop is always there.** The red Stop button no longer greys out while a switch you just
   pressed waits for its answer, while a refusal is on screen, or before the bar has read his phase
   (or when that read failed). Pressed while a switch is still on its way, Stop goes out at once,

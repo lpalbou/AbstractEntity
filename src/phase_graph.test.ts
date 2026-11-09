@@ -12,6 +12,20 @@ import { PHASE_SLOT_KEYS } from "./phase_bar";
 
 const PHASE_KEYS = Object.keys(graph.phases);
 
+interface Edge {
+  from: string;
+  to: string;
+  cause: string;
+  edge_id: string;
+  authority: string;
+  edit_policy: string;
+  owner: string;
+  guards?: string[];
+  semantics: string;
+}
+const EDGES = graph.transitions as unknown as Edge[];
+const pair = (t: { from: string; to: string }) => `${t.from}>${t.to}`;
+
 describe("the canonical phase graph (spec/entity_phases.json)", () => {
   it("carries exactly the ruled four phases", () => {
     expect(PHASE_KEYS.sort()).toEqual(["personal", "sleep", "visit", "work"]);
@@ -41,11 +55,16 @@ describe("the canonical phase graph (spec/entity_phases.json)", () => {
     expect(restores.sort()).toEqual(["personal", "sleep", "work"]);
   });
 
-  it("personal ends to sleep on stop, expiry, and revocation", () => {
-    const ends = graph.transitions.filter((t) => t.from === "personal" && t.to === "sleep").map((t) => t.cause);
-    expect(ends).toContain("operator");
-    expect(ends).toContain("grant_expired");
-    expect(ends).toContain("grant_revoked");
+  it("v22: personal off never leads to sleep — no grant cause exists, and every edge into sleep is the operator, his election, or a visit returning to the sleep it interrupted", () => {
+    // TARGET (root 1178): turning personal off ends own time AWAKE (idle,
+    // visitable). The v21 grant_expired/grant_revoked -> sleep edges were
+    // exactly the "off lands him asleep for 6 h" defect.
+    expect(graph.transition_causes).not.toContain("grant_expired");
+    expect(graph.transition_causes).not.toContain("grant_revoked");
+    const intoSleep = new Set(EDGES.filter((t) => t.to === "sleep").map((t) => t.cause));
+    expect([...intoSleep].sort()).toEqual(["crash_recovered", "operator", "self_elected", "visit_close"]);
+    expect(EDGES.some((t) => t.to === "sleep" && (t.guards ?? []).includes("grant_gone"))).toBe(false);
+    expect(JSON.stringify(graph.invariants)).toContain("PERSONAL-OFF-NEVER-SLEEPS");
   });
 
   it("own-time is recorded as a spoken synonym of personal, nowhere else", () => {
@@ -69,14 +88,16 @@ describe("the canonical phase graph (spec/entity_phases.json)", () => {
     expect(graph.ruled_by.some((r) => r.includes("no-awake-idle-node"))).toBe(true);
   });
 
-  it("v4 idle-is-sleep + task lifecycle transitions exist (work->sleep on no_task, visit_close->work)", () => {
-    const noTaskSleep = graph.transitions.some((t) => t.from === "work" && t.to === "sleep" && t.cause === "no_task");
-    expect(noTaskSleep).toBe(true);
-    const visitToWork = graph.transitions.some((t) => t.from === "visit" && t.to === "work" && t.cause === "visit_close");
-    expect(visitToWork).toBe(true);
-    // personal FROM WORK is a distinct transition (the confirmation-notification edge).
-    const workToPersonal = graph.transitions.some((t) => t.from === "work" && t.to === "personal");
-    expect(workToPersonal).toBe(true);
+  it("v22 task lifecycle: visit_close resumes work, work that runs out lands in personal (never sleep), work<->personal both ways", () => {
+    // v4's visit -> work -> sleep chain is retired with IDLE-IS-SLEEP: when
+    // no work remains he goes to personal (toggle on) or idle (no edge).
+    expect(EDGES.some((t) => t.edge_id === "visit->work#visit_close")).toBe(true);
+    expect(EDGES.some((t) => t.edge_id === "work->personal#no_task")).toBe(true);
+    expect(EDGES.some((t) => t.from === "work" && t.to === "sleep" && ["no_task", "task_complete"].includes(t.cause))).toBe(false);
+    expect(EDGES.some((t) => pair(t) === "work>personal")).toBe(true);
+    expect(EDGES.some((t) => pair(t) === "personal>work")).toBe(true);
+    // v4's confirmed interruption is gone: no toggle interrupts work.
+    expect(EDGES.some((t) => (t.guards ?? []).includes("operator_confirmation"))).toBe(false);
   });
 });
 
@@ -126,15 +147,25 @@ describe("this app's derivation maps onto the artifact's keys", () => {
     expect(graph.axes_note).toContain("visiting|dreaming|resting");
   });
 
-  it("v9 records the sleep-preemption rules (max 6h cap; no sleep over standing work or an unused grant)", () => {
-    expect(graph.version).toBeGreaterThanOrEqual(9);
+  it("v22 sleep is a decision: entered only by the operator or his own election, no clock, and it never disarms personal or clears work", () => {
+    // v9's preemption clauses (6h cap, work forbids sleep, grant-use floor)
+    // and v17's composite operator sleep are superseded; ruled_by keeps
+    // them as history only.
     expect(graph.ruled_by.some((r) => r.includes("sleep-preemption-rules"))).toBe(true);
     const sleepText = graph.phases.sleep.behavior;
-    expect(sleepText).toContain("MAX SLEEP 6H");
-    expect(sleepText).toContain("forbids entering sleep");
-    expect(sleepText).toContain("<2h used");
-    // The gate invariant carries the preemption clauses, not just the phase text.
-    expect(JSON.stringify(graph.invariants)).toContain("sleep is FORBIDDEN while a work order stands");
+    expect(sleepText).toContain("ENTERED ONLY on the operator's request");
+    expect(sleepText).toContain("a fixed clock never forces it");
+    expect(sleepText).not.toContain("MAX SLEEP 6H is the general cap");
+    const inv = graph.invariants as string[];
+    expect(inv.some((x) => x.startsWith("SLEEP-IS-A-DECISION"))).toBe(true);
+    expect(inv.some((x) => x.startsWith("OPERATOR-SLEEP-IS-ABSOLUTE"))).toBe(false);
+    expect(JSON.stringify(inv)).not.toContain("sleep is FORBIDDEN while a work order stands");
+    // The operator sleeps him from personal AND from work; neither act is a
+    // composite any more (plain locked, no locked-absolute left).
+    const opSleep = EDGES.filter((t) => t.to === "sleep" && t.cause === "operator");
+    expect(opSleep.map((t) => t.from).sort()).toEqual(["personal", "work"]);
+    for (const t of opSleep) expect(t.edit_policy).toBe("locked");
+    expect(EDGES.some((t) => t.edit_policy === "locked-absolute")).toBe(false);
   });
 
   it("v10 carries the exclusivity machinery: visit_boundaries, composite_precedence, LIVE-SESSION-IMPLIES-VISIT", () => {
@@ -150,71 +181,59 @@ describe("this app's derivation maps onto the artifact's keys", () => {
     expect(inv).toContain("NUANCE-NEVER-CONTRADICTS-PHASE");
   });
 
-  it("v11/v12 carry the cycle: personal_cycle in the closed cause set, both edges, tunables + meta with honest wired flags", () => {
-    expect(graph.version).toBeGreaterThanOrEqual(12);
+  it("v22 retires the timed cycle: personal_cycle names only the personal self-loop, the cadence word is gone, and the clock dials are retired, not live", () => {
+    // TARGET: no clock forces sleep — the v11/v12 personal->sleep->personal
+    // window and the v13/v14 6h need-check cadence are gone as edges.
     expect(graph.transition_causes).toContain("personal_cycle");
-    const cyc = graph.transitions.filter((t) => t.cause === "personal_cycle");
-    expect(cyc.map((t) => `${t.from}>${t.to}`).sort()).toEqual(["personal>sleep", "sleep>personal"]);
-    // The trigger checks preemption FIRST (v12 P0-1) and the wake lands
-    // through the gate (v12 P0-2 — the unconditional-personal promise was
-    // a gate bypass).
-    const toSleep = cyc.find((t) => t.to === "sleep");
-    expect(toSleep?.semantics).toContain("TRIGGER PRECONDITIONS");
-    expect(toSleep?.semantics).toContain("NO standing work order");
-    const toPersonal = cyc.find((t) => t.to === "personal");
-    expect(toPersonal?.semantics).toContain("THROUGH THE DAY GATE");
-    // The missing edge the machine already performed (v12 P1-7).
-    expect(graph.transitions.some((t) => t.from === "personal" && t.to === "work")).toBe(true);
-    // Tunables: hours vocabulary (the seconds footgun renamed while dead),
-    // an explicit off-switch, and per-dial meta with HONEST wired flags.
-    const tun = (graph as { tunables?: Record<string, unknown> }).tunables ?? {};
+    const cyc = EDGES.filter((t) => t.cause === "personal_cycle");
+    expect(cyc.map(pair)).toEqual(["personal>personal"]);
+    expect(graph.transition_causes).not.toContain("cadence_need_check");
+    // The keys stay for readers (runtime load_phase_tunables, the dials UI,
+    // cognition_graph toggle paths), but no retired dial may present as
+    // live law: wired:false + retired_by citing v22, and the cycle's own
+    // off-switch held false (a loop still reading it holds the cycle).
+    const tun = graph.tunables as unknown as Record<string, unknown>;
     expect(tun).not.toHaveProperty("sleep_bound_s");
     expect(tun).toHaveProperty("sleep_bound_h");
-    expect((tun as { personal_cycle?: { enabled?: boolean } }).personal_cycle?.enabled).toBe(true);
-    const meta = (tun as { tunables_meta?: Record<string, { wired?: boolean; unit?: string }> }).tunables_meta ?? {};
-    expect(meta["personal_cycle.sleep_window_h"]?.wired).toBe(true);
-    // Dead dials stay HONESTLY unwired until their consumers land — a
-    // dial that presents as configuration and is not would be the
-    // fabricated-selection class as law (v12 P0-4). v14: runtime threaded
-    // the cadence + floor + enabled dials (c-t-i #359, pinned their side),
-    // so those rows flipped true; sleep_bound_h stays false until the
-    // coordinated sleep_bound_deadline signature change lands.
-    // v15: the last dial threaded (sleep_bound_deadline home_dir kwarg,
-    // c-t-i #363) — ALL dials govern now.
-    expect(meta["sleep_bound_h"]?.wired).toBe(true);
-    expect(meta["unattended_wake_cadence_h"]?.wired).toBe(true);
-    expect(meta["grant_unused_floor_h"]?.wired).toBe(true);
-    expect(meta["personal_cycle.enabled"]?.wired).toBe(true);
-    // v14: the cadence wake's cause is lawful — closed set + both landing
-    // edges exist (the F10.4 class stays closed for timed wakes).
-    expect(graph.transition_causes).toContain("cadence_need_check");
-    const cadence = graph.transitions.filter((t) => t.cause === "cadence_need_check");
-    expect(cadence.map((t) => `${t.from}>${t.to}`).sort()).toEqual(["sleep>personal", "sleep>work"]);
-    // Cycle sleeps are exempt from the grant-unused floor (v12 P1-1).
-    expect(JSON.stringify(graph.invariants)).toContain("CYCLE SLEEPS EXEMPT");
+    expect((tun.personal_cycle as { enabled?: boolean }).enabled).toBe(false);
+    const meta = tun.tunables_meta as Record<string, { wired?: boolean; retired_by?: string }>;
+    for (const key of [
+      "personal_cycle.enabled",
+      "personal_cycle.personal_window_h",
+      "personal_cycle.sleep_window_h",
+      "sleep_bound_h",
+      "unattended_wake_cadence_h",
+      "grant_unused_floor_h",
+    ]) {
+      expect(meta[key]?.wired, `${key} wired`).toBe(false);
+      expect(String(meta[key]?.retired_by ?? ""), `${key} retired_by`).toMatch(/^v22: /);
+    }
+    // Dials TARGET did not touch keep their own honesty flags.
+    expect(meta["window_limit"]?.retired_by).toBeUndefined();
+    expect(JSON.stringify(graph.invariants)).not.toContain("CYCLE SLEEPS EXEMPT");
   });
 
-  it("v13 settles the wake conditions ON THE GRAPH (gateway's routed ask): five sources, zero-token need-check, two hosts one law", () => {
-    expect(graph.version).toBeGreaterThanOrEqual(13);
-    const wc = (graph as { wake_conditions?: { wake_sources?: Record<string, string>; need_check?: string; owner?: string } }).wake_conditions;
-    expect(Object.keys(wc?.wake_sources ?? {}).sort()).toEqual(["cadence_need_check", "operator", "sleep_bound", "stamped_wake_at", "visit_open"]);
-    // The need-check is zero-token and re-sleeps without marker churn.
-    expect(wc?.need_check).toContain("ZERO-TOKEN");
-    expect(wc?.need_check).toContain("re-sleep WITHOUT summoning");
-    // Two hosts, one law: the loop's check and the gateway sweeper both
-    // read the served blueprint for the cadence — never a constant.
-    expect(wc?.owner).toContain("GATEWAY SWEEPER");
-    expect(wc?.owner).toContain("one law");
+  it("v22 wake conditions: a sleep ends at maintenance_done or the operator's wake, a visit interrupts it — no clock source, the need-check retired", () => {
+    const wc = graph.wake_conditions as unknown as { wake_sources: Record<string, string>; need_check: string; owner: string };
+    expect(Object.keys(wc.wake_sources).sort()).toEqual(["maintenance_done", "operator", "visit_open"]);
+    expect(wc.need_check).toMatch(/^RETIRED \(v22\)/);
+    expect(wc.wake_sources.visit_open).toContain("the SAME sleep continues");
+    // The machine's only self-wake exists as edges into both toggled phases,
+    // locked (removal would strand every sleep until a person acts).
+    const md = EDGES.filter((t) => t.cause === "maintenance_done");
+    expect(md.map(pair).sort()).toEqual(["sleep>personal", "sleep>work"]);
+    for (const t of md) expect(t.edit_policy).toBe("locked");
   });
 
-  it("v8 records laurent's dm#89 day rulings + the banked consumer asks", () => {
+  it("v8 records laurent's dm#89 day rulings + the banked consumer asks; v22 makes work a TOGGLE (no longer always granted)", () => {
     expect(graph.version).toBeGreaterThanOrEqual(8);
     expect(graph.ruled_by.some((r) => r.includes("drives-day-rulings"))).toBe(true);
-    // Work is always granted by default — the grant surface is personal-only.
-    expect(graph.phases.work.gating).toContain("always granted by default");
-    // The unattended sleep bound is 6h; personal-entered sleeps keep 1h.
-    expect(graph.phases.sleep.behavior).toContain("6H");
-    expect(graph.phases.sleep.behavior).toContain("~1h");
+    // v22 supersedes dm#89 (3): the work toggle gates every admission point,
+    // and it ALLOWS work, never forces it.
+    expect(graph.phases.work.gating).toMatch(/^TOGGLE \(v22, supersedes dm#89 'work is always granted'\)/);
+    expect(graph.phases.work.gating).not.toMatch(/^NONE/);
+    for (const t of EDGES.filter((e) => e.to === "work")) expect(t.guards ?? [], `${t.edge_id} work_on`).toContain("work_on");
+    for (const t of EDGES.filter((e) => e.to === "personal")) expect(t.guards ?? [], `${t.edge_id} grant_armed`).toContain("grant_armed");
     // Machine-readable mode axis (observer's banked ask): words + role enum.
     const sm = (graph as { state_mode_axis?: { words?: Record<string, { role?: string; phase?: string }> } }).state_mode_axis;
     expect(sm?.words?.visiting?.role).toBe("decides");
@@ -243,20 +262,31 @@ describe("v18 structural-edit schema (c4837 build order)", () => {
     }
   });
 
-  it("B's census arithmetic holds: 9 loop / 8 door / 4 operator / 1 entity", () => {
+  it("the v22 census holds: 21 edges = 6 loop / 8 door / 5 operator / 2 entity", () => {
+    // v21 was B's 22-edge census (9/8/4/1). v22 removed 8 timed/grant edges
+    // and added 7 (two self-loops, no_task->personal, two maintenance_done
+    // wakes, work->sleep for the operator and for his own election).
     const by: Record<string, number> = {};
-    for (const t of graph.transitions as Array<Record<string, unknown>>) by[String(t.authority)] = (by[String(t.authority)] ?? 0) + 1;
-    expect(by).toEqual({ loop: 9, door: 8, operator: 4, entity: 1 });
+    for (const t of EDGES) by[t.authority] = (by[t.authority] ?? 0) + 1;
+    expect(by).toEqual({ loop: 6, door: 8, operator: 5, entity: 2 });
+    expect(EDGES).toHaveLength(21);
   });
 
-  it("every cause word has an evaluator row (the vocabulary is code), and the composite-sleep edge is locked-absolute", () => {
+  it("every cause word has an evaluator row and no registry row is orphaned; both sleep elections are the entity's, locked", () => {
     const reg = (graph as unknown as Record<string, unknown>).cause_evaluators as Record<string, unknown>;
     for (const c of graph.transition_causes as string[]) expect(reg[c], `cause ${c} missing evaluator`).toBeTruthy();
-    const composite = (graph.transitions as Array<Record<string, unknown>>).find((t) => t.edge_id === "personal->sleep#operator");
-    expect(composite?.edit_policy).toBe("locked-absolute");
-    const election = (graph.transitions as Array<Record<string, unknown>>).find((t) => t.edge_id === "personal->sleep#self_elected");
-    expect(election?.authority).toBe("entity");
-    expect(election?.edit_policy).toBe("locked");
+    // The vocabulary is closed both ways: a registry row no edge uses would
+    // be a legal-looking cause the editor offers for nothing (v22 removed
+    // grant_expired / grant_revoked / cadence_need_check rows with their edges).
+    const used = new Set(EDGES.map((t) => t.cause));
+    expect(Object.keys(reg).filter((k) => k !== "$comment").sort()).toEqual([...used].sort());
+    expect([...used].sort()).toEqual([...(graph.transition_causes as string[])].sort());
+    const elections = EDGES.filter((t) => t.cause === "self_elected");
+    expect(elections.map(pair).sort()).toEqual(["personal>sleep", "work>sleep"]);
+    for (const e of elections) {
+      expect(e.authority).toBe("entity");
+      expect(e.edit_policy).toBe("locked");
+    }
   });
 
   it("the overlay contract declares steering-never-law + the refusal-code vocabulary", () => {
@@ -280,11 +310,87 @@ describe("v19 cause-registry classes (semantics c4857)", () => {
       if (row.status === "reserved") expect(String(row.status_note ?? "").length).toBeGreaterThan(10);
     }
   });
-  it("v20: the work-close pair is SHIPPED (runtime c4865 evaluator), crash_recovered stays reserved; grant legs name their importable symbol", () => {
+  it("v20: the work-close pair is SHIPPED (runtime c4865 evaluator), crash_recovered stays reserved", () => {
     const reg = (graph as unknown as Record<string, unknown>).cause_evaluators as Record<string, Record<string, unknown>>;
     for (const c of ["task_complete", "no_task"]) expect(reg[c].status).toBe("shipped");
     expect(reg.crash_recovered.status).toBe("reserved");
-    expect(reg.grant_expired.symbol).toBe("abstractruntime.identity.life:read_day_gate");
+  });
+
+  it("v22: status follows SHIPPED code — maintenance_done and the re-pointed personal_cycle are reserved (no minting site yet), the retired grant legs are gone", () => {
+    const reg = (graph as unknown as Record<string, unknown>).cause_evaluators as Record<string, Record<string, unknown>>;
+    expect(reg.maintenance_done?.class).toBe("evaluated_predicate");
+    expect(reg.maintenance_done?.status).toBe("reserved");
+    expect(String(reg.maintenance_done?.status_note)).toContain("§10.6");
+    expect(reg.personal_cycle?.status).toBe("reserved");
+    expect(String(reg.personal_cycle?.status_note)).toContain("§10.3");
+    for (const gone of ["grant_expired", "grant_revoked", "cadence_need_check"]) expect(reg[gone], gone).toBeUndefined();
+  });
+});
+
+describe("v22 target phases (operator ruling 2026-11-08 19:02 + 19:11; contract v2 §9)", () => {
+  it("is version 22 and ruled_by cites TARGET + the contract", () => {
+    expect(graph.version).toBe(22);
+    const last = graph.ruled_by[graph.ruled_by.length - 1];
+    expect(last.startsWith("v22-target-phases (operator ruling 2026-11-08 19:02 + 19:11 correction, untracked/entity-phases-2026-11-08/TARGET.md; contract v2 2026-11-09 §9): ")).toBe(true);
+  });
+
+  it("idle and stopped are STATUSES outside the four phases: named, never phase keys, never an edge endpoint", () => {
+    const statuses = (graph as unknown as Record<string, Record<string, Record<string, string>>>).statuses;
+    expect(statuses, "statuses block").toBeDefined();
+    expect(Object.keys(statuses).filter((k) => k !== "$comment").sort()).toEqual(["idle", "stopped"]);
+    for (const s of ["idle", "stopped"]) {
+      expect(String(statuses[s].definition).length, `${s} definition`).toBeGreaterThan(20);
+      expect(PHASE_KEYS).not.toContain(s);
+      expect(EDGES.some((t) => t.from === s || t.to === s)).toBe(false);
+    }
+    expect(statuses.stopped.axis).toContain("liveness_axis");
+    expect(graph.liveness_axis.values).toEqual(["alive", "stop"]); // the kill switch keeps its axis
+    const inv = graph.invariants as string[];
+    expect(inv.some((x) => x.startsWith("IDLE-IS-A-STATUS"))).toBe(true);
+    expect(inv.some((x) => x.startsWith("IDLE-IS-SLEEP"))).toBe(false);
+  });
+
+  it("the allowed transitions are exactly TARGET's diagram (plus visit's crash-recovery self-loop)", () => {
+    expect(new Set(EDGES.map(pair))).toEqual(
+      new Set([
+        "visit>work", "work>visit",
+        "visit>personal", "personal>visit",
+        "visit>sleep", "sleep>visit",
+        "work>personal", "personal>work",
+        "work>sleep", "sleep>work",
+        "personal>sleep", "sleep>personal",
+        "work>work", "personal>personal",
+        "visit>visit",
+      ]),
+    );
+  });
+
+  it("there is no sleep->sleep edge, ever — from sleep he goes to personal, work or visit", () => {
+    expect(EDGES.some((t) => t.from === "sleep" && t.to === "sleep")).toBe(false);
+    expect(new Set(EDGES.filter((t) => t.from === "sleep").map((t) => t.to))).toEqual(new Set(["personal", "work", "visit"]));
+    expect((graph.invariants as string[]).some((x) => x.startsWith("NO-SLEEP-AFTER-SLEEP"))).toBe(true);
+  });
+
+  it("self-loops exist for work and personal (sleep is never mandatory); visit's only self-loop is crash recovery", () => {
+    const loops = EDGES.filter((t) => t.from === t.to).map((t) => t.edge_id).sort();
+    expect(loops).toEqual(["personal->personal#personal_cycle", "visit->visit#crash_recovered", "work->work#task_complete"]);
+  });
+
+  it("a visit's close into sleep is the INTERRUPTED sleep continuing, not a new one (contract §4.4)", () => {
+    const back = EDGES.find((t) => t.edge_id === "visit->sleep#visit_close");
+    expect(back?.semantics).toContain("The INTERRUPTED SLEEP CONTINUES");
+    expect(back?.semantics).toContain("no sleep->sleep");
+    const into = EDGES.find((t) => t.edge_id === "sleep->visit#visit_open");
+    expect(into?.semantics).toContain("INTERRUPTS");
+  });
+
+  it("toggles allow, never force; sleep never disarms personal nor clears work", () => {
+    const inv = graph.invariants as string[];
+    expect(inv.some((x) => x.startsWith("TOGGLES-ALLOW-NEVER-FORCE"))).toBe(true);
+    expect(inv.some((x) => x.startsWith("PERSONAL-INTERRUPT-IS-CONFIRMED"))).toBe(false);
+    const decision = inv.find((x) => x.startsWith("SLEEP-IS-A-DECISION")) ?? "";
+    expect(decision).toContain("NEVER disarms the personal toggle and NEVER clears the work order");
+    expect(graph.phases.personal.gating).toContain("Sleep never disarms it");
   });
 });
 
