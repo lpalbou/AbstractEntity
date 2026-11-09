@@ -316,11 +316,8 @@ describe("v19 cause-registry classes (semantics c4857)", () => {
     expect(reg.crash_recovered.status).toBe("reserved");
   });
 
-  it("v22: status follows SHIPPED code — maintenance_done and the re-pointed personal_cycle are reserved (no minting site yet), the retired grant legs are gone", () => {
+  it("v22: status follows SHIPPED code — the re-pointed personal_cycle is reserved (no minting site yet), the retired grant legs are gone", () => {
     const reg = (graph as unknown as Record<string, unknown>).cause_evaluators as Record<string, Record<string, unknown>>;
-    expect(reg.maintenance_done?.class).toBe("evaluated_predicate");
-    expect(reg.maintenance_done?.status).toBe("reserved");
-    expect(String(reg.maintenance_done?.status_note)).toContain("§10.6");
     expect(reg.personal_cycle?.status).toBe("reserved");
     expect(String(reg.personal_cycle?.status_note)).toContain("§10.3");
     for (const gone of ["grant_expired", "grant_revoked", "cadence_need_check"]) expect(reg[gone], gone).toBeUndefined();
@@ -398,11 +395,11 @@ describe("v23 own time is a privilege (operator ruling 2026-11-09, TARGET 'Own t
   const inv = graph.invariants as string[];
   const intoPersonal = EDGES.filter((t) => t.to === "personal");
 
-  it("is version 23 and its ruled_by entry is the last one, citing the ruling", () => {
-    expect(graph.version).toBe(23);
-    const last = graph.ruled_by[graph.ruled_by.length - 1];
-    expect(last.startsWith("v23-own-time-privilege (operator ruling 2026-11-09, untracked/entity-phases-2026-11-08/TARGET.md 'Own time is a privilege'): ")).toBe(true);
-    expect(last).toContain("SCHEMA UNCHANGED");
+  it("v23 is in ruled_by once, citing the ruling", () => {
+    expect(graph.version).toBeGreaterThanOrEqual(23);
+    const v23 = graph.ruled_by.filter((r) => r.startsWith("v23-own-time-privilege (operator ruling 2026-11-09, untracked/entity-phases-2026-11-08/TARGET.md 'Own time is a privilege'): "));
+    expect(v23).toHaveLength(1);
+    expect(v23[0]).toContain("SCHEMA UNCHANGED");
   });
 
   it("the invariant: only the operator grants or revokes own time; personal is entered by his grant/resume or a return via resume_to, never from idle by the entity's choice; revoked meanwhile = idle", () => {
@@ -479,5 +476,31 @@ describe("v21 guard-merge law (c4934)", () => {
     expect(law).toContain("UNION");
     expect(law).toContain("never erases either side");
     expect(law).toContain("REMOVE the target edge");
+  });
+});
+
+describe("v24 maintenance_done shipped (runtime be5d4ce + a5ac083: the loop writes the phase_changed marker)", () => {
+  const reg = (graph as unknown as Record<string, unknown>).cause_evaluators as Record<string, Record<string, unknown>>;
+
+  it("is version 24 and its ruled_by entry is the last one, citing the runtime receipts", () => {
+    expect(graph.version).toBe(24);
+    const last = graph.ruled_by[graph.ruled_by.length - 1];
+    expect(last.startsWith("v24-maintenance-done-shipped (runtime build receipts be5d4ce + a5ac083, 2026-11-09): ")).toBe(true);
+    expect(last).toContain("SCHEMA UNCHANGED");
+  });
+
+  it("maintenance_done is a SHIPPED evaluated predicate (the v20 vocabulary: status shipped, honest null symbol + site note); nothing else moved", () => {
+    const md = reg.maintenance_done;
+    expect(md?.class).toBe("evaluated_predicate");
+    expect(md?.status).toBe("shipped");
+    expect(md?.status_note).toBeUndefined();
+    expect(md?.symbol).toBeNull();
+    expect(String(md?.symbol_note)).toContain("_boundary_cause");
+    expect(String(md?.symbol_note)).toContain("§10.6");
+    const statuses = Object.fromEntries(Object.entries(reg).filter(([k]) => k !== "$comment").map(([k, v]) => [k, v.status]));
+    expect(statuses).toEqual({
+      visit_open: "shipped", visit_close: "shipped", crash_recovered: "reserved", operator: "shipped", task_complete: "shipped",
+      no_task: "shipped", self_elected: "shipped", personal_cycle: "reserved", maintenance_done: "shipped",
+    });
   });
 });

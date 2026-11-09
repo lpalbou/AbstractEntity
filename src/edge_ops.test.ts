@@ -102,9 +102,10 @@ describe("courtesy refusals never over-allow (the door is the law)", () => {
     // Duplicate identity refuses on an evaluated predicate (the class
     // gate no longer masks it): work->work#task_complete exists (v22).
     expect(addPreviewRefusal(PHASES, REGISTRY, ids, { from: "work", to: "work", cause: "task_complete" })).toContain("identity exists");
-    // v22: the new and re-pointed causes have no shipped minting site, so
-    // they block NEW edges; the retired words are not causes at all.
-    expect(addPreviewRefusal(PHASES, REGISTRY, ids, { from: "work", to: "personal", cause: "maintenance_done" })).toContain("reserved");
+    // v22: the re-pointed personal_cycle has no shipped minting site, so it
+    // blocks NEW edges; v24: maintenance_done shipped (runtime be5d4ce), so
+    // it no longer refuses as reserved; the retired words are not causes at all.
+    expect(addPreviewRefusal(PHASES, REGISTRY, ids, { from: "work", to: "personal", cause: "maintenance_done" })).toBeNull();
     expect(addPreviewRefusal(PHASES, REGISTRY, ids, { from: "work", to: "personal", cause: "personal_cycle" })).toContain("reserved");
     for (const gone of ["cadence_need_check", "grant_expired", "grant_revoked"]) {
       expect(addPreviewRefusal(PHASES, REGISTRY, ids, { from: "sleep", to: "work", cause: gone }), gone).toContain("unknown cause");
