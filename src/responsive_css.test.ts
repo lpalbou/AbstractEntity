@@ -14,26 +14,27 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_WIDTH } from "./drawer";
 
 const CSS = readFileSync(resolve(__dirname, "entity.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const CANVAS_CSS = readFileSync(resolve(__dirname, "graph_canvas.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const HTML = readFileSync(resolve(__dirname, "..", "index.html"), "utf8");
 
 /** The bodies of every top-level at-rule block whose prelude matches exactly. */
-function atBlocks(prelude: string): string[] {
+function atBlocks(prelude: string, css: string = CSS): string[] {
   const out: string[] = [];
   let from = 0;
   for (;;) {
-    const at = CSS.indexOf(prelude + " {", from);
+    const at = css.indexOf(prelude + " {", from);
     if (at < 0) return out;
     let depth = 0;
-    let i = CSS.indexOf("{", at);
+    let i = css.indexOf("{", at);
     const start = i + 1;
-    for (; i < CSS.length; i += 1) {
-      if (CSS[i] === "{") depth += 1;
-      else if (CSS[i] === "}") {
+    for (; i < css.length; i += 1) {
+      if (css[i] === "{") depth += 1;
+      else if (css[i] === "}") {
         depth -= 1;
         if (depth === 0) break;
       }
     }
-    out.push(CSS.slice(start, i));
+    out.push(css.slice(start, i));
     from = i;
   }
 }
@@ -84,6 +85,29 @@ describe("responsive layer: graph canvas", () => {
     expect(block).toContain(".entity_lens_bar");
     expect(block).toContain(".gc_btn_word");
     expect(rule(CSS, ".entity_canvas_wrap")).toMatch(/container:\s*entity-canvas\s*\/\s*inline-size/);
+  });
+
+  it("phone-width canvas: the open Context legend ends above the motion buttons and scrolls inside (live verification 2026-11-09)", () => {
+    const m = /@container entity-canvas \(max-width: ([\d.]+)px\)/.exec(CSS)!;
+    const narrow = atBlocks(`@container entity-canvas (max-width: ${m[1]}px)`).join("\n");
+    const canvasNarrow = atBlocks(`@container entity-canvas (max-width: ${m[1]}px)`, CANVAS_CSS).join("\n");
+    // One geometry, declared once on the canvas container and read by both.
+    const wrap = rule(CSS, ".entity_canvas_wrap");
+    expect(wrap).toMatch(/--gc-legend-top:\s*\d+px/);
+    expect(wrap).toMatch(/--gc-motion-bottom:\s*\d+px/);
+    expect(rule(narrow, ".gc_motion_controls")).toMatch(/bottom:\s*var\(--gc-motion-bottom\)/);
+    const legend = rule(canvasNarrow, ".gc_recall_legend");
+    expect(legend).toMatch(/top:\s*var\(--gc-legend-top\)/);
+    // Its bottom edge = top + max-height = 100% - motion bottom - one tap target - a gap > 0:
+    // the buttons' top edge (bottom offset + a tap-min tall button) is never covered.
+    // No floor (a max() would let it grow back over the buttons on a short canvas).
+    const max = /max-height:\s*calc\(100% - var\(--gc-legend-top\) - var\(--gc-motion-bottom\) - var\(--tap-min,\s*32px\) - (\d+)px\);/.exec(legend);
+    expect(max, legend).not.toBeNull();
+    expect(Number(max![1])).toBeGreaterThan(0);
+    expect(legend).toMatch(/overflow-y:\s*auto/);
+    // The base box lets the pointer through to the canvas; open on a phone it takes it, to scroll.
+    expect(rule(CANVAS_CSS, ".gc_recall_legend")).toMatch(/pointer-events:\s*none/);
+    expect(rule(canvasNarrow, ".gc_recall_legend[open]")).toMatch(/pointer-events:\s*auto/);
   });
 });
 

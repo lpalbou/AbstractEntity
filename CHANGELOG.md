@@ -8,7 +8,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
   Idle lights while he is awake and reachable with nothing running; it has nothing to click, and
   its tooltip is the gateway's sentence ("Awake and reachable; nothing of his own is running.").
 - **The ledger names phase changes again.** A phase change read "Phase: ? → ?"; it now says
-  "Phase: visit → sleep" with its cause, and names idle and stopped as states.
+  "Phase: visit → sleep" with its cause, and names idle and stopped as states. An entity's first
+  recorded phase reads "Phase: sleep (first recorded)", never "?", and a row that repeats the same
+  state says what he keeps doing, led by its cause ("Visit closed · stays asleep"), instead of
+  "sleep → sleep".
 - **Detail shows the memory's own title.** A lived moment's Detail heading is the title the memory
   carries, the same as its card in the graph, not one the app made up ("A visit with admin").
   While no title is written yet it says "Title being written…". Who the moment was with stays as
@@ -20,7 +23,8 @@ All notable changes to `@abstractframework/entity` are recorded here.
   ring, and the rest is dimmed. The Context box now explains the rings: present by right (memories
   he always keeps in mind), continuity (memories that followed from the last ones) and matched
   (memories found for this message), plus the lit lines and the grey-to-green scale. It is open on
-  a wide screen and folded on a phone.
+  a wide screen and folded on a phone; opened on a phone, it ends above the graph's freeze, settle,
+  reset and fit buttons and scrolls inside, so it never hides them.
 - **Hover a recall in the ledger to see it in the graph.** Resting the mouse on "He holds these in
   mind" (or its recall line) lights those memories in the graph and dims the rest, as a click
   does; moving away brings back what was lit. On a touch screen a tap still selects it.

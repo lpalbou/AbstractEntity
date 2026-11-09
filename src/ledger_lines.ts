@@ -286,6 +286,19 @@ export const LEDGER_PHASE_WORDS: Readonly<Record<string, string>> = {
   stopped: "stopped",
 };
 
+/** A phase_changed row whose from == to (the gateway re-announces the same
+ * state: a visit closed while he slept, a new sleep reason): what he keeps
+ * doing, in end-user words (operator live verification 2026-11-09: "sleep →
+ * sleep" reads oddly). */
+export const LEDGER_PHASE_STAYS: Readonly<Record<string, string>> = {
+  visit: "the visit goes on",
+  idle: "stays idle",
+  work: "keeps working",
+  personal: "stays on his own time",
+  sleep: "stays asleep",
+  stopped: "stays stopped",
+};
+
 export function ledgerLine(env: ReplayEnvelope): LedgerLine {
   const base = {
     seq: env.seq,
@@ -707,18 +720,26 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         // AWAKE-NEVER-RENDERS guard (spec v6; adversary-B finding 4): a word
         // outside the five states and stopped renders verbatim-labeled (the
         // chip's honesty pattern), never bare — "awake" is never a phase.
-        const phaseWord = (v: unknown): string => {
-          if (typeof v !== "string" || !v) return "?";
-          return LEDGER_PHASE_WORDS[v.toLowerCase()] ?? `non-phase word: “${v}”`;
-        };
-        const cause = typeof p["cause"] === "string" && p["cause"] ? String(p["cause"]) : "";
-        return {
-          ...base,
-          title: `⭢ Phase: ${phaseWord(p["from"])} → ${phaseWord(p["to"])}`,
-          detail: cause ? `cause: ${cause}` : "cause unrecorded",
-          subject_id: null,
-          tone: "session",
-        };
+        // NEVER "?" (operator live verification 2026-11-09): a served
+        // `from: null` is his first recorded phase (castor #99033.0002, nerin
+        // #164102.0005); a from == to re-announcement names what he keeps
+        // doing, led by its cause; an unserved word says so in words.
+        const word = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+        const phaseWord = (v: string): string => LEDGER_PHASE_WORDS[v.toLowerCase()] ?? `non-phase word: “${v}”`;
+        const from = word(p["from"]);
+        const to = word(p["to"]);
+        const cause = word(p["cause"]) ?? "";
+        const causeDetail = cause ? `cause: ${cause}` : "cause unrecorded";
+        const line = (title: string, detail: string): LedgerLine => ({ ...base, title: `⭢ ${title}`, detail, subject_id: null, tone: "session" });
+        if (!to) return line(from ? `Phase: ${phaseWord(from)} → not recorded` : "Phase: not recorded", causeDetail);
+        if (!from) {
+          const first = p["from"] === null ? "first recorded" : "previous not recorded";
+          return line(`Phase: ${phaseWord(to)} (${first})`, causeDetail);
+        }
+        const stays = from.toLowerCase() === to.toLowerCase() ? LEDGER_PHASE_STAYS[to.toLowerCase()] : undefined;
+        const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
+        if (stays) return cause ? line(`${cap(cause.split("_").join(" "))} · ${stays}`, "") : line(cap(stays), causeDetail);
+        return line(`Phase: ${phaseWord(from)} → ${phaseWord(to)}`, causeDetail);
       }
       if (p.kind === "substrate_changed") {
         // The mind swap is a DURABLE EVENT (laurent 12:39, c1430): render

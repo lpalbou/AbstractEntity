@@ -214,12 +214,24 @@
     left: 8px;
     max-width: none;
   }
+  /* It ends above the motion buttons (bottom: --gc-motion-bottom, one tap
+   * target tall, then an 8 px gap) and scrolls inside, so it never sits
+   * under them at 400 px (live verification 2026-11-09). No floor: on a
+   * short canvas it shrinks to a scroll box headed by its first line. */
   .gc_recall_legend {
-    top: 46px;
+    top: var(--gc-legend-top);
     left: 8px;
     right: 8px;
     transform: none;
     max-width: none;
+    max-height: calc(100% - var(--gc-legend-top) - var(--gc-motion-bottom) - var(--tap-min, 32px) - 8px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+  }
+  /* Open, the box takes the pointer so a finger can scroll it. */
+  .gc_recall_legend[open] {
+    pointer-events: auto;
   }
 }
 

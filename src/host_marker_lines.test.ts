@@ -229,9 +229,48 @@ describe("phase_changed (the gateway's marker, entity_phase._announce; the runti
     }
   });
 
-  it("the contract is from/to: the v1 keys old/new are not read", () => {
+  it("the contract is from/to: the v1 keys old/new are not read, and nothing reads \"?\"", () => {
     const line = ledgerLine(hostEnv(35, { kind: "phase_changed", old: "visit", new: "sleep", cause: "visit_closed" }));
-    expect(line.title).toBe("⭢ Phase: ? → ?");
+    expect(line.title).toBe("⭢ Phase: not recorded");
+    expect(ledgerLine(hostEnv(35, { ...SERVED, to: null })).title).toBe("⭢ Phase: visit → not recorded");
+    expect(ledgerLine(hostEnv(35, { ...SERVED, from: undefined })).title).toBe("⭢ Phase: sleep (previous not recorded)");
+  });
+
+  // Live verification 2026-11-09 (untracked/live-verify-2026-11-09/report.json): the gateway's
+  // first marker of an entity serves from: null; it read "Phase: ? → sleep".
+  const FIRST_CASTOR = { kind: "phase_changed", session_id: null, name: "castor", from: null, to: "sleep", phase: "sleep", toggles: { personal: false }, stopped: false, since: "2026-11-09T12:13:58.810057+00:00", rev: 1, generation: 0, cause: "observed", sentence: "Asleep until you wake him." };
+  const FIRST_NERIN = { kind: "phase_changed", session_id: null, name: "nerin", from: null, to: "sleep", phase: "sleep", toggles: { work: true, personal: true }, stopped: false, since: "2026-11-08T18:22:30.979293+00:00", rev: 1, generation: 0, cause: "observed", sentence: "Asleep until you wake him." };
+
+  it("a served from: null is his first recorded phase, in words (castor #99033.0002, nerin #164102.0005)", () => {
+    for (const [seq, p] of [[99033.0002, FIRST_CASTOR], [164102.0005, FIRST_NERIN]] as const) {
+      const line = ledgerLine(hostEnv(seq, p));
+      expect(line.title).toBe("⭢ Phase: sleep (first recorded)");
+      expect(line.detail).toBe("cause: observed");
+      expect(`${line.title} ${line.detail}`).not.toContain("?");
+    }
+  });
+
+  it("from == to names what he keeps doing, led by the cause in words, never \"sleep → sleep\"", () => {
+    // castor #100936.0003 and #100940.0003, nerin #186054.0003 and #186064.0003 (live payloads).
+    const castorSleep = { ...SERVED, from: "sleep", to: "sleep", rev: 8, cause: "visit_closed" };
+    const castorVisit = { ...SERVED, from: "visit", to: "visit", phase: "visit", rev: 10, cause: "observed", sentence: "In a visit with you." };
+    const sleepLine = ledgerLine(hostEnv(100936.0003, castorSleep));
+    expect(sleepLine.title).toBe("⭢ Visit closed · stays asleep");
+    expect(sleepLine.detail).toBe("");
+    expect(ledgerLine(hostEnv(100940.0003, castorVisit)).title).toBe("⭢ Observed · the visit goes on");
+    expect(ledgerLine(hostEnv(186054.0003, { ...SERVED, name: "nerin", from: "idle", to: "idle", cause: "observed" })).title).toBe("⭢ Observed · stays idle");
+    expect(ledgerLine(hostEnv(186064.0003, { ...SERVED, name: "nerin", from: "personal", to: "personal", cause: "observed" })).title).toBe("⭢ Observed · stays on his own time");
+    expect(ledgerLine(hostEnv(40, { ...SERVED, from: "work", to: "work", cause: "task_complete" })).title).toBe("⭢ Task complete · keeps working");
+    expect(ledgerLine(hostEnv(41, { ...SERVED, from: "stopped", to: "stopped", cause: "operator_stop" })).title).toBe("⭢ Operator stop · stays stopped");
+    // No cause served: the state alone, the detail says so.
+    const bare = ledgerLine(hostEnv(42, { ...SERVED, from: "sleep", to: "sleep", cause: undefined }));
+    expect(bare.title).toBe("⭢ Stays asleep");
+    expect(bare.detail).toBe("cause unrecorded");
+    for (const w of ["visit", "idle", "work", "personal", "sleep", "stopped"]) {
+      const t = ledgerLine(hostEnv(43, { ...SERVED, from: w, to: w })).title;
+      expect(t).not.toContain("→");
+      expect(t).not.toContain("?");
+    }
   });
 
   it("a word outside the states renders labeled, never bare (AWAKE-NEVER-RENDERS)", () => {

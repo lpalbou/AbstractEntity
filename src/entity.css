@@ -5959,6 +5959,10 @@ body {
 .entity_canvas_wrap {
   container: entity-canvas / inline-size;
   min-height: 0;
+  /* Phone-width canvas geometry shared by the motion buttons (below) and the
+   * Context legend (graph_canvas.css), which ends above them. */
+  --gc-legend-top: 46px;
+  --gc-motion-bottom: 52px;
 }
 
 @container entity-canvas (max-width: 859.98px) {
@@ -5991,7 +5995,7 @@ body {
    * glyph-only (the word stays the accessible name). */
   .gc_motion_controls {
     top: auto;
-    bottom: 52px;
+    bottom: var(--gc-motion-bottom);
     right: 8px;
   }
   .gc_btn {
