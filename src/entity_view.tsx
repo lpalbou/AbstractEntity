@@ -57,7 +57,8 @@ const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation, warmthLegendTitles } from "./temporal_activation";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
-import { adoptPhaseBar, adoptPhaseMarker, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { PhaseWrites } from "./phase_bar_writes";
 import { PhaseBarControls } from "./phase_bar_controls";
 import { getPhaseBar, highestPhaseMarker, postLifecycle, postSleepNow, putPhaseToggle, type PhaseMarker, type PhaseWire } from "./phase_bar_source";
 import { substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
@@ -900,6 +901,9 @@ export function EntityView(): React.ReactElement {
    * phase act, and when the stream carries a newer phase marker. The highest rev wins (an older
    * answer never repaints a newer bar); the epoch only drops answers about another entity. */
   const phaseEpochRef = useRef(0);
+  /** The bar's writes in flight (phase_bar_writes.ts): a toggle or Resume at a time; Stop, the
+   * kill switch, in its own lane that never waits. */
+  const phaseWritesRef = useRef(new PhaseWrites());
   const readPhaseBar = useCallback(() => {
     if (sourceKind !== "gateway" || !entityName || !authVerifiedRef.current) return;
     const base = gatewayUrl.trim().replace(/\/+$/, "");
@@ -908,9 +912,9 @@ export function EntityView(): React.ReactElement {
       .then((wire) => {
         if (epoch !== phaseEpochRef.current) return;
         const next = phaseBarRead(wire);
-        setPhaseRead((cur) => (next.kind === "served" ? adoptPhaseBar(cur, next.bar) : next));
+        setPhaseRead((cur) => adoptPhaseRead(cur, next));
       })
-      .catch((e: Error) => epoch === phaseEpochRef.current && setPhaseRead({ kind: "failed", sentence: `Could not read his phase: ${e.message || "the gateway did not answer"}.` }));
+      .catch((e: Error) => epoch === phaseEpochRef.current && setPhaseRead((cur) => adoptPhaseRead(cur, { kind: "failed", sentence: `Could not read his phase: ${e.message || "the gateway did not answer"}.` })));
   }, [sourceKind, entityName, gatewayUrl]);
   const refreshEntityTruth = useCallback(() => {
     // THE CONTENT GATE covers every entry path (impl adversary P1-1, the
@@ -943,6 +947,7 @@ export function EntityView(): React.ReactElement {
   // Declared before the poll so the poll's first read belongs to the new epoch.
   useEffect(() => {
     phaseEpochRef.current += 1;
+    phaseWritesRef.current.reset();
     setPhaseRead({ kind: "loading" });
     setPhaseUi({ busy: null, confirm: null });
     setPhaseNote(null);
@@ -1097,8 +1102,9 @@ export function EntityView(): React.ReactElement {
   /** THE PHASE BAR'S ACTS (operator ruling 2026-11-08; phase_bar.ts phaseActPlan). A toggle PUTs
    * the toggle and the gateway says what it means now (during a visit, say); Stop and "sleep now"
    * ask first, in the bar; Resume acts at once; the visit pill opens the conversation as the Chat
-   * tab's button does. Every answer's sentence shows, and every act ends with a fresh read. */
-  const phaseBusyRef = useRef(false);
+   * tab's button does. Every answer's sentence shows, and every act ends with a fresh read. Stop is
+   * the kill switch: it goes out at once even with a toggle in flight, and that toggle's late answer
+   * never repaints over the stopped view (the highest rev wins, phase_bar_writes.ts). */
   const settlePhaseWrite = useCallback(
     (wire: PhaseWire) => {
       const out = phaseWriteOutcome(wire);
@@ -1113,32 +1119,29 @@ export function EntityView(): React.ReactElement {
     [refreshEntityTruth, handleAuthRefused],
   );
   const runPhaseWrite = useCallback(
-    async (act: PhaseBarAct, send: (base: string, token: string | null) => Promise<PhaseWire>) => {
-      if (sourceKind !== "gateway" || !entityName || phaseBusyRef.current) return;
-      phaseBusyRef.current = true;
-      setPhaseUi({ busy: act, confirm: null });
-      setPhaseNote(null);
+    (act: PhaseBarAct, send: (base: string, token: string | null) => Promise<PhaseWire>) => {
+      if (sourceKind !== "gateway" || !entityName) return;
       const epoch = phaseEpochRef.current;
-      try {
-        const wire = await send(gatewayUrl.trim().replace(/\/+$/, ""), controlToken.trim() || null);
-        if (epoch === phaseEpochRef.current) settlePhaseWrite(wire);
-      } catch (e) {
-        if (epoch === phaseEpochRef.current) setPhaseNote(`The gateway did not answer: ${(e as Error).message || "no response"}.`);
-        refreshEntityTruth();
-      } finally {
-        phaseBusyRef.current = false;
-        setPhaseUi({ busy: null, confirm: null });
-      }
+      const base = gatewayUrl.trim().replace(/\/+$/, "");
+      const token = controlToken.trim() || null;
+      phaseWritesRef.current.run(act, () => send(base, token), {
+        current: () => epoch === phaseEpochRef.current,
+        adopt: (bar) => setPhaseRead((cur) => adoptPhaseBar(cur, bar)),
+        note: setPhaseNote,
+        ui: setPhaseUi,
+        refresh: refreshEntityTruth,
+        authRefused: () => void handleAuthRefused(),
+      });
     },
-    [sourceKind, entityName, gatewayUrl, controlToken, settlePhaseWrite, refreshEntityTruth],
+    [sourceKind, entityName, gatewayUrl, controlToken, refreshEntityTruth, handleAuthRefused],
   );
   /** "Sleep now" (contract O7): the maintenance pass runs inside this request and can be long, so
    * the bar does not wait on it: a re-read shows the sleep, the stream then shows the wake; the
    * answer still reports a refusal ("already resting") when one comes back. */
   const sleepNow = useCallback(() => {
-    if (sourceKind !== "gateway" || !entityName || phaseBusyRef.current) return;
+    if (sourceKind !== "gateway" || !entityName || phaseWritesRef.current.held()) return;
     const epoch = phaseEpochRef.current;
-    setPhaseUi({ busy: null, confirm: null });
+    setPhaseUi((u) => ({ ...u, confirm: null }));
     setPhaseNote(null);
     postSleepNow(gatewayUrl.trim().replace(/\/+$/, ""), entityName, controlToken.trim() || null)
       .then((wire) => {
@@ -1151,7 +1154,8 @@ export function EntityView(): React.ReactElement {
   }, [sourceKind, entityName, gatewayUrl, controlToken, settlePhaseWrite, refreshEntityTruth, readPhaseBar]);
   const actOnPhase = useCallback(
     (act: PhaseBarAct) => {
-      if (phaseBusyRef.current) return;
+      // Stop is never held by a write in flight (the kill switch); every other act waits its turn.
+      if (act !== "stop" && phaseWritesRef.current.held()) return;
       const plan = phaseActPlan(phaseRead, act);
       setPhaseNote(null);
       switch (plan.kind) {
@@ -1168,13 +1172,13 @@ export function EntityView(): React.ReactElement {
           setVisitKnock((n) => n + 1);
           return;
         case "confirm":
-          setPhaseUi({ busy: null, confirm: plan.confirm });
+          setPhaseUi((u) => ({ ...u, confirm: plan.confirm }));
           return;
         case "toggle":
-          void runPhaseWrite(plan.key, (base, token) => putPhaseToggle(base, entityName, plan.key, plan.on, token));
+          runPhaseWrite(plan.key, (base, token) => putPhaseToggle(base, entityName, plan.key, plan.on, token));
           return;
         case "resume":
-          void runPhaseWrite("resume", (base, token) => postLifecycle(base, entityName, "resume", token));
+          runPhaseWrite("resume", (base, token) => postLifecycle(base, entityName, "resume", token));
           return;
       }
     },
@@ -1182,10 +1186,10 @@ export function EntityView(): React.ReactElement {
   );
   const confirmPhaseAct = useCallback(() => {
     const kind = phaseUi.confirm;
-    if (kind === "stop") void runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
+    if (kind === "stop") runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
     else if (kind === "sleep") sleepNow();
   }, [phaseUi.confirm, entityName, runPhaseWrite, sleepNow]);
-  const cancelPhaseConfirm = useCallback(() => setPhaseUi((u) => (u.busy ? u : { busy: null, confirm: null })), []);
+  const cancelPhaseConfirm = useCallback(() => setPhaseUi((u) => ({ ...u, confirm: null })), []);
   const phaseView = phaseBarView(phaseRead, phaseUi);
 
   const openEntity = useCallback(

@@ -16,7 +16,7 @@
  */
 
 import { createCardReads, type CardReadStatus, type CardReads } from "./card_reads";
-import { adoptPhaseBar, type PhaseBarRead } from "./phase_bar";
+import { adoptPhaseRead, type PhaseBarRead } from "./phase_bar";
 import type { EntityStateInfo, EntitySummary, LoopStatus } from "./stream_source";
 
 /** The slice of the card compositor the roster reads (the full shape belongs to the identity card). */
@@ -158,7 +158,7 @@ export function createRosterLoader(opts: {
           patch(s.slug, {
             loop: loop === undefined ? (prev?.loop ?? null) : loop,
             // The highest rev wins (contract §5); a read that failed keeps the previous answer.
-            phase: phase === undefined ? prevPhase : phase.kind === "served" ? adoptPhaseBar(prevPhase, phase.bar) : phase,
+            phase: phase === undefined ? prevPhase : adoptPhaseRead(prevPhase, phase),
             livePending: false,
           });
         }),

@@ -4,6 +4,13 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Stop is always there.** The red Stop button no longer greys out while a switch you just
+  pressed waits for its answer, while a refusal is on screen, or before the bar has read his phase
+  (or when that read failed). Pressed while a switch is still on its way, Stop goes out at once,
+  and the switch's late answer can no longer bring back the view from before the Stop: the bar
+  keeps the newest state the gateway has sent. Pressing Stop again sends it again. Stop is off only
+  when he is already stopped (the button reads Resume) or when the gateway does not serve the
+  phase bar.
 - **Knocking for a visit always ends in the visit.** The app used to give up on its own after 90
   seconds when the entity was busy with his own time, and showed an error. Opening a visit, sending
   a message, answering his question, approving, guiding, closing, the recovery step, an @mention

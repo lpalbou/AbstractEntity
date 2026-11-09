@@ -68,6 +68,35 @@ describe("PhaseBarControls", () => {
     expect(buttons(html).find((b) => b.includes("ec_pb_power"))).toContain("disabled");
   });
 
+  it("Stop now and Cancel never wait for a toggle in flight; the power button stays live and shows a Stop in flight", () => {
+    const html = render(read("personal"), { busy: "personal", confirm: "stop" });
+    const yes = buttons(html).find((b) => b.includes("ec_pb_confirm_yes"))!;
+    const no = buttons(html).find((b) => b.includes("ec_pb_confirm_no"))!;
+    expect(yes).not.toContain("disabled");
+    expect(no).not.toContain("disabled");
+    const busy = render(read("personal"), { busy: "work", confirm: null });
+    expect(buttons(busy).find((b) => b.includes("ec_pb_power"))).not.toContain("disabled");
+    for (const key of ["visit", "work", "personal", "sleep"]) expect(pill(busy, key)).toContain("disabled");
+    const stopping = render(read("personal"), { busy: null, stopping: true, confirm: null });
+    const power = buttons(stopping).find((b) => b.includes("ec_pb_power"))!;
+    expect(power).toContain("ec_pb_busy");
+    expect(power).not.toContain("disabled");
+  });
+
+  it("before the first read and after a failed one the bar offers Stop; a gateway without the bar does not", () => {
+    for (const r of [{ kind: "loading" }, { kind: "failed", sentence: "Could not read his phase: HTTP 502" }] as PhaseBarRead[]) {
+      const power = buttons(render(r)).find((b) => b.includes("ec_pb_power"))!;
+      expect(power).toMatch(/>Stop<\/span><\/button>$/);
+      expect(power).not.toContain("disabled");
+    }
+    expect(buttons(render({ kind: "unserved" })).find((b) => b.includes("ec_pb_power"))).toContain("disabled");
+  });
+
+  it("Sleep now waits for a write in flight", () => {
+    const html = render(read("idle"), { busy: "work", confirm: "sleep" });
+    expect(buttons(html).find((b) => b.includes("ec_pb_confirm_yes"))).toContain("disabled");
+  });
+
   it("sleep now confirms inline too", () => {
     const html = render(read("idle"), { busy: null, confirm: "sleep" });
     expect(html).toContain("Put Castor to sleep now? He wakes by himself when his maintenance is done.");
@@ -125,6 +154,14 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(view).toContain('phaseView.stopped ? (\n        <div className="entity_stopped_banner" role="alert">');
   });
 
+  it("Stop is never held by a write in flight: the page lets it through and the lanes send it at once", () => {
+    expect(view).toContain('if (act !== "stop" && phaseWritesRef.current.held()) return;');
+    expect(view).toContain("phaseWritesRef.current.run(act, () => send(base, token), {");
+    expect(view).toContain("phaseWritesRef.current.reset();");
+    expect(view).not.toContain("phaseBusyRef");
+    expect(view).toContain("const cancelPhaseConfirm = useCallback(() => setPhaseUi((u) => ({ ...u, confirm: null })), []);");
+  });
+
   it("the acts go through the contract's routes only", () => {
     expect(view).toContain("putPhaseToggle(base, entityName, plan.key, plan.on, token)");
     expect(view).toContain('postLifecycle(base, entityName, "stop", token)');
@@ -136,7 +173,7 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(view).toContain("cache.marker = highestPhaseMarker(envelopes, from, appendable ? cache.marker : null);");
     expect(view).toContain("const painted = adoptPhaseMarker(cur, marker);");
     expect(view).toContain("if (painted || cur.kind !== \"served\") readPhaseBarRef.current();");
-    expect(view).toContain("setPhaseRead((cur) => (next.kind === \"served\" ? adoptPhaseBar(cur, next.bar) : next));");
+    expect(view).toContain("setPhaseRead((cur) => adoptPhaseRead(cur, next));");
   });
 
   it("the visit pill knocks through the drawer's own open", () => {

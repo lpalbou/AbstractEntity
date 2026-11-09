@@ -37,6 +37,8 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
   const { view, ui, entityName, note, onAct, onConfirm, onCancel } = props;
   const showPower = props.showPower !== false;
   const showSentence = props.showSentence !== false && Boolean(view.sentence);
+  // "Stop now" never waits for a write in flight (the kill switch); "Sleep now" does.
+  const confirmHeld = ui.confirm === "sleep" && (ui.busy !== null || ui.stopping === true);
   return (
     <div className={`ec_phase_bar${props.className ? ` ${props.className}` : ""}`} data-live={view.live ? "true" : "false"}>
       <span className="ec_pb_pills" role="group" aria-label="Phases">
@@ -62,7 +64,7 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
       {showPower ? (
         <AfChipButton
           tone={view.power.danger ? "error" : "success"}
-          className={`ec_pb_power${view.power.danger ? " ec_pb_power_stop" : " ec_pb_power_resume"}`}
+          className={`ec_pb_power${view.power.danger ? " ec_pb_power_stop" : " ec_pb_power_resume"}${ui.stopping ? " ec_pb_busy" : ""}`}
           disabled={view.power.disabled || ui.confirm === "stop"}
           title={view.power.title}
           onClick={() => onAct(view.power.label === "Stop" ? "stop" : "resume")}
@@ -73,10 +75,10 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
       {ui.confirm ? (
         <span className="ec_pb_confirm" role="group" aria-label={ui.confirm === "stop" ? "Confirm stop" : "Confirm sleep"}>
           <span className="ec_pb_confirm_text">{confirmSentence(ui.confirm, entityName)}</span>
-          <AfChipButton tone={ui.confirm === "stop" ? "error" : "accent"} className="ec_pb_confirm_yes" disabled={ui.busy !== null} onClick={onConfirm}>
+          <AfChipButton tone={ui.confirm === "stop" ? "error" : "accent"} className="ec_pb_confirm_yes" disabled={confirmHeld} onClick={onConfirm}>
             {ui.confirm === "stop" ? "Stop now" : "Sleep now"}
           </AfChipButton>
-          <AfChipButton tone="muted" className="ec_pb_confirm_no" disabled={ui.busy !== null} onClick={onCancel}>
+          <AfChipButton tone="muted" className="ec_pb_confirm_no" disabled={confirmHeld} onClick={onCancel}>
             Cancel
           </AfChipButton>
         </span>

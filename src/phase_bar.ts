@@ -9,11 +9,14 @@
  *   well when they are the current phase. Labels never change (toggles show state, never verbs).
  * - `idle` lights nothing (awake, reachable, nothing of his own running); `stopped` lights nothing
  *   either, holds every pill (contract §8.3) and turns the one power button into "Resume".
- * - One power button, apart from the pills: red "Stop" while he runs, "Resume" when stopped.
+ * - One power button, apart from the pills: red "Stop" while he runs, "Resume" when stopped. Stop
+ *   is the kill switch: never held by a write in flight, a refusal, a failed read or the first
+ *   read; only a stopped entity (then Resume) or a gateway without the bar holds it.
  * - The status line is the gateway's own sentence for now (it carries the time); `since` is its
  *   exact viewer-local time in the tooltip, `next` the tooltip's second line, `blocked` a warning.
  * - Every refusal is a sentence: the gateway's message, else the code's (contract §7).
- * - The highest `rev` wins (contract §5): an older read, answer or stream marker never repaints.
+ * - The highest `rev` wins (contract §5): an older read, answer or stream marker never repaints,
+ *   and a failed read keeps the newest rev seen so a late answer cannot repaint over it either.
  */
 import { formatExactTime } from "@abstractframework/ui-kit";
 
@@ -25,16 +28,20 @@ export const PHASE_SLOT_KEYS: readonly PhaseSlotKey[] = ["visit", "work", "perso
 /** What a click asks for. */
 export type PhaseBarAct = "visit" | "work" | "personal" | "sleep" | "stop" | "resume";
 
-/** The bar's read: before the first answer, a gateway without the bar, a failed read, or served. */
+/** The bar's read: before the first answer, a gateway without the bar, a failed read, or served.
+ * `rev` on an unserved or failed read is the newest rev seen before it (the rev rule outlives a
+ * failed read). */
 export type PhaseBarRead =
   | { kind: "loading" }
-  | { kind: "unserved" }
-  | { kind: "failed"; sentence: string }
+  | { kind: "unserved"; rev?: number }
+  | { kind: "failed"; sentence: string; rev?: number }
   | { kind: "served"; bar: PhaseBar };
 
-/** The bar's own moment: an act in flight, an inline confirmation open. */
+/** The bar's own moment: a toggle or Resume in flight, a Stop in flight (its own lane: it never
+ * waits for the other), an inline confirmation open. */
 export interface PhaseBarUi {
   busy: PhaseBarAct | null;
+  stopping?: boolean;
   confirm: "stop" | "sleep" | null;
 }
 
@@ -119,6 +126,9 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi): PhaseBarView {
   if (read.kind !== "served") {
     const sentence = read.kind === "unserved" ? PHASE_BAR_UNSERVED : read.kind === "failed" ? read.sentence : "";
     const title = read.kind === "loading" ? READING : sentence;
+    // The kill switch does not wait for the first read or a good one: only a gateway without the
+    // bar holds it (its lifecycle route is not there).
+    const power: PowerView = read.kind === "unserved" ? { label: "Stop", danger: true, disabled: true, title } : { label: "Stop", danger: true, disabled: false, title: STOP_TITLE };
     return {
       slots: PHASE_SLOT_KEYS.map((key) => ({
         key,
@@ -129,7 +139,7 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi): PhaseBarView {
         disabled: true,
         title,
       })),
-      power: { label: "Stop", danger: true, disabled: true, title },
+      power,
       sentence,
       sentenceTitle: "",
       blocked: "",
@@ -138,7 +148,7 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi): PhaseBarView {
     };
   }
   const { bar } = read;
-  const writing = ui.busy !== null;
+  const writing = ui.busy !== null || ui.stopping === true;
   const slots = PHASE_SLOT_KEYS.map((key): PhaseSlotView => {
     const lit = bar.phase === key;
     return {
@@ -147,15 +157,17 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi): PhaseBarView {
       glyph: PHASE_GLYPHS[key],
       lit,
       pressed: key === "work" || key === "personal" ? bar.toggles[key] : undefined,
-      // While stopped every pill holds (contract §8.3: Resume first); while an act is in flight
-      // nothing else acts; a lit sleep pill has nothing to offer (a sleep never follows a sleep).
+      // While stopped every pill holds (contract §8.3: Resume first); while an act (a Stop
+      // included) is in flight no pill acts; a lit sleep pill has nothing to offer (a sleep never
+      // follows a sleep).
       disabled: bar.stopped || writing || (key === "sleep" && lit),
       title: slotTitle(bar, key),
     };
   });
   const power: PowerView = bar.stopped
     ? { label: "Resume", danger: false, disabled: writing, title: RESUME_TITLE }
-    : { label: "Stop", danger: true, disabled: writing, title: STOP_TITLE };
+    : // The kill switch: never held by a write in flight (a Stop pressed again sends again).
+      { label: "Stop", danger: true, disabled: false, title: STOP_TITLE };
   const since = bar.since ? `Since ${formatExactTime(bar.since)}.` : "";
   return {
     slots,
@@ -178,11 +190,28 @@ export function phaseBarRead(wire: PhaseWire): PhaseBarRead {
   return bar ? { kind: "served", bar } : { kind: "unserved" };
 }
 
-/** The highest rev wins (contract §5): `incoming` replaces the read unless the read already holds a
- * newer bar. */
+/** The newest rev the read has seen: its bar's, or the one an unserved or failed read kept; 0 before
+ * the first answer. */
+export function phaseSeenRev(read: PhaseBarRead): number {
+  if (read.kind === "served") return read.bar.rev;
+  if (read.kind === "loading") return 0;
+  return read.rev ?? 0;
+}
+
+/** The highest rev wins (contract §5): `incoming` replaces the read unless the read has already
+ * seen a newer bar (a late toggle answer never repaints over the Stop that overtook it). */
 export function adoptPhaseBar(read: PhaseBarRead, incoming: PhaseBar): PhaseBarRead {
-  if (read.kind === "served" && incoming.rev < read.bar.rev) return read;
+  if (incoming.rev < phaseSeenRev(read)) return read;
   return { kind: "served", bar: incoming };
+}
+
+/** Any read answer: a served bar by the rev rule; an unserved or failed read replaces the view but
+ * keeps the newest rev seen. */
+export function adoptPhaseRead(read: PhaseBarRead, next: PhaseBarRead): PhaseBarRead {
+  if (next.kind === "served") return adoptPhaseBar(read, next.bar);
+  if (next.kind === "loading") return next;
+  const rev = Math.max(phaseSeenRev(read), next.rev ?? 0);
+  return rev > 0 ? { ...next, rev } : next;
 }
 
 /** A stream marker with a higher rev repaints phase, toggles, stop, since and sentence at once; the
@@ -227,6 +256,10 @@ export type PhaseActPlan =
   | { kind: "none" };
 
 export function phaseActPlan(read: PhaseBarRead, act: PhaseBarAct): PhaseActPlan {
+  // The kill switch before the first read or after a failed one: the gateway answers a stop of a
+  // stopped entity with `already: true`, so asking is always safe. Only a gateway without the bar
+  // (no lifecycle route) has no Stop.
+  if (act === "stop" && (read.kind === "loading" || read.kind === "failed")) return { kind: "confirm", confirm: "stop" };
   if (read.kind !== "served") return { kind: "none" };
   const { bar } = read;
   if (act === "resume") return bar.stopped ? { kind: "resume" } : { kind: "none" };

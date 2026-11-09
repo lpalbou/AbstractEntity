@@ -17,6 +17,7 @@ import {
   WORK_ALLOWED,
   adoptPhaseBar,
   adoptPhaseMarker,
+  adoptPhaseRead,
   phaseActPlan,
   phaseBarRead,
   phaseBarView,
@@ -121,10 +122,17 @@ describe("the sentence line", () => {
     expect(view.slots.every((s) => s.disabled && !s.lit)).toBe(true);
     expect(view.power.disabled).toBe(true);
   });
-  it("loading: no sentence yet, nothing claimed", () => {
+  it("loading: no sentence yet, nothing claimed, but the kill switch is already there", () => {
     const view = phaseBarView({ kind: "loading" }, IDLE_UI);
     expect(view.sentence).toBe("");
     expect(view.slots.every((s) => s.disabled && !s.lit && s.pressed !== true)).toBe(true);
+    expect(view.power).toEqual({ label: "Stop", danger: true, disabled: false, title: STOP_TITLE });
+  });
+  it("a failed read: its sentence, the pills off, Stop still live", () => {
+    const view = phaseBarView({ kind: "failed", sentence: "Could not read his phase: HTTP 502" }, IDLE_UI);
+    expect(view.sentence).toBe("Could not read his phase: HTTP 502");
+    expect(view.slots.every((s) => s.disabled)).toBe(true);
+    expect(view.power).toEqual({ label: "Stop", danger: true, disabled: false, title: STOP_TITLE });
   });
 });
 
@@ -158,16 +166,38 @@ describe("clicks -> plans", () => {
     expect(phaseActPlan(served("stopped"), "stop")).toEqual({ kind: "none" });
     expect(phaseActPlan(served("idle"), "resume")).toEqual({ kind: "none" });
   });
-  it("nothing acts before the bar is served", () => {
+  it("nothing but Stop acts before the bar is served; a gateway without the bar has no Stop either", () => {
     for (const act of ["visit", "work", "personal", "sleep", "stop", "resume"] as const) {
       expect(phaseActPlan({ kind: "unserved" }, act)).toEqual({ kind: "none" });
+    }
+    for (const act of ["visit", "work", "personal", "sleep", "resume"] as const) {
       expect(phaseActPlan({ kind: "loading" }, act)).toEqual({ kind: "none" });
+      expect(phaseActPlan({ kind: "failed", sentence: "x" }, act)).toEqual({ kind: "none" });
+    }
+    expect(phaseActPlan({ kind: "loading" }, "stop")).toEqual({ kind: "confirm", confirm: "stop" });
+    expect(phaseActPlan({ kind: "failed", sentence: "x" }, "stop")).toEqual({ kind: "confirm", confirm: "stop" });
+  });
+  it.each(["work", "personal", "resume"] as const)("while a %s write is in flight every pill holds, and Stop stays live", (busy) => {
+    for (const phase of ["visit", "work", "personal", "sleep", "idle"] as const) {
+      const view = phaseBarView(served(phase), { busy, confirm: null });
+      expect(view.slots.every((s) => s.disabled)).toBe(true);
+      expect(view.power).toEqual({ label: "Stop", danger: true, disabled: false, title: STOP_TITLE });
+      expect(phaseActPlan(served(phase), "stop")).toEqual({ kind: "confirm", confirm: "stop" });
     }
   });
-  it("while an act is in flight every control holds", () => {
-    const view = phaseBarView(served("personal"), { busy: "work", confirm: null });
+  it("a Stop in flight holds the pills and leaves Stop live (pressed again, it sends again)", () => {
+    const view = phaseBarView(served("personal"), { busy: null, stopping: true, confirm: null });
     expect(view.slots.every((s) => s.disabled)).toBe(true);
-    expect(view.power.disabled).toBe(true);
+    expect(view.power.disabled).toBe(false);
+  });
+  it("a refusal on screen never holds Stop", () => {
+    const view = phaseBarView(served("visit"), IDLE_UI);
+    expect(view.power.disabled).toBe(false);
+    expect(phaseActPlan(served("visit"), "sleep").kind).toBe("refused");
+    expect(phaseActPlan(served("visit"), "stop")).toEqual({ kind: "confirm", confirm: "stop" });
+  });
+  it("Resume waits for a write in flight (only Stop is the kill switch)", () => {
+    expect(phaseBarView(served("stopped"), { busy: "resume", confirm: null }).power).toMatchObject({ label: "Resume", disabled: true });
   });
 });
 
@@ -179,6 +209,22 @@ describe("the highest rev wins (contract §5)", () => {
     expect(adoptPhaseBar(newer, older.bar)).toBe(newer);
     expect(adoptPhaseBar(older, newer.bar)).toEqual(newer);
     expect(adoptPhaseBar({ kind: "loading" }, older.bar)).toEqual(older);
+  });
+  it("a failed or unserved read keeps the newest rev seen: a late, older answer never repaints over it", () => {
+    const stopped = served("stopped"); // rev 47
+    const older = served("personal"); // rev 45
+    if (stopped.kind !== "served" || older.kind !== "served") throw new Error("fixture");
+    const failed = adoptPhaseRead(stopped, { kind: "failed", sentence: "Could not read his phase: HTTP 502" });
+    expect(failed).toEqual({ kind: "failed", sentence: "Could not read his phase: HTTP 502", rev: 47 });
+    expect(adoptPhaseBar(failed, older.bar)).toBe(failed);
+    expect(adoptPhaseRead(failed, older)).toBe(failed);
+    const unserved = adoptPhaseRead(failed, { kind: "unserved" });
+    expect(unserved).toEqual({ kind: "unserved", rev: 47 });
+    expect(adoptPhaseBar(unserved, older.bar)).toBe(unserved);
+    // An equal or newer bar is adopted; a new entity starts from loading (no rev).
+    expect(adoptPhaseBar(failed, stopped.bar)).toEqual(stopped);
+    expect(adoptPhaseRead(failed, { kind: "loading" })).toEqual({ kind: "loading" });
+    expect(adoptPhaseRead({ kind: "loading" }, { kind: "failed", sentence: "x" })).toEqual({ kind: "failed", sentence: "x" });
   });
   it("a newer marker repaints phase, toggles, stop, since and sentence; next/blocked and another phase's facts wait for the re-read", () => {
     const read = served("visit"); // rev 43
