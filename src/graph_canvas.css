@@ -5,8 +5,8 @@
  * lights right now — the summary line "50 memories recalled for this turn:
  * 6 present by right · …" and, unfolded, what each ring colour means, the
  * lit lines and the grey-to-green fill. A quiet box under the lens row; only
- * its summary (the fold toggle) takes the pointer — hover and pan go
- * through the rest to the canvas. */
+ * its summary (the fold button, aria-expanded) takes the pointer — hover
+ * and pan go through the rest to the canvas. */
 .gc_recall_legend {
   position: absolute;
   top: 48px;
@@ -30,24 +30,46 @@
   align-items: center;
   justify-content: center;
   gap: 2px 6px;
-  list-style: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
   cursor: pointer;
   pointer-events: auto;
 }
 
-.gc_rl_summary::-webkit-details-marker {
-  display: none;
-}
-
-/* The fold mark: ▸ folded, ▾ open. */
+/* The fold mark: ▸ folded, ▾ open (decoration: the button says
+ * aria-expanded). */
 .gc_rl_summary::after {
   content: "▸";
+  content: "▸" / "";
   margin-left: 2px;
   color: var(--text-dim);
 }
 
-.gc_recall_legend[open] > .gc_rl_summary::after {
+.gc_rl_open > .gc_rl_summary::after {
   content: "▾";
+  content: "▾" / "";
+}
+
+/* The count, said once after a scrub settles (context_legend.tsx): heard,
+ * not shown — the button already shows it. */
+.gc_rl_live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.gc_rl_key[hidden] {
+  display: none;
 }
 
 .gc_rl_summary:focus-visible {
@@ -106,6 +128,14 @@
   min-width: 0;
 }
 
+/* A row's second line: what it means, in words (review N4: never only in
+ * a tooltip). */
+.gc_rl_more {
+  display: block;
+  opacity: 0.85;
+  font-size: 0.94em;
+}
+
 /* The ring swatch mirrors the canvas ring: a solid circle outline in the
  * class colour (same tokens the canvas resolves). */
 .gc_rl_ring {
@@ -130,13 +160,26 @@
 }
 
 /* A lit path: continuity violet into matched blue, the two ring colours a
- * path takes. */
+ * path takes, faint where it leaves and full where it arrives, with the
+ * canvas's arrowhead at the recalled end. */
 .gc_rl_line {
+  position: relative;
   display: inline-block;
   width: 18px;
   height: 2px;
+  margin-right: 5px;
   border-radius: 1px;
-  background: linear-gradient(90deg, var(--adm-stm) 0 50%, var(--adm-stimulus) 50% 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--adm-stm) 30%, transparent) 0%, var(--adm-stm) 50%, var(--adm-stimulus) 50% 100%);
+}
+
+.gc_rl_line::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: -3px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--adm-stimulus);
 }
 
 /* The usage scale: dark grey -> muted grey-green, then the top tenth's
@@ -216,21 +259,25 @@
   }
   /* It ends above the motion buttons (bottom: --gc-motion-bottom, one tap
    * target tall, then an 8 px gap) and scrolls inside, so it never sits
-   * under them at 400 px (live verification 2026-11-09). No floor: on a
-   * short canvas it shrinks to a scroll box headed by its first line. */
+   * under them at 400 px (live verification 2026-11-09). Its FLOOR is one
+   * summary line (--gc-legend-floor: a tap target plus the box's padding
+   * and border): on a short canvas (400 × 700, review B1) it never shrinks
+   * below its own summary, and the motion buttons move down below it
+   * instead (entity.css .gc_motion_controls: the same max()), so a tap on
+   * the summary never lands on "freeze". */
   .gc_recall_legend {
     top: var(--gc-legend-top);
     left: 8px;
     right: 8px;
     transform: none;
     max-width: none;
-    max-height: calc(100% - var(--gc-legend-top) - var(--gc-motion-bottom) - var(--tap-min, 32px) - 8px);
+    max-height: max(var(--gc-legend-floor), calc(100% - var(--gc-legend-top) - var(--gc-motion-bottom) - var(--tap-min, 32px) - 8px));
     overflow-y: auto;
     overscroll-behavior: contain;
     box-sizing: border-box;
   }
   /* Open, the box takes the pointer so a finger can scroll it. */
-  .gc_recall_legend[open] {
+  .gc_recall_legend.gc_rl_open {
     pointer-events: auto;
   }
 }
@@ -447,4 +494,34 @@
   margin: 2px 0 8px;
   color: var(--text-dim);
   font-style: italic;
+}
+
+/* THE LIT LINE'S WORDS (operator 2026-11-09): a small tooltip beside the
+ * pointer resting on a lit line, "<recalled> — reached from <held> ·
+ * <relation>", led by an arrow in the ring's colour. It never takes the
+ * pointer (the line under it stays hoverable). */
+.gc_hovercard.gc_card_box.gc_linecard {
+  width: auto;
+  max-width: min(420px, calc(100vw - 16px));
+  padding: 6px 10px;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.gc_lc_words {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.gc_lc_arrow {
+  flex: none;
+  font-style: normal;
+}
+
+.gc_lc_arrow::before {
+  content: "→";
+  content: "→" / "";
 }

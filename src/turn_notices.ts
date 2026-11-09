@@ -14,8 +14,14 @@
  *  - a lesson, interest or realization staged for the visit's close (`record_id` null): the close
  *    summary once the visit has closed (the close output names no formed record yet), else the
  *    badge's own panel (its words and "it is kept when the visit closes").
+ *  - a record the view has not folded yet (the turn's answer carries its notice before the record's
+ *    envelope lands on the stream, review S1 2026-11-09): the badge's own panel with its title,
+ *    never Detail on whatever recall is current;
+ *  - a notice with nothing to show (no record, no title, no words, not staged: a question served
+ *    empty, review N1): nothing opens.
  */
 import { chatNoticesOf, type ChatNotice, type ReplayView } from "@abstractframework/panel-chat";
+import type { FoldState } from "./stream_fold";
 
 /** The `kind` of the system line a visit's close leaves in the thread (its summary). */
 export const VISIT_CLOSE_KIND = "visit_close";
@@ -38,10 +44,17 @@ export function viewReplyNotices(view: ReplayView | null | undefined): ChatNotic
 export type NoticeTarget =
   | { kind: "record"; graphId: string }
   | { kind: "close"; messageId: string }
-  | { kind: "panel" };
+  | { kind: "panel" }
+  | { kind: "nothing" };
+
+/** A notice with nothing to show: no record, no title, no words, not staged (review N1). */
+export function emptyNotice(notice: ChatNotice): boolean {
+  return !notice.record_id && !String(notice.title ?? "").trim() && !String(notice.text ?? "").trim() && !notice.staged;
+}
 
 /** Where a badge of `messageId` opens, given the thread (in order). */
 export function noticeTarget(notice: ChatNotice, messageId: string | undefined, thread: ReadonlyArray<{ id?: string; kind?: string }>): NoticeTarget {
+  if (emptyNotice(notice)) return { kind: "nothing" };
   if (notice.record_id) return { kind: "record", graphId: notice.record_id };
   if (notice.staged && messageId) {
     const at = thread.findIndex((m) => m.id === messageId);
@@ -49,4 +62,29 @@ export function noticeTarget(notice: ChatNotice, messageId: string | undefined, 
     if (close?.id) return { kind: "close", messageId: close.id };
   }
   return { kind: "panel" };
+}
+
+/** The fold row Detail would open for a record's graph id, or null when the view has not folded it
+ * (review S1: then nothing is selected and the badge opens its own panel). */
+export function foldedRecordRow(fold: Pick<FoldState, "nodes" | "graph_to_row">, graphId: string): string | null {
+  const row = fold.graph_to_row.get(graphId) ?? graphId;
+  return fold.nodes.has(row) ? row : null;
+}
+
+/** A badge's click (the kit's `onOpen` contract): `false` = the badge opens its own panel; nothing
+ * returned = handled (opened in Detail, scrolled to the close summary, or nothing to open). */
+export function openNotice(
+  notice: ChatNotice,
+  messageId: string | undefined,
+  thread: ReadonlyArray<{ id?: string; kind?: string }>,
+  host: { openRecord(graphId: string): boolean; showMessage(messageId: string): void },
+): void | boolean {
+  const target = noticeTarget(notice, messageId, thread);
+  if (target.kind === "nothing") return;
+  if (target.kind === "record") return host.openRecord(target.graphId) ? undefined : false;
+  if (target.kind === "close") {
+    host.showMessage(target.messageId);
+    return;
+  }
+  return false;
 }

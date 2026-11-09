@@ -822,9 +822,55 @@ body {
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   color: var(--text-dim);
 }
-.ec_pb_pill.af-chip:not(.ec_pb_lit):not([aria-pressed="true"]):hover:not(:disabled) {
+.ec_pb_pill.af-chip:not(.ec_pb_lit):not([aria-pressed="true"]):not(.ec_pb_ind):hover:not(:disabled) {
   color: var(--text);
   border-color: var(--ea-accent);
+}
+/* INDICATORS (review S4, 2026-11-09): idle, work, and sleep while he sleeps are status chips, not
+ * buttons — a dashed edge, no fill, no hover lift, the default cursor — so they never read as the
+ * two actionable chips (visit, personal). A keyboard reaches them; their words show on hover and on
+ * focus (a tap focuses them too), never only in a native title. */
+.ec_pb_ind_wrap {
+  position: relative;
+  display: inline-flex;
+  border-radius: 999px;
+  outline: none;
+}
+.ec_pb_ind_wrap:focus-visible {
+  outline: 2px solid var(--ea-accent);
+  outline-offset: 2px;
+}
+.ec_pb_ind.af-chip {
+  border-style: dashed;
+  cursor: default;
+}
+.ec_pb_ind.af-chip:not(.ec_pb_lit) {
+  background: transparent;
+}
+.ec_pb_tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 70;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  pointer-events: none;
+}
+.ec_pb_ind_wrap:hover > .ec_pb_tip,
+.ec_pb_ind_wrap:focus > .ec_pb_tip {
+  display: block;
 }
 .ec_pb_ring {
   display: inline-block;
@@ -5960,9 +6006,11 @@ body {
   container: entity-canvas / inline-size;
   min-height: 0;
   /* Phone-width canvas geometry shared by the motion buttons (below) and the
-   * Context legend (graph_canvas.css), which ends above them. */
+   * Context legend (graph_canvas.css), which ends above them. The legend's
+   * floor is one summary line: a tap target plus its padding and border. */
   --gc-legend-top: 46px;
   --gc-motion-bottom: 52px;
+  --gc-legend-floor: calc(var(--tap-min, 32px) + 10px);
 }
 
 @container entity-canvas (max-width: 859.98px) {
@@ -5993,9 +6041,12 @@ body {
   }
   /* Motion controls: a vertical stack at the right edge above the legend,
    * glyph-only (the word stays the accessible name). */
+  /* Their bottom yields on a short canvas (400 × 700, review B1): they
+   * always start 8 px below the Context legend's one-line floor, so the
+   * legend's summary stays whole and a tap on it never lands on "freeze". */
   .gc_motion_controls {
     top: auto;
-    bottom: var(--gc-motion-bottom);
+    bottom: min(var(--gc-motion-bottom), calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 8px - var(--tap-min, 32px)));
     right: 8px;
   }
   .gc_btn {

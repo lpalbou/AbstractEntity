@@ -83,7 +83,7 @@ export class PhaseWrites {
       .then(
         (wire) => {
           if (!mine()) return;
-          const out = phaseWriteOutcome(wire);
+          const out = phaseWriteOutcome(wire, act);
           if (out.bar) host.adopt(out.bar);
           if (stop && out.ok) host.ui((u) => ({ ...u, stopIncomplete: out.incomplete }));
           if (!overtaken()) {

@@ -87,6 +87,11 @@ export interface DisplayBlock {
   /** A card's subject ("person:ada"; memory's understanding_fields on
    * world-model cards, null elsewhere). */
   target?: string | null;
+  /** What is still being written for this record (AbstractMemory
+   * replay.py, records.PENDING_FIELDS): `{title, summary, since, attempts}`
+   * — `title: true` while its title is pending (its `title` is then null).
+   * Absent when nothing is pending. */
+  pending?: { title?: unknown; summary?: unknown; since?: unknown; attempts?: unknown } | null;
 }
 
 export interface ReplayEnvelope {

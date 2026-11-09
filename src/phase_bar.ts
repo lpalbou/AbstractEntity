@@ -104,6 +104,9 @@ export interface PhaseSlotView {
   /** The toggle only (personal): own time is allowed. Undefined on indicators. */
   pressed?: boolean;
   disabled: boolean;
+  /** Nothing to click, ever, in this state (idle, work, sleep while he sleeps): rendered as a
+   * status chip with a tooltip a keyboard reaches, never as a disabled button (review S4). */
+  indicator: boolean;
   title: string;
   /** A short state word beside the label ("waiting" while a visit waits for him), or "". */
   badge: string;
@@ -225,7 +228,7 @@ const sentenceOf = (words: string): string => (words ? `${words.charAt(0).toUppe
 
 function slotView(bar: PhaseBar, key: PhaseSlotKey, writing: boolean, offerResume: boolean, nowMs: number): PhaseSlotView {
   const lit = bar.phase === key;
-  const base = { key, label: PHASE_LABELS[key], glyph: PHASE_GLYPHS[key], lit };
+  const base = { key, label: PHASE_LABELS[key], glyph: PHASE_GLYPHS[key], lit, indicator: key === "idle" || key === "work" || (key === "sleep" && lit) };
   switch (key) {
     case "idle":
       // An indicator: nothing to click. Lit (or stopped): the gateway's sentence, then what comes
@@ -290,6 +293,7 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
         lit: false,
         pressed: key === "personal" ? false : undefined,
         disabled: true,
+        indicator: key === "idle" || key === "work",
         title,
         badge: "",
       })),
@@ -482,6 +486,16 @@ export const REFUSAL_SENTENCES: Record<string, string> = {
 /** admin_required's own words are machine words ("Admin principal required."): always this one. */
 export const ADMIN_REQUIRED = "Only an admin can grant his own time, stop or resume him.";
 
+/** The codes whose sentence speaks of one act only (review S5, 2026-11-09): "He is in a visit; end
+ * it to let him sleep." answers a sleep, never the personal toggle. Another act refused with such a
+ * code and no words gets the neutral line. */
+export const REFUSAL_ACT: Readonly<Record<string, PhaseBarAct>> = { in_visit: "sleep", already_asleep: "sleep" };
+/** A 409 that carries no words and no sentence for this act (review S5): neutral, never another
+ * act's sentence. */
+export const REFUSED_NO_WORDS = "He can't change that right now.";
+/** Any other refusal with no words and no known code (review N2): never a status code. */
+export const REFUSED_NO_REASON = "The gateway refused this change and gave no reason.";
+
 function messageOf(wire: PhaseWire): string {
   const b = wire.body;
   if (!b) return "";
@@ -506,7 +520,8 @@ export interface PhaseWriteOutcome {
   incomplete: boolean;
 }
 
-export function phaseWriteOutcome(wire: PhaseWire): PhaseWriteOutcome {
+/** `act` = what was asked (the sentence for a code speaks of it only, REFUSAL_ACT); unknown: any. */
+export function phaseWriteOutcome(wire: PhaseWire, act?: PhaseBarAct): PhaseWriteOutcome {
   if (wire.status >= 200 && wire.status < 300) {
     const bar = parsePhaseBar(wire.body);
     const items = Array.isArray(wire.body?.items) ? (wire.body!.items as unknown[]) : [];
@@ -528,6 +543,7 @@ export function phaseWriteOutcome(wire: PhaseWire): PhaseWriteOutcome {
   if (wire.code === "admin_required" || (wire.status === 403 && !messageOf(wire))) return { ok: false, bar: carried, sentence: ADMIN_REQUIRED, incomplete: false };
   // A 404 without a code is a missing route, not a missing entity.
   if ((wire.status === 404 || wire.status === 405) && !wire.code) return { ok: false, bar: null, sentence: PHASE_BAR_UNSERVED, incomplete: false };
-  const coded = wire.code ? REFUSAL_SENTENCES[wire.code] : undefined;
-  return { ok: false, bar: carried, sentence: messageOf(wire) || coded || `The gateway refused (HTTP ${wire.status}).`, incomplete: false };
+  const codeAct = wire.code ? REFUSAL_ACT[wire.code] : undefined;
+  const coded = wire.code && (!codeAct || !act || codeAct === act) ? REFUSAL_SENTENCES[wire.code] : undefined;
+  return { ok: false, bar: carried, sentence: messageOf(wire) || coded || (wire.status === 409 ? REFUSED_NO_WORDS : REFUSED_NO_REASON), incomplete: false };
 }

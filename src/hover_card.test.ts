@@ -22,11 +22,13 @@ import {
   needsWords,
   partnerCount,
   placeCard,
+  plainCardTitle,
   topicActions,
   topicExemplarText,
   type ServedReading,
 } from "./hover_card";
 import { PLACEHOLDER_WORDS } from "./understanding";
+import { TITLE_BEING_WRITTEN } from "./untitled";
 import { Words } from "./verbatim_view";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, display?: Record<string, unknown>): ReplayEnvelope {
@@ -110,9 +112,32 @@ describe("nodeCardText", () => {
     expect(nodeCardText(fold.nodes.get("ex:episode-h")!).title.split("\n")[1]).toBe("### United States");
   });
 
-  it("an untitled record shows its id's head", () => {
-    const fold = foldEnvelopes(life);
-    expect(nodeCardText(fold.nodes.get("ex:memory-d")!).title).toBe("ex:memory-d");
+  it("an untitled record: 'title being written…' ONLY when the stream says so (display.pending), else its raw kind and date — never its id (operator 2026-11-09, review S2)", () => {
+    // No pending served (an older gateway, or authoring that gave up): the kind and the date.
+    const plain = foldEnvelopes(life).nodes.get("ex:memory-d")!;
+    expect(plain.title_pending).not.toBe(true);
+    expect(nodeCardText(plain).title).toBe("memory · 2026-11-07 10:00");
+    expect(plainCardTitle(plain)).toBe("memory · 2026-11-07 10:00");
+    expect(nodeCardText(plain).title).not.toContain("ex:");
+    // Served pending.title (title None): the stream says it is being written.
+    const pendingTitle = { title: true, summary: false, since: "2026-11-07T10:00:00+00:00", attempts: 0 };
+    const pending = foldEnvelopes([binding(4, "ex:episode-p", "episode", null as unknown as string, { pending: pendingTitle })]).nodes.get("ex:episode-p")!;
+    expect(pending.title_pending).toBe(true);
+    expect(nodeCardText(pending).title).toBe(TITLE_BEING_WRITTEN);
+    expect(TITLE_BEING_WRITTEN).toBe("title being written…");
+    expect(plainCardTitle(pending)).toBe(TITLE_BEING_WRITTEN);
+    // Only the title's own flag counts: a pending summary alone says nothing about the title.
+    const summaryOnly = foldEnvelopes([binding(4, "ex:episode-s", "episode", "", { pending: { title: false, summary: true } })]).nodes.get("ex:episode-s")!;
+    expect(nodeCardText(summaryOnly).title).toBe("episode · 2026-11-07 10:00");
+    // A later block with the authored title ends it; a later block that says nothing keeps it.
+    const titled = foldEnvelopes([binding(4, "ex:episode-p", "episode", "", { pending: pendingTitle }), binding(9, "ex:episode-p", "episode", "His title")]).nodes.get("ex:episode-p")!;
+    expect(titled.title_pending).toBe(false);
+    expect(nodeCardText(titled).title).toBe("His title");
+    const silent = foldEnvelopes([binding(4, "ex:episode-p", "episode", "", { pending: pendingTitle }), binding(9, "ex:episode-p", "episode", "")]).nodes.get("ex:episode-p")!;
+    expect(nodeCardText(silent).title).toBe(TITLE_BEING_WRITTEN);
+    // The memory no longer pending (pending: null served): kind and date again.
+    const cleared = foldEnvelopes([binding(4, "ex:episode-p", "episode", "", { pending: pendingTitle }), binding(9, "ex:episode-p", "episode", "", { pending: null })]).nodes.get("ex:episode-p")!;
+    expect(nodeCardText(cleared).title).toBe("episode · 2026-11-07 10:00");
   });
 
   it("a summary equal to the title is not said twice", () => {

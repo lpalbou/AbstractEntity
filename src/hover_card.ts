@@ -9,7 +9,9 @@
  * - title: the record's title (the first line's mechanical scaffolding
  *   stripped — node_label.shapeLabel — its later lines kept, so Markdown
  *   headings and lists stay readable); a private diary entry reads "a
- *   diary entry"; a record with no title shows its id's head;
+ *   diary entry"; a record with no served title says "title being
+ *   written…" only while the stream says so, else its raw kind and date
+ *   (untitledHeader);
  * - summary (nodeCardText, the topic card's exemplar): the record's full
  *   digest as the stream served it at or before the scrub position
  *   (stream_fold NodeState.digest — never kept for a diary record); none
@@ -32,6 +34,7 @@ import { isDiaryShaped } from "./episode_parse";
 import { Words } from "./verbatim_view";
 import { readCard } from "./world_model_view";
 import { sourceWords } from "./world_model_sources";
+import { untitledWords } from "./untitled";
 import { cardProvenance, isMechanicalMethod, PLACEHOLDER_WORDS, servedDigest, type Understanding } from "./understanding";
 
 export interface CardText {
@@ -64,11 +67,29 @@ export function markdownTitle(raw: string): string {
   return rest.trim() ? `${first}\n${rest}`.trim() : first;
 }
 
+/** A record with no served title (operator 2026-11-09): "title being
+ * written…" ONLY while the stream says so (its served `display.pending
+ * .title`, stream_fold NodeState.title_pending); otherwise its raw kind and
+ * the date it was formed — never a title, nor a claim, the app makes
+ * (untitled.ts). */
+export function untitledHeader(node: Pick<NodeState, "kind" | "born_at" | "title_pending">): string {
+  return untitledWords(node.kind, node.born_at, node.title_pending === true);
+}
+
+/** A memory's title as plain words (a tooltip line): the card's own title,
+ * its first block as the shared renderer draws it (canvasLabel); a private
+ * diary entry is "a diary entry"; no served title: untitledHeader. */
+export function plainCardTitle(node: NodeState): string {
+  if (node.redacted) return "a diary entry";
+  if (node.kind === "dream") return recordTitle(node);
+  return canvasLabel(node.title) || untitledHeader(node);
+}
+
 export function nodeCardText(node: NodeState): CardText {
   if (node.redacted) return { title: "a diary entry", summary: null, plain: false };
   const dream = node.kind === "dream";
   // A dream is named the way Detail names it (record_detail.recordTitle).
-  const title = dream ? recordTitle(node) : markdownTitle(node.title) || node.id.slice(0, 22);
+  const title = dream ? recordTitle(node) : markdownTitle(node.title) || untitledHeader(node);
   const digest = !isDiaryNode(node) && typeof node.digest === "string" ? node.digest.trim() : "";
   // A digest identical to the title would only say it twice.
   const summary = digest && digest !== title ? digest : null;

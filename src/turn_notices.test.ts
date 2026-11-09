@@ -10,7 +10,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ReplayView, ReplayViewTransport } from "@abstractframework/panel-chat";
 
-import { VISIT_CLOSE_KIND, noticeTarget, noticesField, viewReplyNotices } from "./turn_notices";
+import { VISIT_CLOSE_KIND, emptyNotice, foldedRecordRow, noticeTarget, noticesField, openNotice, viewReplyNotices } from "./turn_notices";
+import { foldEnvelopes } from "./stream_fold";
+import type { ReplayEnvelope } from "./stream_types";
 import { avatarVisitHistory } from "./avatar_visit";
 import { ChatMessageList, type DrawerMessage } from "./chat_message_list";
 import { followRunToTerminal } from "./flow_lane";
@@ -139,5 +141,58 @@ describe("a badge opens what it names", () => {
     expect(drawer).toMatch(/onNoticeOpen: openNotice,/);
     const view = readFileSync(resolve(SRC, "entity_view.tsx"), "utf8");
     expect(view).toMatch(/onOpenRecord=\{openInDetail\}/);
+  });
+});
+
+describe("a badge whose record has not reached the view, and a badge with nothing to show (review S1, N1)", () => {
+  const bound = (seq: number, id: string): ReplayEnvelope =>
+    ({
+      stream: "abstractmemory.replay", stream_version: 1, seq, family: "binding", observed_at: "2026-11-09T21:40:00+00:00", scope: "life", owner_id: "entity:castor",
+      trace_id: null, turn_id: "t-1", run_id: "visit-1",
+      payload: { record_id: id, source: "remember", search_state: "indexed", prompt_state: "inactive" },
+      display: { record_id: id, kind: "diary", diary: true, title: "the first durable visit", gist: "the first durable visit" },
+    }) as unknown as ReplayEnvelope;
+  const fold = foldEnvelopes([bound(1, "ex:diary-0eb1c2")]);
+  const thread = [{ id: "m2", kind: "answer" }];
+
+  it("the fold row Detail opens, or null while the record has not been folded", () => {
+    expect(foldedRecordRow(fold, "ex:diary-0eb1c2")).toBe("ex:diary-0eb1c2");
+    expect(foldedRecordRow(fold, "ex:nope-1")).toBeNull();
+    expect(foldedRecordRow(foldEnvelopes([]), "ex:diary-0eb1c2")).toBeNull();
+  });
+
+  it("a record not folded yet answers false: the badge opens its own panel (title and words), never Detail on the current recall", () => {
+    const opened: string[] = [];
+    const host = { openRecord: (id: string) => (foldedRecordRow(fold, id) === null ? false : (opened.push(id), true)), showMessage: () => {} };
+    expect(openNotice({ kind: "diary", record_id: "ex:nope-1", title: "a record the app never received" }, "m2", thread, host)).toBe(false);
+    expect(opened).toEqual([]);
+    // Folded: Detail opens it and the badge opens nothing of its own.
+    expect(openNotice(diary, "m2", thread, host)).toBeUndefined();
+    expect(opened).toEqual(["ex:diary-0eb1c2"]);
+  });
+
+  it("a notice with no record, no title, no words and not staged opens nothing at all", () => {
+    const empty = { kind: "question", record_id: null, title: "", text: "" };
+    expect(emptyNotice(empty)).toBe(true);
+    expect(noticeTarget(empty, "m2", thread)).toEqual({ kind: "nothing" });
+    const calls: string[] = [];
+    const host = { openRecord: () => (calls.push("record"), true), showMessage: () => calls.push("scroll") };
+    expect(openNotice(empty, "m2", thread, host)).toBeUndefined();
+    expect(calls).toEqual([]);
+    // Anything to show keeps its panel or its record: words, a title, a record, a staged one.
+    for (const n of [{ ...empty, text: "Why?" }, { ...empty, title: "Why do visits end?" }, { ...empty, record_id: "ex:diary-1" }, { ...empty, staged: true }]) expect(emptyNotice(n)).toBe(false);
+    expect(openNotice({ ...empty, text: "Why?" }, "m2", thread, host)).toBe(false);
+  });
+
+  it("the page's opener answers whether it opened anything, with one stable callback; the drawer hands the answer back to the badge", () => {
+    const view = readFileSync(resolve(SRC, "entity_view.tsx"), "utf8");
+    expect(view).toContain("const openInDetail = useCallback((id: string): boolean => {");
+    expect(view).toContain("const row = foldedRecordRow(foldRef.current, id);");
+    expect(view).toContain("if (row === null) return false;");
+    expect(view).toMatch(/return true;\n {2}\}, \[\]\);/);
+    const drawer = readFileSync(resolve(SRC, "chat_drawer.tsx"), "utf8");
+    expect(drawer).toContain("onOpenRecord(graphId: string): boolean;");
+    expect(drawer).toContain("openNoticeIn(notice, message.id, avatarMode ? [] : messages, {");
+    expect(drawer).toContain("openRecord: onOpenRecord,");
   });
 });

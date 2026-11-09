@@ -225,7 +225,7 @@ describe("phase_changed (the gateway's marker, entity_phase._announce; the runti
     expect(ledgerLine(hostEnv(32, { ...SERVED, from: "idle", to: "stopped", phase: "stopped", stopped: true, cause: "operator_stop" })).title).toBe("⭢ Phase: idle → stopped");
     expect(ledgerLine(hostEnv(33, { ...SERVED, from: "stopped", to: "idle", cause: "operator_resume" })).title).toBe("⭢ Phase: stopped → idle");
     for (const w of ["visit", "idle", "work", "personal", "sleep", "stopped"]) {
-      expect(ledgerLine(hostEnv(34, { ...SERVED, from: w, to: w })).title).not.toContain("non-phase word");
+      expect(ledgerLine(hostEnv(34, { ...SERVED, from: w, to: w })).title).not.toContain("not a phase");
     }
   });
 
@@ -274,7 +274,9 @@ describe("phase_changed (the gateway's marker, entity_phase._announce; the runti
   });
 
   it("a word outside the states renders labeled, never bare (AWAKE-NEVER-RENDERS)", () => {
-    expect(ledgerLine(hostEnv(36, { ...SERVED, from: "awake" })).title).toBe("⭢ Phase: non-phase word: “awake” → sleep");
+    expect(ledgerLine(hostEnv(36, { ...SERVED, from: "awake" })).title).toBe("⭢ Phase: “awake” (not a phase) → sleep");
+    expect(ledgerLine(hostEnv(38, { ...SERVED, from: "sleep", to: "Dozing" })).title).toBe("⭢ Phase: sleep → “Dozing” (not a phase)");
+    expect(ledgerLine(hostEnv(39, { ...SERVED, from: "awake" })).title).not.toMatch(/non-phase/);
     expect(ledgerLine(hostEnv(37, { ...SERVED, cause: undefined })).detail).toBe("cause unrecorded");
   });
 });

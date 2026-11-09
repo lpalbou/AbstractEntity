@@ -14,8 +14,8 @@ import { describe, expect, it } from "vitest";
 import { ContextLegend } from "./context_legend";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
-import { recallEmphasis } from "./recall_emphasis";
-import { USAGE_TITLE } from "./graph_usage";
+import { recallEmphasis, TRAVELLED_DIRECTION } from "./recall_emphasis";
+import { USAGE_RANK, USAGE_TITLE } from "./graph_usage";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope {
   return { stream: "abstractmemory.replay", stream_version: 1, seq, family, observed_at: "2026-11-09T10:00:00+00:00", scope: "life", owner_id: "entity:test", trace_id: null, turn_id: null, run_id: null, payload, ...extra } as ReplayEnvelope;
@@ -39,10 +39,10 @@ const text = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&
 describe("ContextLegend", () => {
   it("counts the rings in the summary and, open, says what each colour means in his words", () => {
     const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
-    expect(html).toMatch(/^<details class="gc_recall_legend" open="">/);
-    const summary = text(html.match(/<summary[\s\S]*?<\/summary>/)![0]);
+    expect(html).toMatch(/^<div class="gc_recall_legend gc_rl_open">/);
+    const summary = text(html.match(/<button[\s\S]*?<\/button>/)![0]);
     expect(summary).toBe("4 memories recalled for this turn:1 present by right·1 continuity·2 matched");
-    const key = text(html.slice(html.indexOf("</summary>")));
+    const key = text(html.slice(html.indexOf('class="gc_rl_key"')));
     expect(key).toContain("present by right:memories he always keeps in mind");
     expect(key).toContain("continuity:memories that followed from the last ones");
     expect(key).toContain("matched:memories found for this message");
@@ -53,9 +53,59 @@ describe("ContextLegend", () => {
     expect(html).toContain(`title="${USAGE_TITLE}"`);
   });
 
+  it("the lit lines' row says their direction in words (operator 2026-11-09)", () => {
+    const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
+    expect(TRAVELLED_DIRECTION).toBe("from what he held in mind → to what he recalled");
+    expect(html).toContain(`<span class="gc_rl_more">${TRAVELLED_DIRECTION}</span>`);
+  });
+
+  it("every row reads without a tooltip: the lit lines and the fill carry their meaning as a visible line (review N4)", () => {
+    const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
+    const rows = html.match(/<div class="gc_rl_row"[^>]*>[\s\S]*?<\/div>/g)!;
+    expect(rows).toHaveLength(5);
+    for (const row of rows.slice(3)) expect(row).toMatch(/<span class="gc_rl_more">[^<]+<\/span>/);
+    expect(html).toContain(`<span class="gc_rl_more">${USAGE_RANK}</span>`);
+  });
+
+  it("the fold control is a real disclosure: a button with aria-expanded controlling the key, never a live region (review S3)", () => {
+    for (const open of [true, false]) {
+      const html = renderToStaticMarkup(<ContextLegend recall={recall()} open={open} onToggle={() => {}} />);
+      const button = html.match(/<button[^>]*>/)![0];
+      expect(button).toContain('type="button"');
+      expect(button).toContain(`aria-expanded="${open}"`);
+      const controls = /aria-controls="([^"]+)"/.exec(button)![1];
+      const key = new RegExp(`<div class="gc_rl_key" id="${controls.replace(/[:]/g, "\\$&")}"( hidden="")?>`).exec(html);
+      expect(key, html).not.toBeNull();
+      expect(Boolean(key![1])).toBe(!open);
+      // The control itself is never a status (no live re-announcement at every step).
+      expect(button).not.toMatch(/role=|aria-live/);
+      expect(html).not.toContain("<summary");
+      // The count is said by a quiet live region of its own, empty until the scrub settles.
+      expect(html).toContain('<span class="gc_rl_live" role="status" aria-live="polite"></span>');
+    }
+    const css = fs.readFileSync(path.join(__dirname, "graph_canvas.css"), "utf8");
+    expect(css).toMatch(/\.gc_rl_key\[hidden\]\s*\{\s*display:\s*none;/);
+  });
+
+  it("a click on the summary asks to flip the fold", () => {
+    const src = fs.readFileSync(path.join(__dirname, "context_legend.tsx"), "utf8");
+    expect(src).toContain('<button type="button" className="gc_rl_summary" aria-expanded={open} aria-controls={keyId} onClick={() => onToggle(!open)}>');
+  });
+
+  it("the count is announced once, after the scrub settles (one timer per change, the last one wins)", async () => {
+    const { useSettledText: hook, LEGEND_ANNOUNCE_MS } = await import("./context_legend");
+    expect(LEGEND_ANNOUNCE_MS).toBeGreaterThanOrEqual(500);
+    expect(hook).toBeTypeOf("function");
+    const src = fs.readFileSync(path.join(__dirname, "context_legend.tsx"), "utf8");
+    expect(src).toContain("const timer = window.setTimeout(() => setSaid(text), ms);");
+    expect(src).toContain("return () => window.clearTimeout(timer);");
+    expect(src).toContain("}, [text, ms]);");
+    expect(src).toContain("const announced = useSettledText(recallLegendText(recall));");
+  });
+
   it("folded, it keeps the counted summary (the phone default)", () => {
     const html = renderToStaticMarkup(<ContextLegend recall={recall()} open={false} onToggle={() => {}} />);
-    expect(html).toMatch(/^<details class="gc_recall_legend">/);
+    expect(html).toMatch(/^<div class="gc_recall_legend">/);
     expect(html).toContain("4 memories recalled for this turn");
   });
 });

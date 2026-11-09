@@ -268,8 +268,8 @@ export function EntitiesIndex({
    * asks first on the tile. One tile acts at a time; its sentence shows on that tile. */
   const [tileUi, setTileUi] = useState<{ slug: string; ui: PhaseBarUi } | null>(null);
   const [tileNote, setTileNote] = useState<{ slug: string; text: string } | null>(null);
-  const adoptTileAnswer = useCallback((slug: string, wire: PhaseWire) => {
-    const out = phaseWriteOutcome(wire);
+  const adoptTileAnswer = useCallback((slug: string, wire: PhaseWire, act: PhaseBarAct) => {
+    const out = phaseWriteOutcome(wire, act);
     const bar = out.bar;
     if (bar) setRows((cur) => cur?.map((t) => (t.summary.slug === slug ? { ...t, phase: adoptPhaseBar(t.phase, bar) } : t)) ?? cur);
     setTileNote(out.sentence ? { slug, text: out.sentence } : null);
@@ -289,7 +289,7 @@ export function EntitiesIndex({
       setBusySlug(slug);
       setTileUi({ slug, ui: { busy: act, confirm: null } });
       putPhaseToggle(baseUrl, slug, plan.key, plan.on, token)
-        .then((wire) => adoptTileAnswer(slug, wire))
+        .then((wire) => adoptTileAnswer(slug, wire, act))
         .catch((e: Error) => setTileNote({ slug, text: `The gateway did not answer: ${e.message || "no response"}.` }))
         .finally(() => {
           setBusySlug(null);
@@ -307,7 +307,7 @@ export function EntitiesIndex({
     setTileUi(null);
     postSleepNow(baseUrl, slug, token)
       .then((wire) => {
-        if (wire.status < 200 || wire.status >= 300) adoptTileAnswer(slug, wire);
+        if (wire.status < 200 || wire.status >= 300) adoptTileAnswer(slug, wire, "sleep");
         refresh();
       })
       .catch((e: Error) => setTileNote({ slug, text: `The gateway did not answer: ${e.message || "no response"}.` }));

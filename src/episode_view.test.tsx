@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { NodeState } from "./stream_fold";
 import { parseLivedExchange } from "./episode_parse";
-import { EpisodeBody, episodeSummary, HowHeGotThere, LivedExchangeView, lookupsFact, momentContext, momentFact, notRunWords, servedTitle, speakerName, TITLE_PENDING } from "./episode_view";
+import { EpisodeBody, episodeSummary, HowHeGotThere, LivedExchangeView, lookupsFact, momentContext, momentFact, notRunWords, servedTitle, speakerName, TITLE_PENDING, untitledHeading } from "./episode_view";
 import { nodeCardText } from "./hover_card";
 import { cachedWordsAnswer, exchangeSpeakers, VerbatimTurns } from "./verbatim_view";
 import { createFoldState } from "./stream_fold";
@@ -109,9 +109,9 @@ describe("the episode's Detail", () => {
     expect(html.indexOf("</h3>")).toBeLessThan(html.indexOf("ep_context"));
   });
 
-  it("a record with no title yet says its title is being written, never one of the app's", () => {
+  it("a record with no title yet says its title is being written ONLY when the stream says so (display.pending), never one of the app's", () => {
     for (const title of ["", "   "]) {
-      const n = node({ title, visit_id: "visit-castor-1" });
+      const n = node({ title, visit_id: "visit-castor-1", title_pending: true });
       expect(servedTitle(n)).toBeNull();
       const ready = renderToStaticMarkup(<EpisodeBody node={n} entity="nerin" state={{ phase: "ready", words: { text: VISIT, note: null, turnId: null, born: false } }} renderFacts={facts} />);
       expect(heading(ready)).toBe(`<h3 class="ei_title ep_title_pending">${TITLE_PENDING}</h3>`);
@@ -120,6 +120,18 @@ describe("the episode's Detail", () => {
         expect(heading(renderToStaticMarkup(<EpisodeBody node={n} entity="nerin" state={state} renderFacts={facts} />))).toBe(`<h3 class="ei_title ep_title_pending">${TITLE_PENDING}</h3>`);
       }
     }
+  });
+
+  it("an untitled record the stream says nothing about shows its raw kind and date, never 'being written' (review S2)", () => {
+    for (const pending of [undefined, false]) {
+      const n = node({ title: "", title_pending: pending });
+      const html = renderToStaticMarkup(<EpisodeBody node={n} entity="nerin" state={{ phase: "loading" }} renderFacts={facts} />);
+      expect(heading(html)).toBe('<h3 class="ei_title ep_title_pending">episode · 2026-11-07 17:53</h3>');
+      expect(html).not.toContain(TITLE_PENDING);
+      expect(untitledHeading(n)).toBe("episode · 2026-11-07 17:53");
+    }
+    // The heading and the graph's card say the same thing.
+    expect(untitledHeading(node({ title: "" }))).toBe(nodeCardText(node({ title: "" })).title);
   });
 
   it("shows only the facts the record gives while his words are read, and says why words are missing", () => {

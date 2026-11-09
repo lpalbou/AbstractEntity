@@ -21,7 +21,38 @@ const render = (r: PhaseBarRead, ui: PhaseBarUi = { busy: null, confirm: null },
     <PhaseBarControls view={phaseBarView(r, ui, { nowMs: NOW, resume })} ui={ui} entityName="Castor" note={null} onAct={() => {}} onConfirm={() => {}} onCancel={() => {}} {...extra} />,
   );
 const buttons = (html: string) => html.match(/<button[^>]*>.*?<\/button>/g) ?? [];
-const pill = (html: string, key: string) => buttons(html).find((b) => b.includes(`ec_pb_${key} `) || b.includes(`ec_pb_${key}"`))!;
+/** The indicator chips (review S4): `<span class="ec_pb_ind_wrap" …>chip + tooltip</span>`, whole. */
+const indicators = (html: string): string[] => {
+  const out: string[] = [];
+  for (let at = html.indexOf('<span class="ec_pb_ind_wrap"'); at >= 0; at = html.indexOf('<span class="ec_pb_ind_wrap"', at + 1)) {
+    let depth = 0;
+    const re = /<\/?span\b[^>]*>/g;
+    re.lastIndex = at;
+    for (let m = re.exec(html); m; m = re.exec(html)) {
+      depth += m[0].startsWith("</") ? -1 : 1;
+      if (depth === 0) {
+        out.push(html.slice(at, re.lastIndex));
+        break;
+      }
+    }
+  }
+  return out;
+};
+/** Every pill in the bar's order: a button, or an indicator chip. */
+const pills = (html: string): string[] =>
+  [...buttons(html), ...indicators(html)]
+    .filter((b) => /ec_pb_(idle|visit|work|personal|sleep)\b/.test(b))
+    .sort((a, b) => html.indexOf(a) - html.indexOf(b));
+const pill = (html: string, key: string) => pills(html).find((b) => b.includes(`ec_pb_${key} `) || b.includes(`ec_pb_${key}"`))!;
+/** An indicator: no button, a status chip a keyboard reaches, its words in a tooltip it points at. */
+const expectIndicator = (chip: string, title: string) => {
+  expect(chip, chip).toMatch(/^<span class="ec_pb_ind_wrap" tabindex="0" role="status" aria-live="off"/);
+  expect(chip).not.toContain("<button");
+  expect(chip).not.toContain("disabled");
+  expect(chip).not.toMatch(/ title=/);
+  const tip = /aria-describedby="([^"]+)"/.exec(chip)![1];
+  expect(chip).toContain(`<span class="ec_pb_tip" role="tooltip" id="${tip}">${title}</span>`);
+};
 const button = (html: string, cls: string) => buttons(html).find((b) => b.includes(cls));
 
 describe("PhaseBarControls", () => {
@@ -57,24 +88,24 @@ describe("PhaseBarControls", () => {
     expect(html.match(/ec_pb_lit/g)).toHaveLength(1);
     const idle = pill(html, "idle");
     expect(idle).toContain("ec_pb_lit");
-    expect(idle).toContain("disabled");
+    expectIndicator(idle, "Awake and reachable; nothing of his own is running. Own time is off; he stays awake.");
+    expect(idle).toContain('aria-label="idle (now)"');
     expect(idle).not.toContain("aria-pressed");
     expect(idle).not.toContain("ec_pb_toggle");
     expect(idle).not.toContain("ec_pb_ring");
-    expect(idle).toContain('title="Awake and reachable; nothing of his own is running. Own time is off; he stays awake."');
-    expect(idle).toMatch(/>○ <\/span>idle<\/span><\/button>$/);
+    expect(idle).toContain('>○ </span>idle</span></span><span class="ec_pb_tip"');
     expect(pill(html, "personal")).toContain('aria-pressed="false"');
     expect(html).toContain("Awake and reachable; nothing of his own is running.");
     // Idle comes first, then the four phases.
-    expect(buttons(html).slice(0, 5).map((b) => b.match(/ec_pb_(idle|visit|work|personal|sleep)\b/)![1])).toEqual(["idle", "visit", "work", "personal", "sleep"]);
+    expect(pills(html).map((b) => b.match(/ec_pb_(idle|visit|work|personal|sleep)\b/)![1])).toEqual(["idle", "visit", "work", "personal", "sleep"]);
   });
 
   it("any other state: the idle indicator unlit, disabled, saying what idle is", () => {
     for (const phase of ["visit", "work", "personal", "sleep"] as const) {
       const idle = pill(render(read(phase)), "idle");
       expect(idle).not.toContain("ec_pb_lit");
-      expect(idle).toContain("disabled");
-      expect(idle).toContain(`title="${IDLE_NOT_NOW}"`);
+      expectIndicator(idle, IDLE_NOT_NOW);
+      expect(idle).toContain('aria-label="idle"');
     }
   });
 
@@ -83,7 +114,8 @@ describe("PhaseBarControls", () => {
     const power = button(html, "ec_pb_power")!;
     expect(power).toContain("af-chip--success");
     expect(power).toMatch(/>Resume<\/span><\/button>$/);
-    for (const key of ["work", "personal", "sleep"]) expect(pill(html, key)).toContain("disabled");
+    for (const key of ["personal", "sleep"]) expect(pill(html, key)).toMatch(/^<button[^>]*disabled/);
+    expectIndicator(pill(html, "work"), "Stopped. Nothing runs until you resume him.");
     expect(pill(html, "personal")).toContain(`title="${STOPPED_TOGGLE}"`);
     // v3 D3: the stop revoked own time; the toggle shows it.
     expect(pill(html, "personal")).toContain('aria-pressed="false"');
@@ -121,14 +153,13 @@ describe("PhaseBarControls", () => {
     const html = render(read("work"));
     const work = pill(html, "work");
     expect(work).toContain("ec_pb_lit");
-    expect(work).toContain("disabled");
-    expect(work).toContain(`title="Working on a request from an agent. Current job: summon, ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}. 2 jobs queued."`);
+    expectIndicator(work, `Working on a request from an agent. Current job: summon, ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}. 2 jobs queued.`);
     expect(html).toContain(
       `>Working on a request from an agent.<span class="ec_pb_since"> · ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}</span><span class="ec_pb_queue"> · 2 jobs queued</span><span class="ec_pb_then"> · then: own time</span></span>`,
     );
     // Idle: unlit work, its tooltip says a job starts it; no queue in the line.
     const idle = render(read("idle"));
-    expect(pill(idle, "work")).toContain(`title="${WORK_IDLE}"`);
+    expectIndicator(pill(idle, "work"), WORK_IDLE);
     expect(idle).not.toContain("ec_pb_queue");
   });
 
@@ -136,6 +167,10 @@ describe("PhaseBarControls", () => {
     const html = render(read("sleep", { sleep: { kind: "self", reason: "24 h since the last sleep", since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" } }));
     expect(html).toContain('<span class="ec_pb_reason"> · asleep: 24 h since the last sleep</span>');
     expect(pill(html, "sleep")).toContain("Asleep: 24 h since the last sleep.");
+    // Asleep, the sleep pill is an indicator (nothing to click); awake, it offers "sleep now".
+    expect(pill(html, "sleep")).toMatch(/^<span class="ec_pb_ind_wrap"/);
+    expect(pill(html, "sleep")).toContain('aria-label="sleep (now)"');
+    expect(pill(render(read("idle")), "sleep")).toMatch(/^<button/);
     expect(render(read("idle"))).not.toContain("ec_pb_reason");
   });
 
@@ -173,7 +208,8 @@ describe("PhaseBarControls", () => {
     expect(button(html, "ec_pb_confirm_no")).not.toContain("disabled");
     const busy = render(read("personal"), { busy: "personal", confirm: null });
     expect(button(busy, "ec_pb_power")).not.toContain("disabled");
-    for (const key of ["idle", "visit", "work", "personal", "sleep"]) expect(pill(busy, key)).toContain("disabled");
+    for (const key of ["visit", "personal", "sleep"]) expect(pill(busy, key)).toMatch(/^<button[^>]*disabled/);
+    for (const key of ["idle", "work"]) expect(pill(busy, key)).toMatch(/^<span class="ec_pb_ind_wrap"/);
     const stopping = render(read("personal"), { busy: null, stopping: true, confirm: null });
     const power = button(stopping, "ec_pb_power")!;
     expect(power).toContain("ec_pb_busy");
@@ -225,6 +261,34 @@ describe("PhaseBarControls", () => {
   it("the roster's bar has no power button, and its stopped visit pill only says why", () => {
     expect(render(read("personal"), undefined, { showPower: false })).not.toContain("ec_pb_power");
     expect(pill(render(read("stopped"), undefined, { showPower: false }, false), "visit")).toMatch(/title="Stopped\. Resume to visit\."[^>]*disabled/);
+  });
+
+  it("indicators are never disabled buttons: status chips a keyboard reaches, their tooltip shown on hover and on focus, set apart from the two actionable chips (review S4)", () => {
+    for (const phase of ["idle", "visit", "work", "personal", "sleep", "stopped"] as const) {
+      const html = render(read(phase));
+      for (const key of ["idle", "work"]) expect(pill(html, key), `${phase}/${key}`).toMatch(/^<span class="ec_pb_ind_wrap" tabindex="0" role="status" aria-live="off"/);
+      for (const key of ["visit", "personal"]) expect(pill(html, key), `${phase}/${key}`).toMatch(/^<button/);
+      // No pill is ever a disabled indicator button.
+      for (const b of buttons(html)) expect(b).not.toMatch(/ec_pb_(idle|work)\b/);
+    }
+    // Two indicators on one roster page never share a tooltip id.
+    const bar = (r: PhaseBarRead) => (
+      <PhaseBarControls view={phaseBarView(r, { busy: null, confirm: null }, { nowMs: NOW })} ui={{ busy: null, confirm: null }} entityName="Castor" note={null} onAct={() => {}} onConfirm={() => {}} onCancel={() => {}} showPower={false} />
+    );
+    const two = renderToStaticMarkup(
+      <>
+        {bar(read("idle"))}
+        {bar(read("work"))}
+      </>,
+    );
+    const ids = [...two.matchAll(/<span class="ec_pb_tip" role="tooltip" id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+    const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
+    expect(css).toMatch(/\.ec_pb_ind_wrap:hover > \.ec_pb_tip,\s*\.ec_pb_ind_wrap:focus > \.ec_pb_tip \{\s*display: block;/);
+    expect(css).toMatch(/\.ec_pb_tip \{\s*display: none;/);
+    expect(css).toMatch(/\.ec_pb_ind\.af-chip \{\s*border-style: dashed;\s*cursor: default;/);
+    // The actionable chips' hover lift never reaches an indicator.
+    expect(css).toContain('.ec_pb_pill.af-chip:not(.ec_pb_lit):not([aria-pressed="true"]):not(.ec_pb_ind):hover:not(:disabled)');
   });
 
   it("no verb-toggle labels in the bar's sources", () => {

@@ -5,6 +5,8 @@
  * (the same envelopes the stream serves: bindings, a trace, its usage
  * events, the answer's episode binding), never on hand-made fold objects.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { foldEnvelopes } from "./stream_fold";
@@ -32,8 +34,12 @@ import {
   readContextChoice,
   recallLegendRows,
   recallLegendText,
+  lineAt,
   TRAVELLED_LEGEND,
   trailsBefore,
+  travelledLines,
+  travelledLineWords,
+  USED_TOGETHER,
   writeContextChoice,
 } from "./recall_emphasis";
 
@@ -641,3 +647,75 @@ describe("the paths travelled to reach a step's memories", () => {
   });
 });
 
+
+describe("the lit lines' direction and words (operator 2026-11-09: hover a lit line)", () => {
+  const m = (x: string) => `ex:memory-${x}`;
+
+  it("each lit line reads FROM the memory he held in mind TO the memory he recalled through it", () => {
+    const fold = foldEnvelopes(fourTurns());
+    const e = canvasRecall(fold, 43, "beat:tr3", true)!;
+    // Same keys as the travelled lines, one direction each.
+    expect([...e.travelledEnds.keys()].sort()).toEqual([...e.travelled.keys()].sort());
+    // e and f were found for this message, reached from h (their pair of this turn); b followed from e.
+    expect(e.travelledEnds.get(key(m("e"), m("h")))).toEqual({ from: m("h"), to: m("e") });
+    expect(e.travelledEnds.get(key(m("f"), m("h")))).toEqual({ from: m("h"), to: m("f") });
+    expect(e.travelledEnds.get(key(m("b"), m("e")))).toEqual({ from: m("e"), to: m("b") });
+    // The memory reached is always the one in the line's ring class, never a present-by-right one.
+    for (const [k, ends] of e.travelledEnds) {
+      expect(e.classes.get(ends.to)).toBe(e.travelled.get(k));
+      expect(e.ids.has(ends.from)).toBe(true);
+    }
+  });
+
+  it("the words: '<recalled> — reached from <held> · <relation>', the relation as recorded when they were formed, else 'used together'", () => {
+    const linked: ReplayEnvelope = env(
+      9,
+      "binding",
+      { record_id: m("h"), scope: "life", owner_id: "entity:test", search_state: "indexed", prompt_state: "active", lifecycle: "none", source: "remember", reason: null, binding_id: "b9", seq: 9 },
+      { display: { record_id: m("h"), kind: "memory", title: m("h"), edges: [{ relation: "summarizes", target_graph_id: m("e") }] } as ReplayEnvelope["display"] },
+    );
+    const envs = fourTurns();
+    const fold = foldEnvelopes([...envs.slice(0, 8), linked, ...envs.slice(8)]);
+    const lines = travelledLines(fold, canvasRecall(fold, 43, "beat:tr3", true));
+    expect(lines.get(key(m("e"), m("h")))).toEqual({ key: key(m("e"), m("h")), from: m("h"), to: m("e"), cls: "matched", relation: "summarizes" });
+    expect(lines.get(key(m("f"), m("h")))!.relation).toBe(USED_TOGETHER);
+    expect(lines.get(key(m("b"), m("e")))).toMatchObject({ from: m("e"), to: m("b"), cls: "stm", relation: "used together" });
+    expect(travelledLineWords(lines.get(key(m("e"), m("h")))!, "the blue door", "the media server")).toBe("the blue door — reached from the media server · summarizes");
+    // No recall, or a recall with no lit line: no words.
+    expect(travelledLines(fold, null).size).toBe(0);
+  });
+
+  it("the lit line under the pointer: the nearest segment within 5 px, else none", () => {
+    const segs = [
+      { key: "a|b", ax: 0, ay: 0, bx: 100, by: 0 },
+      { key: "c|d", ax: 0, ay: 10, bx: 100, by: 10 },
+    ];
+    expect(lineAt(50, 2, segs)).toBe("a|b");
+    expect(lineAt(50, 8, segs)).toBe("c|d");
+    expect(lineAt(50, 5.5, segs)).toBe("c|d");
+    expect(lineAt(50, 30, segs)).toBeNull();
+    // Past a segment's end counts from that end.
+    expect(lineAt(104, 0, segs)).toBe("a|b");
+    expect(lineAt(110, 0, segs)).toBeNull();
+    expect(lineAt(0, 0, [])).toBeNull();
+  });
+
+  it("the canvas reads the lines once per recall, draws their direction and shows their words after a rest (wiring)", () => {
+    const canvas = readFileSync(resolve(__dirname, "graph_canvas.tsx"), "utf8");
+    expect(canvas).toContain("const litLines = useMemo(() => travelledLines(fold, recall), [fold, recall]);");
+    expect(canvas).toContain("shownLinesRef.current = travelled ? litLines : null;");
+    // Faint where it leaves, full where it arrives, an arrowhead at the recalled memory.
+    expect(canvas).toContain("const grad = ctx.createLinearGradient(src.x, src.y, dst.x, dst.y);");
+    expect(canvas).toContain("grad.addColorStop(0, hexAlpha(ring, 0.22));");
+    expect(canvas).toContain("grad.addColorStop(1, hexAlpha(ring, 0.9));");
+    expect(canvas).toContain("const target = layout.get(line.to);");
+    expect(canvas).toContain("ctx.fillStyle = hexAlpha(ring, 0.95);");
+    // The pointer: a memory first, then a topic label, then a lit line; the line's words wait for the rest.
+    expect(canvas).toContain("const line = hit || label ? null : litLineAt(ev.clientX, ev.clientY);");
+    expect(canvas).toContain("intent.over(line !== null ? `l:${line}` : null);");
+    expect(canvas).toContain("setLineTipRef.current({ key: target.slice(2), x: pointAt.x, y: pointAt.y });");
+    expect(canvas).toContain("{travelledLineWords(tipLine, plainCardTitle(tipTo), plainCardTitle(tipFrom))}");
+    // Leaving the line hides its words.
+    expect(canvas).toContain("if (lineTipRef.current && lineTipRef.current.key !== line) setLineTipRef.current(null);");
+  });
+});

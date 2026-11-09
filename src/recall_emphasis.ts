@@ -74,9 +74,22 @@ export interface RecallEmphasis {
    * in mind by right, reached through no trail: no line. The canvas lights
    * these and dims every other edge. */
   travelled: Map<string, RecallClass>;
+  /** Each travelled line's DIRECTION (operator 2026-11-09: "the lit lines
+   * need … a DIRECTION"): edge key -> `from`, the shelf memory the path
+   * leaves (source), and `to`, the recalled memory it reaches (target).
+   * Same keys as `travelled`, computed with it (once per recall, never per
+   * frame). */
+  travelledEnds: Map<string, TravelledEnds>;
   /** Counts over the SHELF (beat.selected), node or not — the truth the
    * ledger line states ("50 on the shelf (6 present by right, …)"). */
   counts: { total: number; self: number; stm: number; matched: number };
+}
+
+/** One lit line's ends: from the memory he held in mind to the one he
+ * recalled through it. */
+export interface TravelledEnds {
+  from: string;
+  to: string;
 }
 
 /** The beat active at the scrub position — the Inspector's rule: the last
@@ -248,7 +261,9 @@ export function beatEmphasis(fold: FoldState, beat: BeatState): RecallEmphasis |
     if (label) labels.set(nodeId, label);
   }
   const pairs = turnPairs(fold, beat);
-  return { trace_id: beat.trace_id, ids, classes, labels, counts, pairs, travelled: travelledPaths(fold, beat, ids, classes, pairs) };
+  const travelledEnds = new Map<string, TravelledEnds>();
+  const travelled = travelledPaths(fold, beat, ids, classes, pairs, travelledEnds);
+  return { trace_id: beat.trace_id, ids, classes, labels, counts, pairs, travelled, travelledEnds };
 }
 
 /** Trail warmth just before a step: the engine-parity pair activation over
@@ -275,13 +290,16 @@ export function trailsBefore(fold: FoldState, beat: Pick<BeatState, "first_seq" 
  *   shelf, then the companion he has used most. No warm trail to the
  *   shelf: no line — nothing is drawn that the stream does not show.
  * Last tie-break: the smaller edge key, so the choice is stable. When two
- * memories pick the same line it takes the matched colour first. */
+ * memories pick the same line it takes the matched colour first, and the
+ * matched memory is the one it reaches. `ends` (when given) receives each
+ * line's direction: from the other shelf memory to the memory reached. */
 export function travelledPaths(
   fold: FoldState,
   beat: BeatState,
   shelf: ReadonlySet<string>,
   classes: ReadonlyMap<string, RecallClass>,
   turnPairKeys: ReadonlySet<string>,
+  ends?: Map<string, TravelledEnds>,
 ): Map<string, RecallClass> {
   const out = new Map<string, RecallClass>();
   const reached = new Map<string, RecallClass>();
@@ -290,6 +308,8 @@ export function travelledPaths(
   const warm = trailsBefore(fold, beat);
   interface Pick {
     key: string;
+    /** The other shelf memory: where the path comes from. */
+    other: string;
     warm: number;
     partnerUse: number;
   }
@@ -299,7 +319,7 @@ export function travelledPaths(
   const consider = (member: string, other: string, key: string) => {
     const cls = reached.get(member);
     if (!cls || !shelf.has(other)) return;
-    const pick: Pick = { key, warm: warm.get(key) ?? 0, partnerUse: fold.nodes.get(other)?.selected_count ?? 0 };
+    const pick: Pick = { key, other, warm: warm.get(key) ?? 0, partnerUse: fold.nodes.get(other)?.selected_count ?? 0 };
     if (cls === "matched" ? !turnPairKeys.has(key) : !(pick.warm > 0)) return;
     const cur = best.get(member);
     if (!cur || better(pick, cur)) best.set(member, pick);
@@ -310,9 +330,87 @@ export function travelledPaths(
     consider(e.b, e.a, e.key);
   }
   for (const cls of ["matched", "stm"] as const) {
-    for (const [member, pick] of best) if (reached.get(member) === cls && !out.has(pick.key)) out.set(pick.key, cls);
+    for (const [member, pick] of best) {
+      if (reached.get(member) !== cls || out.has(pick.key)) continue;
+      out.set(pick.key, cls);
+      ends?.set(pick.key, { from: pick.other, to: member });
+    }
   }
   return out;
+}
+
+/** What a lit line says when the pointer rests on it (operator 2026-11-09):
+ * "<recalled memory> — reached from <shelf memory> · <relation>". The
+ * relation is the word recorded between the two memories when they were
+ * formed ("born linked": summarizes, continues, written_amid, derived_from,
+ * mentions, reflected_in …), as served; a pair that was never born linked
+ * is joined by use alone: "used together" (every lit line is a co-use
+ * trail, fold.edges). Titles are the memory cards' own (`titleOf`). */
+export interface TravelledLine {
+  key: string;
+  from: string;
+  to: string;
+  cls: RecallClass;
+  relation: string;
+}
+
+export const USED_TOGETHER = "used together";
+
+/** The lit lines of a recall with their direction and relation word, once
+ * per recall (the canvas memoizes it on [fold, recall]). A born-linked
+ * relation between the two ends counts in either direction (graph ids
+ * resolve through graph_to_row, the canvas's own rule). */
+export function travelledLines(fold: FoldState, recall: RecallEmphasis | null): Map<string, TravelledLine> {
+  const out = new Map<string, TravelledLine>();
+  if (!recall || recall.travelledEnds.size === 0) return out;
+  const relationOf = new Map<string, string>();
+  for (const se of fold.structural_edges.values()) {
+    const a = fold.graph_to_row.get(se.source_graph_id) ?? se.source_graph_id;
+    const b = fold.graph_to_row.get(se.target_graph_id) ?? se.target_graph_id;
+    if (a === b) continue;
+    const key = edgeKey(a, b);
+    if (recall.travelledEnds.has(key) && !relationOf.has(key)) relationOf.set(key, se.relation);
+  }
+  for (const [key, ends] of recall.travelledEnds) {
+    const cls = recall.travelled.get(key);
+    if (!cls) continue;
+    out.set(key, { key, from: ends.from, to: ends.to, cls, relation: relationOf.get(key) ?? USED_TOGETHER });
+  }
+  return out;
+}
+
+/** The tooltip line of one lit line, from the two memories' card titles. */
+export function travelledLineWords(line: Pick<TravelledLine, "relation">, toTitle: string, fromTitle: string): string {
+  return `${toTitle} — reached from ${fromTitle} · ${line.relation}`;
+}
+
+/** The lit line under the pointer (screen px): the nearest segment within
+ * `tolerance` px, else null. `segments` are this frame's lit lines in
+ * screen space (from = the shelf memory's end). Run on pointer moves only,
+ * over the lit lines only (a few dozen), never per frame. */
+export interface LineSegment {
+  key: string;
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+export function lineAt(x: number, y: number, segments: Iterable<LineSegment>, tolerance = 5): string | null {
+  let best: string | null = null;
+  let bestD = tolerance;
+  for (const s of segments) {
+    const dx = s.bx - s.ax;
+    const dy = s.by - s.ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - s.ax) * dx + (y - s.ay) * dy) / len2)) : 0;
+    const d = Math.hypot(x - (s.ax + t * dx), y - (s.ay + t * dy));
+    if (d <= bestD) {
+      bestD = d;
+      best = s.key;
+    }
+  }
+  return best;
 }
 
 /** The pairs a turn used together, as today's edge keys: each endpoint
@@ -363,6 +461,9 @@ export function recallLegendRows(e: RecallEmphasis): RecallLegendRow[] {
 }
 
 export const TRAVELLED_LEGEND = "lit lines: the path he travelled to reach each one, in the colour of its ring";
+/** The lit lines' direction, in words (operator 2026-11-09), under the row
+ * and drawn on the canvas as an arrowhead at the recalled memory. */
+export const TRAVELLED_DIRECTION = "from what he held in mind → to what he recalled";
 export const TRAVELLED_TITLE =
   "Each matched memory is joined to the memory it was used with for this message along the strongest trail; each continuity memory to the memory it followed from, along the trail that was warmest just before this step. Memories present by right are always there and need no path. Every other line is dimmed.";
 

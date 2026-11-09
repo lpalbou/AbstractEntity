@@ -26,7 +26,7 @@ import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat
 import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatNotice } from "./vendor/abstractchat/conversation";
-import { VISIT_CLOSE_KIND, noticeTarget, noticesField } from "./turn_notices";
+import { VISIT_CLOSE_KIND, noticesField, openNotice as openNoticeIn } from "./turn_notices";
 import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
@@ -157,8 +157,9 @@ export interface ChatDrawerProps {
   /** The panel remains mounted on tab changes; background speech/cues stay silent. */
   visible?: boolean;
   /** Open a record in the Detail panel by its GRAPH id: a reply's notice badge (what the turn
-   * formed: a diary entry, a lesson, …) opens the record it names. */
-  onOpenRecord(graphId: string): void;
+   * formed: a diary entry, a lesson, …) opens the record it names. `false` = it opened nothing (the
+   * record has not reached the view yet): the badge opens its own panel. */
+  onOpenRecord(graphId: string): boolean;
 }
 
 export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
@@ -1123,15 +1124,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * view, which shows no system lines) the badge shows its own panel. */
   const { onOpenRecord } = props;
   const openNotice = useCallback(
-    (notice: ChatNotice, message: ChatMessage): void | boolean => {
-      const target = noticeTarget(notice, message.id, avatarMode ? [] : messages);
-      if (target.kind === "record") return onOpenRecord(target.graphId);
-      if (target.kind === "close") {
-        document.querySelector<HTMLElement>(`.cd_thread [data-mid="${CSS.escape(target.messageId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
-        return;
-      }
-      return false;
-    },
+    (notice: ChatNotice, message: ChatMessage): void | boolean =>
+      openNoticeIn(notice, message.id, avatarMode ? [] : messages, {
+        openRecord: onOpenRecord,
+        showMessage: (mid) => document.querySelector<HTMLElement>(`.cd_thread [data-mid="${CSS.escape(mid)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }),
+      }),
     [messages, avatarMode, onOpenRecord],
   );
 

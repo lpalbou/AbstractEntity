@@ -9,6 +9,7 @@
  */
 
 import { classifyBookkeeping, cleanTitle, consideredCount, relationPredicate } from "./stream_fold";
+import { displaySaysTitlePending, untitledWords } from "./untitled";
 import type {
   BindingPayload,
   ClosurePayload,
@@ -311,11 +312,15 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
   switch (env.family) {
     case "binding": {
       const p = env.payload as unknown as BindingPayload;
-      const name = displayTitle(env, tidy(p.record_id));
+      let name = displayTitle(env, tidy(p.record_id));
       if (p.source === "remember") {
         // Narrative per kind (maintainer 16:31: the ledger must SAY what
         // is happening during his own time, not catalog index states).
         const kind = env.display?.redacted === "diary" || env.display?.diary === true ? "diary" : String(env.display?.kind || "memory");
+        // A record formed without a title: "title being written…" only when
+        // the stream says so (display.pending), else its raw kind and date
+        // — never its id (operator 2026-11-09; untitled.ts).
+        name = displayTitle(env, untitledWords(kind, env.observed_at, displaySaysTitlePending(env.display)));
         const title = String(env.display?.title || "");
         const gist = tidy(cleanTitle(title).replace(/^exchange:\s*/i, ""));
         if (kind === "diary") {
@@ -725,7 +730,9 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         // #164102.0005); a from == to re-announcement names what he keeps
         // doing, led by its cause; an unserved word says so in words.
         const word = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
-        const phaseWord = (v: string): string => LEDGER_PHASE_WORDS[v.toLowerCase()] ?? `non-phase word: “${v}”`;
+        // Review N3 (2026-11-09): the label reads as a reader's words,
+        // "“awake” (not a phase)", never the developer's "non-phase word".
+        const phaseWord = (v: string): string => LEDGER_PHASE_WORDS[v.toLowerCase()] ?? `“${v}” (not a phase)`;
         const from = word(p["from"]);
         const to = word(p["to"]);
         const cause = word(p["cause"]) ?? "";

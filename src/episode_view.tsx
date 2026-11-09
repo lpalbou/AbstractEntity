@@ -7,7 +7,8 @@
  * - EpisodeDetail (the Detail tab): the record's served title — the
  *   same the graph's hover card shows (hover_card.markdownTitle), never a
  *   title the app makes up (operator 2026-11-09); while none is served,
- *   "Title being written…" — then who it was with, the record's facts,
+ *   "Title being written…" when the stream says so (display.pending),
+ *   else its raw kind and date — then who it was with, the record's facts,
  *   then its summary (its stored understanding when the
  *   gateway serves it, with who wrote it, as of when and its earlier
  *   readings; else the digest a recall served, else the saved title, said
@@ -30,7 +31,7 @@ import { turnLabel } from "./ledger_lines";
 import { describeToolAsk } from "./turn_probe_parse";
 import { Fold, ToolCall } from "./turn_probe_views";
 import { exchangeSpeakers, readRecordWords, VerbatimTurns, Words, type RecordWords } from "./verbatim_view";
-import { markdownTitle } from "./hover_card";
+import { markdownTitle, untitledHeader } from "./hover_card";
 import { WordsLine } from "./words_line";
 import { restBlocksAsText } from "./verbatim_parse";
 import { servedDigest, UNSERVED_SENTENCE } from "./understanding";
@@ -54,9 +55,17 @@ export function speakerName(id: string): string {
   return String(id || "").replace(/^(person|agent|entity):/, "").split("@", 1)[0];
 }
 
-/** The heading while the record has no title yet (his words for it are
- * still being written). */
+/** The heading while the record has no title yet AND the stream says it is
+ * being written (its served `display.pending.title`, NodeState
+ * .title_pending); an untitled record the stream says nothing about shows
+ * its raw kind and date instead (hover_card.untitledHeader), never this
+ * (operator 2026-11-09: no app-made claim). */
 export const TITLE_PENDING = "Title being written…";
+
+/** The heading of a record with no served title. */
+export function untitledHeading(node: Pick<NodeState, "kind" | "born_at" | "title_pending">): string {
+  return node.title_pending ? TITLE_PENDING : untitledHeader(node);
+}
 
 /** The heading: the record's served title as Markdown, the hover card's own
  * text for it (hover_card.markdownTitle); null while none is served. */
@@ -275,7 +284,7 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
   ) : null;
   return (
     <>
-      <h3 className={`ei_title${title ? "" : " ep_title_pending"}`}>{title ? <WordsLine text={title} /> : TITLE_PENDING}</h3>
+      <h3 className={`ei_title${title ? "" : " ep_title_pending"}`}>{title ? <WordsLine text={title} /> : untitledHeading(node)}</h3>
       {context ? <p className="ep_context">{context}</p> : null}
       {renderFacts(extra)}
       <section className="ep_summary">

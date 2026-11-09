@@ -5,10 +5,12 @@
  * with the routes (CONTRACT-phases §6); the new routes keep the same refusal shape, v2:
  * {code, detail: {reason_code, message, life_state}} + X-Gateway-Error-Code (§7).
  */
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { phaseBody } from "./fixtures/phase_bodies";
-import { ADMIN_REQUIRED, REFUSAL_SENTENCES, phaseBarRead, phaseWriteOutcome } from "./phase_bar";
+import { ADMIN_REQUIRED, REFUSAL_SENTENCES, REFUSED_NO_REASON, REFUSED_NO_WORDS, phaseBarRead, phaseWriteOutcome } from "./phase_bar";
 import { PHASE_BAR_UNSERVED, type PhaseWire } from "./phase_bar_source";
 
 const refusal = (status: number, reason_code: string | null, message: string | null, life_state: unknown = null): PhaseWire => ({
@@ -60,8 +62,50 @@ describe("phase refusals are sentences (contract §7)", () => {
     expect(gone.bar).toBeNull();
   });
 
-  it("anything else says the status, never a blank", () => {
-    expect(phaseWriteOutcome({ status: 500, code: null, body: null }).sentence).toBe("The gateway refused (HTTP 500).");
+  it("anything else says it was refused in words, never a blank and never a status code (review N2)", () => {
+    expect(phaseWriteOutcome({ status: 500, code: null, body: null }).sentence).toBe(REFUSED_NO_REASON);
+    expect(REFUSED_NO_REASON).toBe("The gateway refused this change and gave no reason.");
+    for (const status of [400, 409, 422, 500, 503]) {
+      for (const body of [null, { detail: "" }, { detail: { message: "" } }]) {
+        const said = phaseWriteOutcome({ status, code: null, body }, "personal").sentence!;
+        expect(said).toBeTruthy();
+        expect(said).not.toMatch(/HTTP|\b\d{3}\b/);
+      }
+    }
+  });
+
+  it("a 409 on the personal toggle with a code but no words: the neutral line, never the sleep sentence (review S5)", () => {
+    const shapes: PhaseWire[] = [
+      refusal(409, "in_visit", null, phaseBody("visit")),
+      refusal(409, "in_visit", "", phaseBody("visit")),
+      { status: 409, code: "in_visit", body: { code: "in_visit" } },
+      { status: 409, code: "already_asleep", body: { code: "already_asleep" } },
+      { status: 409, code: null, body: null },
+      { status: 409, code: "some_new_code", body: { detail: { message: "" } } },
+    ];
+    for (const wire of shapes) {
+      const out = phaseWriteOutcome(wire, "personal");
+      expect(out.sentence).toBe(REFUSED_NO_WORDS);
+      expect(out.sentence).not.toMatch(/sleep|HTTP/);
+    }
+    expect(REFUSED_NO_WORDS).toBe("He can't change that right now.");
+    // The same codes still answer "sleep now" with their own sentence…
+    expect(phaseWriteOutcome(refusal(409, "in_visit", null), "sleep").sentence).toBe(REFUSAL_SENTENCES.in_visit);
+    expect(phaseWriteOutcome(refusal(409, "already_asleep", null), "sleep").sentence).toBe(REFUSAL_SENTENCES.already_asleep);
+    // …an act-neutral code keeps its sentence for any act, and words always win.
+    expect(phaseWriteOutcome(refusal(409, "stopped_use_resume", null), "personal").sentence).toBe(REFUSAL_SENTENCES.stopped_use_resume);
+    expect(phaseWriteOutcome(refusal(409, "in_visit", "Not during a visit.", phaseBody("visit")), "personal").sentence).toBe("Not during a visit.");
+    // The bar a refusal carries is still adopted.
+    expect(phaseWriteOutcome(refusal(409, "in_visit", null, phaseBody("visit")), "personal").bar?.phase).toBe("visit");
+  });
+
+  it("every write site says which act it answers", () => {
+    const src = (f: string) => fs.readFileSync(path.join(__dirname, f), "utf8");
+    expect(src("phase_bar_writes.ts")).toContain("const out = phaseWriteOutcome(wire, act);");
+    expect(src("entity_view.tsx")).toContain('const out = phaseWriteOutcome(wire, "sleep");');
+    expect(src("entities_index.tsx")).toContain("const out = phaseWriteOutcome(wire, act);");
+    expect(src("entities_index.tsx")).toContain("adoptTileAnswer(slug, wire, act)");
+    expect(src("entities_index.tsx")).toContain('adoptTileAnswer(slug, wire, "sleep")');
   });
 });
 

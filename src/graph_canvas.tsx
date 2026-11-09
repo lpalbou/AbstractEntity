@@ -31,10 +31,16 @@ import {
   dimRampSec,
   edgeDimTarget,
   emphasisDriver,
+  lineAt,
   resolveSelection,
+  travelledLines,
+  travelledLineWords,
+  type LineSegment,
   type RecallClass,
+  type TravelledLine,
 } from "./recall_emphasis";
 import { ContextLegend } from "./context_legend";
+import { hoverIntent } from "./hover_intent";
 import { coldOf, TOP_DECILE, usageEdgeAlpha, usageMix, usageRgb, usageScale } from "./graph_usage";
 import "./graph_canvas.css";
 import {
@@ -44,6 +50,7 @@ import {
   nodeActions,
   nodeCardText,
   partnerCount,
+  plainCardTitle,
   topicActions,
   topicExemplarText,
   type CardActionId,
@@ -494,6 +501,10 @@ export function GraphCanvas({
   // see a selection and the recall would keep lighting the graph.
   const selectedRow = resolveSelection(fold, selectedId);
   const recall = useMemo(() => canvasRecall(fold, scrubSeq, selectedId, showContext), [fold, scrubSeq, selectedId, showContext]);
+  // THE LIT LINES' WORDS (operator 2026-11-09): each travelled line's
+  // direction (shelf memory -> recalled memory) and relation word, once
+  // per recall — the frame and the pointer only read it.
+  const litLines = useMemo(() => travelledLines(fold, recall), [fold, recall]);
   // THE USAGE SCALE: one rank per memory and per co-use line, per fold
   // change (never per frame).
   const usage = useMemo(() => usageScale(fold, temporal), [fold, temporal]);
@@ -545,7 +556,7 @@ export function GraphCanvas({
     [fold, topicsData, topicHomes],
   );
   const topicsPending = topicsState.phase === "loading";
-  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords });
+  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, topicPlan, showTopics, topicsPending, topicWords });
   /** Topic label rects drawn last frame (screen px) — the click targets. */
   const topicLabelsRef = useRef<Array<{ rect: Rect; topic: number; label: string }>>([]);
   const onPickTopicRef = useRef(onPickTopic);
@@ -559,6 +570,20 @@ export function GraphCanvas({
   /** Last frame time the recall drove the emphasis (ease-out pacing). */
   const recallDriveAtRef = useRef<number | null>(null);
   const hoverRef = useRef<string | null>(null);
+  /** The lit lines the LAST FRAME drew (null when the recall does not
+   * drive the canvas): what a pointer resting on a line can be over. */
+  const shownLinesRef = useRef<Map<string, TravelledLine> | null>(null);
+  /** The lit-line tooltip (the line's words beside the pointer), after the
+   * pointer has rested on the line (hover_intent.ts). */
+  const [lineTip, setLineTipState] = useState<{ key: string; x: number; y: number } | null>(null);
+  const lineTipRef = useRef<{ key: string; x: number; y: number } | null>(null);
+  const setLineTip = (next: { key: string; x: number; y: number } | null) => {
+    if (lineTipRef.current === next || (lineTipRef.current && next && lineTipRef.current.key === next.key)) return;
+    lineTipRef.current = next;
+    setLineTipState(next);
+  };
+  const setLineTipRef = useRef(setLineTip);
+  setLineTipRef.current = setLineTip;
   /** Per-element eased dim factors (hover-card show/hide transition). */
   const dimAnimRef = useRef<Map<string, number>>(new Map());
   const lastFrameTsRef = useRef<number>(performance.now());
@@ -619,7 +644,7 @@ export function GraphCanvas({
    * for the node's lifetime (and persisted): permanent spatial memory. */
   const seatRef = useRef<{ seats: Map<string, number>; next: number }>({ seats: new Map(), next: 0 });
 
-  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords };
+  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, topicPlan, showTopics, topicsPending, topicWords };
   onSelectRef.current = onSelect;
 
   // FIT-TO-EMPHASIS (graph-access wave, 2026-07-12): when the OPERATOR's
@@ -752,7 +777,7 @@ export function GraphCanvas({
 
     const frame = () => {
       if (disposed) return;
-      const { fold, usage, scrubSeq, selectedId, searchIds, recall, topicPlan: plan, showTopics: topicsOn, topicsPending: pending, topicWords } = stateRef.current;
+      const { fold, usage, scrubSeq, selectedId, searchIds, recall, litLines, topicPlan: plan, showTopics: topicsOn, topicsPending: pending, topicWords } = stateRef.current;
       const layout = layoutRef.current;
       const sim = simRef.current;
 
@@ -1069,6 +1094,7 @@ export function GraphCanvas({
       // driver. Co-use edges ease under their own key; born-linked edges
       // under an "s" key, so the two never fight over one eased value.
       const travelled = driver === "recall" && recall ? recall.travelled : null;
+      shownLinesRef.current = travelled ? litLines : null;
       const edgeDim = (a: string, b: string, pairKey: string | null) =>
         easedDim(pairKey ?? `s\u0000${a}\u0000${b}`, edgeDimTarget(emphasis, travelled, a, b, pairKey));
 
@@ -1191,8 +1217,40 @@ export function GraphCanvas({
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         if (path) {
-          ctx.strokeStyle = hexAlpha(ADMISSION_COLORS[RECALL_RING_ADMISSION[path]], 0.72);
+          // THE DIRECTION (operator 2026-11-09): from the memory he held
+          // in mind (faint) to the one he recalled through it (full), an
+          // arrowhead at the recalled one.
+          const line = litLines.get(e.key);
+          const ring = ADMISSION_COLORS[RECALL_RING_ADMISSION[path]];
+          const fromAtA = !line || line.from === e.a;
+          const src = fromAtA ? a : b;
+          const dst = fromAtA ? b : a;
+          const grad = ctx.createLinearGradient(src.x, src.y, dst.x, dst.y);
+          grad.addColorStop(0, hexAlpha(ring, 0.22));
+          grad.addColorStop(1, hexAlpha(ring, 0.9));
+          ctx.strokeStyle = grad;
           ctx.lineWidth = 1.3 + Math.log1p(e.count) * 0.4;
+          ctx.stroke();
+          const dx = dst.x - src.x;
+          const dy = dst.y - src.y;
+          const len = Math.hypot(dx, dy);
+          if (line && len > 18) {
+            const target = layout.get(line.to);
+            const back = Math.max(3, (target?.r ?? 4) * cam.zoom) + 3;
+            const ux = dx / len;
+            const uy = dy / len;
+            const tipX = dst.x - ux * back;
+            const tipY = dst.y - uy * back;
+            const size = 7;
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(tipX - ux * size - uy * size * 0.55, tipY - uy * size + ux * size * 0.55);
+            ctx.lineTo(tipX - ux * size + uy * size * 0.55, tipY - uy * size - ux * size * 0.55);
+            ctx.closePath();
+            ctx.fillStyle = hexAlpha(ring, 0.95);
+            ctx.fill();
+          }
+          ctx.beginPath();
         } else {
           ctx.strokeStyle = usageStroke(mix, usageEdgeAlpha(place));
           ctx.lineWidth = 0.8 + Math.log1p(e.count) * 0.4;
@@ -1519,9 +1577,45 @@ export function GraphCanvas({
     const onPointerDown = (ev: PointerEvent) => {
       pointerTypeRef.current = ev.pointerType || "mouse";
     };
+    // HOVER INTENT (operator 2026-11-09, hover_intent.ts): a memory's card
+    // and its highlight, and a lit line's words, show only after the
+    // pointer has RESTED 150 ms on it; a sweep across the graph shows
+    // nothing, leaving before then cancels. A click never waits.
+    const pointAt = { x: 0, y: 0 };
+    const intent = hoverIntent((target) => {
+      if (dragRef.current || cardRef.current?.pinned) return;
+      if (target.startsWith("n:")) {
+        const id = target.slice(2);
+        if (!layoutRef.current.has(id)) return;
+        cardCtl.cancelGrace();
+        hoverRef.current = id;
+        cardCtl.set({ kind: "node", id, x: pointAt.x, y: pointAt.y, pinned: false });
+        setLineTipRef.current(null);
+      } else if (target.startsWith("l:")) {
+        setLineTipRef.current({ key: target.slice(2), x: pointAt.x, y: pointAt.y });
+      }
+    });
+    /** The lit line under the pointer (only while the recall lights some). */
+    const litLineAt = (clientX: number, clientY: number): string | null => {
+      const lines = shownLinesRef.current;
+      if (!lines || lines.size === 0) return null;
+      const rect = canvas.getBoundingClientRect();
+      const cam = cameraRef.current;
+      const sx = (x: number) => rect.width / 2 + (x - cam.x) * cam.zoom;
+      const sy = (y: number) => rect.height / 2 + (y - cam.y) * cam.zoom;
+      const segs: LineSegment[] = [];
+      for (const line of lines.values()) {
+        const from = layoutRef.current.get(line.from);
+        const to = layoutRef.current.get(line.to);
+        if (from && to) segs.push({ key: line.key, ax: sx(from.x), ay: sy(from.y), bx: sx(to.x), by: sy(to.y) });
+      }
+      return lineAt(clientX - rect.left, clientY - rect.top, segs);
+    };
     const onDown = (ev: MouseEvent) => {
       // The card at the press: a second tap on a pinned memory opens it.
       dragRef.current = { x: ev.clientX, y: ev.clientY, moved: false, card: cardRef.current };
+      intent.cancel();
+      setLineTipRef.current(null);
       if (pointerTypeRef.current === "mouse") cardCtl.close();
     };
     // Drag pans ride the WINDOW (a pan must keep following the cursor after
@@ -1546,33 +1640,54 @@ export function GraphCanvas({
       // (toScreen space) — a ref read by the RAF loop, zero re-renders.
       const rect = canvas.getBoundingClientRect();
       mouseRef.current = { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
-      if (dragRef.current) return; // mid-drag: no hover churn
+      if (dragRef.current) {
+        intent.cancel(); // mid-drag: no hover churn
+        return;
+      }
+      pointAt.x = ev.clientX;
+      pointAt.y = ev.clientY;
       const hit = hitTest(ev.clientX, ev.clientY);
       // A topic label under the cursor (and no node): its card shows the
       // topic's full words — the canvas label never hides any for good.
       const label = hit ? null : topicLabelAt(ev.clientX, ev.clientY);
+      // A lit line under the cursor (no memory, no label): its words.
+      const line = hit || label ? null : litLineAt(ev.clientX, ev.clientY);
       canvas.style.cursor = hit || label ? "pointer" : "grab";
+      // The line's words stay only while the pointer stays on that line.
+      if (lineTipRef.current && lineTipRef.current.key !== line) setLineTipRef.current(null);
       const c = cardRef.current;
-      if (c?.pinned) return; // a pinned card holds until a tap elsewhere
+      if (c?.pinned) {
+        intent.cancel();
+        return; // a pinned card holds until a tap elsewhere
+      }
       if (hit) {
-        cardCtl.cancelGrace();
-        if (hit !== hoverRef.current || c?.kind !== "node") {
-          hoverRef.current = hit;
-          cardCtl.set({ kind: "node", id: hit, x: ev.clientX, y: ev.clientY, pinned: false });
+        if (c?.kind === "node" && c.id === hit) {
+          // Back on (or still on) the memory whose card shows: it stays.
+          cardCtl.cancelGrace();
+          intent.cancel();
+          return;
         }
+        // Another memory: its card waits for the rest; the shown one
+        // yields when it comes (or when its grace ends).
+        intent.over(`n:${hit}`);
+        if (c) cardCtl.closeSoon();
       } else if (label) {
+        intent.cancel();
         cardCtl.cancelGrace();
         hoverRef.current = null;
         if (!(c?.kind === "topic" && c.topic === label.topic)) cardCtl.set({ kind: "topic", topic: label.topic, x: ev.clientX, y: ev.clientY, pinned: false });
-      } else if (c) {
+      } else {
+        intent.over(line !== null ? `l:${line}` : null);
         // Off every memory: the card holds briefly so the pointer can
         // cross into it (its actions), then goes.
-        cardCtl.closeSoon();
+        if (c) cardCtl.closeSoon();
       }
     };
     const onCanvasLeave = (ev: MouseEvent) => {
       mouseRef.current = null;
       canvas.style.cursor = "grab";
+      intent.cancel();
+      setLineTipRef.current(null);
       const to = ev.relatedTarget as Node | null;
       if (to && cardElRef.current?.contains(to)) {
         cardCtl.cancelGrace(); // into the card: it stays
@@ -1649,6 +1764,7 @@ export function GraphCanvas({
       canvas.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
       cardCtl.cancelGrace();
+      intent.cancel();
       canvas.removeEventListener("mousemove", onCanvasHover);
       canvas.removeEventListener("mouseleave", onCanvasLeave);
       window.removeEventListener("mousemove", onWindowDragMove);
@@ -1695,6 +1811,10 @@ export function GraphCanvas({
       .map((n) => ({ id: n.id, title: nodeCardText(n).title }));
   }, [topicCardHome, topicPlan, fold]);
   const recallShown = recall !== null && searchIds === null && !selectionIsNode;
+  // The lit line the pointer rests on: "<recalled> — reached from <shelf> · <relation>".
+  const tipLine = lineTip && recallShown ? litLines.get(lineTip.key) ?? null : null;
+  const tipTo = tipLine ? fold.nodes.get(tipLine.to) ?? null : null;
+  const tipFrom = tipLine ? fold.nodes.get(tipLine.from) ?? null : null;
   const recallLabelOf = (id: string): string | null => (recall ? recall.labels.get(id) ?? null : null);
   const hoverStanding = cardNodeId && !hoverNode && cardNodeId.startsWith("standing:")
     ? fold.standings.get(cardNodeId.slice("standing:".length)) ?? null
@@ -1883,6 +2003,16 @@ export function GraphCanvas({
             </span>
           </div>
           <CardActions actions={topicActions(topicCardHome.size)} onAction={runCardAction} />
+        </HoverCardBox>
+      ) : null}
+      {lineTip && tipLine && tipTo && tipFrom ? (
+        // THE LIT LINE'S WORDS (operator 2026-11-09): what the path means,
+        // in its reading direction — never under the pointer, never taking it.
+        <HoverCardBox x={lineTip.x} y={lineTip.y} className="gc_hovercard gc_linecard" onEnter={() => {}} onLeave={() => {}}>
+          <div className="gc_lc_words" role="tooltip">
+            <i className={`gc_lc_arrow gc_rl_${tipLine.cls}`} aria-hidden="true" />
+            {travelledLineWords(tipLine, plainCardTitle(tipTo), plainCardTitle(tipFrom))}
+          </div>
         </HoverCardBox>
       ) : null}
       {showTopics && topicsState.phase !== "ready" ? (

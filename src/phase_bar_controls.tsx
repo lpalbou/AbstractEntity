@@ -3,12 +3,13 @@
  * five kit chips, one per state of the life cycle, and one power button. `idle`, `visit`, `work`
  * and `sleep` are indicators (lit when current; idle and work have no click, v3: no work switch);
  * `personal` is the one toggle (pressed = allowed, a ring filled when pressed) that lights as well
- * when current. The labels are the phase words in
+ * when current. Indicators are status chips, never disabled buttons (review S4, 2026-11-09): a
+ * keyboard reaches them and their tooltip shows on hover and on focus. The labels are the phase words in
  * every state; a short state word may sit beside one ("waiting"). "Stop", "sleep now" and "Resume
  * and visit" confirm inline, in the bar; Stop's confirmation says it cancels his own time.
  */
-import React from "react";
-import { AfChipButton } from "@abstractframework/ui-kit";
+import React, { useId } from "react";
+import { AfChip, AfChipButton } from "@abstractframework/ui-kit";
 
 import { STOP_CONSEQUENCE, type PhaseBarAct, type PhaseBarUi, type PhaseBarView, type PhaseConfirm } from "./phase_bar";
 
@@ -45,28 +46,57 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
   const showSentence = props.showSentence !== false && Boolean(view.sentence);
   // "Stop now" never waits for a write in flight (the kill switch); the others do.
   const confirmHeld = ui.confirm !== null && ui.confirm !== "stop" && (ui.busy !== null || ui.stopping === true);
+  const tipBase = useId();
   return (
     <div className={`ec_phase_bar${props.className ? ` ${props.className}` : ""}`} data-live={view.live ? "true" : "false"}>
       <span className="ec_pb_pills" role="group" aria-label="Phases">
-        {view.slots.map((s) => (
-          <AfChipButton
-            key={s.key}
-            tone="custom"
-            hue="var(--ea-accent)"
-            className={`ec_pb_pill ec_pb_${s.key}${s.lit ? " ec_pb_lit" : ""}${s.pressed !== undefined ? " ec_pb_toggle" : ""}${ui.busy === s.key ? " ec_pb_busy" : ""}`}
-            pressed={s.pressed}
-            disabled={s.disabled}
-            title={s.title}
-            onClick={() => onAct(s.key)}
-          >
-            {s.pressed !== undefined ? <i className="ec_pb_ring" aria-hidden="true" /> : null}
-            <span className="ec_pb_glyph" aria-hidden="true">
-              {s.glyph}{" "}
+        {view.slots.map((s) =>
+          s.indicator ? (
+            // An indicator: a status chip (no button, nothing to click) that a keyboard reaches; its
+            // words show beside it on hover and on focus (a native title shows on neither for a
+            // disabled button in every browser).
+            <span
+              key={s.key}
+              className="ec_pb_ind_wrap"
+              tabIndex={0}
+              role="status"
+              aria-live="off"
+              aria-label={s.lit ? `${s.label} (now)` : s.label}
+              aria-describedby={s.title ? `${tipBase}-${s.key}` : undefined}
+            >
+              <AfChip tone="custom" hue="var(--ea-accent)" className={`ec_pb_pill ec_pb_ind ec_pb_${s.key}${s.lit ? " ec_pb_lit" : ""}`}>
+                <span className="ec_pb_glyph" aria-hidden="true">
+                  {s.glyph}{" "}
+                </span>
+                {s.label}
+                {s.badge ? <span className="ec_pb_badge">{s.badge}</span> : null}
+              </AfChip>
+              {s.title ? (
+                <span className="ec_pb_tip" role="tooltip" id={`${tipBase}-${s.key}`}>
+                  {s.title}
+                </span>
+              ) : null}
             </span>
-            {s.label}
-            {s.badge ? <span className="ec_pb_badge">{s.badge}</span> : null}
-          </AfChipButton>
-        ))}
+          ) : (
+            <AfChipButton
+              key={s.key}
+              tone="custom"
+              hue="var(--ea-accent)"
+              className={`ec_pb_pill ec_pb_${s.key}${s.lit ? " ec_pb_lit" : ""}${s.pressed !== undefined ? " ec_pb_toggle" : ""}${ui.busy === s.key ? " ec_pb_busy" : ""}`}
+              pressed={s.pressed}
+              disabled={s.disabled}
+              title={s.title}
+              onClick={() => onAct(s.key)}
+            >
+              {s.pressed !== undefined ? <i className="ec_pb_ring" aria-hidden="true" /> : null}
+              <span className="ec_pb_glyph" aria-hidden="true">
+                {s.glyph}{" "}
+              </span>
+              {s.label}
+              {s.badge ? <span className="ec_pb_badge">{s.badge}</span> : null}
+            </AfChipButton>
+          ),
+        )}
       </span>
       {showPower ? (
         <AfChipButton

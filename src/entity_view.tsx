@@ -47,6 +47,7 @@ import { HealthPanel } from "./health_panel";
 import { Inspector } from "./inspector";
 import { LedgerPanel } from "./ledger_panel";
 import { NowLine } from "./now_line";
+import { foldedRecordRow } from "./turn_notices";
 import { Timeline } from "./timeline";
 import { foldUpToIndex, isDiaryGraphId, lastLifeChangeSeq, mergeEnvelopes, type FoldCache } from "./stream_fold";
 
@@ -1082,7 +1083,8 @@ export function EntityView(): React.ReactElement {
    * never repaints over the stopped view (the highest rev wins, phase_bar_writes.ts). */
   const settlePhaseWrite = useCallback(
     (wire: PhaseWire) => {
-      const out = phaseWriteOutcome(wire);
+      // Only "sleep now" settles here (its answer can be long; sleepNow).
+      const out = phaseWriteOutcome(wire, "sleep");
       if (out.bar) {
         const bar = out.bar;
         setPhaseRead((cur) => adoptPhaseBar(cur, bar));
@@ -1512,11 +1514,20 @@ export function EntityView(): React.ReactElement {
     return `${Math.floor(h / 24)}d`;
   }, [fold, live, effectiveIndex, envelopes]);
 
-  /** Open a record in Detail by its graph id (the Now line's open, a reply's notice badge). */
-  const openInDetail = (id: string) => {
-    setSelectedId(fold.graph_to_row.get(id) ?? id);
+  /** Open a record in Detail by its graph id (the Now line's open, a reply's notice badge). A record
+   * this view has not folded yet (a reply's notice arrives before the record's envelope lands on
+   * the stream, review S1 2026-11-09) opens nothing and answers false: the badge then opens its own
+   * panel with the record's title, never Detail on the current recall. One stable callback (review
+   * N6): it reads the newest fold through a ref, so the chat's props stay the same per render. */
+  const foldRef = useRef(fold);
+  foldRef.current = fold;
+  const openInDetail = useCallback((id: string): boolean => {
+    const row = foldedRecordRow(foldRef.current, id);
+    if (row === null) return false;
+    setSelectedId(row);
     setRequestedTab({ tab: "detail", nonce: Date.now() });
-  };
+    return true;
+  }, []);
 
   const stats = useMemo(() => {
     const summons = fold.sessions.filter((s) => s.kind === "summon").length;

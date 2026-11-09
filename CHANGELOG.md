@@ -4,6 +4,38 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The lit lines of the Context view say where they lead.** Each lit line now reads in one
+  direction: faint where it leaves the memory he held in mind, full where it reaches the memory he
+  recalled through it, with an arrowhead at the recalled one. Resting the pointer on a lit line
+  shows what the path means: "<recalled memory> — reached from <memory held in mind> · <relation>",
+  where the relation is the one recorded when the two memories were formed (summarizes,
+  continues, written_amid, derived_from, mentions, reflected_in…), or "used together" when they
+  are joined by use alone. The Context box says it in words too: "from what he held in mind → to
+  what he recalled".
+- **Hovering the graph waits for you to stop.** A memory's card and its highlight, and a lit
+  line's words, appear only after the pointer has rested on it for 150 ms; sweeping across the
+  graph shows nothing, and leaving before then cancels. A click still acts at once.
+- **"Title being written…" only when it is true.** A memory without a title says "title being
+  written…" only while the gateway says its title is being written; otherwise its card, its
+  Detail heading and its ledger line show its kind and date (for example "episode · 2026-11-09
+  21:40"), never its id and never a title the app makes up.
+- **The Context box on a short phone screen.** On a 400 × 700 screen the Context box kept a
+  10-pixel sliver over the graph and a tap on it landed on "freeze". It now always keeps its
+  summary line, the graph's freeze, settle, reset and fit buttons move below it when the graph is
+  short, and a tap on the summary opens it. Its fold control is a real disclosure button for
+  screen readers (expanded or not), and the count is announced once when the scrub stops, not at
+  every step. Each row of the box says what it means in words, not only in a tooltip.
+- **A badge opens what the app has.** A badge under a reply whose memory has not reached the app
+  yet opens its own small panel with the title, instead of Detail on an unrelated recall; a badge
+  with nothing to show opens nothing.
+- **Indicator pills look like indicators.** Idle, work, and sleep while he sleeps are status
+  chips (dashed edge, no fill), not greyed-out buttons: a keyboard reaches them, and their words
+  show on hover and on focus in every browser.
+- **Clearer refusals.** When the gateway refuses the personal toggle without a sentence, the bar
+  says "He can't change that right now." instead of the sleep sentence; a refusal without words
+  never shows an HTTP code ("The gateway refused this change and gave no reason."). In the ledger
+  a word that is not a phase reads "“awake” (not a phase)".
+
 - **What a reply kept shows as badges under his words.** His replies no longer carry lines such as
   "[kept in diary - note - reread: …]" or "[learned: "…"]": the gateway serves the reply without them
   and, beside it, what the turn formed (AbstractRuntime turn notices). Each one is a badge under the

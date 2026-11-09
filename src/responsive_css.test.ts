@@ -95,19 +95,55 @@ describe("responsive layer: graph canvas", () => {
     const wrap = rule(CSS, ".entity_canvas_wrap");
     expect(wrap).toMatch(/--gc-legend-top:\s*\d+px/);
     expect(wrap).toMatch(/--gc-motion-bottom:\s*\d+px/);
-    expect(rule(narrow, ".gc_motion_controls")).toMatch(/bottom:\s*var\(--gc-motion-bottom\)/);
+    expect(wrap).toMatch(/--gc-legend-floor:\s*calc\(var\(--tap-min, 32px\) \+ \d+px\)/);
     const legend = rule(canvasNarrow, ".gc_recall_legend");
     expect(legend).toMatch(/top:\s*var\(--gc-legend-top\)/);
-    // Its bottom edge = top + max-height = 100% - motion bottom - one tap target - a gap > 0:
-    // the buttons' top edge (bottom offset + a tap-min tall button) is never covered.
-    // No floor (a max() would let it grow back over the buttons on a short canvas).
-    const max = /max-height:\s*calc\(100% - var\(--gc-legend-top\) - var\(--gc-motion-bottom\) - var\(--tap-min,\s*32px\) - (\d+)px\);/.exec(legend);
-    expect(max, legend).not.toBeNull();
-    expect(Number(max![1])).toBeGreaterThan(0);
     expect(legend).toMatch(/overflow-y:\s*auto/);
     // The base box lets the pointer through to the canvas; open on a phone it takes it, to scroll.
     expect(rule(CANVAS_CSS, ".gc_recall_legend")).toMatch(/pointer-events:\s*none/);
-    expect(rule(canvasNarrow, ".gc_recall_legend[open]")).toMatch(/pointer-events:\s*auto/);
+    expect(rule(canvasNarrow, ".gc_recall_legend.gc_rl_open")).toMatch(/pointer-events:\s*auto/);
+  });
+
+  it("a short phone canvas (400 × 700, review B1): the legend keeps one summary line and the motion buttons move below it, never under it", () => {
+    const m = /@container entity-canvas \(max-width: ([\d.]+)px\)/.exec(CSS)!;
+    const narrow = atBlocks(`@container entity-canvas (max-width: ${m[1]}px)`).join("\n");
+    const canvasNarrow = atBlocks(`@container entity-canvas (max-width: ${m[1]}px)`, CANVAS_CSS).join("\n");
+    const wrap = rule(CSS, ".entity_canvas_wrap");
+    const decl = (body: string, prop: string) => new RegExp(`(?:^|[;{\\s])${prop}:\\s*([^;]+);`).exec(body)?.[1]?.trim() ?? "";
+    // Evaluate the real declarations for a canvas H px tall and a tap target of `tap` px
+    // (32 fine pointer, 44 touch): var() -> value, % -> of H, calc/min/max -> arithmetic.
+    const evalCss = (expr: string, vars: Record<string, number>, H: number): number => {
+      let js = expr;
+      for (let i = 0; i < 4; i++) js = js.replace(/var\((--[\w-]+)(?:,\s*[^()]*)?\)/g, (_, name: string) => `(${vars[name] ?? NaN})`);
+      js = js.replace(/(\d+(?:\.\d+)?)%/g, (_, n: string) => `(${(Number(n) / 100) * H})`).replace(/(\d+(?:\.\d+)?)px/g, "$1");
+      js = js.replace(/\bcalc\(/g, "(").replace(/\bmin\(/g, "Math.min(").replace(/\bmax\(/g, "Math.max(");
+      expect(js, expr).toMatch(/^(?:[\d\s.+\-*/(),]|Math\.(?:min|max))+$/);
+      return Function(`return ${js};`)() as number;
+    };
+    const top = Number(/--gc-legend-top:\s*(\d+)px/.exec(wrap)![1]);
+    const mb = Number(/--gc-motion-bottom:\s*(\d+)px/.exec(wrap)![1]);
+    const legend = rule(canvasNarrow, ".gc_recall_legend");
+    const buttons = rule(narrow, ".gc_motion_controls");
+    for (const tap of [32, 44]) {
+      const floor = evalCss(/--gc-legend-floor:\s*([^;]+);/.exec(wrap)![1], { "--tap-min": tap }, 0);
+      // The floor holds the summary: one tap target (the button's own height on touch) plus padding and border.
+      expect(floor).toBeGreaterThanOrEqual(tap + 10);
+      const vars = { "--tap-min": tap, "--gc-legend-top": top, "--gc-motion-bottom": mb, "--gc-legend-floor": floor };
+      // 159 px: the live 400 × 700 canvas (castor, 2026-11-09); 259: 400 × 800; then taller ones.
+      for (const H of [159, 180, 220, 259, 320, 480, 860]) {
+        const maxH = evalCss(decl(legend, "max-height"), vars, H);
+        const bottom = evalCss(decl(buttons, "bottom"), vars, H);
+        const buttonsTop = H - bottom - tap;
+        // Never shorter than its summary line…
+        expect(maxH, `H=${H} tap=${tap}`).toBeGreaterThanOrEqual(floor);
+        // …and the buttons start at least 8 px below the legend's lowest edge: a tap on the summary never lands on freeze.
+        expect(buttonsTop - (top + maxH), `H=${H} tap=${tap}`).toBeGreaterThanOrEqual(8);
+        // Where the canvas has room, the buttons keep their place.
+        if (H - top - floor - 8 - tap >= mb) expect(bottom).toBe(mb);
+        // The buttons never leave the canvas.
+        if (H >= top + floor + 8 + tap) expect(bottom).toBeGreaterThanOrEqual(0);
+      }
+    }
   });
 });
 

@@ -32,6 +32,7 @@ import {
   rekeyAttentionEvents,
   type AttentionEventLite,
 } from "./temporal_activation";
+import { displaySaysTitlePending } from "./untitled";
 
 // ---------------------------------------------------------------- state
 
@@ -110,6 +111,11 @@ export interface NodeState {
    * private diary words structurally never enter). Absent = pre-signal
    * dream, self-identifying, zero migration. */
   signals: DreamSignal[] | null;
+  /** The served `display.pending.title` (AbstractMemory): its title is
+   * still being written. Only the stream says so — an untitled record
+   * without it is not "being written" (operator 2026-11-09). The newest
+   * block that carries `pending` (or a title) decides. */
+  title_pending?: boolean;
 }
 
 /** One night-signal (frozen shape, commons 3708): structure decides,
@@ -435,6 +441,10 @@ function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
   }
   if (display.kind && (node.kind === "memory" || !node.kind)) node.kind = display.kind;
   if (display.title && !node.title) node.title = cleanTitle(display.title);
+  // Title being written: only while the newest block that says anything
+  // about it says so (`pending.title`); a served title ends it.
+  if ("pending" in display) node.title_pending = !node.title && displaySaysTitlePending(display);
+  if (node.title && node.title_pending) node.title_pending = false;
   if (typeof display.token_estimate === "number" && !node.token_estimate) {
     node.token_estimate = display.token_estimate;
   }
