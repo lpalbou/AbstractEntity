@@ -28,8 +28,16 @@ it is stored exactly as written.
 ## Does watching an entity change it?
 
 No. The entities list, states, cards and memory views are read-only. Actions
-such as starting personal time or putting an entity to sleep go through the
-gateway and appear as visible events in the entity's life.
+such as granting its own time, putting it to sleep or stopping it go through
+the gateway and appear as visible events in the entity's life.
+
+## What does an entity do when nobody talks to it?
+
+It stays **idle**, awake and visitable, unless you grant it its own time with
+the **personal** toggle; jobs queued for it are worked on either way. While it
+is idle, once 24 hours have passed since its last sleep, or it has formed 500
+new memories since then, it sleeps for maintenance and comes back idle. See
+[The entity life cycle](entity-phases.md).
 
 ## What does the cognition wave measure?
 
@@ -53,7 +61,10 @@ The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer. The optional Avatar
 conversation (public updates, corrections and question answers during a visit)
-needs AbstractGateway 0.19.0 or newer.
+needs AbstractGateway 0.19.0 or newer. The phase bar needs a gateway that
+serves the five-state life cycle, and `@` mentions a gateway that serves
+mentions; with an older one the app says "This gateway does not serve the
+phase bar yet." or "This gateway does not offer mentions yet" instead.
 
 ## How do I see which versions I am running?
 

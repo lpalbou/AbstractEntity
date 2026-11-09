@@ -11,12 +11,14 @@ create your first one. The pages below go deeper.
   uses, with diagrams; the replay-stream fold and the invariants the tests pin.
 - [API and configuration](api.md): the `abstractentity` command, environment
   variables, app URLs (`#new`, `?entity=`, `?page=blueprint`), server routes and
-  the gateway routes the app calls, including optional Avatar conversation.
-- [FAQ](faq.md): common questions about entities, names, privacy of the diary,
-  gateway versions, the About dialog and using the app on a phone or tablet.
+  the gateway routes the app calls, including the life cycle (phase bar and
+  sleep thresholds), `@` mentions and the optional Avatar conversation.
+- [FAQ](faq.md): common questions about entities, names, what an entity does
+  when nobody talks to it, privacy of the diary, gateway versions, the About
+  dialog and using the app on a phone or tablet.
 - [Troubleshooting](troubleshooting.md): symptoms and fixes for gateway, sign-in,
-  creation, the Cognitive Monitor without embeddings, About, port, copy over
-  plain http and build problems.
+  creation, the phase bar, mentions, the Cognitive Monitor without embeddings,
+  About, port, copy over plain http and build problems.
 
 ## Topic pages
 
@@ -24,9 +26,10 @@ create your first one. The pages below go deeper.
   components, in prose.
 - [Data flow](DataFlow.md): transport and sign-in, the replay-stream fold, what
   each surface reads, and the cognition-wave pipeline.
-- [The entity phase graph](entity-phases.md): the lifecycle phases (visit, work,
-  personal, sleep), the liveness axis and their rules, as a companion to
-  [`spec/entity_phases.json`](../spec/entity_phases.json).
+- [The entity life cycle](entity-phases.md): the five states (idle, own time,
+  work, visit, sleep), who moves an entity between them, sleep thresholds,
+  Stop and Resume, how to read the phase bar (also on a phone) and the known
+  limits; a companion to [`spec/entity_phases.json`](../spec/entity_phases.json).
 
 ## Project
 

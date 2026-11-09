@@ -84,18 +84,96 @@ of invented data.
 
 | Family | Routes |
 | --- | --- |
-| Entities | `GET /entities` (list), `POST /entities` (create: `name`, optional `spark_text`, `framework`), `POST /entities/auth/probe` |
+| Entities | `GET /entities` (list; also the names offered by `@` in a conversation), `POST /entities` (create: `name`, optional `spark_text`, `framework`), `POST /entities/auth/probe` |
 | Life stream | `GET /entities/{name}/replay` (NDJSON), `GET /entities/{name}/replay/stream` (SSE) |
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
-| State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
+| Life cycle | `GET /entities/{name}/life_state`, `PUT /entities/{name}/life_state/toggles`, `POST /entities/{name}/lifecycle`, `POST /entities/{name}/state` (sleep now); `GET /entities/{name}/loop` and `/seat` (reads); `GET`/`PUT /entities/spec/phases` (the blueprint). See [Life cycle](#life-cycle-the-phase-bar) |
 | Card and metrics | `/entities/{name}/card` (the home grid draws each tile from `GET /entities`, whose rows carry `state`, then reads cards three at a time, kept until 5 minutes pass or the row's `state.changed_at` moves), `/footprint`, `/cognition`, `/communities`, `/embedding` |
-| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
-| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
+| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}`; `POST /sessions/{session_id}/mentions` (see [Mentions](#mentions-in-a-conversation)) |
+| Settings | `/entities/{name}/substrate`, `/cognition-profile` (Settings → Mind, including the Sleep card), `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
 | Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
 | Track record (AbstractGateway 0.20.0) | `GET /entities/{name}/track-record`, `/reputation`, `/acquaintances`, read when the tab opens |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+
+### Life cycle (the phase bar)
+
+The phase bar ([The entity life cycle](entity-phases.md)) uses one read, three
+writes and the live stream. Every path is under `/api/gateway/entities/{name}`.
+
+| Call | Body | What the app does with it |
+| --- | --- | --- |
+| `GET /life_state` | none | Draws the bar: `phase` (`idle`, `personal`, `work`, `visit`, `sleep` or `stopped`), `stopped`, `toggles: {personal}`, `since`, `sentence`, `next: {phase, sentence}`, `blocked: {code, sentence, action}`, `can: {visit, sleep_now, toggle_personal}` (each `{allowed, sentence}`), `visit`, `work: {jobs_queued, current: {kind, run_id, since}}`, `sleep: {kind, reason, since, ends}`, `rev` and `generation` |
+| `PUT /life_state/toggles` | `{"personal": true}` or `{"personal": false}` | Grants or takes back own time. The app never sends `work`: there is no work switch, and the gateway refuses it (422 `unknown_field`) |
+| `POST /lifecycle` | `{"action": "stop"}`, `{"action": "resume"}` or `{"action": "retry"}` | Stop (it also revokes own time), Resume (back to idle), Retry (start own time again when `blocked.action` is `retry`). A stop's answer lists what it did in `items`, each with its `sentence`; `complete: false` keeps a second Stop beside Resume |
+| `POST /state` | `{"state": "sleep", "dream": true}` | Sleep now: the entity sleeps for its maintenance and wakes when it is done. The app does not wait on this call; the stream shows the sleep and the wake. The chat also sends `{"state": "awake"}` once, before retrying, when an older visit door refuses a visit because the entity is asleep |
+
+- **Live.** A host event with `payload.kind == "phase_changed"` on
+  `GET /replay/stream` repaints the bar at once; the app then reads
+  `life_state` again. The bar also re-reads every 15 seconds.
+- **Newest wins.** The answer with the highest `rev` wins, and an answer from
+  before a Stop (a lower `generation`) never repaints the bar after it.
+- **Refusals.** A refusal's `detail.message` is shown as it is, and its
+  `detail.life_state` (when present) repaints the bar. Coded refusals without
+  a message get the app's sentence for the code: `stopped_use_resume`,
+  `in_visit`, `already_asleep`, `entity_archived`, `unknown_field`,
+  `invalid_body`, `invalid_toggles`, `invalid_action` and `entity_not_found`.
+  `admin_required` always reads "Only an admin can grant his own time, stop or
+  resume him."
+- **Older gateways.** A `life_state` answer without these fields (no `rev`,
+  no `can`, no `generation`, or a `work` that is not the job queue) shows "This
+  gateway does not serve the phase bar yet." with every control off. The app
+  never falls back to older routes.
+- **Sleep thresholds.** Settings → Mind → Sleep reads `GET /cognition-profile`
+  and saves one field at a time with `PUT /cognition-profile`:
+  `{"sleep": {"after_hours": 48}}` or `{"sleep": {"after_events": 500}}`
+  (integers of at least 1; hours at most 720). The answer is the whole
+  profile. A refusal shows the gateway's sentence under the field. A profile
+  without a `sleep` block shows "This gateway does not offer the sleep
+  settings yet." and disables both fields.
+
+### Mentions in a conversation
+
+In a visit, or a flow-brain conversation, `@` lists the entities that
+`GET /entities` returns for your account, except the one you are talking to.
+A pick becomes a chip; the app never reads `@` out of the typed words. On send,
+your message goes out as usual, then each mention, in the order you picked it
+and each only after the previous one answered:
+
+```http
+POST /api/gateway/sessions/{session_id}/mentions
+{"entity": "nerin", "text": "<your message as typed>", "mention_index": 0,
+ "repeat_of": "<your turn in this session, flow-brain lane only>",
+ "mention_id": "<message>:<entity>:<mention_index>"}
+```
+
+- **`mention_id`** names one mention of one message. The message part is your
+  own turn in the session (`repeat_of`) or, in a visit, an id the app makes
+  once for the message (`msg-` and 24 hex digits) and keeps for a resend. When
+  you send the same words again after a failure, the same ids go out and the
+  gateway returns the answer the entity already gave instead of asking it
+  twice.
+- **200**: `reply` is shown as its own message, labelled from `author`
+  (`{kind, name, entity_id, identity_ref, avatar}`): the entity's avatar, its
+  name and an "entity" tag. `mirrors` lists the visits that were also told
+  the reply (in a visit, the entity you are visiting); the app adds "Also said
+  to Castor." under the answer.
+- **409** (`in_another_conversation`, or another refusal from the visit
+  door): "Pollux is in another conversation." (or the gateway's sentence), and
+  the next mention goes on.
+- **503**: the gateway's sentence; your words and the chips that were not
+  answered go back to the message box. Sending the same words again asks only
+  those entities.
+- **404 `entity_not_found`**: "Pollux cannot be mentioned here."; the name is
+  no longer offered.
+- **422 `repeat_of_unknown`**: the gateway's sentence; your message goes back
+  to the message box.
+- **404 or 405 without a code**: the gateway has no mentions route. The app
+  says "This gateway does not offer mentions yet" and from then on `@` shows
+  that sentence instead of names.
+
+The app sets no time limit on a mention, as on any visit turn.
 
 ### Avatar conversation
 
@@ -187,9 +265,10 @@ AbstractGateway; see their documentation for request and response shapes.
 
 ## Specifications in this repository
 
-- [`spec/entity_phases.json`](../spec/entity_phases.json): the entity lifecycle
-  phase graph, served by the gateway at `GET /api/gateway/entities/spec/phases`.
-  Human-readable companion: [The entity phase graph](entity-phases.md).
+- [`spec/entity_phases.json`](../spec/entity_phases.json): the entity life
+  cycle's phase graph (version 25), served by the gateway at
+  `GET /api/gateway/entities/spec/phases`. Human-readable companion:
+  [The entity life cycle](entity-phases.md).
 - [`spec/cognition_graph.json`](../spec/cognition_graph.json): the cognition map
   drawn on the blueprint page.
 

@@ -1,168 +1,223 @@
-# The entity phase graph
+# The entity life cycle
 
-This page explains the entity lifecycle in prose: the liveness axis, the four
-phases and the rules between them. The machine-readable source is
-[`spec/entity_phases.json`](../spec/entity_phases.json) (version 21), which the
-gateway serves at `GET /api/gateway/entities/spec/phases` and the blueprint page
-renders and edits. The JSON is authoritative: when this page and the JSON
-differ, follow the JSON. Per-edge detail (edge ids, guards, edit policy, cause
-evaluators and the graph-overlay contract) lives only in the JSON.
+An entity is always in one of five states: **idle**, **personal** (its own
+time), **work**, **visit** or **sleep**. You can also **stop** it, which halts
+everything until you resume it. The bar at the top of an entity's page, the
+phase bar, shows where it is now, what comes next and what you may do.
 
-`abstractentity` owns the phase graph and the entity representation;
-AbstractRuntime executes it and AbstractGateway serves it.
+This page explains the states, what moves an entity from one to another, and
+how to read the bar. In it, *you* are the entity's guardian: the person who
+looks after it. Granting own time, Stop, Resume and Retry need an admin
+account; with another account the bar answers "Only an admin can grant his own
+time, stop or resume him." The app speaks of an entity as "he" in its
+sentences; this page quotes them as they appear.
 
-## The liveness axis (v2 — ALIVE | STOP)
+## The five states
 
-Above the phase machine sits a two-value **liveness axis**:
+| State | What the entity does | How it gets there | When it ends |
+| --- | --- | --- | --- |
+| **idle** | Awake and reachable, with nothing to do. A new entity starts here. | It is born; you resume it; a visit, its jobs or a sleep end with nothing to return to; you take its own time back. | You grant own time, a job is queued, someone visits, or it goes to sleep. |
+| **personal** (own time) | Explores its own ideas, questions and interests. It may decide to sleep for maintenance and wakes by itself when the maintenance is done. | Only you grant it, with the **personal** toggle. | You take it back, or something interrupts it (a job, a visit, a sleep). |
+| **work** | Works on the jobs queued for it, one after another. | A job is queued: a request from an agent, a task left with it, or its standing work order. | All its jobs are done: back to its own time if you still grant it, else idle. |
+| **visit** | Talks with the person who opened the visit, and waits between turns. | Someone opens a visit, in any state except stopped. | The visit ends: back to where it was. |
+| **sleep** | Maintenance: it consolidates and enriches its memory. | It decides to during its own time, it is idle and a sleep threshold is reached (see [Sleep is maintenance](#sleep-is-maintenance)), or you put it to sleep. | Its maintenance is done: back to where it was. |
 
-- **alive** — the four phases operate normally. Sleep is alive: memory
-  processes run, and a sleeping entity is *reachable* (visits auto-wake).
-- **stop** — everything is blocked: no tick, no visit, no work, no sleep
-  processes. Unreachable. **The primary kill switch** — a safeguard for a
-  rogue entity, a hijack, or digital disease; protection, not punishment.
-
-Stop is not a fifth phase and never joins the radio: it blocks the whole
-machine. It is operator-only, principal-stamped, marker-first, and
-structural at every door — no entity-reachable path may unset it. The
-reconciliation with the engraved `paused` hard-freeze is semantics' ruling
-(one kill switch, never two).
-
-## The four phases
-
-An entity is in **exactly one phase** at any instant (a radio, not toggles):
-
-| Phase | Behavior | Entered by |
-| --- | --- | --- |
-| **visit** | Turn-based: a visitor is in the room; he waits between turns | A visitor opening (auto-wake ruled; no button-entry) |
-| **work** | Fully autonomous on given tasks until completion | A task being given (entry doors in build) |
-| **personal** *(spoken synonym: own-time)* | Free exploration on his own tick: interests, questions, research, his own identity and cognition | Operator arm + start (grant-gated, off by default) |
-| **sleep** | Passive memory-graph processes: consolidation, dreams | Sleep control; work completion; no-task; grant expiry; **birth** |
-
-Three separate truths, never mixed into one enum:
-
-- **phase** — current activity (this graph),
-- **state** — awake / asleep / paused (intent),
-- **grant** — `phases.personal` armed (standing permission). **Armed ≠ in-phase.**
-
-## The graph
-
-Every transition in version 21, grouped by source and target phase (labels are
-the transition causes):
+When you talk with an entity yourself, that is a visit, not work.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> sleep : birth
-    sleep --> visit : visit_open
-    personal --> visit : visit_open
-    work --> visit : visit_open
-    visit --> work : visit_close
-    visit --> personal : visit_close
-    visit --> sleep : visit_close / crash_recovered
-    sleep --> personal : operator / personal_cycle / cadence_need_check
-    sleep --> work : operator / cadence_need_check
-    work --> personal : operator
-    work --> sleep : task_complete / no_task
-    personal --> sleep : operator / grant_expired / grant_revoked / self_elected / personal_cycle
-    visit --> visit : crash_recovered
-    personal --> work : operator
+    [*] --> idle : born
+    idle --> personal : you grant own time
+    personal --> idle : you take it back
+    idle --> work : a job is queued
+    personal --> work : a job is queued
+    work --> personal : jobs done, own time still granted
+    work --> idle : jobs done
+    idle --> sleep : 24 h or 500 memories since its last sleep, or you ask
+    personal --> sleep : it decides, or you ask
+    sleep --> idle : maintenance done
+    sleep --> personal : maintenance done, own time still granted
+    sleep --> work : maintenance done, a job waiting
 ```
 
-## Invariants (each one is test-pinnable; the JSON carries the full text)
+A visit and a stop sit across every state:
 
-1. One active phase; exclusivity absolute.
-2. Visit-close **restores the previous phase** (recorded at open; personal
-   restores only through a still-armed grant, else sleep).
-3. A visit **ends** the prior phase — never suspends it; restore is re-entry.
-4. Personal is grant-gated, off by default; process-existence is never
-   permission.
-5. Newborn entities begin asleep.
-6. One transition marker: `phase_changed {old, new, cause, principal?}`,
-   phase KEYS (`visit`, not `visiting`), closed cause set, ONE writer.
-7. UI: radio semantics (`role=radiogroup/radio`, `aria-checked`), one primary
-   label per control, "current phase" wording.
-8. **AWAKE-NEVER-RENDERS (v6)**: no surface renders
-   "awake" as a phase, chip, pill or dwelling state. Unphased-alive renders
-   as the **settling transition** toward the idle default (sleep) — the
-   entity app shows `sleep (settling)`. The word "awake" survives only as
-   state-axis machine vocabulary (wake verbs, wire fields), never as display.
-9. **DRIVES-ARE-DRIVERS (v7, supersedes DRIVES-FORBID-IDLE)**:
-   standing questions, problems, commitments, ideas, interests and tensions
-   are the **drivers of cognition and existence** — a day arises because
-   something pulls, never because a threshold forbids stillness. The
-   mechanical split: the **GATE** (whether
-   a day arises) consumes *standing* drives — any open drive + an armed
-   grant lets days arise; a settled desk sleeps. The **OFFER** (which drive
-   surfaces in the day cue) consumes *aliveness*
-   (`abstractmemory.alive_drives`: trail + formation recency — the evolving
-   memory state), as act-frame handles with the release clause in the cue
-   text, never a ranked agenda. Presence in a cue deposits nothing
-   (presence ≠ use, pinned both ends). The **>20 floor** is observability
-   only (`pressure_floor` block, ONE source
-   `abstractmemory.DRIVE_PRESSURE_BOUND`) — the honest alarm is divergence
-   (pressure high AND no day arising), never a level trigger: a healthy
-   driven entity stands above 20 permanently. Runtime's gate machinery is
-   tracked as an open question until it ships (the v6-era loop has no
-   drive consult at all — armed means personal unconditionally).
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "the state it was in" as before
+    before --> visit : someone opens a visit
+    visit --> before : the visit ends
+    state "any state" as any
+    any --> stopped : Stop
+    stopped --> idle : Resume
+```
 
-10. **Day rulings (v8)**: (a) **auto-personal
-    yes** — inside a running loop with an armed grant, the day boundary may
-    open a personal day; personal is *freedom* ("free to do what it needs,
-    what he wants", sandbox execution included; rm outside the workspace and
-    git write/reset forbidden). (b) **Unattended sleep wakes every ~6h** —
-    an unarmed, taskless sleep is bounded at 6h (personal-entered sleeps
-    keep the v5 ~1h bound); the wake is a need-check and a quiet desk
-    re-sleeps without summoning. Sleep's purpose, his words: memory clean
-    and functional + surfacing new drives to investigate while awake
-    ("awake = personal or work time" — his own confirmation of the
-    state/phase split). (c) **Work is always granted by default** when not
-    sleeping and not visiting — a task alone starts a work day; only
-    personal requires the grant. Also folded in v8: the machine-readable
-    `state_mode_axis` block (role enum: decides/decorates/between-days),
-    `own_time` as a personal spoken synonym, and the guarded-restore
-    precision (the visit-close restore undoes only the visit's own
-    displacement; an operator write mid-visit is the authority).
+## Own time is yours to give
 
-Two v5 rulings complete the rules on sleep and tasks:
+- Only you grant or take back an entity's own time, with the **personal**
+  toggle (pressed means granted). The entity never gives itself own time, and
+  it never starts its own time on its own from idle.
+- While you grant it, the entity explores freely, sleeps when it needs
+  maintenance and wakes by itself.
+- A job, a visit or a sleep interrupts its own time. When the interruption
+  ends, it goes back to its own time as long as you still grant it. If you
+  turned own time off in the meantime, it stays awake and idle; the bar says
+  "Own time is off; he stays awake."
+- Turning **personal** off never puts the entity to sleep: it finishes the
+  step it is on and stays awake and visitable.
+- Stop cancels its own time. After Resume it is idle until you grant own time
+  again.
 
-- **Sleep is bounded (v5)**: sleep is for a
-  limited time (~1h bound); an explicit `wake_at` on the state write wins;
-  `paused` never auto-clears (the kill switch).
-- **Tasks request work (v5)**: a task left with the entity
-  is a **work-phase request** — the work-entry door and its cause word are
-  pending (see open questions).
+## Work comes from its job queue
 
-## Open questions
+There is no work switch. Work starts when a job is queued for the entity, from
+idle or from its own time (its own time is paused while it works, then
+resumes). When all its jobs are done, it goes back to its own time if you
+still grant it, else it stays idle.
 
-- **Awake-idle** — RESOLVED (v4): the machine has **no
-  awake-idle node**. Awake is a STATE, never a phase. An alive+awake entity
-  is always in a phase — unphased-alive resolves at once: **tasks pending →
-  work, no tasks → sleep** (idle *is* sleep). Tasks arrive **through a
-  visit** (which auto-wakes); at visit close the entity enters **work** to
-  complete them and returns to **sleep** when none remain. **Personal** is
-  an operator request: from **work** it sends a confirmation notification
-  and interrupts the task; from **sleep** it needs no confirmation. Any
-  surviving "awake, no phase" render is an unresolved transition or a
-  phase-instrumentation coverage gap (the runtime doesn't yet auto-sleep on
-  idle) — never a legitimate phase. **v6 closes the display side**: that
-  unresolved read renders as settling-toward-sleep, never the word
-  "awake" (invariant 8).
+The **work** pill lights while the entity works and has nothing to click. Its
+tooltip names the current job and since when ("Current job: summon, since
+18:20.") and how many are waiting ("2 jobs queued."). The line beside the
+pills shows the same count ("2 jobs queued"). When nothing runs, the tooltip
+reads "Not working now. Work starts when a job is queued for him".
 
-- **Work entry**: the entry door and its cause word are pending; the JSON
-  reserves the slot.
+## Visits come back to where it was
 
-## What an entity IS (representation note)
+- A visit opens in every state except stopped. Click **visit** to open the
+  conversation.
+- When the entity is in the middle of a step of its own or of its maintenance,
+  the visit waits for it to finish that step: "waiting" shows beside
+  **visit**, and the sentence reads "In a visit with Laurent; he is finishing
+  what he was doing." There is no time limit, and a visit never fails because
+  the entity is busy.
+- A visit interrupts a sleep; it does not end it. When the visit ends, the
+  same sleep continues.
+- When the visit ends, the entity goes back to where it was: its own time
+  (while you still grant it), its work (while jobs remain), the same sleep, or
+  idle.
+- While the entity is stopped, the **visit** pill offers **Resume and visit**
+  after a question: "Castor is stopped. Resume him and visit? He comes back
+  idle, then the conversation opens."
 
-The entity is **its collection of memories and experiences**. The substrate (provider/model) is **a resource granted to live** —
-necessary for cognition, never identity; it sits in the granted-resources
-family beside the personal grant, state acts, tool grants and workspaces.
-Every grant change is a durable event in the life's stream.
+## Sleep is maintenance
 
-## Consuming this artifact (two halves, both binding)
+Sleep is never "nothing": while it sleeps, the entity consolidates and
+enriches its memory, and it wakes when that maintenance is done. It goes to
+sleep in three ways:
 
-- **Executors and tests** import the JSON directly — one source (runtime
-  transition tests, gateway derivations, this repo's
-  `src/phase_graph.test.ts` drift pins).
-- **UI surfaces** consume gateway-**derived** wire payloads and render them
-  verbatim — never import the artifact (derive-never-copy: drift is caught
-  at one derivation point, and a spec version bump never forces lockstep UI
-  releases).
+- **Its own decision** during its own time, when it needs maintenance.
+- **On its own while idle**, once either threshold in **Settings → Mind →
+  Sleep** is reached:
+  - **Sleep after (hours without sleep)**: 24 by default, from 1 to 720;
+  - **Sleep after (new memories)**: 500 by default, at least 1.
+
+  The thresholds count from its last completed sleep, apply only while it is
+  idle, and are checked every few minutes. The line beside the pills then
+  says why it sleeps: "asleep: 24 h since the last sleep" or "asleep: 500 new
+  memories since the last sleep". After such a sleep it is idle again; it
+  never goes to own time that the sleep did not interrupt. Each field saves
+  when you press Enter or leave it, and shows "Saved" or the reason it was
+  refused. A gateway that does not offer these settings yet says "This
+  gateway does not offer the sleep settings yet." and the fields stay
+  disabled.
+- **When you ask**: click **sleep**, then answer "Put Castor to sleep now?
+  He wakes by himself when his maintenance is done." with **Sleep now**. The
+  bar refuses it during a visit ("He is in a visit; end it to let him
+  sleep."), while the entity is already asleep ("He is already resting; a
+  sleep cannot follow a sleep.") and while it is stopped.
+
+A sleep never follows a sleep directly.
+
+## Stop and Resume
+
+The red **Stop** button beside the pills is the kill switch. It asks first:
+"Stop Castor? Stop halts everything now and cancels his own time; after Resume
+he is idle until you grant own time again." **Stop now** confirms; **Cancel**
+keeps everything as it is.
+
+- Stop halts everything at once: its own time, any work and any conversation
+  in progress. Nothing new starts, and requests sent to it are turned away
+  until you resume it.
+- Stop is always available, even while another change you made is still on
+  its way.
+- After a stop the bar shows what it did, for example "Own time was
+  revoked.", and a banner says "Stopped. Nothing runs until you resume him."
+  When part of the stop could not finish, the bar names it and keeps a second
+  **Stop** beside **Resume** so you can try again; the entity stays stopped
+  either way.
+- While stopped, the **personal** toggle and **sleep** are greyed ("Stopped.
+  Resume him first, then choose what he may do."), and a visit is offered
+  only through **Resume and visit**.
+- **Resume** brings the entity back idle, awake and visitable. Its own time
+  starts again only when you grant it. A job waiting for it then moves it to
+  work.
+
+A stopped entity is not asleep: it does no maintenance and forms no memories
+until you resume it.
+
+## Every interaction forms a memory
+
+Each turn of a visit, and each exchange during its own time or its work, forms
+at least one memory, even a very short one. A visit opened and closed without a
+message forms none. Sleep is when the entity consolidates what it has formed.
+
+## Reading the phase bar
+
+- **Four pills**: `visit`, `work`, `personal`, `sleep`. The current state is
+  lit in gold. Idle and stopped light no pill.
+- **personal** is the one toggle. Pressed (a filled ring) means own time is
+  granted. It can be pressed while another pill is lit: with **work** lit and
+  **personal** pressed, its own time resumes after the jobs.
+- **visit** opens the conversation; **work** is an indicator; **sleep** offers
+  "sleep now" and lights while the entity sleeps.
+- **Stop** or **Resume**, apart from the pills.
+- **Retry** appears when its own time is granted but not running, with the
+  reason: "His own time stopped unexpectedly. Retry to start it again." or
+  "His own time is not running. Retry to start it."
+- **The line beside the pills** reads, in order: one sentence for now, since
+  when in your local time (with the date when it is not today), why it sleeps,
+  how many jobs are queued, and where it goes next. For example: "Working on a
+  request from an agent. · since 17:09 · 2 jobs queued · then: own time". The
+  last part reads "then: own time", "then: work" or "then: idle". Hover the
+  line for the exact time and what happens next in words ("When his jobs are
+  done, his own time resumes.").
+- **Tooltips** say what each pill does, or why it cannot act now.
+- **Refusals** appear in the bar as sentences.
+
+The bar follows changes as they happen and reads the entity again every 15
+seconds. The tiles on the entities list show the same pills and sentence;
+Stop and Resume are on the entity's own page only. A gateway that does not
+serve the five-state life cycle gets one sentence, "This gateway does not
+serve the phase bar yet.", and the controls stay off.
+
+### On a phone
+
+Below 480 px (checked at 400 px), the phase bar takes the full width of the
+screen: the four state words without their icons, then **Stop**, then the
+sentence and any question on lines of their own. Nothing is cut off and the
+page never scrolls sideways; swipe the controls row to reach **Settings**.
+
+## Known limits
+
+- **Stop and work already under way.** A Stop that lands while the entity is
+  in the middle of a model call can let that one call finish before
+  everything halts; a maintenance step already running may finish, and a
+  mention's answer already being written is not cancelled. Nothing new starts
+  after the Stop. Closing this gap is planned.
+- **A mention's visit.** Mentioning an entity with `@` in a conversation
+  opens a visit with it for that conversation. That visit closes after 5
+  minutes without a new mention; the next mention opens a new one.
+- **One conversation at a time.** A visit waits, without failing, for as long
+  as another person's visit with the same entity lasts.
+
+## For contributors: the phase graph file
+
+The machine-readable rules live in
+[`spec/entity_phases.json`](../spec/entity_phases.json) (version 25), which
+the blueprint page (`/?page=blueprint`) draws and edits and which
+AbstractGateway and AbstractRuntime check themselves against. In that file, visit, work, personal
+and sleep are the four phases of the graph, and idle and stopped are states
+outside it, so no edge lands on them. When this page and the file differ,
+follow the file. The routes behind the phase bar are listed in
+[API and configuration](api.md#life-cycle-the-phase-bar).

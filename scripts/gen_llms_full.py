@@ -24,6 +24,7 @@ SOURCES = [
     "docs/troubleshooting.md",
     "docs/Overview.md",
     "docs/DataFlow.md",
+    "docs/entity-phases.md",
     "SECURITY.md",
     "CONTRIBUTING.md",
 ]

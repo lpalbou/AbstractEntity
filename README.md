@@ -47,6 +47,13 @@ memory is stored there, in its own folder), and it keeps one identity for its
 whole life. In this app you can talk with it, watch what it remembers as a
 live graph, and read its diary.
 
+An entity is always in one of five states: **idle** (awake, nothing to do),
+**personal** (its own time, which only you grant), **work** (jobs queued for
+it), **visit** (someone is talking with it) or **sleep** (maintenance of its
+memory). Every interaction forms a memory. The red **Stop** halts everything at
+once; **Resume** brings it back idle. See
+[The entity life cycle](docs/entity-phases.md).
+
 ## Your first entity
 
 1. Open the Entity app. From the gateway console, the Entity card's button
@@ -102,6 +109,7 @@ for every launch flag.
 
 | Surface | What it shows |
 | --- | --- |
+| Phase bar | Where the entity is in its life cycle (idle, own time, work, visit, sleep or stopped), with a sentence, since when and where it goes next ("then: own time"); the **personal** toggle that grants its own time, **sleep now**, and the red **Stop** (or **Resume**). See [The entity life cycle](docs/entity-phases.md) |
 | Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
 | Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), its identity (avatar design, colour and voice, with their history), files, tools and system prompt in **Settings**, and read its track record (what it has done, trust by task, whom it has met) — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and identity with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
@@ -113,6 +121,17 @@ for every launch flag.
 | Wave | The cognition wave: the expressive character of the entity's own words over time (not its inner state) |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
+
+In a conversation, type `@` to bring another entity in: pick it from the list
+of entities your account can see, and it becomes a chip in the message box (the
+first pick says "Nerin will read this conversation's history"). When you send,
+the entity you are talking with answers first, then each entity you picked, one
+after the other in your order, so the second one reads the first one's answer.
+Each answer shows who wrote it: the entity's avatar, its name and an "entity"
+tag. An entity busy elsewhere is skipped with "Pollux is in another
+conversation."; one that cannot answer puts your words and its chip back in the
+message box. A gateway without mentions says "This gateway does not offer
+mentions yet". See [Mentions in a conversation](docs/api.md#mentions-in-a-conversation).
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -167,8 +186,9 @@ monitor.
   desktop.
 - **Phones (below 768 px, or held sideways):** the tabs become a strip along the
   bottom of the view, dialogs open from the bottom of the screen, and the header
-  and timeline wrap onto a second row. Below 480 px the phase controls are one
-  row you can swipe.
+  and timeline wrap onto a second row. Below 480 px the controls row swipes
+  sideways, and the phase bar takes the first screen width: the four state
+  words, **Stop**, then its sentence and any question on lines of their own.
 - **On-screen keyboard:** while the keyboard is open, an open panel fills the
   screen above it with the tab strip kept underneath, so the chat stays usable.
 - **Graph overlays:** when the graph is narrower than 860 px, the lens chips and
@@ -203,6 +223,16 @@ Limits:
 - The side tabs are buttons: they do not support arrow-key navigation between
   tabs.
 
+## Known limits
+
+- A **Stop** that lands while the entity is in the middle of a model call can
+  let that one call finish before everything halts; nothing new starts after
+  it.
+- A **mention** opens a visit with the mentioned entity for that conversation;
+  the visit closes after 5 minutes without a new mention.
+
+The full list is in [The entity life cycle](docs/entity-phases.md#known-limits).
+
 ## Sign-in and security
 
 The `abstractentity` server includes the shared AbstractFramework sign-in proxy:
@@ -229,6 +259,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 - [Getting started](docs/getting-started.md): install, sign in, create your first entity
 - [Architecture](docs/architecture.md): components, gateway routes, invariants
 - [API and configuration](docs/api.md): command, environment, URLs, gateway routes used
+- [The entity life cycle](docs/entity-phases.md): the five states, own time, sleep, Stop and Resume, and how to read the phase bar
 - [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md)
 - [Changelog](CHANGELOG.md)
 

@@ -72,8 +72,11 @@ During work, send a correction in the same composer or answer the question shown
 An accepted correction is available to the assistant, but is not confirmation
 that its plan changed. Questions and permission decisions stay separate.
 
-A visit starts when you choose **visit**; a sleeping entity wakes up for it.
-Send a message in the composer to begin talking. In Chat, the memory graph
+A visit starts when you choose **visit** in the phase bar at the top of the
+page. It opens in every state except stopped: when the entity is finishing a
+step of its own, "waiting" shows beside **visit** until it is ready, and a
+sleeping entity pauses its sleep for you and goes back to it when the visit
+ends. Send a message in the composer to begin talking. In Chat, the memory graph
 shows memories forming and being recalled, and the **Book** tab collects the
 diary entries the entity writes.
 
@@ -87,6 +90,30 @@ speaker, microphone (with a Test and a level meter), spoken language and
 **Read aloud**. **Settings → track record** shows what the entity has done, how
 far it can be trusted for each kind of task, and whom it has met
 (AbstractGateway 0.20.0 or later).
+
+## 5. Bring another entity in
+
+While you talk with one entity, type `@` in the message box and pick another
+entity from the list (the first pick says "Nerin will read this conversation's
+history"). When you send, the entity you are talking with answers first, then
+each entity you picked, in your order; each answer shows the entity's avatar,
+its name and an "entity" tag. If one is busy in another conversation, the app
+says so and goes on with the next.
+
+## 6. Its own time, sleep and Stop
+
+A new entity starts **idle**: awake and visitable, with nothing of its own
+running. Press the **personal** toggle in the phase bar to grant it its own
+time: it then explores its own ideas, sleeps for maintenance when it needs to
+and wakes by itself. Press it again to take its own time back; the entity
+stays awake. While it is idle, once 24 hours have passed since its last sleep,
+or it has formed 500 new memories since then, it goes to sleep for maintenance
+on its own; change both numbers in **Settings → Mind → Sleep**.
+
+The red **Stop** asks first, then halts everything at once and cancels its own
+time. **Resume** brings it back idle. Granting own time, Stop and Resume need
+an admin account. See [The entity life cycle](entity-phases.md) for every
+state and how to read the bar.
 
 ## Next steps
 

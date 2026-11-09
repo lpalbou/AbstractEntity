@@ -54,6 +54,29 @@ footprint in **Health**). The app labels the gap rather than estimating.
 **Fix:** upgrade the gateway to a version that serves the route; see
 [Gateway routes the app uses](api.md#gateway-routes-the-app-uses).
 
+## The phase bar says "This gateway does not serve the phase bar yet."
+
+**Cause:** the gateway does not serve the five-state life cycle (idle, own
+time, work, visit, sleep, with the job queue). The bar's controls stay off
+rather than guessing.
+
+**Fix:** upgrade the gateway. See
+[Life cycle (the phase bar)](api.md#life-cycle-the-phase-bar).
+
+## The phase bar shows "His own time stopped unexpectedly"
+
+**Cause:** its own time is granted, but nothing is running.
+
+**Fix:** press **Retry** beside the sentence. To stop granting it instead,
+turn **personal** off; the entity stays awake.
+
+## Typing `@` says "This gateway does not offer mentions yet"
+
+**Cause:** the gateway has no mentions route.
+
+**Fix:** upgrade the gateway. Until then, talk with each entity in its own
+visit, or convene a meet from the entities list.
+
 ## The Wave tab refuses to score
 
 **Cause:** the cognition wave scores only with the entity's own embedding model;

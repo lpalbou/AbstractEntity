@@ -1,6 +1,6 @@
 # AbstractEntity — full documentation (llms-full.txt)
 
-> Generated from README.md + docs/getting-started.md + docs/architecture.md + docs/api.md + docs/faq.md + docs/troubleshooting.md + docs/Overview.md + docs/DataFlow.md + SECURITY.md + CONTRIBUTING.md. The AI-readable single-file corpus; see llms.txt for the concise index.
+> Generated from README.md + docs/getting-started.md + docs/architecture.md + docs/api.md + docs/faq.md + docs/troubleshooting.md + docs/Overview.md + docs/DataFlow.md + docs/entity-phases.md + SECURITY.md + CONTRIBUTING.md. The AI-readable single-file corpus; see llms.txt for the concise index.
 
 
 <!-- ============================================================ -->
@@ -55,6 +55,13 @@ sort its memories and grows over time. It lives on your AbstractGateway (its
 memory is stored there, in its own folder), and it keeps one identity for its
 whole life. In this app you can talk with it, watch what it remembers as a
 live graph, and read its diary.
+
+An entity is always in one of five states: **idle** (awake, nothing to do),
+**personal** (its own time, which only you grant), **work** (jobs queued for
+it), **visit** (someone is talking with it) or **sleep** (maintenance of its
+memory). Every interaction forms a memory. The red **Stop** halts everything at
+once; **Resume** brings it back idle. See
+[The entity life cycle](docs/entity-phases.md).
 
 ## Your first entity
 
@@ -111,6 +118,7 @@ for every launch flag.
 
 | Surface | What it shows |
 | --- | --- |
+| Phase bar | Where the entity is in its life cycle (idle, own time, work, visit, sleep or stopped), with a sentence, since when and where it goes next ("then: own time"); the **personal** toggle that grants its own time, **sleep now**, and the red **Stop** (or **Resume**). See [The entity life cycle](docs/entity-phases.md) |
 | Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
 | Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), its identity (avatar design, colour and voice, with their history), files, tools and system prompt in **Settings**, and read its track record (what it has done, trust by task, whom it has met) — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and identity with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
@@ -122,6 +130,17 @@ for every launch flag.
 | Wave | The cognition wave: the expressive character of the entity's own words over time (not its inner state) |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
+
+In a conversation, type `@` to bring another entity in: pick it from the list
+of entities your account can see, and it becomes a chip in the message box (the
+first pick says "Nerin will read this conversation's history"). When you send,
+the entity you are talking with answers first, then each entity you picked, one
+after the other in your order, so the second one reads the first one's answer.
+Each answer shows who wrote it: the entity's avatar, its name and an "entity"
+tag. An entity busy elsewhere is skipped with "Pollux is in another
+conversation."; one that cannot answer puts your words and its chip back in the
+message box. A gateway without mentions says "This gateway does not offer
+mentions yet". See [Mentions in a conversation](docs/api.md#mentions-in-a-conversation).
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -176,8 +195,9 @@ monitor.
   desktop.
 - **Phones (below 768 px, or held sideways):** the tabs become a strip along the
   bottom of the view, dialogs open from the bottom of the screen, and the header
-  and timeline wrap onto a second row. Below 480 px the phase controls are one
-  row you can swipe.
+  and timeline wrap onto a second row. Below 480 px the controls row swipes
+  sideways, and the phase bar takes the first screen width: the four state
+  words, **Stop**, then its sentence and any question on lines of their own.
 - **On-screen keyboard:** while the keyboard is open, an open panel fills the
   screen above it with the tab strip kept underneath, so the chat stays usable.
 - **Graph overlays:** when the graph is narrower than 860 px, the lens chips and
@@ -212,6 +232,16 @@ Limits:
 - The side tabs are buttons: they do not support arrow-key navigation between
   tabs.
 
+## Known limits
+
+- A **Stop** that lands while the entity is in the middle of a model call can
+  let that one call finish before everything halts; nothing new starts after
+  it.
+- A **mention** opens a visit with the mentioned entity for that conversation;
+  the visit closes after 5 minutes without a new mention.
+
+The full list is in [The entity life cycle](docs/entity-phases.md#known-limits).
+
 ## Sign-in and security
 
 The `abstractentity` server includes the shared AbstractFramework sign-in proxy:
@@ -238,6 +268,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 - [Getting started](docs/getting-started.md): install, sign in, create your first entity
 - [Architecture](docs/architecture.md): components, gateway routes, invariants
 - [API and configuration](docs/api.md): command, environment, URLs, gateway routes used
+- [The entity life cycle](docs/entity-phases.md): the five states, own time, sleep, Stop and Resume, and how to read the phase bar
 - [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md)
 - [Changelog](CHANGELOG.md)
 
@@ -324,8 +355,11 @@ During work, send a correction in the same composer or answer the question shown
 An accepted correction is available to the assistant, but is not confirmation
 that its plan changed. Questions and permission decisions stay separate.
 
-A visit starts when you choose **visit**; a sleeping entity wakes up for it.
-Send a message in the composer to begin talking. In Chat, the memory graph
+A visit starts when you choose **visit** in the phase bar at the top of the
+page. It opens in every state except stopped: when the entity is finishing a
+step of its own, "waiting" shows beside **visit** until it is ready, and a
+sleeping entity pauses its sleep for you and goes back to it when the visit
+ends. Send a message in the composer to begin talking. In Chat, the memory graph
 shows memories forming and being recalled, and the **Book** tab collects the
 diary entries the entity writes.
 
@@ -339,6 +373,30 @@ speaker, microphone (with a Test and a level meter), spoken language and
 **Read aloud**. **Settings → track record** shows what the entity has done, how
 far it can be trusted for each kind of task, and whom it has met
 (AbstractGateway 0.20.0 or later).
+
+## 5. Bring another entity in
+
+While you talk with one entity, type `@` in the message box and pick another
+entity from the list (the first pick says "Nerin will read this conversation's
+history"). When you send, the entity you are talking with answers first, then
+each entity you picked, in your order; each answer shows the entity's avatar,
+its name and an "entity" tag. If one is busy in another conversation, the app
+says so and goes on with the next.
+
+## 6. Its own time, sleep and Stop
+
+A new entity starts **idle**: awake and visitable, with nothing of its own
+running. Press the **personal** toggle in the phase bar to grant it its own
+time: it then explores its own ideas, sleeps for maintenance when it needs to
+and wakes by itself. Press it again to take its own time back; the entity
+stays awake. While it is idle, once 24 hours have passed since its last sleep,
+or it has formed 500 new memories since then, it goes to sleep for maintenance
+on its own; change both numbers in **Settings → Mind → Sleep**.
+
+The red **Stop** asks first, then halts everything at once and cancels its own
+time. **Resume** brings it back idle. Granting own time, Stop and Resume need
+an admin account. See [The entity life cycle](entity-phases.md) for every
+state and how to read the bar.
 
 ## Next steps
 
@@ -478,7 +536,7 @@ This repository ships the Entity app. The services that make entities live
 in AbstractGateway, AbstractRuntime and AbstractMemory, and the app uses them
 over HTTP. This repository also holds two shared specifications those services
 read: the lifecycle phase graph ([`spec/entity_phases.json`](../spec/entity_phases.json),
-explained in [The entity phase graph](entity-phases.md)) and the cognition map
+explained in [The entity life cycle](entity-phases.md)) and the cognition map
 behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph.json)).
 
 ## App modules (`src/`)
@@ -489,10 +547,11 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 | Entities list | `entities_index.tsx`, `roster_tiles.ts` + `card_reads.ts` (tiles from the roster at once; live reads per tile; cards three at a time, kept 5 minutes or until the state changes), `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (fetches the topic communities), `topic_layout.ts` (topics as the layout: stable homes, seats, halos, labels), `recall_emphasis.ts` (the recall highlight), `node_label.ts` |
+| Life cycle | `phase_bar_source.ts` (the gateway seam: `life_state`, the `personal` toggle, `lifecycle`, sleep now), `phase_bar.ts` (what the bar shows for one answer, pure), `phase_bar_writes.ts` (writes in flight; Stop never waits), `phase_bar_controls.tsx` (the pills, Stop/Resume, Retry and the inline questions, on the entity page and the roster tiles), `mind_cognition_profile.tsx` (Settings → Mind, including the Sleep card) |
 | Panels | `inspector.tsx`, `identity_card.tsx`, `timeline.tsx`, `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts` |
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx`, `cognitive_monitor.tsx` |
 | Cognition wave | `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `cognition_wave_panel.tsx`, `cognition_wave_inline.tsx`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
-| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: the kit's `IdentityPanel` wired to the gateway: design, colour, voice with a sample, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
+| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `visit_mentions.ts` (`@` mentions: the list, one call per mention in order, resend of the unanswered ones), `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: the kit's `IdentityPanel` wired to the gateway: design, colour, voice with a sample, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
 | Optional Avatar conversation | `avatar_visit.ts` (explicit public projection and privacy boundary), `use_avatar_visit.ts` (public visit state), `avatar_visit_view.tsx` (avatar, questions and permissions), `vendor/abstractchat/` (canonical AbstractUIC presenter). Shares the chat's composer and execution paths; does not read private life envelopes for public text. |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`; in a visit, an entity picked as an `@` chip offers a meet (`visit_mentions.ts` `meetOffers`; nothing is read out of the typed words) |
 | Blueprint | `blueprint_panel.tsx`, `blueprint_tunables.tsx`, `phase_map.tsx`, `phase_editor.tsx`, `edge_ops.ts`, `spec_sync.ts` |
@@ -651,18 +710,96 @@ of invented data.
 
 | Family | Routes |
 | --- | --- |
-| Entities | `GET /entities` (list), `POST /entities` (create: `name`, optional `spark_text`, `framework`), `POST /entities/auth/probe` |
+| Entities | `GET /entities` (list; also the names offered by `@` in a conversation), `POST /entities` (create: `name`, optional `spark_text`, `framework`), `POST /entities/auth/probe` |
 | Life stream | `GET /entities/{name}/replay` (NDJSON), `GET /entities/{name}/replay/stream` (SSE) |
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
-| State and lifecycle | `/entities/{name}/state`, `/life_state`, `/loop`, `/loop/start`, `/loop/stop`, `/seat`, `GET /entities/spec/phases` |
+| Life cycle | `GET /entities/{name}/life_state`, `PUT /entities/{name}/life_state/toggles`, `POST /entities/{name}/lifecycle`, `POST /entities/{name}/state` (sleep now); `GET /entities/{name}/loop` and `/seat` (reads); `GET`/`PUT /entities/spec/phases` (the blueprint). See [Life cycle](#life-cycle-the-phase-bar) |
 | Card and metrics | `/entities/{name}/card` (the home grid draws each tile from `GET /entities`, whose rows carry `state`, then reads cards three at a time, kept until 5 minutes pass or the row's `state.changed_at` moves), `/footprint`, `/cognition`, `/communities`, `/embedding` |
-| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}` |
-| Settings | `/entities/{name}/substrate`, `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
+| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`; `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}`; `POST /sessions/{session_id}/mentions` (see [Mentions](#mentions-in-a-conversation)) |
+| Settings | `/entities/{name}/substrate`, `/cognition-profile` (Settings → Mind, including the Sleep card), `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
 | Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
 | Track record (AbstractGateway 0.20.0) | `GET /entities/{name}/track-record`, `/reputation`, `/acquaintances`, read when the tab opens |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
 | Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+
+### Life cycle (the phase bar)
+
+The phase bar ([The entity life cycle](entity-phases.md)) uses one read, three
+writes and the live stream. Every path is under `/api/gateway/entities/{name}`.
+
+| Call | Body | What the app does with it |
+| --- | --- | --- |
+| `GET /life_state` | none | Draws the bar: `phase` (`idle`, `personal`, `work`, `visit`, `sleep` or `stopped`), `stopped`, `toggles: {personal}`, `since`, `sentence`, `next: {phase, sentence}`, `blocked: {code, sentence, action}`, `can: {visit, sleep_now, toggle_personal}` (each `{allowed, sentence}`), `visit`, `work: {jobs_queued, current: {kind, run_id, since}}`, `sleep: {kind, reason, since, ends}`, `rev` and `generation` |
+| `PUT /life_state/toggles` | `{"personal": true}` or `{"personal": false}` | Grants or takes back own time. The app never sends `work`: there is no work switch, and the gateway refuses it (422 `unknown_field`) |
+| `POST /lifecycle` | `{"action": "stop"}`, `{"action": "resume"}` or `{"action": "retry"}` | Stop (it also revokes own time), Resume (back to idle), Retry (start own time again when `blocked.action` is `retry`). A stop's answer lists what it did in `items`, each with its `sentence`; `complete: false` keeps a second Stop beside Resume |
+| `POST /state` | `{"state": "sleep", "dream": true}` | Sleep now: the entity sleeps for its maintenance and wakes when it is done. The app does not wait on this call; the stream shows the sleep and the wake. The chat also sends `{"state": "awake"}` once, before retrying, when an older visit door refuses a visit because the entity is asleep |
+
+- **Live.** A host event with `payload.kind == "phase_changed"` on
+  `GET /replay/stream` repaints the bar at once; the app then reads
+  `life_state` again. The bar also re-reads every 15 seconds.
+- **Newest wins.** The answer with the highest `rev` wins, and an answer from
+  before a Stop (a lower `generation`) never repaints the bar after it.
+- **Refusals.** A refusal's `detail.message` is shown as it is, and its
+  `detail.life_state` (when present) repaints the bar. Coded refusals without
+  a message get the app's sentence for the code: `stopped_use_resume`,
+  `in_visit`, `already_asleep`, `entity_archived`, `unknown_field`,
+  `invalid_body`, `invalid_toggles`, `invalid_action` and `entity_not_found`.
+  `admin_required` always reads "Only an admin can grant his own time, stop or
+  resume him."
+- **Older gateways.** A `life_state` answer without these fields (no `rev`,
+  no `can`, no `generation`, or a `work` that is not the job queue) shows "This
+  gateway does not serve the phase bar yet." with every control off. The app
+  never falls back to older routes.
+- **Sleep thresholds.** Settings → Mind → Sleep reads `GET /cognition-profile`
+  and saves one field at a time with `PUT /cognition-profile`:
+  `{"sleep": {"after_hours": 48}}` or `{"sleep": {"after_events": 500}}`
+  (integers of at least 1; hours at most 720). The answer is the whole
+  profile. A refusal shows the gateway's sentence under the field. A profile
+  without a `sleep` block shows "This gateway does not offer the sleep
+  settings yet." and disables both fields.
+
+### Mentions in a conversation
+
+In a visit, or a flow-brain conversation, `@` lists the entities that
+`GET /entities` returns for your account, except the one you are talking to.
+A pick becomes a chip; the app never reads `@` out of the typed words. On send,
+your message goes out as usual, then each mention, in the order you picked it
+and each only after the previous one answered:
+
+```http
+POST /api/gateway/sessions/{session_id}/mentions
+{"entity": "nerin", "text": "<your message as typed>", "mention_index": 0,
+ "repeat_of": "<your turn in this session, flow-brain lane only>",
+ "mention_id": "<message>:<entity>:<mention_index>"}
+```
+
+- **`mention_id`** names one mention of one message. The message part is your
+  own turn in the session (`repeat_of`) or, in a visit, an id the app makes
+  once for the message (`msg-` and 24 hex digits) and keeps for a resend. When
+  you send the same words again after a failure, the same ids go out and the
+  gateway returns the answer the entity already gave instead of asking it
+  twice.
+- **200**: `reply` is shown as its own message, labelled from `author`
+  (`{kind, name, entity_id, identity_ref, avatar}`): the entity's avatar, its
+  name and an "entity" tag. `mirrors` lists the visits that were also told
+  the reply (in a visit, the entity you are visiting); the app adds "Also said
+  to Castor." under the answer.
+- **409** (`in_another_conversation`, or another refusal from the visit
+  door): "Pollux is in another conversation." (or the gateway's sentence), and
+  the next mention goes on.
+- **503**: the gateway's sentence; your words and the chips that were not
+  answered go back to the message box. Sending the same words again asks only
+  those entities.
+- **404 `entity_not_found`**: "Pollux cannot be mentioned here."; the name is
+  no longer offered.
+- **422 `repeat_of_unknown`**: the gateway's sentence; your message goes back
+  to the message box.
+- **404 or 405 without a code**: the gateway has no mentions route. The app
+  says "This gateway does not offer mentions yet" and from then on `@` shows
+  that sentence instead of names.
+
+The app sets no time limit on a mention, as on any visit turn.
 
 ### Avatar conversation
 
@@ -754,9 +891,10 @@ AbstractGateway; see their documentation for request and response shapes.
 
 ## Specifications in this repository
 
-- [`spec/entity_phases.json`](../spec/entity_phases.json): the entity lifecycle
-  phase graph, served by the gateway at `GET /api/gateway/entities/spec/phases`.
-  Human-readable companion: [The entity phase graph](entity-phases.md).
+- [`spec/entity_phases.json`](../spec/entity_phases.json): the entity life
+  cycle's phase graph (version 25), served by the gateway at
+  `GET /api/gateway/entities/spec/phases`. Human-readable companion:
+  [The entity life cycle](entity-phases.md).
 - [`spec/cognition_graph.json`](../spec/cognition_graph.json): the cognition map
   drawn on the blueprint page.
 
@@ -800,8 +938,16 @@ it is stored exactly as written.
 ## Does watching an entity change it?
 
 No. The entities list, states, cards and memory views are read-only. Actions
-such as starting personal time or putting an entity to sleep go through the
-gateway and appear as visible events in the entity's life.
+such as granting its own time, putting it to sleep or stopping it go through
+the gateway and appear as visible events in the entity's life.
+
+## What does an entity do when nobody talks to it?
+
+It stays **idle**, awake and visitable, unless you grant it its own time with
+the **personal** toggle; jobs queued for it are worked on either way. While it
+is idle, once 24 hours have passed since its last sleep, or it has formed 500
+new memories since then, it sleeps for maintenance and comes back idle. See
+[The entity life cycle](entity-phases.md).
 
 ## What does the cognition wave measure?
 
@@ -825,7 +971,10 @@ The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer. The optional Avatar
 conversation (public updates, corrections and question answers during a visit)
-needs AbstractGateway 0.19.0 or newer.
+needs AbstractGateway 0.19.0 or newer. The phase bar needs a gateway that
+serves the five-state life cycle, and `@` mentions a gateway that serves
+mentions; with an older one the app says "This gateway does not serve the
+phase bar yet." or "This gateway does not offer mentions yet" instead.
 
 ## How do I see which versions I am running?
 
@@ -923,6 +1072,29 @@ footprint in **Health**). The app labels the gap rather than estimating.
 
 **Fix:** upgrade the gateway to a version that serves the route; see
 [Gateway routes the app uses](api.md#gateway-routes-the-app-uses).
+
+## The phase bar says "This gateway does not serve the phase bar yet."
+
+**Cause:** the gateway does not serve the five-state life cycle (idle, own
+time, work, visit, sleep, with the job queue). The bar's controls stay off
+rather than guessing.
+
+**Fix:** upgrade the gateway. See
+[Life cycle (the phase bar)](api.md#life-cycle-the-phase-bar).
+
+## The phase bar shows "His own time stopped unexpectedly"
+
+**Cause:** its own time is granted, but nothing is running.
+
+**Fix:** press **Retry** beside the sentence. To stop granting it instead,
+turn **personal** off; the entity stays awake.
+
+## Typing `@` says "This gateway does not offer mentions yet"
+
+**Cause:** the gateway has no mentions route.
+
+**Fix:** upgrade the gateway. Until then, talk with each entity in its own
+visit, or convene a meet from the entities list.
 
 ## The Wave tab refuses to score
 
@@ -1178,6 +1350,235 @@ message with no gateway, no utterances, or an embed failure. The vendored
 - **Expressive character of words** → the cognition-wave scorer (never
   presented as inner state).
 - **Live conversation** → the gateway chat/meets APIs.
+
+
+<!-- ============================================================ -->
+<!-- SOURCE: docs/entity-phases.md -->
+<!-- ============================================================ -->
+
+# The entity life cycle
+
+An entity is always in one of five states: **idle**, **personal** (its own
+time), **work**, **visit** or **sleep**. You can also **stop** it, which halts
+everything until you resume it. The bar at the top of an entity's page, the
+phase bar, shows where it is now, what comes next and what you may do.
+
+This page explains the states, what moves an entity from one to another, and
+how to read the bar. In it, *you* are the entity's guardian: the person who
+looks after it. Granting own time, Stop, Resume and Retry need an admin
+account; with another account the bar answers "Only an admin can grant his own
+time, stop or resume him." The app speaks of an entity as "he" in its
+sentences; this page quotes them as they appear.
+
+## The five states
+
+| State | What the entity does | How it gets there | When it ends |
+| --- | --- | --- | --- |
+| **idle** | Awake and reachable, with nothing to do. A new entity starts here. | It is born; you resume it; a visit, its jobs or a sleep end with nothing to return to; you take its own time back. | You grant own time, a job is queued, someone visits, or it goes to sleep. |
+| **personal** (own time) | Explores its own ideas, questions and interests. It may decide to sleep for maintenance and wakes by itself when the maintenance is done. | Only you grant it, with the **personal** toggle. | You take it back, or something interrupts it (a job, a visit, a sleep). |
+| **work** | Works on the jobs queued for it, one after another. | A job is queued: a request from an agent, a task left with it, or its standing work order. | All its jobs are done: back to its own time if you still grant it, else idle. |
+| **visit** | Talks with the person who opened the visit, and waits between turns. | Someone opens a visit, in any state except stopped. | The visit ends: back to where it was. |
+| **sleep** | Maintenance: it consolidates and enriches its memory. | It decides to during its own time, it is idle and a sleep threshold is reached (see [Sleep is maintenance](#sleep-is-maintenance)), or you put it to sleep. | Its maintenance is done: back to where it was. |
+
+When you talk with an entity yourself, that is a visit, not work.
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle : born
+    idle --> personal : you grant own time
+    personal --> idle : you take it back
+    idle --> work : a job is queued
+    personal --> work : a job is queued
+    work --> personal : jobs done, own time still granted
+    work --> idle : jobs done
+    idle --> sleep : 24 h or 500 memories since its last sleep, or you ask
+    personal --> sleep : it decides, or you ask
+    sleep --> idle : maintenance done
+    sleep --> personal : maintenance done, own time still granted
+    sleep --> work : maintenance done, a job waiting
+```
+
+A visit and a stop sit across every state:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "the state it was in" as before
+    before --> visit : someone opens a visit
+    visit --> before : the visit ends
+    state "any state" as any
+    any --> stopped : Stop
+    stopped --> idle : Resume
+```
+
+## Own time is yours to give
+
+- Only you grant or take back an entity's own time, with the **personal**
+  toggle (pressed means granted). The entity never gives itself own time, and
+  it never starts its own time on its own from idle.
+- While you grant it, the entity explores freely, sleeps when it needs
+  maintenance and wakes by itself.
+- A job, a visit or a sleep interrupts its own time. When the interruption
+  ends, it goes back to its own time as long as you still grant it. If you
+  turned own time off in the meantime, it stays awake and idle; the bar says
+  "Own time is off; he stays awake."
+- Turning **personal** off never puts the entity to sleep: it finishes the
+  step it is on and stays awake and visitable.
+- Stop cancels its own time. After Resume it is idle until you grant own time
+  again.
+
+## Work comes from its job queue
+
+There is no work switch. Work starts when a job is queued for the entity, from
+idle or from its own time (its own time is paused while it works, then
+resumes). When all its jobs are done, it goes back to its own time if you
+still grant it, else it stays idle.
+
+The **work** pill lights while the entity works and has nothing to click. Its
+tooltip names the current job and since when ("Current job: summon, since
+18:20.") and how many are waiting ("2 jobs queued."). The line beside the
+pills shows the same count ("2 jobs queued"). When nothing runs, the tooltip
+reads "Not working now. Work starts when a job is queued for him".
+
+## Visits come back to where it was
+
+- A visit opens in every state except stopped. Click **visit** to open the
+  conversation.
+- When the entity is in the middle of a step of its own or of its maintenance,
+  the visit waits for it to finish that step: "waiting" shows beside
+  **visit**, and the sentence reads "In a visit with Laurent; he is finishing
+  what he was doing." There is no time limit, and a visit never fails because
+  the entity is busy.
+- A visit interrupts a sleep; it does not end it. When the visit ends, the
+  same sleep continues.
+- When the visit ends, the entity goes back to where it was: its own time
+  (while you still grant it), its work (while jobs remain), the same sleep, or
+  idle.
+- While the entity is stopped, the **visit** pill offers **Resume and visit**
+  after a question: "Castor is stopped. Resume him and visit? He comes back
+  idle, then the conversation opens."
+
+## Sleep is maintenance
+
+Sleep is never "nothing": while it sleeps, the entity consolidates and
+enriches its memory, and it wakes when that maintenance is done. It goes to
+sleep in three ways:
+
+- **Its own decision** during its own time, when it needs maintenance.
+- **On its own while idle**, once either threshold in **Settings → Mind →
+  Sleep** is reached:
+  - **Sleep after (hours without sleep)**: 24 by default, from 1 to 720;
+  - **Sleep after (new memories)**: 500 by default, at least 1.
+
+  The thresholds count from its last completed sleep, apply only while it is
+  idle, and are checked every few minutes. The line beside the pills then
+  says why it sleeps: "asleep: 24 h since the last sleep" or "asleep: 500 new
+  memories since the last sleep". After such a sleep it is idle again; it
+  never goes to own time that the sleep did not interrupt. Each field saves
+  when you press Enter or leave it, and shows "Saved" or the reason it was
+  refused. A gateway that does not offer these settings yet says "This
+  gateway does not offer the sleep settings yet." and the fields stay
+  disabled.
+- **When you ask**: click **sleep**, then answer "Put Castor to sleep now?
+  He wakes by himself when his maintenance is done." with **Sleep now**. The
+  bar refuses it during a visit ("He is in a visit; end it to let him
+  sleep."), while the entity is already asleep ("He is already resting; a
+  sleep cannot follow a sleep.") and while it is stopped.
+
+A sleep never follows a sleep directly.
+
+## Stop and Resume
+
+The red **Stop** button beside the pills is the kill switch. It asks first:
+"Stop Castor? Stop halts everything now and cancels his own time; after Resume
+he is idle until you grant own time again." **Stop now** confirms; **Cancel**
+keeps everything as it is.
+
+- Stop halts everything at once: its own time, any work and any conversation
+  in progress. Nothing new starts, and requests sent to it are turned away
+  until you resume it.
+- Stop is always available, even while another change you made is still on
+  its way.
+- After a stop the bar shows what it did, for example "Own time was
+  revoked.", and a banner says "Stopped. Nothing runs until you resume him."
+  When part of the stop could not finish, the bar names it and keeps a second
+  **Stop** beside **Resume** so you can try again; the entity stays stopped
+  either way.
+- While stopped, the **personal** toggle and **sleep** are greyed ("Stopped.
+  Resume him first, then choose what he may do."), and a visit is offered
+  only through **Resume and visit**.
+- **Resume** brings the entity back idle, awake and visitable. Its own time
+  starts again only when you grant it. A job waiting for it then moves it to
+  work.
+
+A stopped entity is not asleep: it does no maintenance and forms no memories
+until you resume it.
+
+## Every interaction forms a memory
+
+Each turn of a visit, and each exchange during its own time or its work, forms
+at least one memory, even a very short one. A visit opened and closed without a
+message forms none. Sleep is when the entity consolidates what it has formed.
+
+## Reading the phase bar
+
+- **Four pills**: `visit`, `work`, `personal`, `sleep`. The current state is
+  lit in gold. Idle and stopped light no pill.
+- **personal** is the one toggle. Pressed (a filled ring) means own time is
+  granted. It can be pressed while another pill is lit: with **work** lit and
+  **personal** pressed, its own time resumes after the jobs.
+- **visit** opens the conversation; **work** is an indicator; **sleep** offers
+  "sleep now" and lights while the entity sleeps.
+- **Stop** or **Resume**, apart from the pills.
+- **Retry** appears when its own time is granted but not running, with the
+  reason: "His own time stopped unexpectedly. Retry to start it again." or
+  "His own time is not running. Retry to start it."
+- **The line beside the pills** reads, in order: one sentence for now, since
+  when in your local time (with the date when it is not today), why it sleeps,
+  how many jobs are queued, and where it goes next. For example: "Working on a
+  request from an agent. · since 17:09 · 2 jobs queued · then: own time". The
+  last part reads "then: own time", "then: work" or "then: idle". Hover the
+  line for the exact time and what happens next in words ("When his jobs are
+  done, his own time resumes.").
+- **Tooltips** say what each pill does, or why it cannot act now.
+- **Refusals** appear in the bar as sentences.
+
+The bar follows changes as they happen and reads the entity again every 15
+seconds. The tiles on the entities list show the same pills and sentence;
+Stop and Resume are on the entity's own page only. A gateway that does not
+serve the five-state life cycle gets one sentence, "This gateway does not
+serve the phase bar yet.", and the controls stay off.
+
+### On a phone
+
+Below 480 px (checked at 400 px), the phase bar takes the full width of the
+screen: the four state words without their icons, then **Stop**, then the
+sentence and any question on lines of their own. Nothing is cut off and the
+page never scrolls sideways; swipe the controls row to reach **Settings**.
+
+## Known limits
+
+- **Stop and work already under way.** A Stop that lands while the entity is
+  in the middle of a model call can let that one call finish before
+  everything halts; a maintenance step already running may finish, and a
+  mention's answer already being written is not cancelled. Nothing new starts
+  after the Stop. Closing this gap is planned.
+- **A mention's visit.** Mentioning an entity with `@` in a conversation
+  opens a visit with it for that conversation. That visit closes after 5
+  minutes without a new mention; the next mention opens a new one.
+- **One conversation at a time.** A visit waits, without failing, for as long
+  as another person's visit with the same entity lasts.
+
+## For contributors: the phase graph file
+
+The machine-readable rules live in
+[`spec/entity_phases.json`](../spec/entity_phases.json) (version 25), which
+the blueprint page (`/?page=blueprint`) draws and edits and which
+AbstractGateway and AbstractRuntime check themselves against. In that file, visit, work, personal
+and sleep are the four phases of the graph, and idle and stopped are states
+outside it, so no edge lands on them. When this page and the file differ,
+follow the file. The routes behind the phase bar are listed in
+[API and configuration](api.md#life-cycle-the-phase-bar).
 
 
 <!-- ============================================================ -->
