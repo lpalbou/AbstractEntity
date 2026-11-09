@@ -138,7 +138,7 @@ export interface PhaseBarView {
 }
 
 /** The unlit work pill (v3 D1): no switch, a job starts it. */
-export const WORK_IDLE = "Not working now. Work starts when a job is queued for him: by you, an automation or an entity allowed to ask.";
+export const WORK_IDLE = "Not working now. Work starts when a job is queued for him: a request from you or from an entity allowed to ask him.";
 export const PERSONAL_ALLOWED = "Personal time is allowed: he explores his own ideas, sleeps for maintenance when he needs to and wakes by himself.";
 export const PERSONAL_NOT_ALLOWED = "Personal time is not allowed: he stays awake and can be visited.";
 export const VISIT_OFFER = "Visit him: opens the conversation.";

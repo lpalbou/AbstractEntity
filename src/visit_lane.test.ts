@@ -6,9 +6,10 @@
  * answers HTTP 200 with `status:"failed"` + `error` in the BODY — transport
  * success is never operation success.
  */
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { isAsleepWakeRefusal, visitBodyProblem } from "./stream_source";
+import { openVisit, visitBodyProblem } from "./stream_source";
 
 describe("visitBodyProblem (body-status rule)", () => {
   it("flags a failed body even though HTTP was 200", () => {
@@ -42,19 +43,22 @@ describe("visitBodyProblem (body-status rule)", () => {
   });
 });
 
-describe("isAsleepWakeRefusal (B1 dormant-belt matcher)", () => {
-  it("matches the door's asleep refusal sentence (pre-auto-wake gateways)", () => {
-    expect(
-      isAsleepWakeRefusal("entity:hypnos is asleep (operator put him to sleep) — wake him before starting his own time"),
-    ).toBe(true);
-    expect(isAsleepWakeRefusal("entity:castor is asleep (no reason recorded) — wake him first")).toBe(true);
+describe("a visit open never writes his state (the door returns him to his previous state at close)", () => {
+  const drawer = readFileSync(new URL("./chat_drawer.tsx", import.meta.url), "utf8");
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("the drawer opens through the visit door and has no state-awake call, not even on an asleep refusal", () => {
+    expect(drawer).toContain("openVisit(baseUrl, entity, token, undefined, avatarMode)");
+    expect(drawer).not.toMatch(/postEntityState|isAsleepWakeRefusal/);
+    expect(drawer).not.toMatch(/\/state[`"'?]/);
+    expect(drawer).not.toMatch(/["'`]awake["'`]/);
   });
 
-  it("stays OFF every other refusal class (two-signal rule)", () => {
-    expect(isAsleepWakeRefusal("a visit is already open on entity:castor — one life, one summon")).toBe(false);
-    expect(isAsleepWakeRefusal("entity:castor is paused (hard freeze): maintenance")).toBe(false);
-    expect(isAsleepWakeRefusal("no substrate configured — set provider and model")).toBe(false);
-    // "asleep" alone (e.g. a status echo) is not a wake instruction.
-    expect(isAsleepWakeRefusal("state: asleep since 02:30")).toBe(false);
+  it("an asleep refusal from the door is one request to visit/open, never a second one to the state route", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: "entity:castor is asleep — wake him first" }), { status: 409 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(openVisit("http://gw.test/", "castor", "tok")).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toMatch(/\/entities\/castor\/visit\/open$/);
   });
 });

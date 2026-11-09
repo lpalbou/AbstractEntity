@@ -16,7 +16,8 @@
  *   the body — visitBodyProblem is the ONE predicate (walkthrough lesson).
  * - Opening may wait for his own-time loop to yield at a tick boundary —
  *   the wait is shown, not hidden. Refusals (paused, another visit open)
- *   render verbatim; asleep auto-wakes at the door (gateway c1320).
+ *   render verbatim. The drawer never writes his state: the door brings
+ *   him to the visit and returns him to his previous state at close.
  * - Closing runs his reflection; what the run reports is shown.
  */
 
@@ -46,9 +47,7 @@ import {
   getEntitySubstrate,
   getVisitStatus,
   getVisitTranscript,
-  isAsleepWakeRefusal,
   openVisit,
-  postEntityState,
   sendVisitTurn,
   visitBodyProblem,
   writeEntityWorkspaceFile,
@@ -592,10 +591,6 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   }, [token, authUserId]);
 
   const open = useCallback(() => {
-    // Identity from authentication ONLY (maintainer 2026-07-10 20:17): the
-    // participant is the signed-in principal; an unauthenticated open is
-    // the door's to refuse, never ours to fake as person:operator.
-    const who = participant || "person:operator";
     // ONE substrate per entity (2026-07-09 06:32): the gateway resolves the
     // entity's persisted choice — the visit never asks separately. If no
     // choice exists anywhere, the gateway's refusal names the fix.
@@ -635,7 +630,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         });
       }
     };
-    const onRefused = (e: Error & { status?: number }, retried: boolean): void => {
+    const onRefused = (e: Error & { status?: number }): void => {
       // 409 = someone (or his own time) holds the room; the next status
       // poll will show the foreign-visit note — refresh it NOW so the
       // operator is not left with a stale start screen (the 23:49 race:
@@ -651,20 +646,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         return;
       }
       const refusal = refusalText(e);
-      // B1 (laurent 04:58: "if i click visit, it should awake the entity,
-      // period"). The durable door auto-wakes (gateway c1320) — this client
-      // retry is the dormant belt for older doors (fires only when the
-      // asleep refusal actually arrives). Matcher shared with the visit
-      // lane (stream_source.isAsleepWakeRefusal, test-pinned).
-      if (!retried && isAsleepWakeRefusal(refusal)) {
-        setNote(`He is asleep — waking him for your visit…`);
-        postEntityState(baseUrl, entity, "awake", `visit requested by ${who} (auto-wake)`, token)
-          .then(() => openVisit(baseUrl, entity, token, undefined, avatarMode))
-          .then(onOpened)
-          .catch((e2: Error & { status?: number }) => onRefused(e2, true))
-          .finally(() => setBusy("idle"));
-        return;
-      }
+      // No client wake (operator: no fallbacks): the door opens the visit
+      // from any state and returns him to that state at close; writing his
+      // state to awake here would END his sleep instead of interrupting it.
       // 409 occupancy = the busy signal (operator order via c5330): keep
       // the words gentle and hand back a one-click retry on the start
       // screen. Anything else stays the door's verbatim refusal.
@@ -680,8 +664,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       setBusy("idle");
     };
     // WHO is door-derived (the durable open takes no participants field —
-    // a payload cannot engrave a false co-presence); `who` remains the
-    // honest display + the wake reason's attribution.
+    // a payload cannot engrave a false co-presence).
     if (flowActive) {
       setNote("End the flow-brain conversation first — one lane at a time.");
       setBusy("idle");
@@ -692,11 +675,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         onOpened(r);
         setBusy("idle");
       })
-      .catch((e: Error & { status?: number }) => onRefused(e, false));
+      .catch((e: Error & { status?: number }) => onRefused(e));
     // substrate deliberately NOT a dep (the gateway resolves the persisted
     // choice; a picker change must not re-open a live visit); onAuthRefused
     // IS one (func review: a stale closure served the 401 recovery path).
-  }, [baseUrl, entity, entityName, participant, token, push, onAuthRefused, flowActive, avatarMode]);
+  }, [baseUrl, entity, entityName, token, push, onAuthRefused, flowActive, avatarMode]);
   /** The phase bar's visit pill knocks (entity_view sends a new number per click): the same open as
    * the "visit <name>" button, when no visit is open here and nothing is opening. */
   const knockSeenRef = useRef(props.knockRequest ?? 0);

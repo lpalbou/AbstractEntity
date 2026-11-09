@@ -6,8 +6,8 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 - **Five states: visit, idle, work, own time, sleep — and no work switch.** The phase bar follows
   the gateway's v3 phases (operator ruling 2026-11-09). Work is no longer a toggle: the work pill
-  lights while he works on a job someone queued for him (you, an automation or an entity allowed to
-  ask) and has nothing to click; its tooltip names the current job and since when, and the line
+  lights while he works on a job someone queued for him (you, or an entity allowed to ask him) and
+  has nothing to click; its tooltip names the current job and since when, and the line
   beside the pills says how many jobs are queued ("2 jobs queued"). Personal (his own time) is the
   only toggle. A newborn starts idle: awake and visitable, own time off.
 - **Stop also cancels his own time.** The Stop question now says it before you click: "Stop halts
@@ -43,7 +43,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   tooltips say it in words: the gateway's own sentence when it sends one, otherwise "Back to his
   own time after the visit", "Own time is off; he stays awake" or "Back to his own time when he
   wakes". Tooltips no longer repeat in other words what the gateway's sentence already says (a
-  visit that waits for him, work that finishes). The phase graph (spec v23) records the rule.
+  visit that waits for him). The phase graph (spec v23) records the rule.
 - **Sending a message again after a mention could not answer asks only who has not answered.**
   When one of the entities you mentioned cannot answer (it is asleep, say) or the call fails, the
   message box keeps your words and only the chips of the entities that were not asked, as before.
@@ -72,11 +72,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **The phase bar follows the gateway's second phase contract.** What each pill may do now comes
   from the gateway itself, with its reason when it may not: "sleep now" is greyed during a visit
   ("He is in a visit; end it to let him sleep.") and right after a sleep; while he is stopped the
-  switches are greyed with "Resume him first". A visit still opens in every phase except stopped;
+  personal toggle is greyed with "Resume him first". A visit still opens in every phase except stopped;
   while he is stopped, the `visit` pill asks "Castor is stopped. Resume him and visit?" and, on
   **Resume and visit**, resumes him and then opens the conversation. A visit that waits for him to
-  finish what he was doing shows "waiting" beside `visit`; work that winds down after Work was
-  turned off shows "finishing" beside `work`. The line beside the pills is the gateway's sentence,
+  finish what he was doing shows "waiting" beside `visit`. The line beside the pills is the gateway's sentence,
   which no longer carries a clock time, followed by "since 19:30" in your own time (with the day
   when it was not today). When his own time stopped unexpectedly, the bar says so and offers
   **Retry**. When a Stop could not finish everything (a conversation that would not close, say),
@@ -90,10 +89,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
   follows a sleep, he falls asleep only when you ask or when he decides to, and turning personal
   time off or putting him to sleep no longer takes away what you allowed; "idle" and "stopped" are
   named as states outside the four phases.
-- **Stop is always there.** The red Stop button no longer greys out while a switch you just
-  pressed waits for its answer, while a refusal is on screen, or before the bar has read his phase
-  (or when that read failed). Pressed while a switch is still on its way, Stop goes out at once,
-  and the switch's late answer can no longer bring back the view from before the Stop: the bar
+- **Stop is always there.** The red Stop button no longer greys out while the personal toggle you
+  just pressed waits for its answer, while a refusal is on screen, or before the bar has read his
+  phase (or when that read failed). Pressed while that toggle is still on its way, Stop goes out at
+  once, and the toggle's late answer can no longer bring back the view from before the Stop: the bar
   keeps the newest state the gateway has sent. Pressing Stop again sends it again. Stop is off only
   when he is already stopped (the button reads Resume) or when the gateway does not serve the
   phase bar.
@@ -110,9 +109,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
   he is in, then the visit opens (operator 2026-11-09). The knock line says so instead of "up to a
   minute".
 - **The phase bar: what he is doing, what he may do, and one Stop button.** The four pills at the
-  top of an entity's page now say two different things. `work` and `personal` are switches:
-  pressed (a filled ring) means he is allowed to work, or to have his own time (explore his ideas,
-  sleep for maintenance when he needs to and wake up by himself). The phase he is in right now is
+  top of an entity's page now say two different things. `personal` is the one toggle: pressed (a
+  filled ring) means he may have his own time (explore his ideas, sleep for maintenance when he
+  needs to and wake up by himself). `work` has nothing to click: it lights while he works on a job
+  queued for him. The phase he is in right now is
   lit in gold, whichever pill it is: `visit` while someone talks with him, `sleep` while he rests.
   When nothing is lit he is awake and reachable, with nothing of his own running. Turning
   `personal` off no longer puts him to sleep: he stays awake and can be visited. Clicking `visit`
@@ -120,7 +120,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   and he wakes by himself when his maintenance is done (he cannot sleep twice in a row, and not
   during a visit). Next to the pills, one red **Stop** button stops everything at once, after a
   question in the bar: his own time, any work, any conversation in progress. While he is stopped,
-  the button reads **Resume**, the switches wait, and a banner says so. The line beside the pills
+  the button reads **Resume**, the personal toggle waits, and a banner says so. The line beside the pills
   is the gateway's own sentence for now, never an old reason; its tooltip says since when and what
   happens next ("When the visit closes, his own time resumes.").
   When something blocks what you allowed (no mind is set, say), the bar says why. When a change is

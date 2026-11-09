@@ -96,6 +96,9 @@ describe("the one toggle (v3 D1): personal is pressed = allowed, the label never
   });
   it("titles say what the toggle allows; the unlit work pill says a job starts it", () => {
     expect(slot(served("idle"), "work").title).toBe(WORK_IDLE);
+    // Who queues work today: the guardian or an entity allowed to ask (no automation reaches an entity).
+    expect(WORK_IDLE).toBe("Not working now. Work starts when a job is queued for him: a request from you or from an entity allowed to ask him.");
+    expect(WORK_IDLE).not.toMatch(/automation/i);
     expect(slot(served("idle"), "personal").title).toBe(PERSONAL_NOT_ALLOWED);
     expect(slot(served("personal"), "personal").title).toBe(`${PERSONAL_ALLOWED} On his own time.`);
   });

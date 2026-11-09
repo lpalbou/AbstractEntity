@@ -390,38 +390,6 @@ export async function fetchDiaryEntry(baseUrl: string, entity: string, entryId: 
   return entry;
 }
 
-/** Operator state control: POST through the gateway door — the DOOR
- * decides (authenticated writes only); the view just carries the request
- * and renders the refusal or the resulting host marker honestly. */
-export async function postEntityState(
-  baseUrl: string,
-  entity: string,
-  state: string,
-  reason: string,
-  token: string | null,
-): Promise<EntityStateInfo> {
-  // dream=true rides every operator sleep (adversary B finding 4 + the
-  // spec's own definition: sleep = "passive memory-graph processes:
-  // consolidation, dreams" — a sleep click that runs NO consolidation
-  // was a state flip pretending to be sleep; the pass is deterministic
-  // and cheap, and the ruled observability expects it).
-  const body: Record<string, unknown> = { state, reason };
-  if (state === "asleep") body.dream = true;
-  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/state`), {
-    credentials: "include",
-    method: "POST",
-    headers: authHeaders(token),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = refusalDetail(await res.text().catch(() => ""));
-    const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
-  return (await res.json()) as EntityStateInfo;
-}
-
 export interface EntityStateInfo {
   state: string; // awake | asleep | resting | paused | …
   /** "visiting" while a human is in conversation (runtime 0007 160200Z) —
@@ -1395,17 +1363,6 @@ export function visitBodyProblem(result: { status?: string; error?: string } | n
   if (status === "failed") return String(result.error || "").trim() || "the visit run failed; see the run ledger";
   if (status === "cancelled") return "the visit run was cancelled";
   return null;
-}
-
-/** B1 (laurent 04:58: "if i click visit, it should awake the entity,
- * period"): does this refusal sentence mean "asleep — wake him first"?
- * Two-signal match keeps the client-side wake-retry off every other
- * refusal class (paused, foreign visit, substrate missing). The door's
- * auto-wake (gateway c1320) makes this path a dormant belt on current
- * gateways; it fires only against older doors. */
-export function isAsleepWakeRefusal(refusal: string): boolean {
-  const t = String(refusal || "");
-  return /asleep/i.test(t) && /wake/i.test(t);
 }
 
 export function openVisit(baseUrl: string, entity: string, token: string | null, sessionId?: string, conversation = false): Promise<VisitOpenResult> {
