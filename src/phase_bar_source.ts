@@ -1,21 +1,28 @@
 /**
  * The phase bar's gateway seam (operator ruling 2026-11-08, root
- * untracked/entity-phases-2026-11-08/TARGET.md; built against CONTRACT-phases.md v1 there).
+ * untracked/entity-phases-2026-11-08/TARGET.md; built against CONTRACT-phases.md v2 there,
+ * 2026-11-09).
  *
  * One read and three writes, nothing else:
  *   - GET  /entities/{name}/life_state           (§1) the phase, the two toggles, the kill switch,
- *                                                 the sentence for now, since when, what comes next,
- *                                                 what blocks, the visit/work/sleep facts, `rev`;
+ *                                                 the sentence for now (no clock time: the app
+ *                                                 formats `since`), what comes next, what blocks
+ *                                                 (and the act that unblocks), what a person may
+ *                                                 ask for now (`can`), the visit/work/sleep facts,
+ *                                                 `rev` and `generation`;
  *   - PUT  /entities/{name}/life_state/toggles   (§2) {work?, personal?}: allow, or stop allowing;
- *   - POST /entities/{name}/lifecycle            (§3) {action: "stop" | "resume"}: the kill switch;
- *   - POST /entities/{name}/state                (§6) {state: "asleep", dream: true}: the operator's
- *                                                 "sleep now" (it no longer turns personal off).
+ *   - POST /entities/{name}/lifecycle            (§3) {action: "stop" | "resume" | "retry"}: the
+ *                                                 kill switch, and retry (start his own time again
+ *                                                 after it stopped unexpectedly);
+ *   - POST /entities/{name}/state                (§4.3, §8.5) {state: "sleep", dream: true}: the
+ *                                                 operator's "sleep now".
  * Live (§5): a host envelope `payload.kind == "phase_changed"` on the replay stream the app already
  * holds; the highest `rev` wins, a lower one is ignored.
  *
- * Never hedged: a life_state answer without the contract's fields is "this gateway does not serve
- * the phase bar yet" (one visible sentence, every control off), never a fall back to the old
- * loop/start, loop/stop or `state paused` routes, which this app no longer calls.
+ * Never hedged: a life_state answer without the contract's fields (an older gateway, v1's body
+ * included: no `can`, no `generation`) is "this gateway does not serve the phase bar yet" (one
+ * visible sentence, every control off), never a fall back to the old loop/start, loop/stop or
+ * `state paused` routes, which this app no longer calls.
  */
 import { joinBaseUrl } from "@abstractframework/ui-kit";
 
@@ -32,7 +39,8 @@ export interface PhaseToggles {
   personal: boolean;
 }
 
-/** §1.3, present while the phase is visit. */
+/** §1.3, present while the phase is visit. `waiting_for`: the open visit waits for him to finish
+ * his own step ("loop") or his maintenance ("maintenance"), with no time limit; null otherwise. */
 export interface PhaseVisit {
   lane: string;
   run_id: string | null;
@@ -40,13 +48,16 @@ export interface PhaseVisit {
   session_id: string | null;
   participants: string[];
   since: string | null;
+  waiting_for: "loop" | "maintenance" | null;
 }
 
-/** §1.3, present while the phase is work. */
+/** §1.3, present while the phase is work. `finishing`: Work was turned off while this work runs;
+ * it finishes, then nothing new starts. */
 export interface PhaseWork {
   kind: string;
   run_id: string | null;
   since: string | null;
+  finishing: boolean;
 }
 
 /** §1.3, present while the phase is sleep. `ends`: "when maintenance is done", an ISO time, or null
@@ -58,20 +69,40 @@ export interface PhaseSleep {
   ends: string | null;
 }
 
+/** §1.5: one thing a person may ask for now; `sentence` says why not (null when allowed). */
+export interface PhaseCanEntry {
+  allowed: boolean;
+  sentence: string | null;
+}
+
+/** §1.5: what a person may ask for now. Every control's enabled state and tooltip come from it. */
+export interface PhaseCan {
+  visit: PhaseCanEntry;
+  sleep_now: PhaseCanEntry;
+  toggle_work: PhaseCanEntry;
+  toggle_personal: PhaseCanEntry;
+}
+export const PHASE_CAN_KEYS = ["visit", "sleep_now", "toggle_work", "toggle_personal"] as const;
+
 /** The served phase bar: the contract's GET body, the fields this app reads. */
 export interface PhaseBar {
   rev: number;
+  /** The lifecycle fence (§3.3): Stop bumps it. Read with `rev` so an answer from before a Stop
+   * never repaints after it. */
+  generation: number;
   phase: ServedPhase;
   stopped: boolean;
   toggles: PhaseToggles;
   /** When the current phase began (ISO), null when no fact exists. */
   since: string | null;
-  /** One plain line for the person, never empty ("On his own time since 19:02."). */
+  /** One plain line for the person, never empty, with no clock time ("On his own time."). */
   sentence: string;
   /** What happens next without anyone acting. */
   next: { phase: string | null; sentence: string } | null;
-  /** Why a phase the toggles allow is not running. */
-  blocked: { code: string; sentence: string } | null;
+  /** Why a phase the toggles allow is not running, and the act that unblocks it ("retry": POST
+   * lifecycle {retry}), or null. */
+  blocked: { code: string; sentence: string; action: string | null } | null;
+  can: PhaseCan;
   visit: PhaseVisit | null;
   work: PhaseWork | null;
   sleep: PhaseSleep | null;
@@ -95,17 +126,39 @@ function nextOf(v: unknown): PhaseBar["next"] | undefined {
 
 function blockedOf(v: unknown): PhaseBar["blocked"] | undefined {
   if (v === null) return null;
-  if (!isObj(v)) return undefined;
+  if (!isObj(v) || !has(v, "code", "sentence", "action")) return undefined;
   const code = text(v.code);
   const sentence = text(v.sentence);
-  return code && sentence ? { code, sentence } : undefined;
+  if (v.action !== null && typeof v.action !== "string") return undefined;
+  return code && sentence ? { code, sentence, action: text(v.action) } : undefined;
+}
+
+function canEntryOf(v: unknown): PhaseCanEntry | undefined {
+  if (!isObj(v) || !has(v, "allowed", "sentence") || typeof v.allowed !== "boolean") return undefined;
+  if (v.sentence !== null && typeof v.sentence !== "string") return undefined;
+  const sentence = text(v.sentence);
+  // A refusal always says why (§1.5).
+  if (!v.allowed && !sentence) return undefined;
+  return { allowed: v.allowed, sentence: v.allowed ? null : sentence };
+}
+
+function canOf(v: unknown): PhaseCan | undefined {
+  if (!isObj(v)) return undefined;
+  const out: Partial<PhaseCan> = {};
+  for (const key of PHASE_CAN_KEYS) {
+    const entry = canEntryOf(v[key]);
+    if (!entry) return undefined;
+    out[key] = entry;
+  }
+  return out as PhaseCan;
 }
 
 function visitOf(v: unknown): PhaseVisit | null | undefined {
   if (v === null) return null;
-  if (!isObj(v) || !has(v, "lane", "run_id", "chat_id", "session_id", "participants", "since") || !Array.isArray(v.participants)) return undefined;
+  if (!isObj(v) || !has(v, "lane", "run_id", "chat_id", "session_id", "participants", "since", "waiting_for") || !Array.isArray(v.participants)) return undefined;
   const lane = text(v.lane);
   if (!lane) return undefined;
+  if (v.waiting_for !== null && v.waiting_for !== "loop" && v.waiting_for !== "maintenance") return undefined;
   return {
     lane,
     run_id: text(v.run_id),
@@ -113,14 +166,15 @@ function visitOf(v: unknown): PhaseVisit | null | undefined {
     session_id: text(v.session_id),
     participants: v.participants.filter((p): p is string => typeof p === "string"),
     since: text(v.since),
+    waiting_for: v.waiting_for,
   };
 }
 
 function workOf(v: unknown): PhaseWork | null | undefined {
   if (v === null) return null;
-  if (!isObj(v) || !has(v, "kind", "run_id", "since")) return undefined;
+  if (!isObj(v) || !has(v, "kind", "run_id", "since", "finishing") || typeof v.finishing !== "boolean") return undefined;
   const kind = text(v.kind);
-  return kind ? { kind, run_id: text(v.run_id), since: text(v.since) } : undefined;
+  return kind ? { kind, run_id: text(v.run_id), since: text(v.since), finishing: v.finishing } : undefined;
 }
 
 function sleepOf(v: unknown): PhaseSleep | null | undefined {
@@ -131,12 +185,13 @@ function sleepOf(v: unknown): PhaseSleep | null | undefined {
 }
 
 /** The served bar, or null when the body lacks a field the contract always sends (an older
- * life_state: `phase` without `rev`, toggles, stopped, sentence…). */
+ * life_state: `phase` without `rev`, or v1's body without `can` and `generation`…). */
 export function parsePhaseBar(body: unknown): PhaseBar | null {
   if (!isObj(body)) return null;
-  if (!has(body, "rev", "phase", "stopped", "toggles", "since", "sentence", "next", "blocked", "visit", "work", "sleep")) return null;
-  const { rev, phase, stopped, toggles } = body;
+  if (!has(body, "rev", "generation", "phase", "stopped", "toggles", "since", "sentence", "next", "blocked", "can", "visit", "work", "sleep")) return null;
+  const { rev, generation, phase, stopped, toggles } = body;
   if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1) return null;
+  if (typeof generation !== "number" || !Number.isInteger(generation) || generation < 0) return null;
   if (typeof phase !== "string" || !(SERVED_PHASES as readonly string[]).includes(phase)) return null;
   if (typeof stopped !== "boolean") return null;
   if (!isObj(toggles) || typeof toggles.work !== "boolean" || typeof toggles.personal !== "boolean") return null;
@@ -148,9 +203,11 @@ export function parsePhaseBar(body: unknown): PhaseBar | null {
   const visit = visitOf(body.visit);
   const work = workOf(body.work);
   const sleep = sleepOf(body.sleep);
-  if (next === undefined || blocked === undefined || visit === undefined || work === undefined || sleep === undefined) return null;
+  const can = canOf(body.can);
+  if (next === undefined || blocked === undefined || visit === undefined || work === undefined || sleep === undefined || can === undefined) return null;
   return {
     rev,
+    generation,
     phase: phase as ServedPhase,
     stopped,
     toggles: { work: toggles.work, personal: toggles.personal },
@@ -158,6 +215,7 @@ export function parsePhaseBar(body: unknown): PhaseBar | null {
     sentence,
     next,
     blocked,
+    can,
     visit,
     work,
     sleep,
@@ -167,6 +225,7 @@ export function parsePhaseBar(body: unknown): PhaseBar | null {
 /** The §5 marker's payload: what the app renders at once (the rest comes with a re-read). */
 export interface PhaseMarker {
   rev: number;
+  generation: number;
   phase: ServedPhase;
   stopped: boolean;
   toggles: PhaseToggles;
@@ -176,13 +235,14 @@ export interface PhaseMarker {
 
 export function parsePhaseMarker(payload: unknown): PhaseMarker | null {
   if (!isObj(payload) || payload.kind !== "phase_changed") return null;
-  const { rev, phase, stopped, toggles } = payload;
+  const { rev, generation, phase, stopped, toggles } = payload;
   if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1) return null;
+  if (typeof generation !== "number" || !Number.isInteger(generation) || generation < 0) return null;
   if (typeof phase !== "string" || !(SERVED_PHASES as readonly string[]).includes(phase)) return null;
   if (typeof stopped !== "boolean" || !isObj(toggles) || typeof toggles.work !== "boolean" || typeof toggles.personal !== "boolean") return null;
   const sentence = text(payload.sentence);
   if (!sentence) return null;
-  return { rev, phase: phase as ServedPhase, stopped, toggles: { work: toggles.work, personal: toggles.personal }, since: text(payload.since), sentence };
+  return { rev, generation, phase: phase as ServedPhase, stopped, toggles: { work: toggles.work, personal: toggles.personal }, since: text(payload.since), sentence };
 }
 
 /** The highest-rev phase marker (§5) among `envelopes[from..]` and `prev` (the one an earlier pass
@@ -239,15 +299,17 @@ export function toggleBody(key: keyof PhaseToggles, on: boolean): Record<string,
   return key === "work" ? { work: on } : { personal: on };
 }
 
-/** The POST body for the kill switch (§3). */
-export function lifecycleBody(action: "stop" | "resume"): { action: "stop" | "resume" } {
+export type LifecycleAction = "stop" | "resume" | "retry";
+
+/** The POST body for the kill switch, and retry (§3). */
+export function lifecycleBody(action: LifecycleAction): { action: LifecycleAction } {
   return { action };
 }
 
-/** The POST body for the operator's "sleep now": the existing operator sleep with its maintenance
- * pass (§4: with `dream: true` he wakes when the pass returns). */
-export function sleepNowBody(): { state: "asleep"; reason: string; dream: true } {
-  return { state: "asleep", reason: "sleep now, by the operator", dream: true };
+/** The POST body for the operator's "sleep now" (§8.5): the operator sleep with its maintenance
+ * pass (§4.3: he wakes when the pass returns). */
+export function sleepNowBody(): { state: "sleep"; dream: true } {
+  return { state: "sleep", dream: true };
 }
 
 async function write(baseUrl: string, path: string, method: "PUT" | "POST", body: unknown, token: string | null, fetchImpl: PhaseFetch): Promise<PhaseWire> {
@@ -264,11 +326,11 @@ export function putPhaseToggle(baseUrl: string, entity: string, key: keyof Phase
   return write(baseUrl, entityPath(entity, "life_state/toggles"), "PUT", toggleBody(key, on), token, fetchImpl);
 }
 
-export function postLifecycle(baseUrl: string, entity: string, action: "stop" | "resume", token: string | null, fetchImpl: PhaseFetch = fetch): Promise<PhaseWire> {
+export function postLifecycle(baseUrl: string, entity: string, action: LifecycleAction, token: string | null, fetchImpl: PhaseFetch = fetch): Promise<PhaseWire> {
   return write(baseUrl, entityPath(entity, "lifecycle"), "POST", lifecycleBody(action), token, fetchImpl);
 }
 
-/** §O7: the pass runs inside this request, so it can take long; the caller does not wait on it for
+/** §4.3: the pass runs inside this request, so it can take long; the caller does not wait on it for
  * the bar (the stream shows the sleep, then the wake). */
 export function postSleepNow(baseUrl: string, entity: string, token: string | null, fetchImpl: PhaseFetch = fetch): Promise<PhaseWire> {
   return write(baseUrl, entityPath(entity, "state"), "POST", sleepNowBody(), token, fetchImpl);

@@ -1,11 +1,11 @@
 /**
- * The phase bar's gateway seam (CONTRACT-phases v1): the exact routes, methods and bodies, the
+ * The phase bar's gateway seam (CONTRACT-phases v2): the exact routes, methods and bodies, the
  * strict parse (a field the contract always sends that is missing = unserved), the error code from
  * body or header, and the stream marker fold.
  */
 import { describe, expect, it } from "vitest";
 
-import { phaseBody } from "./fixtures/phase_bodies";
+import { CAN_ALL, phaseBody } from "./fixtures/phase_bodies";
 import {
   getPhaseBar,
   highestPhaseMarker,
@@ -31,17 +31,18 @@ function recordingFetch(status = 200, body: unknown = phaseBody("idle"), headers
   return { calls, fetchImpl };
 }
 
-describe("request bodies (contract §2, §3, §6)", () => {
+describe("request bodies (contract §2, §3, §8.5)", () => {
   it("a toggle PUT sends only the toggle that moved, a strict boolean", () => {
     expect(toggleBody("personal", false)).toEqual({ personal: false });
     expect(toggleBody("work", true)).toEqual({ work: true });
   });
-  it("lifecycle sends the action alone", () => {
+  it("lifecycle sends the action alone: stop, resume or retry", () => {
     expect(lifecycleBody("stop")).toEqual({ action: "stop" });
     expect(lifecycleBody("resume")).toEqual({ action: "resume" });
+    expect(lifecycleBody("retry")).toEqual({ action: "retry" });
   });
-  it("sleep now is the existing operator sleep with its maintenance pass", () => {
-    expect(sleepNowBody()).toMatchObject({ state: "asleep", dream: true });
+  it("sleep now is the operator sleep with its maintenance pass, exactly §8.5's body", () => {
+    expect(sleepNowBody()).toEqual({ state: "sleep", dream: true });
   });
 });
 
@@ -52,13 +53,15 @@ describe("routes and methods", () => {
     await putPhaseToggle("http://gw", "castor", "personal", true, "tok", r.fetchImpl);
     await postLifecycle("http://gw", "castor", "stop", "tok", r.fetchImpl);
     await postLifecycle("http://gw", "castor", "resume", "tok", r.fetchImpl);
+    await postLifecycle("http://gw", "castor", "retry", "tok", r.fetchImpl);
     await postSleepNow("http://gw", "castor", "tok", r.fetchImpl);
     expect(r.calls.map((c) => [c.method, c.url, c.body])).toEqual([
       ["GET", "http://gw/api/gateway/entities/castor/life_state", undefined],
       ["PUT", "http://gw/api/gateway/entities/castor/life_state/toggles", { personal: true }],
       ["POST", "http://gw/api/gateway/entities/castor/lifecycle", { action: "stop" }],
       ["POST", "http://gw/api/gateway/entities/castor/lifecycle", { action: "resume" }],
-      ["POST", "http://gw/api/gateway/entities/castor/state", sleepNowBody()],
+      ["POST", "http://gw/api/gateway/entities/castor/lifecycle", { action: "retry" }],
+      ["POST", "http://gw/api/gateway/entities/castor/state", { state: "sleep", dream: true }],
     ]);
     // Writes carry JSON and the credential.
     expect(r.calls[1].headers["Content-Type"]).toBe("application/json");
@@ -78,7 +81,8 @@ describe("the error code: detail.reason_code, then the body's, then the header",
     const mk = (body: unknown, headers: Record<string, string> = {}) => phaseWireOf(new Response(JSON.stringify(body), { status: 409, headers }));
     expect((await mk({ detail: { reason_code: "stopped_use_resume", message: "x" } })).code).toBe("stopped_use_resume");
     expect((await mk({ detail: "Admin principal required", reason_code: "admin_required" })).code).toBe("admin_required");
-    expect((await mk({ detail: "Castor is stopped. Resume him to visit.", code: "entity_paused" })).code).toBe("entity_paused");
+    expect((await mk({ detail: "Stopped. Resume to visit.", code: "stopped_use_resume" })).code).toBe("stopped_use_resume");
+    expect((await mk({ code: "in_visit", detail: { reason_code: "in_visit", message: "He is in a visit; end it to let him sleep.", life_state: null } })).code).toBe("in_visit");
     expect((await mk({ detail: "x" }, { "X-Gateway-Error-Code": "work_off" })).code).toBe("work_off");
     expect((await mk({ detail: "x" })).code).toBeNull();
   });
@@ -89,13 +93,19 @@ describe("the error code: detail.reason_code, then the body's, then the header",
 });
 
 describe("parse: every field the contract always sends", () => {
-  it("each §1.4 example parses", () => {
+  it("each §1.6 example parses, with can, generation, waiting_for, finishing and blocked.action", () => {
     for (const phase of ["visit", "work", "personal", "sleep", "stopped", "idle"] as const) {
       expect(parsePhaseBar(phaseBody(phase))?.phase).toBe(phase);
     }
     expect(parsePhaseBar(phaseBody("sleep"))?.sleep).toEqual({ kind: "operator", reason: "maintenance requested", since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" });
+    expect(parsePhaseBar(phaseBody("stopped"))).toMatchObject({ generation: 8, can: { visit: { allowed: false, sentence: "Stopped. Resume to visit." } } });
+    expect(parsePhaseBar(phaseBody("visit"))?.visit?.waiting_for).toBeNull();
+    expect(parsePhaseBar(phaseBody("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for: "maintenance" } }))?.visit?.waiting_for).toBe("maintenance");
+    expect(parsePhaseBar(phaseBody("work"))?.work).toEqual({ kind: "summon", run_id: "run_a11", since: "2026-11-08T18:20:00.000+00:00", finishing: true });
+    const crashed = parsePhaseBar(phaseBody("idle", { blocked: { code: "loop_crashed", sentence: "His own time stopped unexpectedly. Retry to start it again.", action: "retry" } }));
+    expect(crashed?.blocked).toEqual({ code: "loop_crashed", sentence: "His own time stopped unexpectedly. Retry to start it again.", action: "retry" });
   });
-  it.each(["rev", "phase", "stopped", "toggles", "since", "sentence", "next", "blocked", "visit", "work", "sleep"])("a body without %s is unserved", (key) => {
+  it.each(["rev", "generation", "phase", "stopped", "toggles", "since", "sentence", "next", "blocked", "can", "visit", "work", "sleep"])("a body without %s is unserved", (key) => {
     const body = phaseBody("idle");
     delete body[key];
     expect(parsePhaseBar(body)).toBeNull();
@@ -109,18 +119,37 @@ describe("parse: every field the contract always sends", () => {
     expect(parsePhaseBar(phaseBody("idle", { stopped: "no" }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { next: { phase: "idle" } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("visit", { visit: { lane: "visit" } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { generation: -1 }))).toBeNull();
+    // can: four entries, strict booleans; a refusal always says why.
+    expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, toggle_work: undefined } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, visit: { allowed: "yes", sentence: null } } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, sleep_now: { allowed: false, sentence: null } } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, sleep_now: { allowed: false } } }))).toBeNull();
+    // v2 sub-object fields are always there.
+    const { waiting_for: _w, ...visitV1 } = phaseBody("visit").visit as Record<string, unknown>;
+    expect(parsePhaseBar(phaseBody("visit", { visit: visitV1 }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for: "lunch" } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("work", { work: { kind: "summon", run_id: null, since: null } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { blocked: { code: "loop_crashed", sentence: "x" } }))).toBeNull();
   });
   it("today's life_state (before the contract) is unserved", () => {
     expect(parsePhaseBar({ phase: "sleep", posture: "resting", chat_open: false, state: "awake", own_time_running: false })).toBeNull();
+  });
+  it("a v1 body (rev, but no can and no generation) is unserved: the app has no fallback (contract v2 §8.1)", () => {
+    const v1 = phaseBody("personal");
+    delete v1.can;
+    delete v1.generation;
+    expect(parsePhaseBar(v1)).toBeNull();
   });
 });
 
 describe("the stream marker (contract §5)", () => {
   const env = (seq: number, payload: unknown, family = "host"): ReplayEnvelope =>
     ({ stream: "abstractmemory.replay", stream_version: 1, seq, family, observed_at: "", scope: "", owner_id: "castor", trace_id: null, turn_id: null, run_id: null, payload, display: {} }) as unknown as ReplayEnvelope;
-  const marker = (rev: number, phase = "idle") => ({ kind: "phase_changed", name: "castor", from: "personal", to: phase, phase, toggles: { work: true, personal: false }, stopped: false, since: null, rev, cause: "toggle", sentence: "Awake and reachable." });
+  const marker = (rev: number, phase = "idle") => ({ kind: "phase_changed", name: "castor", from: "personal", to: phase, phase, toggles: { work: true, personal: false }, stopped: false, since: null, rev, generation: 2, cause: "toggle", sentence: "Awake and reachable." });
   it("only host phase_changed payloads with the fields count", () => {
-    expect(parsePhaseMarker(marker(3))?.rev).toBe(3);
+    expect(parsePhaseMarker(marker(3))).toMatchObject({ rev: 3, generation: 2 });
+    expect(parsePhaseMarker({ ...marker(3), generation: undefined })).toBeNull();
     expect(parsePhaseMarker({ ...marker(3), kind: "wake" })).toBeNull();
     expect(parsePhaseMarker({ ...marker(3), rev: undefined })).toBeNull();
     expect(parsePhaseMarker({ ...marker(3), phase: "asleep" })).toBeNull();

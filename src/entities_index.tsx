@@ -283,7 +283,8 @@ export function EntitiesIndex({
       if (plan.kind === "none") return;
       if (plan.kind === "refused") return setTileNote({ slug, text: plan.sentence });
       if (plan.kind === "show_visit" || plan.kind === "open_visit") return onOpen(slug);
-      if (plan.kind === "confirm") return setTileUi({ slug, ui: { busy: null, confirm: plan.confirm } });
+      // The tiles ask only "sleep now" (Stop, Resume and "Resume and visit" live on his page).
+      if (plan.kind === "confirm") return plan.confirm === "sleep" ? setTileUi({ slug, ui: { busy: null, confirm: "sleep" } }) : undefined;
       if (plan.kind !== "toggle") return; // the tiles carry no Stop / Resume
       setBusySlug(slug);
       setTileUi({ slug, ui: { busy: act, confirm: null } });
@@ -398,7 +399,7 @@ export function EntitiesIndex({
           // ONE phase per card, served (CONTRACT-phases §1): the same bar as the entity page
           // (no roster-vs-page split, adversary G2), its sentence on the card.
           const ui: PhaseBarUi = tileUi?.slug === summary.slug ? tileUi.ui : { busy: null, confirm: null };
-          const view = phaseBarView(tilePhaseRead(tile), ui);
+          const view = phaseBarView(tilePhaseRead(tile), ui, { resume: false });
           const loop = tile.loop;
           return (
             <div key={summary.slug} className="eix_card">

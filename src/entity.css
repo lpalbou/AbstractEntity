@@ -929,6 +929,30 @@ body {
 .ec_pb_blocked {
   color: color-mix(in srgb, var(--scar) 65%, var(--text));
 }
+/* A short state word beside a pill's label (contract v2: "waiting" while a visit waits for him,
+ * "finishing" while work winds down after Work was turned off). The label itself never changes. */
+.ec_pb_badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 0.86em;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--text-dim) 14%, transparent);
+}
+/* Since when, in the viewer's time (the sentence carries no clock time). */
+.ec_pb_since,
+.esb_since {
+  font-style: normal;
+  white-space: nowrap;
+}
+.ec_pb_stop_again.af-chip,
+.ec_pb_retry.af-chip {
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  padding: 3px 12px;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
 
 /* Settings gear (operator 2026-07-15 (d)): the old "workspace" button,
  * now clearly a settings entry with an icon; pushed slightly apart from

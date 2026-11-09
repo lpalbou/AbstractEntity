@@ -276,7 +276,7 @@ describe("the phase bar while a tile's live reads are on their way (tilePhaseRea
   });
   it("the grid draws the shared phase bar from it, without the kill switch (that stays on his page)", () => {
     const src = fs.readFileSync(path.join(__dirname, "entities_index.tsx"), "utf8");
-    expect(src).toContain("const view = phaseBarView(tilePhaseRead(tile), ui);");
+    expect(src).toContain("const view = phaseBarView(tilePhaseRead(tile), ui, { resume: false });");
     expect(src).toContain("<PhaseBarControls");
     expect(src).toContain("showPower={false}");
     expect(src).not.toMatch(/AfPhaseRadio|startLoop|stopLoop|postEntityState/);

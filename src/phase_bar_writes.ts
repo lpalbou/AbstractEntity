@@ -8,10 +8,12 @@
  *
  * An answer to a write that a later Stop overtook brings only its bar, and the rev rule
  * (phase_bar.adoptPhaseBar: the highest rev seen wins) keeps it from repainting over the stopped
- * view; its sentence is dropped (it describes a moment the Stop ended). A new entity (`reset`)
- * forgets every write in flight: their late answers touch nothing.
+ * view; its sentence is dropped (it describes a moment the Stop ended), and so is its follow-up
+ * (`after`: the visit a "Resume and visit" opens). A new entity (`reset`) forgets every write in
+ * flight: their late answers touch nothing. A Stop's answer records whether it left something
+ * outstanding (`ui.stopIncomplete`, contract §3.1 `complete: false`).
  */
-import { phaseWriteOutcome, type PhaseBarAct, type PhaseBarUi } from "./phase_bar";
+import { phaseWriteOutcome, type PhaseBarAct, type PhaseBarUi, type PhaseWriteOutcome } from "./phase_bar";
 import type { PhaseBar, PhaseWire } from "./phase_bar_source";
 
 /** What one write may touch on the page, resolved when the write starts. */
@@ -26,6 +28,8 @@ export interface PhaseWriteHost {
   refresh(): void;
   /** The gateway refused the sign-in (401). */
   authRefused(): void;
+  /** What follows this act once it is answered (never after a Stop overtook it). */
+  after?(outcome: PhaseWriteOutcome): void;
 }
 
 export class PhaseWrites {
@@ -81,7 +85,11 @@ export class PhaseWrites {
           if (!mine()) return;
           const out = phaseWriteOutcome(wire);
           if (out.bar) host.adopt(out.bar);
-          if (!overtaken()) host.note(out.sentence);
+          if (stop && out.ok) host.ui((u) => ({ ...u, stopIncomplete: out.incomplete }));
+          if (!overtaken()) {
+            host.note(out.sentence);
+            host.after?.(out);
+          }
           if (wire.status === 401) host.authRefused();
           host.refresh();
         },

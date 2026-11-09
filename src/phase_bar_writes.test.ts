@@ -67,15 +67,18 @@ describe("Stop goes out while a toggle is in flight", () => {
     expect(sent).toEqual(["personal", "stop"]);
     expect(p.state.ui.stopping).toBe(true);
 
-    // The stop answers first: stopped, rev 47, with a step that failed.
-    stop.resolve(wire("stopped", { failures: [{ step: "visit", sentence: "The visit could not be closed: it was already closing." }] }));
+    // The stop answers first: stopped, rev 47 (generation 8), with an item that failed.
+    stop.resolve(wire("stopped", { complete: false, items: [{ item: "visit", id: "run_7f2c", outcome: "failed", code: "visit_close_failed", sentence: "The visit could not be closed: it was already closing." }] }));
     await flush();
-    expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 47, stopped: true } });
+    expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 47, generation: 8, stopped: true } });
     expect(p.view().power.label).toBe("Resume");
     expect(p.state.note).toBe("The visit could not be closed: it was already closing.");
     expect(p.state.ui.stopping).toBe(false);
+    // Something is outstanding: a second Stop stays beside Resume.
+    expect(p.state.ui.stopIncomplete).toBe(true);
+    expect(p.view().stopAgain?.label).toBe("Stop");
 
-    // The toggle's late answer describes the moment before the stop (rev 46): ignored.
+    // The toggle's late answer describes the moment before the stop (rev 46, generation 7): ignored.
     toggle.resolve(wire("personal", { rev: 46, toggles: { work: true, personal: false }, next: { phase: "idle", sentence: "His own time ends at the next step." } }));
     await flush();
     expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 47, stopped: true, phase: "stopped" } });
@@ -129,6 +132,47 @@ describe("Stop goes out while a toggle is in flight", () => {
     await flush();
     expect(p.state.ui.stopping).toBe(false);
     expect(p.view().power.label).toBe("Resume");
+  });
+});
+
+describe("Resume and visit; Stop again", () => {
+  it("the visit opens only after the resume is answered and he runs again", async () => {
+    const p = page("stopped");
+    const writes = new PhaseWrites();
+    const resume = deferred<PhaseWire>();
+    const opened: string[] = [];
+    writes.run("resume", () => resume.promise, { ...p.host, after: (out) => !out.bar?.stopped && out.ok && opened.push("visit") });
+    expect(opened).toEqual([]);
+    resume.resolve(wire("idle", { rev: 48, toggles: { work: true, personal: false } }));
+    await flush();
+    expect(opened).toEqual(["visit"]);
+  });
+  it("a resume refused (archived) opens nothing; a resume overtaken by a Stop opens nothing", async () => {
+    const p = page("stopped");
+    const writes = new PhaseWrites();
+    const opened: string[] = [];
+    const after = { after: (out: { ok: boolean }) => out.ok && opened.push("visit") };
+    writes.run("resume", () => Promise.resolve({ status: 409, code: "entity_archived", body: { code: "entity_archived", detail: { reason_code: "entity_archived", message: "This entity is archived.", life_state: phaseBody("stopped") } } }), { ...p.host, ...after });
+    await flush();
+    expect(opened).toEqual([]);
+    expect(p.state.note).toBe("This entity is archived.");
+    const resume = deferred<PhaseWire>();
+    writes.run("resume", () => resume.promise, { ...p.host, ...after });
+    writes.run("stop", () => Promise.resolve(wire("stopped", { rev: 50, generation: 9 })), p.host);
+    await flush();
+    resume.resolve(wire("idle", { rev: 49 }));
+    await flush();
+    expect(opened).toEqual([]);
+    expect(p.view().power.label).toBe("Resume");
+  });
+  it("a clean stop clears the second Stop", async () => {
+    const p = page("stopped");
+    p.state.ui = { ...p.state.ui, stopIncomplete: true };
+    const writes = new PhaseWrites();
+    writes.run("stop", () => Promise.resolve(wire("stopped", { already: true, complete: true, items: [] })), p.host);
+    await flush();
+    expect(p.state.ui.stopIncomplete).toBe(false);
+    expect(p.view().stopAgain).toBeNull();
   });
 });
 

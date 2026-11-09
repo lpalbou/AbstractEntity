@@ -9,18 +9,20 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { findVerbToggleLabels } from "@abstractframework/ui-kit";
 import { describe, expect, it } from "vitest";
 
-import { phaseBody } from "./fixtures/phase_bodies";
-import { phaseBarRead, phaseBarView, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { LOOP_CRASHED, STOPPED_TOGGLE, phaseBody } from "./fixtures/phase_bodies";
+import { phaseBarRead, phaseBarView, sinceWords, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
 import { PhaseBarControls, confirmSentence } from "./phase_bar_controls";
 import { PHASE_BAR_UNSERVED, type ServedPhase } from "./phase_bar_source";
 
+const NOW = Date.parse("2026-11-08T20:00:00.000+00:00");
 const read = (phase: ServedPhase, overrides: Record<string, unknown> = {}): PhaseBarRead => phaseBarRead({ status: 200, code: null, body: phaseBody(phase, overrides) });
-const render = (r: PhaseBarRead, ui: PhaseBarUi = { busy: null, confirm: null }, extra: Partial<React.ComponentProps<typeof PhaseBarControls>> = {}) =>
+const render = (r: PhaseBarRead, ui: PhaseBarUi = { busy: null, confirm: null }, extra: Partial<React.ComponentProps<typeof PhaseBarControls>> = {}, resume = true) =>
   renderToStaticMarkup(
-    <PhaseBarControls view={phaseBarView(r, ui)} ui={ui} entityName="Castor" note={null} onAct={() => {}} onConfirm={() => {}} onCancel={() => {}} {...extra} />,
+    <PhaseBarControls view={phaseBarView(r, ui, { nowMs: NOW, resume })} ui={ui} entityName="Castor" note={null} onAct={() => {}} onConfirm={() => {}} onCancel={() => {}} {...extra} />,
   );
 const buttons = (html: string) => html.match(/<button[^>]*>.*?<\/button>/g) ?? [];
 const pill = (html: string, key: string) => buttons(html).find((b) => b.includes(`ec_pb_${key} `) || b.includes(`ec_pb_${key}"`))!;
+const button = (html: string, cls: string) => buttons(html).find((b) => b.includes(cls));
 
 describe("PhaseBarControls", () => {
   it("personal on + exploring: personal lit and pressed, work pressed, visit and sleep plain indicators, a red Stop", () => {
@@ -31,27 +33,69 @@ describe("PhaseBarControls", () => {
     expect(pill(html, "work")).not.toContain("ec_pb_lit");
     expect(pill(html, "visit")).not.toContain("aria-pressed");
     expect(pill(html, "sleep")).not.toContain("aria-pressed");
-    const power = buttons(html).find((b) => b.includes("ec_pb_power"))!;
+    const power = button(html, "ec_pb_power")!;
     expect(power).toContain("af-chip--error");
     expect(power).toMatch(/>Stop<\/span><\/button>$/);
     expect(html).toContain('role="status"');
-    expect(html).toContain(">On his own time since 19:30.</span>");
+    // The gateway's sentence (no clock time) and since, in the viewer's time.
+    expect(html).toContain(`>On his own time.<span class="ec_pb_since"> · ${sinceWords("2026-11-08T18:30:00.000+00:00", NOW)}</span></span>`);
   });
 
   it("idle: nothing lit, the toggles as they are, the gateway's sentence", () => {
     const html = render(read("idle"));
     expect(html).not.toContain("ec_pb_lit");
     expect(pill(html, "personal")).toContain('aria-pressed="false"');
-    expect(html).toContain("Awake and reachable since 19:41; nothing of his own is running.");
+    expect(html).toContain("Awake and reachable; nothing of his own is running.");
   });
 
-  it("stopped: Resume (not red), every pill disabled, and the page can move the sentence to its banner", () => {
+  it("stopped: Resume (not red), the toggles and sleep disabled with the gateway's words, the visit pill offers Resume and visit; the page can move the sentence to its banner", () => {
     const html = render(read("stopped"), undefined, { showSentence: false });
-    const power = buttons(html).find((b) => b.includes("ec_pb_power"))!;
+    const power = button(html, "ec_pb_power")!;
     expect(power).toContain("af-chip--success");
     expect(power).toMatch(/>Resume<\/span><\/button>$/);
-    for (const key of ["visit", "work", "personal", "sleep"]) expect(pill(html, key)).toContain("disabled");
+    for (const key of ["work", "personal", "sleep"]) expect(pill(html, key)).toContain("disabled");
+    expect(pill(html, "work")).toContain(`title="${STOPPED_TOGGLE}"`);
+    expect(pill(html, "visit")).not.toContain("disabled");
+    expect(pill(html, "visit")).toContain("Stopped. Resume to visit. Click to resume him, then visit.");
     expect(html).not.toContain("ec_pb_sentence");
+    expect(html).not.toContain("ec_pb_stop_again");
+  });
+
+  it("Resume and visit confirms inline: the question, Resume and visit, Cancel", () => {
+    const html = render(read("stopped"), { busy: null, confirm: "resume_visit" });
+    expect(html).toContain(confirmSentence("resume_visit", "Castor"));
+    expect(html).toContain("Castor is stopped. Resume him and visit? He starts again, then the conversation opens.");
+    expect(html).toContain(">Resume and visit</span></button>");
+    expect(html).toContain('aria-label="Confirm resume and visit"');
+  });
+
+  it("a stop that left something outstanding: a second red Stop beside Resume", () => {
+    const html = render(read("stopped"), { busy: null, confirm: null, stopIncomplete: true });
+    const again = button(html, "ec_pb_stop_again")!;
+    expect(again).toContain("af-chip--error");
+    expect(again).toMatch(/>Stop<\/span><\/button>$/);
+    expect(again).not.toContain("disabled");
+    expect(button(html, "ec_pb_power")).toMatch(/>Resume<\/span><\/button>$/);
+  });
+
+  it("a visit that waits for him and work winding down show their state word beside the label (the label stays)", () => {
+    const waiting = render(read("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for: "loop" } }));
+    expect(pill(waiting, "visit")).toContain('visit<span class="ec_pb_badge">waiting</span>');
+    const finishing = render(read("work"));
+    expect(pill(finishing, "work")).toContain('work<span class="ec_pb_badge">finishing</span>');
+    expect(render(read("personal"))).not.toContain("ec_pb_badge");
+  });
+
+  it("sleep now during a visit: the pill is disabled and its tooltip is the gateway's sentence", () => {
+    expect(pill(render(read("visit")), "sleep")).toMatch(/title="He is in a visit; end it to let him sleep\."[^>]*disabled/);
+  });
+
+  it("own time stopped unexpectedly: the warning and a Retry; never on a roster tile", () => {
+    const html = render(read("idle", LOOP_CRASHED));
+    expect(html).toContain('<span class="ec_pb_blocked">His own time stopped unexpectedly. Retry to start it again.</span>');
+    expect(button(html, "ec_pb_retry")).toMatch(/>Retry<\/span><\/button>$/);
+    expect(render(read("idle", LOOP_CRASHED), undefined, { showPower: false })).not.toContain("ec_pb_retry");
+    expect(render(read("idle"))).not.toContain("ec_pb_retry");
   });
 
   it("a toggle's markup differs only by its pressed state (the label never swaps to a verb)", () => {
@@ -65,36 +109,34 @@ describe("PhaseBarControls", () => {
     expect(html).toContain(confirmSentence("stop", "Castor"));
     expect(html).toContain(">Stop now</span></button>");
     expect(html).toContain(">Cancel</span></button>");
-    expect(buttons(html).find((b) => b.includes("ec_pb_power"))).toContain("disabled");
+    expect(button(html, "ec_pb_power")).toContain("disabled");
   });
 
   it("Stop now and Cancel never wait for a toggle in flight; the power button stays live and shows a Stop in flight", () => {
     const html = render(read("personal"), { busy: "personal", confirm: "stop" });
-    const yes = buttons(html).find((b) => b.includes("ec_pb_confirm_yes"))!;
-    const no = buttons(html).find((b) => b.includes("ec_pb_confirm_no"))!;
-    expect(yes).not.toContain("disabled");
-    expect(no).not.toContain("disabled");
+    expect(button(html, "ec_pb_confirm_yes")).not.toContain("disabled");
+    expect(button(html, "ec_pb_confirm_no")).not.toContain("disabled");
     const busy = render(read("personal"), { busy: "work", confirm: null });
-    expect(buttons(busy).find((b) => b.includes("ec_pb_power"))).not.toContain("disabled");
+    expect(button(busy, "ec_pb_power")).not.toContain("disabled");
     for (const key of ["visit", "work", "personal", "sleep"]) expect(pill(busy, key)).toContain("disabled");
     const stopping = render(read("personal"), { busy: null, stopping: true, confirm: null });
-    const power = buttons(stopping).find((b) => b.includes("ec_pb_power"))!;
+    const power = button(stopping, "ec_pb_power")!;
     expect(power).toContain("ec_pb_busy");
     expect(power).not.toContain("disabled");
   });
 
   it("before the first read and after a failed one the bar offers Stop; a gateway without the bar does not", () => {
     for (const r of [{ kind: "loading" }, { kind: "failed", sentence: "Could not read his phase: HTTP 502" }] as PhaseBarRead[]) {
-      const power = buttons(render(r)).find((b) => b.includes("ec_pb_power"))!;
+      const power = button(render(r), "ec_pb_power")!;
       expect(power).toMatch(/>Stop<\/span><\/button>$/);
       expect(power).not.toContain("disabled");
     }
-    expect(buttons(render({ kind: "unserved" })).find((b) => b.includes("ec_pb_power"))).toContain("disabled");
+    expect(button(render({ kind: "unserved" }), "ec_pb_power")).toContain("disabled");
   });
 
-  it("Sleep now waits for a write in flight", () => {
-    const html = render(read("idle"), { busy: "work", confirm: "sleep" });
-    expect(buttons(html).find((b) => b.includes("ec_pb_confirm_yes"))).toContain("disabled");
+  it("Sleep now and Resume and visit wait for a write in flight", () => {
+    expect(button(render(read("idle"), { busy: "work", confirm: "sleep" }), "ec_pb_confirm_yes")).toContain("disabled");
+    expect(button(render(read("stopped"), { busy: null, stopping: true, confirm: "resume_visit" }), "ec_pb_confirm_yes")).toContain("disabled");
   });
 
   it("sleep now confirms inline too", () => {
@@ -104,21 +146,26 @@ describe("PhaseBarControls", () => {
   });
 
   it("a refusal shows as its sentence; blocked shows as a warning", () => {
-    expect(render(read("stopped"), undefined, { note: "Castor is stopped. Resume him first, then choose what he may do." })).toContain(
-      '<span class="ec_pb_note" role="status">Castor is stopped. Resume him first, then choose what he may do.</span>',
+    expect(render(read("stopped"), undefined, { note: "Stopped. Resume him first, then choose what he may do." })).toContain(
+      '<span class="ec_pb_note" role="status">Stopped. Resume him first, then choose what he may do.</span>',
     );
-    const blocked = render(read("idle", { blocked: { code: "own_time_start_failed", sentence: "His own time could not start: no mind is set for castor." } }));
+    const blocked = render(read("idle", { blocked: { code: "own_time_start_failed", sentence: "His own time could not start: no mind is set for castor.", action: "retry" } }));
     expect(blocked).toContain('<span class="ec_pb_blocked">His own time could not start: no mind is set for castor.</span>');
   });
 
-  it("unserved: the one sentence, every control disabled", () => {
+  it("unserved (an older gateway, a v1 body included): the one sentence, every control disabled", () => {
     const html = render({ kind: "unserved" });
     expect(html).toContain(PHASE_BAR_UNSERVED);
     expect(buttons(html).every((b) => b.includes("disabled"))).toBe(true);
+    const v1 = phaseBody("personal");
+    delete v1.can;
+    delete v1.generation;
+    expect(render(phaseBarRead({ status: 200, code: null, body: v1 }))).toContain(PHASE_BAR_UNSERVED);
   });
 
-  it("the roster's bar has no power button", () => {
+  it("the roster's bar has no power button, and its stopped visit pill only says why", () => {
     expect(render(read("personal"), undefined, { showPower: false })).not.toContain("ec_pb_power");
+    expect(pill(render(read("stopped"), undefined, { showPower: false }, false), "visit")).toMatch(/title="Stopped\. Resume to visit\."[^>]*disabled/);
   });
 
   it("no verb-toggle labels in the bar's sources", () => {
@@ -166,6 +213,7 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(view).toContain("putPhaseToggle(base, entityName, plan.key, plan.on, token)");
     expect(view).toContain('postLifecycle(base, entityName, "stop", token)');
     expect(view).toContain('postLifecycle(base, entityName, "resume", token)');
+    expect(view).toContain('postLifecycle(base, entityName, "retry", token)');
     expect(view).toContain("postSleepNow(gatewayUrl.trim()");
   });
 
@@ -174,6 +222,15 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(view).toContain("const painted = adoptPhaseMarker(cur, marker);");
     expect(view).toContain("if (painted || cur.kind !== \"served\") readPhaseBarRef.current();");
     expect(view).toContain("setPhaseRead((cur) => adoptPhaseRead(cur, next));");
+  });
+
+  it("Resume and visit: the resume, then (once he runs again) the visit opens as the visit pill opens it", () => {
+    expect(view).toMatch(/kind === "resume_visit"\)[\s\S]{0,400}postLifecycle\(base, entityName, "resume", token\),[\s\S]{0,200}if \(!out\.ok \|\| !out\.bar \|\| out\.bar\.stopped\) return;[\s\S]{0,120}setVisitKnock\(\(n\) => n \+ 1\);/);
+  });
+
+  it("the roster's tiles draw the bar without Resume (so no Resume and visit), and ask only sleep now", () => {
+    expect(roster).toContain("const view = phaseBarView(tilePhaseRead(tile), ui, { resume: false });");
+    expect(roster).toContain('plan.confirm === "sleep" ? setTileUi');
   });
 
   it("the visit pill knocks through the drawer's own open", () => {

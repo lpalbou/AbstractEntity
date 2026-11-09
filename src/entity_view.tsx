@@ -57,7 +57,7 @@ const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation, warmthLegendTitles } from "./temporal_activation";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
-import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi, type PhaseWriteOutcome } from "./phase_bar";
 import { PhaseWrites } from "./phase_bar_writes";
 import { PhaseBarControls } from "./phase_bar_controls";
 import { getPhaseBar, highestPhaseMarker, postLifecycle, postSleepNow, putPhaseToggle, type PhaseMarker, type PhaseWire } from "./phase_bar_source";
@@ -1119,7 +1119,7 @@ export function EntityView(): React.ReactElement {
     [refreshEntityTruth, handleAuthRefused],
   );
   const runPhaseWrite = useCallback(
-    (act: PhaseBarAct, send: (base: string, token: string | null) => Promise<PhaseWire>) => {
+    (act: PhaseBarAct, send: (base: string, token: string | null) => Promise<PhaseWire>, after?: (out: PhaseWriteOutcome) => void) => {
       if (sourceKind !== "gateway" || !entityName) return;
       const epoch = phaseEpochRef.current;
       const base = gatewayUrl.trim().replace(/\/+$/, "");
@@ -1131,6 +1131,7 @@ export function EntityView(): React.ReactElement {
         ui: setPhaseUi,
         refresh: refreshEntityTruth,
         authRefused: () => void handleAuthRefused(),
+        after,
       });
     },
     [sourceKind, entityName, gatewayUrl, controlToken, refreshEntityTruth, handleAuthRefused],
@@ -1180,6 +1181,13 @@ export function EntityView(): React.ReactElement {
         case "resume":
           runPhaseWrite("resume", (base, token) => postLifecycle(base, entityName, "resume", token));
           return;
+        case "retry":
+          runPhaseWrite("retry", (base, token) => postLifecycle(base, entityName, "retry", token));
+          return;
+        case "stop":
+          // Stop again while stopped: retries what the last stop left, at once.
+          runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
+          return;
       }
     },
     [phaseRead, entityName, runPhaseWrite],
@@ -1188,6 +1196,18 @@ export function EntityView(): React.ReactElement {
     const kind = phaseUi.confirm;
     if (kind === "stop") runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
     else if (kind === "sleep") sleepNow();
+    else if (kind === "resume_visit")
+      // "Resume and visit" (contract §6.1): two visible acts — resume, then (once he runs again)
+      // the visit opens as the visit pill opens it. Never a silent bypass of the stop.
+      runPhaseWrite(
+        "resume",
+        (base, token) => postLifecycle(base, entityName, "resume", token),
+        (out) => {
+          if (!out.ok || !out.bar || out.bar.stopped) return;
+          setRequestedTab({ tab: "chat", nonce: Date.now() });
+          setVisitKnock((n) => n + 1);
+        },
+      );
   }, [phaseUi.confirm, entityName, runPhaseWrite, sleepNow]);
   const cancelPhaseConfirm = useCallback(() => setPhaseUi((u) => ({ ...u, confirm: null })), []);
   const phaseView = phaseBarView(phaseRead, phaseUi);
@@ -1871,7 +1891,8 @@ export function EntityView(): React.ReactElement {
         <div className="entity_stopped_banner" role="alert">
           <span className="esb_glyph" aria-hidden="true">⛔</span>
           <span className="esb_text">
-            <strong>Stopped</strong> — <span title={phaseView.sentenceTitle || undefined}>{phaseView.sentence}</span>
+            <strong title={phaseView.sentenceTitle || undefined}>{phaseView.sentence}</strong>
+            {phaseView.since ? <span className="esb_since"> · {phaseView.since}</span> : null}
           </span>
         </div>
       ) : null}

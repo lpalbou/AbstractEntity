@@ -4,6 +4,21 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The phase bar follows the gateway's second phase contract.** What each pill may do now comes
+  from the gateway itself, with its reason when it may not: "sleep now" is greyed during a visit
+  ("He is in a visit; end it to let him sleep.") and right after a sleep; while he is stopped the
+  switches are greyed with "Resume him first". A visit still opens in every phase except stopped;
+  while he is stopped, the `visit` pill asks "Castor is stopped. Resume him and visit?" and, on
+  **Resume and visit**, resumes him and then opens the conversation. A visit that waits for him to
+  finish what he was doing shows "waiting" beside `visit`; work that winds down after Work was
+  turned off shows "finishing" beside `work`. The line beside the pills is the gateway's sentence,
+  which no longer carries a clock time, followed by "since 19:30" in your own time (with the day
+  when it was not today). When his own time stopped unexpectedly, the bar says so and offers
+  **Retry**. When a Stop could not finish everything (a conversation that would not close, say),
+  the bar names what is left and keeps a second red **Stop** beside Resume to try again. An answer
+  that was sent before a Stop can never repaint the bar after it. A gateway that only knows the
+  first contract now gets the same one sentence as an older one: "This gateway does not serve the
+  phase bar yet".
 - **Stop is always there.** The red Stop button no longer greys out while a switch you just
   pressed waits for its answer, while a refusal is on screen, or before the bar has read his phase
   (or when that read failed). Pressed while a switch is still on its way, Stop goes out at once,
@@ -34,9 +49,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   and he wakes by himself when his maintenance is done (he cannot sleep twice in a row, and not
   during a visit). Next to the pills, one red **Stop** button stops everything at once, after a
   question in the bar: his own time, any work, any conversation in progress. While he is stopped,
-  the button reads **Resume**, the pills wait, and a banner says so. The line beside the pills is
-  the gateway's own sentence for now ("On his own time since 19:30."), never an old reason; its
-  tooltip says since when and what happens next ("When the visit closes, his own time resumes.").
+  the button reads **Resume**, the switches wait, and a banner says so. The line beside the pills
+  is the gateway's own sentence for now, never an old reason; its tooltip says since when and what
+  happens next ("When the visit closes, his own time resumes.").
   When something blocks what you allowed (no mind is set, say), the bar says why. When a change is
   refused, the bar shows the reason as a sentence. The bar follows changes as they happen on his
   stream. The roster's cards show the same pills and sentence (Stop stays on his page). This needs
