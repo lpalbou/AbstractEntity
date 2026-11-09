@@ -55,7 +55,8 @@ import { foldUpToIndex, isDiaryGraphId, lastLifeChangeSeq, mergeEnvelopes, type 
 const LIVE_CHECK_MS = 20_000;
 const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
-import { computeTemporalActivation, warmthLegendTitles } from "./temporal_activation";
+import { computeTemporalActivation } from "./temporal_activation";
+import { USAGE_HIGH, USAGE_LOW, USAGE_TITLE } from "./graph_usage";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
 import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi, type PhaseWriteOutcome } from "./phase_bar";
 import { PhaseWrites } from "./phase_bar_writes";
@@ -1482,12 +1483,12 @@ export function EntityView(): React.ReactElement {
     return { ...foldCacheRef.current.state };
   }, [envelopes, foldIndex]);
 
-  // The TEMPORAL count at the scrub position (two-count model): green
-  // warmth in the canvas keys on this decaying activation, never on the
-  // global counts. Pure over the fold's bounded attention windows —
-  // recomputes once per fold change, not per frame.
+  // The TEMPORAL count at the scrub position (two-count model): the Warm
+  // lens and the hover card read this decaying activation, and the graph's
+  // usage scale orders equal counts by it (graph_usage.ts). Pure over the
+  // fold's bounded attention windows — recomputes once per fold change, not
+  // per frame.
   const temporal = useMemo(() => computeTemporalActivation(fold.attention), [fold]);
-  const warmthTitles = useMemo(() => warmthLegendTitles(temporal), [temporal]);
 
   // Wall-clock honesty for the warmth (data-adversary finding, measured on
   // Castor: journal frozen since Jul 9 while the head still rendered warm):
@@ -2200,43 +2201,20 @@ export function EntityView(): React.ReactElement {
               </span>
             ))}
             <span className="lg_sep" />
-            <span className="lg_edge" title={warmthTitles.together}>
-              {/* SVG strokes ride the SAME tokens the canvas resolves — the
-                * legend must never diverge from what it explains (adversarial
-                * round 2: hardcoded swatches went invisible on light). */}
-              <svg width="26" height="6" aria-hidden="true">
-                <line x1="0" y1="3" x2="26" y2="3" stroke="var(--adm-both)" strokeWidth="1.8" />
-              </svg>
-              warm together
-            </span>
-            <span className="lg_edge" title={warmthTitles.now}>
-              <svg width="14" height="14" aria-hidden="true">
-                <circle cx="7" cy="7" r="6" fill="var(--adm-both)" opacity="0.35" />
-                <circle cx="7" cy="7" r="3" fill="var(--memory)" />
-              </svg>
-              warm now
+            {/* THE USAGE SCALE (operator 2026-11-09): one grey-to-green key
+              * for memories and lines, ranked within this life
+              * (graph_usage.ts); the swatch rides the same tokens the canvas
+              * resolves (graph_canvas.css .gc_rl_scale). */}
+            <span className="lg_edge" title={USAGE_TITLE}>
+              <i className="gc_rl_scale" aria-hidden="true" />
+              {USAGE_LOW} → {USAGE_HIGH}
             </span>
             {warmthAge ? (
               <span
                 className="lg_edge lg_stale"
-                title="Warmth decays with ACTIVITY, not wall time — while nothing runs, the last recall stays green. This is how long ago that last selection actually happened."
+                title="How long ago he last used a memory. The colours rank his use within his life; they do not fade while nothing runs."
               >
                 🥶 last selection {warmthAge} ago
-              </span>
-            ) : null}
-            {temporal.head_burst && temporal.head_burst.total >= temporal.config.window_limit * 0.25 ? (
-              // HONEST DECAY MUST SAY WHY (fable5 verdict on laurent c5439:
-              // a young shelf selects every episode every turn, so one
-              // commit deposits n + C(n,2) window slots — 253 at turn 22 —
-              // pushing every prior selection hundreds of ranks deep; the
-              // operator read the resulting gray as data loss). The counts
-              // are real and kept (node size = the never-decaying global
-              // count); only the GREEN washed, and this names the wash.
-              <span
-                className="lg_edge lg_stale"
-                title={`The newest recall commit deposited ${temporal.head_burst.total} attention events at once (${temporal.head_burst.selected} memories selected + their co-use pairs) into a ${temporal.config.window_limit}-event recency window — one turn's deposit pushed earlier selections far down the recency ranks, so the green cooled everywhere at once. Nothing is lost: lifetime counts are the node sizes; green means RECENT, and 'recent' just got very crowded.`}
-              >
-                🌊 warmth washed by a {temporal.head_burst.total}-event selection burst (shelf {temporal.head_burst.selected})
               </span>
             ) : null}
             {relationTypes.map((relation) => (

@@ -6,10 +6,11 @@
  *   its own lane, standing targets violet diamonds on the outer orbit);
  * - node size = GLOBAL selected count (the never-decaying count) — what
  *   mattered over a lifetime shapes the structure;
- * - green warmth (edge color, node bloom) = the TEMPORAL count — the
- *   engine's decaying activation, so green means "recently selected",
- *   never "selected often long ago" (the two-count model rendered:
- *   maintainer correction 2026-07-10 21:27);
+ * - THE USAGE SCALE (operator live test 2026-11-09): a memory's fill and a
+ *   co-use line's colour run from dark grey (rarely used) to green (most
+ *   used), ranked within this life (graph_usage.ts: quantiles over the
+ *   loaded window, ties ordered by recency), so his most used tenth pops;
+ *   the kind colour rides a small core inside the memory;
  * - pulses on recent use, colored by WHY the memory entered context
  *   (identity present-by-right / continuity / matched);
  * - edges flash amber when just traveled;
@@ -29,13 +30,12 @@ import {
   DIMMED_NODE,
   dimRampSec,
   edgeDimTarget,
-  edgeWarmthShown,
   emphasisDriver,
-  nodeGlowShown,
-  recallLegendParts,
   resolveSelection,
   type RecallClass,
 } from "./recall_emphasis";
+import { ContextLegend } from "./context_legend";
+import { coldOf, TOP_DECILE, usageEdgeAlpha, usageMix, usageRgb, usageScale } from "./graph_usage";
 import "./graph_canvas.css";
 import {
   canvasLabel,
@@ -54,7 +54,7 @@ import { writeSectionOpen } from "./section_disclosure";
 import { Words } from "./verbatim_view";
 import { WordsLine } from "./words_line";
 import { nodeLabel, summaryLabel } from "./node_label";
-import { nodeWarmth, pairWarmth, type TemporalActivation } from "./temporal_activation";
+import type { TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
 import { useCommunities, type TopicSource } from "./topic_map";
 import {
@@ -254,7 +254,8 @@ const CANVAS_THEME = {
   scar: [224, 85, 85] as Rgb,
   bond: [240, 192, 96] as Rgb,
   standing: [192, 132, 221] as Rgb,
-  warm: [110, 220, 160] as Rgb, // temporal-activation bloom
+  warm: [110, 220, 160] as Rgb, // the usage scale's green end (most used)
+  cold: [71, 76, 82] as Rgb, // the usage scale's dark-grey end (rarely used): coldOf(bg, text)
 };
 
 function parseCssColor(raw: string): Rgb | null {
@@ -300,6 +301,7 @@ export function resolveCanvasTheme(): void {
     assign("bond", "--bond");
     assign("standing", "--standing");
     assign("warm", "--adm-both");
+    CANVAS_THEME.cold = coldOf(CANVAS_THEME.bg, CANVAS_THEME.text) as Rgb;
     const core = read("--bg-raise");
     if (core) CANVAS_THEME.core = rgbaOf(core, 1);
     // Kit-covered kinds follow the theme so the DOM legend and the canvas
@@ -441,6 +443,16 @@ function readStoredLayout(key: string): string | null {
   return localStorage.getItem(`abstractobserver_entity_layout_v2:${key}`);
 }
 
+/** A phone-width viewport (the canvas is short: the Context legend starts
+ * folded there). */
+function narrowViewport(): boolean {
+  try {
+    return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 599.98px)").matches;
+  } catch {
+    return false;
+  }
+}
+
 /** The one card on screen: a memory's (node id) or a topic label's. */
 type CardAt =
   | { kind: "node"; id: string; x: number; y: number; pinned: boolean }
@@ -482,6 +494,9 @@ export function GraphCanvas({
   // see a selection and the recall would keep lighting the graph.
   const selectedRow = resolveSelection(fold, selectedId);
   const recall = useMemo(() => canvasRecall(fold, scrubSeq, selectedId, showContext), [fold, scrubSeq, selectedId, showContext]);
+  // THE USAGE SCALE: one rank per memory and per co-use line, per fold
+  // change (never per frame).
+  const usage = useMemo(() => usageScale(fold, temporal), [fold, temporal]);
   // TOPICS AS THE NATURAL LAYOUT (operator 2026-11-07): the served
   // communities give every topic a home and its memories seats inside it
   // (topic_layout.ts); the force sim pulls each memory to its seat with
@@ -530,7 +545,7 @@ export function GraphCanvas({
     [fold, topicsData, topicHomes],
   );
   const topicsPending = topicsState.phase === "loading";
-  const stateRef = useRef({ fold, temporal, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords });
+  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords });
   /** Topic label rects drawn last frame (screen px) — the click targets. */
   const topicLabelsRef = useRef<Array<{ rect: Rect; topic: number; label: string }>>([]);
   const onPickTopicRef = useRef(onPickTopic);
@@ -596,12 +611,15 @@ export function GraphCanvas({
   const reducedMotionRef = useRef(false);
   /** The topic homes the layout last adopted (reheat on change). */
   const topicHomesSeenRef = useRef<unknown>(null);
+  // The Context legend: unfolded on a wide screen, folded on a phone; the
+  // reader's fold/unfold holds for this view.
+  const [legendOpen, setLegendOpen] = useState(() => !narrowViewport());
   const [motionUi, setMotionUi] = useState<"live" | "frozen">("live");
   /** Phyllotaxis seat per node id — assigned once at first sight, kept
    * for the node's lifetime (and persisted): permanent spatial memory. */
   const seatRef = useRef<{ seats: Map<string, number>; next: number }>({ seats: new Map(), next: 0 });
 
-  stateRef.current = { fold, temporal, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords };
+  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, topicPlan, showTopics, topicsPending, topicWords };
   onSelectRef.current = onSelect;
 
   // FIT-TO-EMPHASIS (graph-access wave, 2026-07-12): when the OPERATOR's
@@ -734,7 +752,7 @@ export function GraphCanvas({
 
     const frame = () => {
       if (disposed) return;
-      const { fold, temporal, scrubSeq, selectedId, searchIds, recall, topicPlan: plan, showTopics: topicsOn, topicsPending: pending, topicWords } = stateRef.current;
+      const { fold, usage, scrubSeq, selectedId, searchIds, recall, topicPlan: plan, showTopics: topicsOn, topicsPending: pending, topicWords } = stateRef.current;
       const layout = layoutRef.current;
       const sim = simRef.current;
 
@@ -1045,15 +1063,14 @@ export function GraphCanvas({
         return next;
       };
       const nodeDim = (id: string) => easedDim(id, emphasis && !emphasis.has(id) ? DIMMED_NODE : 1);
-      // Under the RECALL only the pairs this turn used stay lit and green,
-      // and only its shelf glows (recall_emphasis.edgeDimTarget /
-      // nodeGlowShown); both are null for every other driver. Co-use edges
-      // ease under their own key; born-linked edges under an "s" key, so
-      // the two never fight over one eased value.
-      const turnPairs = driver === "recall" && recall ? recall.pairs : null;
-      const glowShelf = driver === "recall" && recall ? recall.ids : null;
+      // Under the RECALL only the paths travelled to reach this step's
+      // memories stay lit, in the colour of their ring (recall_emphasis
+      // .edgeDimTarget / RecallEmphasis.travelled); null for every other
+      // driver. Co-use edges ease under their own key; born-linked edges
+      // under an "s" key, so the two never fight over one eased value.
+      const travelled = driver === "recall" && recall ? recall.travelled : null;
       const edgeDim = (a: string, b: string, pairKey: string | null) =>
-        easedDim(pairKey ?? `s\u0000${a}\u0000${b}`, edgeDimTarget(emphasis, turnPairs, a, b, pairKey));
+        easedDim(pairKey ?? `s\u0000${a}\u0000${b}`, edgeDimTarget(emphasis, travelled, a, b, pairKey));
 
       // The search/lens overlay floats over the canvas top-left — text
       // drawn under it becomes unreadable double-exposure (both review
@@ -1147,21 +1164,16 @@ export function GraphCanvas({
       }
       ctx.setLineDash([]);
 
-      // Trail intensity is COLOR, not just alpha (maintainer, 2026-07-10
-      // 20:50, the fork monitor as the bar) — and the color keys on the
-      // TEMPORAL count (maintainer correction 21:27): green means "these
-      // two served a recent moment together", decaying with activity like
-      // the engine's trail activation. Width and base alpha stay GLOBAL
-      // (lifetime co-use = structure); the amber flash stays the "just
-      // traveled" overlay. A trail deep in lifetime count but cold now
-      // renders grey — history is the shape, warmth is the color.
-      const trailColor = (t: number, alpha: number) => {
-        const cold = CANVAS_THEME.dim;
-        const warm = CANVAS_THEME.warm;
-        const r = Math.round(cold[0] + (warm[0] - cold[0]) * t);
-        const g = Math.round(cold[1] + (warm[1] - cold[1]) * t);
-        const bl = Math.round(cold[2] + (warm[2] - cold[2]) * t);
-        return `rgba(${r}, ${g}, ${bl}, ${alpha})`;
+      // THE USAGE SCALE on the co-use lines (operator 2026-11-09): colour
+      // and opacity follow the line's rank in this life (graph_usage.ts) —
+      // a rarely used trail is a dark-grey whisper, his most used tenth is
+      // a clear green; width stays the lifetime co-use depth. Under the
+      // recall a TRAVELLED path takes its ring's colour at full strength
+      // and every other line dims (edgeDim). The amber flash stays the
+      // "just traveled" overlay.
+      const usageStroke = (mix: number, alpha: number) => {
+        const c = usageRgb(mix, CANVAS_THEME.cold, CANVAS_THEME.warm);
+        return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`;
       };
       for (const e of fold.edges.values()) {
         const la = layout.get(e.a);
@@ -1171,29 +1183,20 @@ export function GraphCanvas({
         const b = toScreen(lb.x, lb.y);
         const age = scrubSeq - e.last_seq;
         const recent = age >= 0 && age <= pulseWindow ? 1 - age / pulseWindow : 0;
-        const warmth = edgeWarmthShown(turnPairs, e.key, pairWarmth(temporal.pairs.get(e.key) ?? 0));
-        // Co-use edges are far more transparent now (operator 2026-07-15
-        // (f): hundreds of count-1 trails made an unreadable hairball).
-        // A one-time co-use is a near-invisible whisper (0.045); lifetime
-        // depth brightens the line but caps low (0.3); recent warmth greens
-        // it with a modest alpha floor so what is happening NOW still reads
-        // without the resting topology drowning the field.
-        const baseAlpha = Math.max(
-          e.count <= 1 ? 0.045 : Math.min(0.3, 0.07 + Math.log1p(e.count) * 0.07),
-          warmth * 0.4,
-        );
+        const path = travelled?.get(e.key);
+        const place = usage.edges.get(e.key) ?? 0;
+        const mix = usageMix(place);
         ctx.globalAlpha = edgeDim(e.a, e.b, e.key);
-        // The GREEN trail always draws (memory's investigator, c5458: the
-        // amber "just traveled" flash used to REPLACE the green — so the
-        // warmest edges, being the most recently traveled, were exactly
-        // the ones that never showed their warmth). The flash is now an
-        // OVERLAY: green states the temporal count, amber shimmers the
-        // just-now on top and fades.
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = trailColor(warmth, baseAlpha);
-        ctx.lineWidth = 0.8 + Math.log1p(e.count) * 0.4;
+        if (path) {
+          ctx.strokeStyle = hexAlpha(ADMISSION_COLORS[RECALL_RING_ADMISSION[path]], 0.72);
+          ctx.lineWidth = 1.3 + Math.log1p(e.count) * 0.4;
+        } else {
+          ctx.strokeStyle = usageStroke(mix, usageEdgeAlpha(place));
+          ctx.lineWidth = 0.8 + Math.log1p(e.count) * 0.4;
+        }
         ctx.stroke();
         if (recent > 0) {
           ctx.beginPath();
@@ -1318,28 +1321,12 @@ export function GraphCanvas({
           }
         }
 
-        // Selection bloom (maintainer, 2026-07-10 20:50; corrected 21:27):
-        // a memory GLOWS green behind its kind color when it is WARM —
-        // the TEMPORAL activation (decays with activity), not the lifetime
-        // count. A record selected 300 times over a life but not recently
-        // shows no bloom; size already carries its lifetime weight. Drawn
-        // UNDER the fill so the kind color stays crisp.
-        // While a recall is lit, the warm bloom steps back so the recall
-        // rings carry the moment (green = warmth must not fight them), and
-        // only the shelf glows: a memory an earlier shelf picked is dimmed,
-        // never glowing (operator 2026-11-08).
-        const warmth = nodeGlowShown(glowShelf, node.id, nodeWarmth(temporal.records.get(node.id) ?? 0));
-        if (!isGhost && warmth > 0.02) {
-          const bloomR = r * (1.7 + warmth * 1.5);
-          const glow = ctx.createRadialGradient(p.x, p.y, r * 0.6, p.x, p.y, bloomR);
-          glow.addColorStop(0, rgbaOf(CANVAS_THEME.warm, 0.12 + warmth * 0.4));
-          glow.addColorStop(1, rgbaOf(CANVAS_THEME.warm, 0));
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, bloomR, 0, Math.PI * 2);
-          ctx.fillStyle = glow;
-          ctx.fill();
-        }
-
+        // THE USAGE SCALE on the memory (operator 2026-11-09: "from dark
+        // grey (rarely visited node) to green (highly visited node)"): the
+        // fill is its rank in this life (graph_usage.ts), his most used
+        // tenth glows; its KIND colour rides a small core so the kind stays
+        // readable up close. A closed or hidden memory stays a ghost in its
+        // kind colour.
         ctx.beginPath();
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
         if (isGhost) {
@@ -1353,9 +1340,34 @@ export function GraphCanvas({
           ctx.setLineDash([]);
           ctx.globalAlpha = dim;
         } else {
-          ctx.fillStyle = color;
+          const place = usage.nodes.get(node.id) ?? 0;
+          const fill = usageRgb(usageMix(place), CANVAS_THEME.cold, CANVAS_THEME.warm) as Rgb;
+          // His most used tenth glows (graph_usage.TOP_DECILE): the pop.
+          if (place > TOP_DECILE) {
+            const bloomR = r * 2.6;
+            const glow = ctx.createRadialGradient(p.x, p.y, r * 0.8, p.x, p.y, bloomR);
+            glow.addColorStop(0, rgbaOf(fill, 0.45));
+            glow.addColorStop(1, rgbaOf(fill, 0));
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, bloomR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          }
+          ctx.fillStyle = rgbaOf(fill, 1);
           ctx.fill();
+          // The kind core, once the memory is big enough on screen to carry
+          // two colours (zoomed out, the memory is its usage colour).
+          if (r >= 4.5) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+          }
           if (node.diary) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
             ctx.strokeStyle = rgbaOf(CANVAS_THEME.bg, 0.9);
             ctx.lineWidth = 1;
             ctx.stroke();
@@ -1684,7 +1696,6 @@ export function GraphCanvas({
   }, [topicCardHome, topicPlan, fold]);
   const recallShown = recall !== null && searchIds === null && !selectionIsNode;
   const recallLabelOf = (id: string): string | null => (recall ? recall.labels.get(id) ?? null : null);
-  const recallLegend = recallShown && recall ? recallLegendParts(recall) : null;
   const hoverStanding = cardNodeId && !hoverNode && cardNodeId.startsWith("standing:")
     ? fold.standings.get(cardNodeId.slice("standing:".length)) ?? null
     : null;
@@ -1892,18 +1903,10 @@ export function GraphCanvas({
           no topics in this life yet
         </div>
       ) : null}
-      {recallLegend ? (
-        <div className="gc_recall_legend" role="status" aria-live="polite">
-          <span className="gc_rl_head">{recallLegend.head}</span>
-          {recallLegend.parts.length ? <span className="gc_rl_colon">:</span> : null}
-          {recallLegend.parts.map((part, i) => (
-            <span key={part.cls} className="gc_rl_part">
-              <i className={`gc_rl_ring gc_rl_${part.cls}`} aria-hidden="true" />
-              {part.text}
-              {i < recallLegend.parts.length - 1 ? <span className="gc_rl_sep" aria-hidden="true">·</span> : null}
-            </span>
-          ))}
-        </div>
+      {recallShown && recall ? (
+        // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what
+        // each colour means, the lit lines and the grey-to-green fill.
+        <ContextLegend recall={recall} open={legendOpen} onToggle={setLegendOpen} />
       ) : null}
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the
         * bare 🌊⚓♻️🎯 emoji row read as mystery meat). aria-pressed marks

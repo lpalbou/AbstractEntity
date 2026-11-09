@@ -21,21 +21,21 @@ import {
   contextToggleView,
   DIMMED_EDGE,
   dimRampSec,
+  canvasSelection,
   edgeDimTarget,
-  edgeWarmthShown,
   emphasisDriver,
   HOVER_RAMP_SEC,
-  nodeGlowShown,
-  RECALL_GLOW_SCALE,
+  RECALL_CLASS_MEANING,
   resolveSelection,
   RECALL_RAMP_SEC,
   recallEmphasis,
   readContextChoice,
+  recallLegendRows,
   recallLegendText,
-  TURN_PAIR_WARMTH,
+  TRAVELLED_LEGEND,
+  trailsBefore,
   writeContextChoice,
 } from "./recall_emphasis";
-import { computeTemporalActivation, nodeWarmth, pairWarmth } from "./temporal_activation";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope {
   return {
@@ -303,12 +303,27 @@ describe("the Context toggle", () => {
 describe("recallLegendText", () => {
   it("states the shelf the way the ledger line counts it", () => {
     const e = recallEmphasis(foldEnvelopes(life(), 12), 12)!;
-    expect(recallLegendText(e)).toBe("4 memories recalled for this turn: 1 present by right · 1 from continuity · 2 matched");
+    expect(recallLegendText(e)).toBe("4 memories recalled for this turn: 1 present by right · 1 continuity · 2 matched");
   });
 
   it("omits empty classes and speaks the singular", () => {
     const fold = foldEnvelopes([binding(1, "ex:memory-b", "memory"), trace(10, "tr1", ["ex:memory-b"], { "ex:memory-b": "stm" })]);
-    expect(recallLegendText(recallEmphasis(fold, 10)!)).toBe("1 memory recalled for this turn: 1 from continuity");
+    expect(recallLegendText(recallEmphasis(fold, 10)!)).toBe("1 memory recalled for this turn: 1 continuity");
+  });
+
+  it("the legend says what each ring colour means, in the operator's words, all three rings always", () => {
+    expect(RECALL_CLASS_MEANING).toEqual({
+      self: "memories he always keeps in mind",
+      stm: "memories that followed from the last ones",
+      matched: "memories found for this message",
+    });
+    const fold = foldEnvelopes([binding(1, "ex:memory-b", "memory"), trace(10, "tr1", ["ex:memory-b"], { "ex:memory-b": "stm" })]);
+    expect(recallLegendRows(recallEmphasis(fold, 10)!)).toEqual([
+      { cls: "self", count: 0, name: "present by right", meaning: "memories he always keeps in mind" },
+      { cls: "stm", count: 1, name: "continuity", meaning: "memories that followed from the last ones" },
+      { cls: "matched", count: 0, name: "matched", meaning: "memories found for this message" },
+    ]);
+    expect(TRAVELLED_LEGEND).toBe("lit lines: the path he travelled to reach each one, in the colour of its ring");
   });
 });
 
@@ -439,49 +454,190 @@ describe("each turn's used-together pairs (operator 2026-11-08: more edges lit t
 });
 
 describe("what the canvas lights under the recall", () => {
-  it("edgeDimTarget: under the recall only this turn's pairs are lit; other drivers keep both-ends-lit", () => {
+  it("edgeDimTarget: under the recall only the travelled paths are lit; other drivers keep both-ends-lit", () => {
     const shelf = new Set(["b", "c", "d"]);
-    const pairs = new Set([key("c", "d")]);
-    expect(edgeDimTarget(shelf, pairs, "c", "d", key("c", "d"))).toBe(1);
-    // Both ends on the shelf, used together only EARLIER: dimmed.
-    expect(edgeDimTarget(shelf, pairs, "b", "c", key("b", "c"))).toBe(DIMMED_EDGE);
-    // A born-linked edge between two shelf memories: dimmed (no turn uses it).
-    expect(edgeDimTarget(shelf, pairs, "c", "d", null)).toBe(DIMMED_EDGE);
+    const travelled = new Map([[key("c", "d"), "matched" as const]]);
+    expect(edgeDimTarget(shelf, travelled, "c", "d", key("c", "d"))).toBe(1);
+    // Both ends on the shelf, but no path travelled between them: dimmed.
+    expect(edgeDimTarget(shelf, travelled, "b", "c", key("b", "c"))).toBe(DIMMED_EDGE);
+    // A born-linked edge between two shelf memories: dimmed (no step travels it).
+    expect(edgeDimTarget(shelf, travelled, "c", "d", null)).toBe(DIMMED_EDGE);
     // Hover/selection/filter: lit when both ends are emphasized (unchanged).
     expect(edgeDimTarget(shelf, null, "b", "c", key("b", "c"))).toBe(1);
     expect(edgeDimTarget(shelf, null, "b", "e", key("b", "e"))).toBe(DIMMED_EDGE);
     expect(edgeDimTarget(null, null, "b", "e", key("b", "e"))).toBe(1);
   });
 
-  it("edgeWarmthShown: under the recall green means used THIS turn, never multi-turn warmth", () => {
-    const pairs = new Set([key("c", "d")]);
-    expect(edgeWarmthShown(pairs, key("c", "d"), 0)).toBe(TURN_PAIR_WARMTH);
-    expect(edgeWarmthShown(pairs, key("b", "c"), 0.9)).toBe(0);
-    expect(edgeWarmthShown(null, key("b", "c"), 0.9)).toBe(0.9);
-  });
-
-  it("nodeGlowShown: under the recall only the shelf glows (stepped back); at rest the warmth glows as before", () => {
-    const shelf = new Set(["b"]);
-    expect(nodeGlowShown(shelf, "b", 0.8)).toBeCloseTo(0.8 * RECALL_GLOW_SCALE);
-    expect(nodeGlowShown(shelf, "e", 0.8)).toBe(0);
-    expect(nodeGlowShown(null, "e", 0.8)).toBe(0.8);
-  });
-
-  it("on a real fold: green lit edges = this turn's pairs; the dropped warm memory does not glow", () => {
+  it("on a real fold: the lit edges are this turn's paths, never an earlier pair or a traceless co-use", () => {
     const fold = foldEnvelopes(twoTurns());
-    const temporal = computeTemporalActivation(fold.attention);
     const recall = recallEmphasis(fold, 34)!;
-    // Resting view: three warm trails (two from turn 1), e still warm.
-    const warmAtRest = [...fold.edges.values()].filter((e) => pairWarmth(temporal.pairs.get(e.key) ?? 0) > 0).length;
-    expect(warmAtRest).toBe(4);
-    expect(nodeWarmth(temporal.records.get("ex:memory-e") ?? 0)).toBeGreaterThan(0.02);
-    // Under the recall.
-    const greenLit = [...fold.edges.values()].filter(
-      (e) => edgeDimTarget(recall.ids, recall.pairs, e.a, e.b, e.key) === 1 && edgeWarmthShown(recall.pairs, e.key, pairWarmth(temporal.pairs.get(e.key) ?? 0)) > 0,
-    );
-    expect(greenLit.map((e) => e.key)).toEqual([key("ex:memory-c", "ex:memory-d")]);
-    const glowing = [...fold.nodes.values()].filter((n) => nodeGlowShown(recall.ids, n.id, nodeWarmth(temporal.records.get(n.id) ?? 0)) > 0.02).map((n) => n.id);
-    expect(glowing).not.toContain("ex:memory-e");
-    expect(glowing.sort()).toEqual(["ex:memory-b", "ex:memory-c", "ex:memory-d"]);
+    const lit = [...fold.edges.values()].filter((e) => edgeDimTarget(recall.ids, recall.travelled, e.a, e.b, e.key) === 1);
+    // b and c share the shelf and were used together in turn 1; b+d is a
+    // traceless co-use: neither is a path of turn 2.
+    expect(lit.map((e) => e.key)).toEqual([key("ex:memory-c", "ex:memory-d")]);
+    expect(recall.travelled.get(key("ex:memory-c", "ex:memory-d"))).toBe("matched");
   });
 });
+
+/** THE TRAVELLED PATHS fixture (operator 2026-11-09: "i would also expect the
+ * edges traveled to be selected"). Four turns over memories a..h:
+ * - tr1 uses b, e, g; pairs b+e, b+g.
+ * - tr2 uses b, c, e, f (g on the shelf by CONTINUITY); pairs b+c, e+f.
+ * - tr3: a present by right, b and d by continuity, e f h matched; pairs
+ *   e+h, f+h (c and g are off this shelf).
+ * - tr4 (later) uses c and g together: a trail tr2 must never see. */
+function fourTurns(): ReplayEnvelope[] {
+  const m = (x: string) => `ex:memory-${x}`;
+  return [
+    binding(1, "ex:value-a", "value", "I keep my word"),
+    ...["b", "c", "d", "e", "f", "g", "h"].map((x, i) => binding(2 + i, m(x), "memory")),
+    trace(10, "tr1", [m("b"), m("e"), m("g")], { [m("b")]: "stimulus", [m("e")]: "stimulus", [m("g")]: "stimulus" }),
+    selectedEvent(11, m("b"), "tr1"),
+    selectedEvent(12, m("e"), "tr1"),
+    selectedEvent(13, m("g"), "tr1"),
+    coSelected(14, m("b"), m("e"), "tr1"),
+    coSelected(15, m("b"), m("g"), "tr1"),
+    trace(20, "tr2", [m("b"), m("c"), m("e"), m("f"), m("g")], { [m("b")]: "stimulus", [m("c")]: "stimulus", [m("e")]: "both", [m("f")]: "stimulus", [m("g")]: "stm" }),
+    selectedEvent(21, m("b"), "tr2"),
+    selectedEvent(22, m("c"), "tr2"),
+    selectedEvent(23, m("e"), "tr2"),
+    selectedEvent(24, m("f"), "tr2"),
+    coSelected(25, m("b"), m("c"), "tr2"),
+    coSelected(26, m("e"), m("f"), "tr2"),
+    trace(30, "tr3", ["ex:value-a", m("b"), m("d"), m("e"), m("f"), m("h")], { "ex:value-a": "self", [m("b")]: "stm", [m("d")]: "stm", [m("e")]: "stimulus", [m("f")]: "both", [m("h")]: "stimulus" }),
+    selectedEvent(31, m("e"), "tr3"),
+    selectedEvent(32, m("f"), "tr3"),
+    selectedEvent(33, m("h"), "tr3"),
+    coSelected(34, m("e"), m("h"), "tr3"),
+    coSelected(35, m("f"), m("h"), "tr3"),
+    trace(40, "tr4", [m("c"), m("g")], { [m("c")]: "stimulus", [m("g")]: "stimulus" }),
+    selectedEvent(41, m("c"), "tr4"),
+    selectedEvent(42, m("g"), "tr4"),
+    coSelected(43, m("c"), m("g"), "tr4"),
+  ];
+}
+
+describe("the paths travelled to reach a step's memories", () => {
+  const m = (x: string) => `ex:memory-${x}`;
+  const sorted = (travelled: Map<string, string>) => [...travelled.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1));
+
+  it("a step with continuity + matched memories: one path per memory, in its ring's class", () => {
+    const fold = foldEnvelopes(fourTurns());
+    const e = canvasRecall(fold, 43, "beat:tr3", true)!;
+    expect(e.trace_id).toBe("tr3");
+    expect(sorted(e.travelled)).toEqual(
+      sorted(
+        new Map([
+          // e and f: their pair of this turn (with h); h: the companion he used most (e).
+          [key(m("e"), m("h")), "matched"],
+          [key(m("f"), m("h")), "matched"],
+          // b followed from the last ones: its trail warm before tr3 to a
+          // memory on this shelf (e) — not its warmer one to c, off this shelf.
+          [key(m("b"), m("e")), "stm"],
+        ]),
+      ),
+    );
+    // d (continuity, no trail) and a (present by right) get no line; the
+    // earlier pair e+f between two shelf memories is not a path of tr3.
+    expect(e.travelled.has(key(m("e"), m("f")))).toBe(false);
+  });
+
+  it("an earlier step reads its trails as they were THEN: a trail formed later never counts", () => {
+    const fold = foldEnvelopes(fourTurns());
+    // At the end, c+g (tr4) is g's warmest trail to a tr2 shelf memory.
+    expect(trailsBefore(fold, { first_seq: 44, trace_id: "none" }).get(key(m("c"), m("g")))).toBeGreaterThan(trailsBefore(fold, { first_seq: 44, trace_id: "none" }).get(key(m("b"), m("g")))!);
+    const e = canvasRecall(fold, 43, "beat:tr2", true)!;
+    expect(sorted(e.travelled)).toEqual(
+      sorted(
+        new Map([
+          [key(m("b"), m("c")), "matched"],
+          [key(m("e"), m("f")), "matched"],
+          // g by continuity: its tr1 trail to b, warm before tr2.
+          [key(m("b"), m("g")), "stm"],
+        ]),
+      ),
+    );
+    // Before tr2, the c+g trail did not exist yet; the step's own deposit
+    // is not "before" either.
+    const before = trailsBefore(fold, fold.beats.get("tr2")!);
+    expect(before.has(key(m("c"), m("g")))).toBe(false);
+    expect(before.has(key(m("b"), m("c")))).toBe(false);
+    expect(before.get(key(m("b"), m("g")))).toBeGreaterThan(0);
+  });
+
+  it("a first recall (nothing warm yet) still joins the memories found for this message", () => {
+    const fold = foldEnvelopes(fourTurns(), 15);
+    const e = recallEmphasis(fold, 15)!;
+    expect(sorted(e.travelled)).toEqual(
+      sorted(
+        new Map([
+          [key(m("b"), m("e")), "matched"],
+          [key(m("b"), m("g")), "matched"],
+        ]),
+      ),
+    );
+  });
+
+  it("hovering a ledger recall line lights that step's paths, as its click does (b2d6207 preview kept)", () => {
+    const fold = foldEnvelopes(fourTurns());
+    // The newest recall (tr4) is lit; the mouse rests on tr3's line.
+    const preview = canvasRecall(fold, 43, canvasSelection(null, "beat:tr3"), true)!;
+    const click = canvasRecall(fold, 43, "beat:tr3", true)!;
+    expect(preview.trace_id).toBe("tr3");
+    expect(sorted(preview.travelled)).toEqual(sorted(click.travelled));
+    const lit = [...fold.edges.values()].filter((ed) => edgeDimTarget(preview.ids, preview.travelled, ed.a, ed.b, ed.key) === 1).map((ed) => ed.key);
+    expect(lit.sort()).toEqual([key(m("b"), m("e")), key(m("e"), m("h")), key(m("f"), m("h"))].sort());
+    // The hovered line wins over a clicked one while the mouse rests on it.
+    expect(canvasRecall(fold, 43, canvasSelection("beat:tr2", "beat:tr3"), true)!.trace_id).toBe("tr3");
+    // Leaving the line: back to the newest recall's paths.
+    expect(canvasRecall(fold, 43, canvasSelection(null, null), true)!.trace_id).toBe("tr4");
+  });
+
+  it("the rules: warmest trail first, then the companion he used most; never a present-by-right line; matched colour first", () => {
+    // tr1 warms the trails: b+c twice, b+d once, a+x, z+v, w+u (z used).
+    // tr2: a present by right; b by continuity; c d x y z w v u matched.
+    // Its pairs: y+z, y+w, z+v, w+u, and b+c (a pair touching b).
+    const envs = [
+      binding(1, "ex:value-a", "value", "I keep my word"),
+      ...["b", "c", "d", "x", "y", "z", "w", "v", "u"].map((x, i) => binding(2 + i, m(x), "memory")),
+      trace(20, "tr1", [m("b"), m("c"), m("d"), m("z")], { [m("b")]: "stimulus", [m("c")]: "stimulus", [m("d")]: "stimulus", [m("z")]: "stimulus" }),
+      selectedEvent(21, m("z"), "tr1"),
+      coSelected(22, m("b"), m("c"), "tr1"),
+      coSelected(23, m("b"), m("c"), "tr1"),
+      coSelected(24, m("b"), m("d"), "tr1"),
+      coSelected(25, "ex:value-a", m("x"), "tr1"),
+      coSelected(26, m("z"), m("v"), "tr1"),
+      coSelected(27, m("w"), m("u"), "tr1"),
+      trace(30, "tr2", ["ex:value-a", m("b"), m("c"), m("d"), m("x"), m("y"), m("z"), m("w"), m("v"), m("u")], {
+        "ex:value-a": "self",
+        [m("b")]: "stm",
+        ...Object.fromEntries(["c", "d", "x", "y", "z", "w", "v", "u"].map((x) => [m(x), "stimulus"])),
+      }),
+      ...["y", "z", "w", "v", "u"].map((x, i) => selectedEvent(31 + i, m(x), "tr2")),
+      coSelected(40, m("y"), m("z"), "tr2"),
+      coSelected(41, m("y"), m("w"), "tr2"),
+      coSelected(42, m("z"), m("v"), "tr2"),
+      coSelected(43, m("w"), m("u"), "tr2"),
+      coSelected(44, m("b"), m("c"), "tr2"),
+    ];
+    const fold = foldEnvelopes(envs);
+    const e = recallEmphasis(fold, 44)!;
+    expect(sorted(e.travelled)).toEqual(
+      sorted(
+        new Map([
+          // z and w: their trail warm from tr1 (not their new pair with y).
+          [key(m("z"), m("v")), "matched"],
+          [key(m("w"), m("u")), "matched"],
+          // y: two new pairs, nothing warm: the companion he used most (z, twice) — not w by key order.
+          [key(m("y"), m("z")), "matched"],
+          // b by continuity: its warmest trail (c, twice) — not d; c's own pair is
+          // the same line, which takes the matched colour.
+          [key(m("b"), m("c")), "matched"],
+        ]),
+      ),
+    );
+    // a is present by right: its warm trail to x is no path.
+    expect(e.travelled.has(key("ex:value-a", m("x")))).toBe(false);
+  });
+});
+

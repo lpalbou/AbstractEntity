@@ -49,7 +49,7 @@ consistent at any scrub position.
 
 | Surface | Reads | Produces |
 | --- | --- | --- |
-| Memory graph | `FoldState.nodes/edges` + `temporal_activation` | force-laid canvas, lenses, warmth |
+| Memory graph | `FoldState.nodes/edges` + `temporal_activation` → `graph_usage` | force-laid canvas, lenses, usage scale, Context paths |
 | Detail | selected node + `fetchRecordVerbatim` / `fetchDiaryEntry` | verbatim, feelings, associations |
 | Book | `FoldState` diary nodes (`selectDiaryEntries`) | day-grouped journal → diary door on click |
 | Health | `computeHealthMetrics(FoldState)` + `fetchEntityFootprint` | re-use / concentration / forgetting / kind mix + on-disk bytes |

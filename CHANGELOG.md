@@ -13,6 +13,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
   carries, the same as its card in the graph, not one the app made up ("A visit with admin").
   While no title is written yet it says "Title being written…". Who the moment was with stays as
   a small line under the title.
+- **The memory graph shows what he uses most.** Memories and the lines between them now run from
+  dark grey (rarely used) to green (most used), ranked within each entity's own life, so his most
+  used tenth stands out in bright green instead of the whole graph looking equally green. In the
+  Context view, the line he travelled to reach each recalled memory is lit in the colour of its
+  ring, and the rest is dimmed. The Context box now explains the rings: present by right (memories
+  he always keeps in mind), continuity (memories that followed from the last ones) and matched
+  (memories found for this message), plus the lit lines and the grey-to-green scale. It is open on
+  a wide screen and folded on a phone.
 - **Hover a recall in the ledger to see it in the graph.** Resting the mouse on "He holds these in
   mind" (or its recall line) lights those memories in the graph and dims the rest, as a click
   does; moving away brings back what was lit. On a touch screen a tap still selects it.

@@ -274,52 +274,7 @@ export function computeTemporalActivation(
   return { records, pairs, config, head_burst, window_turns };
 }
 
-/** "Recent" in words for the legend (operator 2026-11-08: warm together
- * and warm now are RECENT — say how recent). */
-export function recentWords(t: Pick<TemporalActivation, "window_turns" | "config">): string {
-  const events = t.config.window_limit.toLocaleString("en-US");
-  if (t.window_turns === null) {
-    return `every turn so far, the older ones fainter (the recency window of ${events} attention events per memory scope is not full yet)`;
-  }
-  const n = t.window_turns;
-  return `about the last ${n} turn${n === 1 ? "" : "s"} (the newest ${events} attention events per memory scope; a quieter scope reaches further back), the older ones fainter`;
-}
-
-/** The legend's hover titles for the two warmth swatches. */
-export function warmthLegendTitles(t: Pick<TemporalActivation, "window_turns" | "config">): { together: string; now: string } {
-  const recent = recentWords(t);
-  return {
-    together: `usage trail — green when the two memories were used together RECENTLY: ${recent}. Line width grows with lifetime co-use; flashes in the accent colour when just traveled. While a recall is lit, only the pairs THIS turn used are green.`,
-    now: `green glow — this memory was selected RECENTLY: ${recent}. Node SIZE carries the lifetime count, which never decays. While a recall is lit, only the memories on this turn's shelf glow.`,
-  };
-}
-
-/** Presentation normalization: activation -> [0,1] intensity.
- *
- * RECALIBRATED for the burst axis (deep-check monitor C, 2026-07-27): the
- * old comment claimed the clamp ceiling (25) was "nearly unreachable at
- * real cadence" — true under per-event ranks, FALSIFIED by burst-keyed
- * ranks (memory c5458), where one recall later = rank 1 and the ceiling
- * became the MEDIAN: on a live young life 64% of edges spanned raw
- * activation 8-25 yet painted one identical green (saturation at 2x the
- * fresh weight). New map, two segments: one just-now use of the kind
- * lands at 0.45 (clearly visible), and the remaining headroom to the
- * engine ceiling spreads 0.45 -> 1.0 — so "used once lately" and "used
- * constantly" finally look different. Presentation only — the MATH above
- * stays the engine's. */
-export function temporalIntensity(activation: number, freshWeight: number, ceiling: number = ENGINE_DEFAULT_CONFIG.max_activation): number {
-  if (!Number.isFinite(activation) || activation <= 0) return 0;
-  if (activation <= freshWeight) return 0.45 * (activation / freshWeight);
-  const span = Math.max(ceiling - freshWeight, 1);
-  return Math.min(1, 0.45 + 0.55 * ((activation - freshWeight) / span));
-}
-
-/** Node warmth intensity (selected weight 8 -> saturation 16). */
-export function nodeWarmth(activation: number): number {
-  return temporalIntensity(activation, DEFAULT_WEIGHTS.selected);
-}
-
-/** Pair-trail warmth intensity (co_selected weight 4 -> saturation 8). */
-export function pairWarmth(activation: number): number {
-  return temporalIntensity(activation, DEFAULT_WEIGHTS.co_selected);
-}
+/* The graph's colour no longer reads this activation on a fixed ceiling
+ * (the old nodeWarmth/pairWarmth intensities painted a busy life one even
+ * green — operator live test 2026-11-09): it ranks use within the life,
+ * with this activation as the recency tie-break (graph_usage.ts). */

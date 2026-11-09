@@ -17,11 +17,7 @@ import {
   computeTemporalActivation,
   ENGINE_DEFAULT_CONFIG,
   eventWeight,
-  nodeWarmth,
-  pairWarmth,
   pushAttentionEvent,
-  recentWords,
-  warmthLegendTitles,
   type AttentionEventLite,
 } from "./temporal_activation";
 import type { ReplayEnvelope } from "./stream_types";
@@ -242,23 +238,6 @@ describe("temporal activation (engine parity)", () => {
     expect(eventWeight("silenced", null)).toBe(8.0);
   });
 
-  it("presentation intensities spread to the engine ceiling (burst-axis recalibration, deep-check 2026-07-27)", () => {
-    // One fresh use = clearly visible (0.45); saturation only at the
-    // engine's clamp ceiling — "used once lately" and "used constantly"
-    // must render differently (the all-green finding: the old 2x-fresh
-    // saturation collapsed activations 8-25 into one identical green).
-    expect(nodeWarmth(0)).toBe(0);
-    expect(nodeWarmth(8)).toBeCloseTo(0.45, 5);
-    expect(nodeWarmth(16)).toBeCloseTo(0.45 + 0.55 * (8 / 17), 5);
-    expect(nodeWarmth(25)).toBe(1);
-    expect(pairWarmth(4)).toBeCloseTo(0.45, 5);
-    expect(pairWarmth(8)).toBeCloseTo(0.45 + 0.55 * (4 / 21), 5);
-    expect(pairWarmth(25)).toBe(1);
-    // Monotone: recency ordering is never inverted by the map.
-    expect(pairWarmth(12)).toBeGreaterThan(pairWarmth(8));
-    expect(nodeWarmth(20)).toBeGreaterThan(nodeWarmth(16));
-  });
-
   it("tracks the wall-clock moment of the newest attention event (staleness cue)", () => {
     const a = usage("selected", "a", 1);
     const audit = usage("listed", "a", 2);
@@ -335,16 +314,5 @@ describe("window_turns + the legend's 'recent' (operator 2026-11-08: say how rec
       ["diary|e", [sel(11, "v1")]],
     ]);
     expect(computeTemporalActivation(buffers, small).window_turns).toBe(3);
-  });
-
-  it("the legend titles say RECENT and how recent", () => {
-    const titles = warmthLegendTitles({ window_turns: 14, config: ENGINE_DEFAULT_CONFIG });
-    for (const t of [titles.together, titles.now]) {
-      expect(t).toMatch(/RECENTLY: about the last 14 turns \(the newest 8,192 attention events per memory scope/);
-    }
-    expect(titles.together).toMatch(/While a recall is lit, only the pairs THIS turn used are green/);
-    expect(titles.now).toMatch(/While a recall is lit, only the memories on this turn's shelf glow/);
-    expect(recentWords({ window_turns: 1, config: ENGINE_DEFAULT_CONFIG })).toMatch(/about the last 1 turn \(/);
-    expect(recentWords({ window_turns: null, config: ENGINE_DEFAULT_CONFIG })).toMatch(/^every turn so far/);
   });
 });

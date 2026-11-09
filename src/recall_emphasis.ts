@@ -22,6 +22,7 @@
  */
 
 import { edgeKey, type BeatState, type FoldState } from "./stream_fold";
+import { computeTemporalActivation, type AttentionEventLite } from "./temporal_activation";
 
 /** The three classes a person reads (the ledger's own grouping:
  * "present by right / from continuity / matched"; "both" = matched +
@@ -37,8 +38,17 @@ export function admissionClass(label: string | null | undefined): RecallClass | 
 
 export const RECALL_CLASS_WORDS: Record<RecallClass, string> = {
   self: "present by right",
-  stm: "from continuity",
+  stm: "continuity",
   matched: "matched",
+};
+
+/** What each ring means, in the operator's words (live test 2026-11-09:
+ * "when i click on context, it shows [rings: …] but i am unsure how to
+ * interpret it"). */
+export const RECALL_CLASS_MEANING: Record<RecallClass, string> = {
+  self: "memories he always keeps in mind",
+  stm: "memories that followed from the last ones",
+  matched: "memories found for this message",
 };
 
 export interface RecallEmphasis {
@@ -54,6 +64,16 @@ export interface RecallEmphasis {
    * ids. Two memories that merely share the shelf, or that earlier turns
    * used together, are not in it. */
   pairs: Set<string>;
+  /** THE PATHS TRAVELLED to reach the recalled memories (operator
+   * 2026-11-09: "i would also expect the edges traveled to be selected"),
+   * edge key -> the class of the memory the path reaches, drawn in that
+   * ring's colour (travelledPaths). One line per matched or continuity
+   * memory at most: its strongest link to another memory he holds now —
+   * never the whole used-together mesh (Castor's 32 matched memories weave
+   * 496 pairs per turn: lit all at once they hid every path). Present-by-right memories are
+   * in mind by right, reached through no trail: no line. The canvas lights
+   * these and dims every other edge. */
+  travelled: Map<string, RecallClass>;
   /** Counts over the SHELF (beat.selected), node or not — the truth the
    * ledger line states ("50 on the shelf (6 present by right, …)"). */
   counts: { total: number; self: number; stm: number; matched: number };
@@ -227,7 +247,72 @@ export function beatEmphasis(fold: FoldState, beat: BeatState): RecallEmphasis |
     if (cls) classes.set(nodeId, cls);
     if (label) labels.set(nodeId, label);
   }
-  return { trace_id: beat.trace_id, ids, classes, labels, counts, pairs: turnPairs(fold, beat) };
+  const pairs = turnPairs(fold, beat);
+  return { trace_id: beat.trace_id, ids, classes, labels, counts, pairs, travelled: travelledPaths(fold, beat, ids, classes, pairs) };
+}
+
+/** Trail warmth just before a step: the engine-parity pair activation over
+ * the attention events folded before the step's first event, the step's
+ * own deposit excluded — how warm each trail was when he reached for these
+ * memories (the same as-of reading the engine's continuity uses). */
+export function trailsBefore(fold: FoldState, beat: Pick<BeatState, "first_seq" | "trace_id">): Map<string, number> {
+  const before = new Map<string, AttentionEventLite[]>();
+  for (const [scope, buf] of fold.attention) {
+    before.set(scope, buf.filter((ev) => ev.seq < beat.first_seq && ev.trace_id !== beat.trace_id));
+  }
+  return computeTemporalActivation(before).pairs;
+}
+
+/** THE PATHS TRAVELLED, at most one per matched or continuity memory:
+ * its strongest link to another memory on this shelf —
+ * - a MATCHED memory (found for this message): among the pairs this step
+ *   used together (its co_selected events — never an earlier pair, the
+ *   operator's 2026-11-08 ruling), the one whose trail was warmest just
+ *   before this step, then the companion he has used most;
+ * - a CONTINUITY memory (followed from the last ones; it deposits no pair
+ *   this step): the co-use trail that was warmest just BEFORE this step
+ *   (trailsBefore: later turns never count) to another memory on this
+ *   shelf, then the companion he has used most. No warm trail to the
+ *   shelf: no line — nothing is drawn that the stream does not show.
+ * Last tie-break: the smaller edge key, so the choice is stable. When two
+ * memories pick the same line it takes the matched colour first. */
+export function travelledPaths(
+  fold: FoldState,
+  beat: BeatState,
+  shelf: ReadonlySet<string>,
+  classes: ReadonlyMap<string, RecallClass>,
+  turnPairKeys: ReadonlySet<string>,
+): Map<string, RecallClass> {
+  const out = new Map<string, RecallClass>();
+  const reached = new Map<string, RecallClass>();
+  for (const [id, cls] of classes) if (cls !== "self") reached.set(id, cls);
+  if (reached.size === 0) return out;
+  const warm = trailsBefore(fold, beat);
+  interface Pick {
+    key: string;
+    warm: number;
+    partnerUse: number;
+  }
+  const better = (x: Pick, y: Pick): boolean =>
+    x.warm !== y.warm ? x.warm > y.warm : x.partnerUse !== y.partnerUse ? x.partnerUse > y.partnerUse : x.key < y.key;
+  const best = new Map<string, Pick>();
+  const consider = (member: string, other: string, key: string) => {
+    const cls = reached.get(member);
+    if (!cls || !shelf.has(other)) return;
+    const pick: Pick = { key, warm: warm.get(key) ?? 0, partnerUse: fold.nodes.get(other)?.selected_count ?? 0 };
+    if (cls === "matched" ? !turnPairKeys.has(key) : !(pick.warm > 0)) return;
+    const cur = best.get(member);
+    if (!cur || better(pick, cur)) best.set(member, pick);
+  };
+  for (const e of fold.edges.values()) {
+    if (e.a === e.b) continue;
+    consider(e.a, e.b, e.key);
+    consider(e.b, e.a, e.key);
+  }
+  for (const cls of ["matched", "stm"] as const) {
+    for (const [member, pick] of best) if (reached.get(member) === cls && !out.has(pick.key)) out.set(pick.key, cls);
+  }
+  return out;
 }
 
 /** The pairs a turn used together, as today's edge keys: each endpoint
@@ -246,7 +331,7 @@ export function turnPairs(fold: FoldState, beat: BeatState): Set<string> {
 }
 
 /** The legend line: "50 memories recalled for this turn: 6 present by
- * right · 12 from continuity · 32 matched" (zero classes are omitted). */
+ * right · 12 continuity · 32 matched" (zero classes are omitted). */
 export function recallLegendParts(e: RecallEmphasis): { head: string; parts: Array<{ cls: RecallClass; text: string }> } {
   const n = e.counts.total;
   const head = `${n} memor${n === 1 ? "y" : "ies"} recalled for this turn`;
@@ -261,6 +346,25 @@ export function recallLegendText(e: RecallEmphasis): string {
   const { head, parts } = recallLegendParts(e);
   return parts.length ? `${head}: ${parts.map((p) => p.text).join(" · ")}` : head;
 }
+
+/** THE CONTEXT LEGEND (operator 2026-11-09): what each ring colour means,
+ * in his words, with this step's count — all three rings, a zero included
+ * (a legend explains every colour it can show); then the lit lines and the
+ * grey-to-green fill. */
+export interface RecallLegendRow {
+  cls: RecallClass;
+  count: number;
+  name: string;
+  meaning: string;
+}
+
+export function recallLegendRows(e: RecallEmphasis): RecallLegendRow[] {
+  return (["self", "stm", "matched"] as const).map((cls) => ({ cls, count: e.counts[cls], name: RECALL_CLASS_WORDS[cls], meaning: RECALL_CLASS_MEANING[cls] }));
+}
+
+export const TRAVELLED_LEGEND = "lit lines: the path he travelled to reach each one, in the colour of its ring";
+export const TRAVELLED_TITLE =
+  "Each matched memory is joined to the memory it was used with for this message along the strongest trail; each continuity memory to the memory it followed from, along the trail that was warmest just before this step. Memories present by right are always there and need no path. Every other line is dimmed.";
 
 /** Which emphasis drives the canvas this frame — ONE mechanism, ordered
  * triggers: an explicit filter (lens/search/topic) wins; then the node
@@ -284,46 +388,25 @@ export function emphasisDriver(args: {
 export const DIMMED_NODE = 0.12;
 export const DIMMED_EDGE = 0.08;
 
-/** The dim target of one edge this frame. `turnPairs` is the recall's
- * pairs when the RECALL drives the canvas (else null): then an edge is lit
- * only when this turn used its pair — two shelf memories that merely share
- * the shelf, or that earlier turns used together, dim like everything off
- * the shelf (operator 2026-11-08: "it selects more nodes & edges on the
- * graph than have been visited"). `pairKey` is the co-use edge's key; a
- * born-linked (structural) edge passes null — no turn uses it, so it dims
- * under the recall. Every other driver keeps its rule: lit when both ends
- * are emphasized. */
+/** The dim target of one edge this frame. `travelled` is the recall's
+ * travelled paths when the RECALL drives the canvas (else null): then an
+ * edge is lit only when it is a path travelled to reach this step's
+ * memories (RecallEmphasis.travelled) — two shelf memories that merely
+ * share the shelf, or that earlier turns used together, dim like
+ * everything off the shelf (operator 2026-11-08: "it selects more nodes &
+ * edges on the graph than have been visited"). `pairKey` is the co-use
+ * edge's key; a born-linked (structural) edge passes null — no step
+ * travels it, so it dims under the recall. Every other driver keeps its
+ * rule: lit when both ends are emphasized. */
 export function edgeDimTarget(
   emphasis: ReadonlySet<string> | null,
-  turnPairs: ReadonlySet<string> | null,
+  travelled: { has(key: string): boolean } | null,
   a: string,
   b: string,
   pairKey: string | null,
 ): number {
-  if (turnPairs) return pairKey !== null && turnPairs.has(pairKey) ? 1 : DIMMED_EDGE;
+  if (travelled) return pairKey !== null && travelled.has(pairKey) ? 1 : DIMMED_EDGE;
   return emphasis && !(emphasis.has(a) && emphasis.has(b)) ? DIMMED_EDGE : 1;
-}
-
-/** Under the recall the green says "used together THIS turn", one even
- * green for every pair the turn used; outside the recall it is the
- * multi-turn temporal warmth (unchanged). */
-export const TURN_PAIR_WARMTH = 0.75;
-
-export function edgeWarmthShown(turnPairs: ReadonlySet<string> | null, pairKey: string, warmth: number): number {
-  if (!turnPairs) return warmth;
-  return turnPairs.has(pairKey) ? TURN_PAIR_WARMTH : 0;
-}
-
-/** The "warm now" glow under the recall: only memories on this turn's
- * shelf glow (stepped back so the recall rings carry the moment); a memory
- * an EARLIER shelf picked — dropped this turn or never a candidate — is
- * dimmed, never glowing. `shelf` is the recall's ids when the recall
- * drives the canvas (else null: the resting warmth view, unchanged). */
-export const RECALL_GLOW_SCALE = 0.35;
-
-export function nodeGlowShown(shelf: ReadonlySet<string> | null, id: string, warmth: number): number {
-  if (!shelf) return warmth;
-  return shelf.has(id) ? warmth * RECALL_GLOW_SCALE : 0;
 }
 
 /** Dim ramp duration (seconds) for the CURRENT frame: the recall eases
