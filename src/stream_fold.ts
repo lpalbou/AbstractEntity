@@ -60,6 +60,14 @@ export interface NodeState {
   last_admission: string | null;
   /** Digest provenance when served (mechanical-v1/-v2, mechanical-flow-v1, …). */
   digest_method?: string | null;
+  /** Who wrote the current reading, as served (`authored_by.kind`:
+   * entity-mind, capability-model, operator, mechanical, unrecorded); null
+   * until a block serves it. With digest_method, the one source for
+   * "mechanical" (never the title). */
+  authored_kind?: string | null;
+  /** A world-model card's subject as served (`target`, "person:ada"); null
+   * until a block serves it. */
+  target?: string | null;
   /** The record's full digest (its summary) as served: the binding's
    * display block carries the current reading (understanding pass,
    * abstractmemory replay.py), the recall snapshots carry it too
@@ -450,6 +458,11 @@ function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
   // (understanding pass): the newest served method wins.
   const dm = (display as { digest_method?: unknown }).digest_method;
   if (typeof dm === "string" && dm) node.digest_method = dm;
+  // Who wrote it (memory's authored_by, on the same blocks): the newest
+  // served author wins, like the method.
+  const author = display.authored_by;
+  if (author && typeof author === "object" && typeof author.kind === "string" && author.kind) node.authored_kind = author.kind;
+  if (typeof display.target === "string" && display.target.trim()) node.target = display.target.trim();
   // The served summary (a binding's display carries the current reading):
   // the record's digest, used as served — never derived from its words.
   const dg = display.digest;
@@ -682,6 +695,8 @@ function resolveUsageNode(state: FoldState, rowId: string, display: DisplayBlock
         node.digest_version = graphNode.digest_version ?? null;
       }
       if (!node.digest_method && graphNode.digest_method) node.digest_method = graphNode.digest_method;
+      if (!node.authored_kind && graphNode.authored_kind) node.authored_kind = graphNode.authored_kind;
+      if (!node.target && graphNode.target) node.target = graphNode.target;
       state.nodes.delete(graphId);
       rekeyNodeInEdges(state, graphId, rowId);
     } else {

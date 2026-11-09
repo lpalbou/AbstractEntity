@@ -80,6 +80,13 @@ export interface DisplayBlock {
   /** Which reading `digest` is (memory's digest_version: 0 = the record's
    * first, mechanical or not; each rewrite adds one). */
   digest_version?: number | null;
+  /** Who wrote the current reading (memory's understanding_fields, served
+   * on every formed record's block: `{kind, id}`; kind `mechanical` for the
+   * driver's floor). */
+  authored_by?: { kind?: unknown; id?: unknown } | null;
+  /** A card's subject ("person:ada"; memory's understanding_fields on
+   * world-model cards, null elsewhere). */
+  target?: string | null;
 }
 
 export interface ReplayEnvelope {

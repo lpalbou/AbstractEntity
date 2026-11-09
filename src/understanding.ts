@@ -234,6 +234,16 @@ export function isMechanicalMethod(digestMethod: string | null | undefined): boo
   return (filled(digestMethod) ?? "").startsWith("mechanical");
 }
 
+/** Mechanical words (the driver's floor, a placeholder), from the served
+ * fields only: the author says so (authorWords' rule: `mechanical`, or a
+ * `mechanical-*` method under an author that claims no words of its own),
+ * or no author is recorded and the method is a `mechanical-*` one. Never
+ * read from the title or the words. */
+export function isMechanicalReading(author: ServedAuthor | null, digestMethod: string | null | undefined): boolean {
+  if (!author) return isMechanicalMethod(digestMethod);
+  return authorWords(author, digestMethod ?? null, null) === MECHANICAL_WORDS;
+}
+
 /** Who wrote the words, in end-user words (no ids, no labels). */
 export function authorWords(author: ServedAuthor | null, digestMethod: string | null, reader: ServedReader | null): string {
   if (!author) return `who wrote it: ${NOT_YET}`;
@@ -307,7 +317,7 @@ export function cardProvenance(
   const who = authorWords(u.authored_by, u.digest_method, u.reader);
   // Detail's rule (authorWords), and a mechanical method with no author
   // recorded: still the driver's floor.
-  if (who === MECHANICAL_WORDS || (!u.authored_by && isMechanicalMethod(u.digest_method))) return PLACEHOLDER_WORDS;
+  if (isMechanicalReading(u.authored_by, u.digest_method)) return PLACEHOLDER_WORDS;
   const parts = [who];
   if (filled(u.cause)) parts.push(causeWords(u.cause).split(" — ")[0]);
   const at = filled(u.understood_at);

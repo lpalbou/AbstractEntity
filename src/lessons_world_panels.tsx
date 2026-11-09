@@ -22,6 +22,7 @@ import React, { useMemo, useState } from "react";
 import { KIND_COLORS } from "./graph_canvas";
 import type { FoldState, NodeState } from "./stream_fold";
 import { shapeLabel, summaryLabel } from "./node_label";
+import { isMechanicalReading } from "./understanding";
 import { fromLink, WordsLine } from "./words_line";
 
 function fmtDate(iso: string): string {
@@ -118,13 +119,13 @@ function WorldCard({ fold, node, onSelect }: { fold: FoldState; node: NodeState;
   const [open, setOpen] = useState(false);
   // dm#91 ("we know it's a world model, so don't put it in the card"):
   // the type prefix strips at display — the panel header + card context
-  // already say what these are; the RAW title keeps feeding the
-  // mechanical detector below.
+  // already say what these are.
   const summary = shapeLabel(summaryLabel(node.title, node.redacted) || "") || null;
-  // Mechanical stub shapes, labeled as such (adversary P1-2: the live
-  // engine titles cards "World model: admin" — capital W, space — which
-  // the first detector missed, dressing a template stub as prose).
-  const mechanical = !summary || /^Consolidated:|^world[\s_]?model\b/i.test(node.title || "");
+  // Mechanical words, labeled as such, from the served provenance only
+  // (memory's authored_by and digest_method on the card's display block;
+  // operator 2026-11-08: never derived from the title — a mechanical card
+  // can carry a clean title, and prose can start with any word).
+  const mechanical = isMechanicalReading(node.authored_kind ? { kind: node.authored_kind, id: null } : null, node.digest_method);
   // Provenance: every structural edge touching this card, resolved to
   // titled rows (graph ids → rows at read time — re-keys never orphan).
   const sources = useMemo(() => {
@@ -204,10 +205,8 @@ export function WorldPanel({ fold, onSelect }: { fold: FoldState; onSelect(id: s
   // electing topics, the tab shows only person/agent targets refining, not
   // the world broadening — say so, so "few targets" reads as
   // forward-accumulating-just-started, never broken.
-  const distinctTargets = useMemo(
-    () => new Set(cards.map((c) => (c.title || "").replace(/^World model:\s*/i, "").trim().toLowerCase()).filter(Boolean)).size,
-    [cards],
-  );
+  // The cards' subjects as served (memory's `target`), never parsed out of a title.
+  const distinctTargets = useMemo(() => new Set(cards.map((c) => c.target).filter(Boolean)).size, [cards]);
   const narrowBreadth = cards.length > 0 && distinctTargets <= 2;
   return (
     <div className="lw_panel">

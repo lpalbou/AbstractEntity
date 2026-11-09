@@ -11,6 +11,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
   keeps the newest state the gateway has sent. Pressing Stop again sends it again. Stop is off only
   when he is already stopped (the button reads Resume) or when the gateway does not serve the
   phase bar.
+- **World cards say "mechanical" only when they are.** The World tab used to call a card
+  mechanical when its title started with "World model:" or "Consolidated:". It now reads who wrote
+  the card's words from the memory itself, so a placeholder with a clean title is marked, and a
+  card he wrote himself is not, whatever its title. The count of different subjects behind the
+  "these are all people he has met" note also comes from the cards' recorded subjects, not their
+  titles.
 - **Knocking for a visit always ends in the visit.** The app used to give up on its own after 90
   seconds when the entity was busy with his own time, and showed an error. Opening a visit, sending
   a message, answering his question, approving, guiding, closing, the recovery step, an @mention
