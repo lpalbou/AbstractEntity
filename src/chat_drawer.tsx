@@ -25,7 +25,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat";
 import { entityReadAloudInput } from "./read_aloud";
 
-import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage } from "./vendor/abstractchat/conversation";
+import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatNotice } from "./vendor/abstractchat/conversation";
+import { VISIT_CLOSE_KIND, noticeTarget, noticesField } from "./turn_notices";
 import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
@@ -155,6 +156,9 @@ export interface ChatDrawerProps {
   knockRequest?: number;
   /** The panel remains mounted on tab changes; background speech/cues stay silent. */
   visible?: boolean;
+  /** Open a record in the Detail panel by its GRAPH id: a reply's notice badge (what the turn
+   * formed: a diary entry, a lesson, …) opens the record it names. */
+  onOpenRecord(graphId: string): void;
 }
 
 export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
@@ -983,7 +987,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         // maintainer's ask: the system bubble was louder than the words);
         // one click opens the full probe modal — the durable turn carries
         // the probe payload (gap 1, gateway c1358). reply coerced by push().
-        push({ role: "assistant", content: r.reply ?? "", title: entityName, detail: { ...(r as ChatTurnResult), think_ms: Date.now() - turnT0 } as ChatTurnResult });
+        // What the turn formed (a diary entry, a lesson staged for the close, …) rides beside the
+        // served reply as data (`reply_notices`): one badge each under his words, never read out of them.
+        push({ role: "assistant", content: r.reply ?? "", title: entityName, detail: { ...(r as ChatTurnResult), think_ms: Date.now() - turnT0 } as ChatTurnResult, ...noticesField(r.reply_notices) });
         // Fabricated-lookup flag (seq 43 FAILURE 1): prose CLAIM vs driver
         // FACT mismatch is called out in the thread, loudly, at the moment
         // it happens — not discovered later in forensics. GAUGE GUARD
@@ -1060,7 +1066,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           if (observed.length > 0) {
             parts.push(`what moved: ${observed.slice(0, 6).map((l) => l.title).join(" · ")}${observed.length > 6 ? ` (+${observed.length - 6} more — see the Ledger tab)` : ""}`);
           }
-          push({ role: "system", content: parts.length ? `Visit closed. ${parts.join(" · ")}` : "Visit closed." });
+          // The close summary: a badge staged for the close (a lesson, an interest, a realization)
+          // opens here (turn_notices.noticeTarget).
+          push({ role: "system", kind: VISIT_CLOSE_KIND, content: parts.length ? `Visit closed. ${parts.join(" · ")}` : "Visit closed." });
         }
         setRunId(null);
         try {
@@ -1109,6 +1117,23 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       setNote(`Could not copy the visit: ${refusalText(e as Error & { status?: number })}`);
     }
   }, [baseUrl, entity, runId, entityName]);
+
+  /** A badge of what a reply formed: its record opens in Detail (by graph id); one staged for the
+   * visit's close opens the close summary once it is in the thread; before that (or in the avatar
+   * view, which shows no system lines) the badge shows its own panel. */
+  const { onOpenRecord } = props;
+  const openNotice = useCallback(
+    (notice: ChatNotice, message: ChatMessage): void | boolean => {
+      const target = noticeTarget(notice, message.id, avatarMode ? [] : messages);
+      if (target.kind === "record") return onOpenRecord(target.graphId);
+      if (target.kind === "close") {
+        document.querySelector<HTMLElement>(`.cd_thread [data-mid="${CSS.escape(target.messageId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+      return false;
+    },
+    [messages, avatarMode, onOpenRecord],
+  );
 
   const foreignVisit = status?.open && !runId;
 
@@ -1374,16 +1399,20 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
               onNarrate: (m) => { void voice.toggle_tts(String(m.id), m.content); },
               onInterruptSpeech: interruptAvatarSpeech, onReplyContext: setReplyContext,
             }}
-            messageProps={voice.tts_supported ? {
-              onSpeakToggle: (m) => void voice.toggle_tts(String(m.id || ""), m.content),
-              getSpeakState: (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle"),
-            } : undefined}
+            messageProps={{
+              onNoticeOpen: openNotice,
+              ...(voice.tts_supported ? {
+                onSpeakToggle: (m: ChatMessage) => void voice.toggle_tts(String(m.id || ""), m.content),
+                getSpeakState: (m: ChatMessage) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle"),
+              } : {}),
+            }}
           /> : <ChatMessageList
             messages={messages}
             onDetail={setDetailTurn}
             onSpeakToggle={voice.tts_supported ? (m) => void voice.toggle_tts(String(m.id || ""), m.content) : undefined}
             getSpeakState={voice.tts_supported ? (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle") : undefined}
             onFocusMessage={setFocusMid}
+            onNoticeOpen={openNotice}
           />}
           {detailTurn ? <TurnDetailModal turn={detailTurn} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (

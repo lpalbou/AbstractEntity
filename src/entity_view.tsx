@@ -1512,6 +1512,12 @@ export function EntityView(): React.ReactElement {
     return `${Math.floor(h / 24)}d`;
   }, [fold, live, effectiveIndex, envelopes]);
 
+  /** Open a record in Detail by its graph id (the Now line's open, a reply's notice badge). */
+  const openInDetail = (id: string) => {
+    setSelectedId(fold.graph_to_row.get(id) ?? id);
+    setRequestedTab({ tab: "detail", nonce: Date.now() });
+  };
+
   const stats = useMemo(() => {
     const summons = fold.sessions.filter((s) => s.kind === "summon").length;
     return {
@@ -2268,6 +2274,7 @@ export function EntityView(): React.ReactElement {
                         knockRequest={visitKnock}
                         onAvatarModeChange={setAvatarChat}
                         visible={visible}
+                        onOpenRecord={openInDetail}
                       />
                     ),
                   },
@@ -2376,10 +2383,7 @@ export function EntityView(): React.ReactElement {
                     envelopes={envelopes}
                     live={live}
                     source={verbatimSource}
-                    onOpen={(id) => {
-                      setSelectedId(fold.graph_to_row.get(id) ?? id);
-                      setRequestedTab({ tab: "detail", nonce: Date.now() });
-                    }}
+                    onOpen={openInDetail}
                   />
                   <LedgerPanel
                     envelopes={envelopes}

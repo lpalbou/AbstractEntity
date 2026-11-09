@@ -8,7 +8,8 @@
  * component composes these and owns only pixels + state.
  */
 
-import { ReplayViewFold, chatAuthorOf, type ChatAuthor, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import { ReplayViewFold, chatAuthorOf, type ChatAuthor, type ChatNotice, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import { viewReplyNotices } from "./turn_notices";
 
 export type PollOutcome =
   | { kind: "aborted"; lastStatus: string }
@@ -17,8 +18,10 @@ export type PollOutcome =
    * run; the run itself may well have completed server-side. */
   | { kind: "lost_view"; lastStatus: string }
   /** `author`: who answered (the gateway's turn author on `GET /runs/{id}`, or the view's final
-   * message), null when the gateway names nobody (an older gateway): today's rendering. */
-  | { kind: "terminal"; status: "completed" | "failed" | "cancelled"; output: unknown; error: string | null; author: ChatAuthor | null };
+   * message), null when the gateway names nobody (an older gateway): today's rendering.
+   * `notices`: what the turn formed, from its replay view's answer messages (turn notices,
+   * 2026-11-09); absent when it formed nothing or the turn was followed without the view. */
+  | { kind: "terminal"; status: "completed" | "failed" | "cancelled"; output: unknown; error: string | null; author: ChatAuthor | null; notices?: ChatNotice[] };
 
 export interface RunSummaryShape {
   status?: string;
@@ -232,12 +235,16 @@ export async function followRunToTerminal(
       async () => (last = await opts.fetchSummary()),
       { deadlineMs: settleMs, intervalMs: 500, maxConsecutiveFailures: Math.max(5, Math.ceil(settleMs / 500)), aborted: opts.aborted, now: opts.now, sleep: opts.sleep },
     );
-    if (settled.kind === "terminal" || settled.kind === "aborted") return settled;
+    if (settled.kind === "aborted") return settled;
+    // What the turn formed, beside its answer: the view's answer messages carry it.
+    const notices = viewReplyNotices(view);
+    const formed = notices.length ? { notices } : {};
+    if (settled.kind === "terminal") return { ...settled, ...formed };
     const status = lastStatus as "completed" | "failed" | "cancelled";
     const final = (view.messages || []).find((m) => m.id === `${view.root_run_id}:final`);
     const lastError = (last as RunSummaryShape | null)?.error;
     const error = status === "completed" ? null : String(lastError || view.display_status || `run ${status}`);
-    return { kind: "terminal", status, output: final ? { answer: final.text } : null, error, author: chatAuthorOf(final?.author) };
+    return { kind: "terminal", status, output: final ? { answer: final.text } : null, error, author: chatAuthorOf(final?.author), ...formed };
   }
 }
 

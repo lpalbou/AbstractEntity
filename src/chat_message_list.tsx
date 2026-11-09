@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMessageCard, type ChatMessage } from "@abstractframework/panel-chat";
+import { ChatMessageCard, type ChatMessage, type ChatNotice } from "@abstractframework/panel-chat";
 
 import type { ChatTurnResult } from "./stream_source";
 import { NO_IMAGE_PROPS, WordsLine } from "./words_line";
@@ -107,9 +107,13 @@ export function ChatMessageList({
   onSpeakToggle,
   getSpeakState,
   onFocusMessage,
+  onNoticeOpen,
 }: {
   messages: DrawerMessage[];
   onDetail(detail: ChatTurnResult): void;
+  /** A badge of what a reply formed (`message.notices`) was clicked: the drawer opens what it
+   * names; `false` = nothing to open, the badge shows its own panel (as without this prop). */
+  onNoticeOpen?: (notice: ChatNotice, message: ChatMessage) => void | boolean;
   /** Speaker (TTS) wiring — forwarded verbatim to the card's existing
    * slots (the button already sits before copy, uic c1221). Absent =
    * speaker hidden (unsupported browser or direct-bearer posture). */
@@ -179,7 +183,7 @@ export function ChatMessageList({
           ) : (
             <>
               {m.context ? <ContextFoldCard context={m.context} /> : null}
-              <ChatMessageCard message={m} onSpeakToggle={onSpeakToggle} getSpeakState={getSpeakState} {...NO_IMAGE_PROPS} />
+              <ChatMessageCard message={m} onSpeakToggle={onSpeakToggle} getSpeakState={getSpeakState} onNoticeOpen={onNoticeOpen} {...NO_IMAGE_PROPS} />
             </>
           )}
           {m.detail ? (

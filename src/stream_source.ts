@@ -16,7 +16,7 @@
 
 import type { ReplayEnvelope } from "./stream_types";
 import { joinBaseUrl, randomId, type VoiceDefaults } from "@abstractframework/ui-kit";
-import { chatAvatarLookOf, createReplayViewTransport, type ChatAvatarLook, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import { chatAvatarLookOf, createReplayViewTransport, type ChatAvatarLook, type ChatNotice, type ReplayViewTransport } from "@abstractframework/panel-chat";
 
 /** Normalize a parsed JSON value into a fold-safe envelope, or null if it
  * cannot be trusted (code adversary F1/F3): the fold runs in the render
@@ -615,7 +615,12 @@ export interface ChatTurnResult {
   memories_in_context?: number;
   records_formed?: number;
   diary_entries?: number;
+  /** The operator's log lines for this turn (marker imitation, refusals, fallbacks): strings. */
   notices?: string[];
+  /** What the turn formed, served BESIDE the reply (AbstractRuntime turn notices, 2026-11-09):
+   * `[{kind, record_id, title, text?, visibility?, staged?}]`. The served `reply` carries no
+   * bracket markers; the badges under it come from this list, never from the text. */
+  reply_notices?: ChatNotice[];
   /** Enriched probe payload (driver-authored; absent on older gateways). */
   memories?: TurnMemory[];
   /** Tool elections: name + argument, and (field-asked from runtime,
@@ -1342,6 +1347,10 @@ export interface VisitTurnResult {
   memories?: TurnMemory[];
   tool_details?: Array<{ name: string; arg?: string; result?: string }>;
   system_prompt?: string;
+  /** What the turn formed, beside the served reply (turn notices; ChatTurnResult.reply_notices):
+   * a visit-lane lesson, interest or realization is staged for the close (`record_id` null,
+   * `staged` true). */
+  reply_notices?: ChatNotice[];
 }
 
 export interface VisitStatus {

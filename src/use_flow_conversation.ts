@@ -17,6 +17,7 @@ import type { DrawerMessage } from "./chat_message_list";
 import type { ReplayView } from "@abstractframework/panel-chat";
 import type { ChatMessage } from "./vendor/abstractchat/conversation";
 import { flowConversationState, publicVisitMessages } from "./avatar_visit";
+import { noticesField } from "./turn_notices";
 
 export interface FlowConversationApi {
   flowActive: boolean;
@@ -155,7 +156,8 @@ export function useFlowConversation(io: {
       // probe payload; a cast-through detail made the modal lie.
       // Who answered: the turn's author when the gateway names it (`GET /runs/{id}`), else
       // today's card (the entity's name as the title).
-      push({ role: "assistant", content: answer, title: entityName, ...(outcome.author ? { author: outcome.author } : {}) });
+      // What the turn formed rides beside his words as badges (its view's answer `notices`).
+      push({ role: "assistant", content: answer, title: entityName, ...(outcome.author ? { author: outcome.author } : {}), ...noticesField(outcome.notices) });
       // TOOL HONESTY (flow c5285 ask1b): a SERVED tools_ran is
       // authoritative; an ABSENT field stays a blind gauge.
       if (fold.toolsRan !== null) {

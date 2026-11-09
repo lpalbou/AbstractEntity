@@ -4,6 +4,20 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **What a reply kept shows as badges under his words.** His replies no longer carry lines such as
+  "[kept in diary - note - reread: …]" or "[learned: "…"]": the gateway serves the reply without them
+  and, beside it, what the turn formed (AbstractRuntime turn notices). Each one is a badge under the
+  reply: the kind (diary, lesson, interest, question, realization) and its title; a private diary
+  entry reads "private diary entry" and shows no words; a lesson, interest or realization kept for
+  the visit's close reads "forming…". Clicking a badge opens its record in Detail; a "forming…" one
+  shows its words and when it is kept, and, once that visit has closed, brings the close summary
+  into view. The badges appear in the chat (visit lane: the turn's `reply_notices`; flow lane: the
+  replay view's answer `notices`) and on the answer in the Avatar view. The app reads no marker out
+  of his words. The shared chat kit is re-vendored from AbstractUIC 4bee00d (panel-chat 0.9.10 local
+  build: vendor tgz, conversation bundle, lock; node_modules panel-chat 0.9.10 + ui-kit 0.9.27
+  installed together). The previous `vendor/abstractframework-panel-chat-0.9.9.tgz` is no longer
+  referenced.
+
 - **An idle pill.** The phase bar now shows all five states: idle, visit, work, personal, sleep.
   Idle lights while he is awake and reachable with nothing running; it has nothing to click, and
   its tooltip is the gateway's sentence ("Awake and reachable; nothing of his own is running.").
