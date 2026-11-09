@@ -79,7 +79,7 @@ describe("Stop goes out while a toggle is in flight", () => {
     expect(p.view().stopAgain?.label).toBe("Stop");
 
     // The toggle's late answer describes the moment before the stop (rev 46, generation 7): ignored.
-    toggle.resolve(wire("personal", { rev: 46, toggles: { work: true, personal: false }, next: { phase: "idle", sentence: "His own time ends at the next step." } }));
+    toggle.resolve(wire("personal", { rev: 46, toggles: { personal: false }, next: { phase: "idle", sentence: "His own time ends at the next step." } }));
     await flush();
     expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 47, stopped: true, phase: "stopped" } });
     expect(p.view().power.label).toBe("Resume");
@@ -93,7 +93,7 @@ describe("Stop goes out while a toggle is in flight", () => {
     const writes = new PhaseWrites();
     const toggle = deferred<PhaseWire>();
     const stop = deferred<PhaseWire>();
-    writes.run("work", () => toggle.promise, p.host);
+    writes.run("personal", () => toggle.promise, p.host);
     writes.run("stop", () => stop.promise, p.host);
     stop.resolve(wire("stopped"));
     await flush();
@@ -143,7 +143,7 @@ describe("Resume and visit; Stop again", () => {
     const opened: string[] = [];
     writes.run("resume", () => resume.promise, { ...p.host, after: (out) => !out.bar?.stopped && out.ok && opened.push("visit") });
     expect(opened).toEqual([]);
-    resume.resolve(wire("idle", { rev: 48, toggles: { work: true, personal: false } }));
+    resume.resolve(wire("idle", { rev: 48, toggles: { personal: false } }));
     await flush();
     expect(opened).toEqual(["visit"]);
   });
@@ -182,13 +182,13 @@ describe("the toggle lane", () => {
     const writes = new PhaseWrites();
     const toggle = deferred<PhaseWire>();
     expect(writes.run("personal", () => toggle.promise, p.host)).toBe(true);
-    expect(writes.run("work", () => Promise.resolve(wire("idle")), p.host)).toBe(false);
+    expect(writes.run("resume", () => Promise.resolve(wire("idle")), p.host)).toBe(false);
     toggle.resolve(wire("personal", { rev: 49 }));
     await flush();
     expect(writes.held()).toBe(false);
     const stop = deferred<PhaseWire>();
     writes.run("stop", () => stop.promise, p.host);
-    expect(writes.run("work", () => Promise.resolve(wire("idle")), p.host)).toBe(false);
+    expect(writes.run("resume", () => Promise.resolve(wire("idle")), p.host)).toBe(false);
     stop.resolve(wire("stopped", { rev: 50 }));
     await flush();
   });
@@ -196,7 +196,7 @@ describe("the toggle lane", () => {
   it("a toggle alone: its bar and its sentence show, then a re-read", async () => {
     const p = page("visit"); // rev 43
     const writes = new PhaseWrites();
-    writes.run("personal", () => Promise.resolve(wire("visit", { rev: 44, toggles: { work: true, personal: false }, next: { phase: "idle", sentence: "When the visit closes, he stays awake and reachable." } })), p.host);
+    writes.run("personal", () => Promise.resolve(wire("visit", { rev: 44, toggles: { personal: false }, next: { phase: "idle", sentence: "When the visit closes, he stays awake and reachable." } })), p.host);
     await flush();
     expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 44, toggles: { personal: false } } });
     expect(p.state.note).toBe("When the visit closes, he stays awake and reachable.");

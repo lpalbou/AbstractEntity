@@ -1,14 +1,15 @@
 /**
- * The phase bar (operator ruling 2026-11-08, contract v2; pure rules in phase_bar.ts): four kit
- * chips and one power button. `visit` and `sleep` are indicators (lit when current); `work` and
- * `personal` are toggles (pressed = allowed, a ring filled when pressed) that light as well when
- * current. The labels are the phase words in every state; a short state word may sit beside one
- * ("waiting", "finishing"). "Stop", "sleep now" and "Resume and visit" confirm inline, in the bar.
+ * The phase bar (operator ruling 2026-11-08, contract v2 + v3 deltas; pure rules in phase_bar.ts):
+ * four kit chips and one power button. `visit`, `work` and `sleep` are indicators (lit when
+ * current; work has no click, v3: no work switch); `personal` is the one toggle (pressed = allowed,
+ * a ring filled when pressed) that lights as well when current. The labels are the phase words in
+ * every state; a short state word may sit beside one ("waiting"). "Stop", "sleep now" and "Resume
+ * and visit" confirm inline, in the bar; Stop's confirmation says it cancels his own time.
  */
 import React from "react";
 import { AfChipButton } from "@abstractframework/ui-kit";
 
-import type { PhaseBarAct, PhaseBarUi, PhaseBarView, PhaseConfirm } from "./phase_bar";
+import { STOP_CONSEQUENCE, type PhaseBarAct, type PhaseBarUi, type PhaseBarView, type PhaseConfirm } from "./phase_bar";
 
 export interface PhaseBarControlsProps {
   view: PhaseBarView;
@@ -29,8 +30,8 @@ export interface PhaseBarControlsProps {
 }
 
 export function confirmSentence(kind: PhaseConfirm, name: string): string {
-  if (kind === "stop") return `Stop ${name} now? Everything he is doing ends at once.`;
-  if (kind === "resume_visit") return `${name} is stopped. Resume him and visit? He starts again, then the conversation opens.`;
+  if (kind === "stop") return `Stop ${name}? ${STOP_CONSEQUENCE}`;
+  if (kind === "resume_visit") return `${name} is stopped. Resume him and visit? He comes back idle, then the conversation opens.`;
   return `Put ${name} to sleep now? He wakes by himself when his maintenance is done.`;
 }
 
@@ -97,6 +98,8 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
         <span className="ec_pb_sentence" role="status" title={view.sentenceTitle || undefined}>
           {view.sentence}
           {view.since ? <span className="ec_pb_since"> · {view.since}</span> : null}
+          {view.reason ? <span className="ec_pb_reason"> · {view.reason}</span> : null}
+          {view.queue ? <span className="ec_pb_queue"> · {view.queue}</span> : null}
           {view.then ? <span className="ec_pb_then"> · {view.then}</span> : null}
         </span>
       ) : null}

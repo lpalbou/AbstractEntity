@@ -9,8 +9,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { findVerbToggleLabels } from "@abstractframework/ui-kit";
 import { describe, expect, it } from "vitest";
 
-import { LOOP_CRASHED, STOPPED_TOGGLE, phaseBody } from "./fixtures/phase_bodies";
-import { phaseBarRead, phaseBarView, sinceWords, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { LOOP_CRASHED, OWN_TIME_REVOKED, STOPPED_TOGGLE, phaseBody } from "./fixtures/phase_bodies";
+import { STOP_CONSEQUENCE, WORK_IDLE, phaseBarRead, phaseBarView, sinceWords, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
 import { PhaseBarControls, confirmSentence } from "./phase_bar_controls";
 import { PHASE_BAR_UNSERVED, type ServedPhase } from "./phase_bar_source";
 
@@ -25,11 +25,14 @@ const pill = (html: string, key: string) => buttons(html).find((b) => b.includes
 const button = (html: string, cls: string) => buttons(html).find((b) => b.includes(cls));
 
 describe("PhaseBarControls", () => {
-  it("personal on + exploring: personal lit and pressed, work pressed, visit and sleep plain indicators, a red Stop", () => {
+  it("personal on + exploring: personal lit and pressed; visit, work and sleep plain indicators; a red Stop", () => {
     const html = render(read("personal"));
     expect(pill(html, "personal")).toContain("ec_pb_lit");
     expect(pill(html, "personal")).toContain('aria-pressed="true"');
-    expect(pill(html, "work")).toContain('aria-pressed="true"');
+    expect(pill(html, "personal")).toContain("ec_pb_toggle");
+    expect(pill(html, "work")).not.toContain("aria-pressed");
+    expect(pill(html, "work")).not.toContain("ec_pb_toggle");
+    expect(pill(html, "work")).not.toContain("ec_pb_ring");
     expect(pill(html, "work")).not.toContain("ec_pb_lit");
     expect(pill(html, "visit")).not.toContain("aria-pressed");
     expect(pill(html, "sleep")).not.toContain("aria-pressed");
@@ -44,7 +47,7 @@ describe("PhaseBarControls", () => {
   it("where he goes next sits after since ('then: own time' from the served next.phase); nothing when none is served", () => {
     const html = render(read("visit"));
     expect(html).toContain(`>In a visit with Laurent.<span class="ec_pb_since"> · ${sinceWords("2026-11-08T18:15:02.000+00:00", NOW)}</span><span class="ec_pb_then"> · then: own time</span></span>`);
-    expect(render(read("work"))).toContain('<span class="ec_pb_then"> · then: idle</span>');
+    expect(render(read("work", { next: { phase: "idle", sentence: "When his jobs are done, he stays awake and reachable." } }))).toContain('<span class="ec_pb_then"> · then: idle</span>');
     expect(render(read("personal"))).not.toContain("ec_pb_then");
     expect(render(read("visit", { next: { phase: null, sentence: "When the visit closes, he returns to what he was doing." } }))).not.toContain("ec_pb_then");
   });
@@ -62,7 +65,9 @@ describe("PhaseBarControls", () => {
     expect(power).toContain("af-chip--success");
     expect(power).toMatch(/>Resume<\/span><\/button>$/);
     for (const key of ["work", "personal", "sleep"]) expect(pill(html, key)).toContain("disabled");
-    expect(pill(html, "work")).toContain(`title="${STOPPED_TOGGLE}"`);
+    expect(pill(html, "personal")).toContain(`title="${STOPPED_TOGGLE}"`);
+    // v3 D3: the stop revoked own time; the toggle shows it.
+    expect(pill(html, "personal")).toContain('aria-pressed="false"');
     expect(pill(html, "visit")).not.toContain("disabled");
     expect(pill(html, "visit")).toContain("Stopped. Resume to visit. Click to resume him, then visit.");
     expect(html).not.toContain("ec_pb_sentence");
@@ -72,7 +77,7 @@ describe("PhaseBarControls", () => {
   it("Resume and visit confirms inline: the question, Resume and visit, Cancel", () => {
     const html = render(read("stopped"), { busy: null, confirm: "resume_visit" });
     expect(html).toContain(confirmSentence("resume_visit", "Castor"));
-    expect(html).toContain("Castor is stopped. Resume him and visit? He starts again, then the conversation opens.");
+    expect(html).toContain("Castor is stopped. Resume him and visit? He comes back idle, then the conversation opens.");
     expect(html).toContain(">Resume and visit</span></button>");
     expect(html).toContain('aria-label="Confirm resume and visit"');
   });
@@ -86,12 +91,33 @@ describe("PhaseBarControls", () => {
     expect(button(html, "ec_pb_power")).toMatch(/>Resume<\/span><\/button>$/);
   });
 
-  it("a visit that waits for him and work winding down show their state word beside the label (the label stays)", () => {
+  it("a visit that waits for him shows its state word beside the label (the label stays)", () => {
     const waiting = render(read("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for: "loop" } }));
     expect(pill(waiting, "visit")).toContain('visit<span class="ec_pb_badge">waiting</span>');
-    const finishing = render(read("work"));
-    expect(pill(finishing, "work")).toContain('work<span class="ec_pb_badge">finishing</span>');
     expect(render(read("personal"))).not.toContain("ec_pb_badge");
+    expect(render(read("work"))).not.toContain("ec_pb_badge");
+  });
+
+  it("working with 2 jobs queued (v3 D1): work lit, no toggle; the line says the queue; the tooltip names the job and since when", () => {
+    const html = render(read("work"));
+    const work = pill(html, "work");
+    expect(work).toContain("ec_pb_lit");
+    expect(work).toContain("disabled");
+    expect(work).toContain(`title="Working on a request from an agent. Current job: summon, ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}. 2 jobs queued."`);
+    expect(html).toContain(
+      `>Working on a request from an agent.<span class="ec_pb_since"> · ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}</span><span class="ec_pb_queue"> · 2 jobs queued</span><span class="ec_pb_then"> · then: own time</span></span>`,
+    );
+    // Idle: unlit work, its tooltip says a job starts it; no queue in the line.
+    const idle = render(read("idle"));
+    expect(pill(idle, "work")).toContain(`title="${WORK_IDLE}"`);
+    expect(idle).not.toContain("ec_pb_queue");
+  });
+
+  it("asleep for a threshold (v3 D2): the line says why, from the served reason", () => {
+    const html = render(read("sleep", { sleep: { kind: "self", reason: "24 h since the last sleep", since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" } }));
+    expect(html).toContain('<span class="ec_pb_reason"> · asleep: 24 h since the last sleep</span>');
+    expect(pill(html, "sleep")).toContain("Asleep: 24 h since the last sleep.");
+    expect(render(read("idle"))).not.toContain("ec_pb_reason");
   });
 
   it("sleep now during a visit: the pill is disabled and its tooltip is the gateway's sentence", () => {
@@ -107,14 +133,16 @@ describe("PhaseBarControls", () => {
   });
 
   it("a toggle's markup differs only by its pressed state (the label never swaps to a verb)", () => {
-    const on = pill(render(read("idle", { toggles: { work: true, personal: true } })), "personal");
-    const off = pill(render(read("idle", { toggles: { work: true, personal: false } })), "personal");
+    const on = pill(render(read("idle", { toggles: { personal: true } })), "personal");
+    const off = pill(render(read("idle", { toggles: { personal: false } })), "personal");
     expect(off.replace('aria-pressed="false"', "")).toBe(on.replace('aria-pressed="true"', "").replace(PERSONAL_TITLE_ON, PERSONAL_TITLE_OFF));
   });
 
-  it("Stop confirms inline: the question, Stop now, Cancel; the power button holds meanwhile", () => {
+  it("Stop confirms inline: the question says it cancels his own time and Resume lands idle; Stop now, Cancel; the power button holds meanwhile", () => {
     const html = render(read("personal"), { busy: null, confirm: "stop" });
     expect(html).toContain(confirmSentence("stop", "Castor"));
+    expect(STOP_CONSEQUENCE).toBe("Stop halts everything now and cancels his own time; after Resume he is idle until you grant own time again.");
+    expect(html).toContain(`<span class="ec_pb_confirm_text">Stop Castor? ${STOP_CONSEQUENCE}</span>`);
     expect(html).toContain(">Stop now</span></button>");
     expect(html).toContain(">Cancel</span></button>");
     expect(button(html, "ec_pb_power")).toContain("disabled");
@@ -124,7 +152,7 @@ describe("PhaseBarControls", () => {
     const html = render(read("personal"), { busy: "personal", confirm: "stop" });
     expect(button(html, "ec_pb_confirm_yes")).not.toContain("disabled");
     expect(button(html, "ec_pb_confirm_no")).not.toContain("disabled");
-    const busy = render(read("personal"), { busy: "work", confirm: null });
+    const busy = render(read("personal"), { busy: "personal", confirm: null });
     expect(button(busy, "ec_pb_power")).not.toContain("disabled");
     for (const key of ["visit", "work", "personal", "sleep"]) expect(pill(busy, key)).toContain("disabled");
     const stopping = render(read("personal"), { busy: null, stopping: true, confirm: null });
@@ -143,7 +171,7 @@ describe("PhaseBarControls", () => {
   });
 
   it("Sleep now and Resume and visit wait for a write in flight", () => {
-    expect(button(render(read("idle"), { busy: "work", confirm: "sleep" }), "ec_pb_confirm_yes")).toContain("disabled");
+    expect(button(render(read("idle"), { busy: "personal", confirm: "sleep" }), "ec_pb_confirm_yes")).toContain("disabled");
     expect(button(render(read("stopped"), { busy: null, stopping: true, confirm: "resume_visit" }), "ec_pb_confirm_yes")).toContain("disabled");
   });
 
@@ -151,6 +179,10 @@ describe("PhaseBarControls", () => {
     const html = render(read("idle"), { busy: null, confirm: "sleep" });
     expect(html).toContain("Put Castor to sleep now? He wakes by himself when his maintenance is done.");
     expect(html).toContain(">Sleep now</span></button>");
+  });
+
+  it("the stop's receipt shows as the note", () => {
+    expect(render(read("stopped"), undefined, { note: OWN_TIME_REVOKED })).toContain(`<span class="ec_pb_note" role="status">${OWN_TIME_REVOKED}</span>`);
   });
 
   it("a refusal shows as its sentence; blocked shows as a warning", () => {

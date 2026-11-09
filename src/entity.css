@@ -913,7 +913,8 @@ body {
   color: var(--text-dim);
   font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   font-style: italic;
-  max-width: 460px;
+  /* Room for since, why he sleeps, the job queue and where he goes next (v3) before the cut. */
+  max-width: 640px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -924,8 +925,8 @@ body {
 .ec_pb_blocked {
   color: color-mix(in srgb, var(--scar) 65%, var(--text));
 }
-/* A short state word beside a pill's label (contract v2: "waiting" while a visit waits for him,
- * "finishing" while work winds down after Work was turned off). The label itself never changes. */
+/* A short state word beside a pill's label (contract v2: "waiting" while a visit waits for him).
+ * The label itself never changes. */
 .ec_pb_badge {
   margin-left: 6px;
   padding: 0 5px;
@@ -936,9 +937,11 @@ body {
   color: var(--text-dim);
   background: color-mix(in srgb, var(--text-dim) 14%, transparent);
 }
-/* Since when, in the viewer's time (the sentence carries no clock time), and where he goes next
- * ("then: own time", from the served next.phase). */
+/* Since when, in the viewer's time (the sentence carries no clock time), why he sleeps, how many
+ * jobs are queued, and where he goes next ("then: own time", from the served next.phase). */
 .ec_pb_since,
+.ec_pb_reason,
+.ec_pb_queue,
 .ec_pb_then,
 .esb_since {
   font-style: normal;

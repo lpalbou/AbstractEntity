@@ -1953,7 +1953,8 @@ export function putEntitySubstrate(
 // `GET|PUT /entities/{name}/cognition-profile` (contract 2026-11-08,
 // untracked/understanding-pass-2026-11-07/CONTRACT-cognition-profile.md): which model each part of
 // thinking uses (summaries, understanding, extraction; dialogue stays the substrate), how many
-// memories a turn may bring to mind, and how the understanding rebuild is bounded.
+// memories a turn may bring to mind, how the understanding rebuild is bounded, and (phase contract
+// v3 D2, 2026-11-09) when an idle entity goes to sleep on his own.
 
 /** The three parts of thinking the profile names (closed set, gateway-validated). */
 export type CognitionCapability = "summaries" | "understanding" | "extraction";
@@ -1982,6 +1983,10 @@ export interface EntityCognitionProfile {
     sources?: { sensitivity?: "profile" | "default"; cap_per_turn?: "profile" | "default" };
   };
   mind: { provider: string | null; model: string | null; thinking?: string | null; source: "entity" | "gateway" | "unset"; note?: string };
+  /** Phase contract v3 D2: an idle entity sleeps on his own once either threshold is reached —
+   * hours since his last sleep, or new memories formed since it (integers ≥ 1, hours ≤ 720;
+   * defaults 24 / 500). Absent on a gateway that does not serve it yet (the Sleep card says so). */
+  sleep?: { after_hours: number; after_events: number; source?: "profile" | "default" };
 }
 
 /** A PUT body: any subset; an absent key keeps, `null` resets to the default. */
@@ -1989,6 +1994,7 @@ export interface CognitionProfilePut {
   capabilities?: Partial<Record<CognitionCapability, CognitionCapabilityChoice | null>>;
   recall?: { shelf_size: number | null };
   rebuild?: { sensitivity?: number | null; cap_per_turn?: number | null };
+  sleep?: { after_hours?: number | null; after_events?: number | null };
 }
 
 /** The raw answer, or null when the gateway has no such route (404: too old). The shape is checked

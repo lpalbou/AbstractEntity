@@ -9,6 +9,10 @@
  * - Memory: memories retrieved per turn (1..400), rebuild sensitivity (0..1), rebuilds per turn at
  *   most (0..10). The kit has no number or slider component: the three are number fields in the
  *   kit's setting rows (the modal's input style), sensitivity included.
+ * - Sleep (phase contract v3 D2, operator 2026-11-09): when he is idle he goes to sleep on his own
+ *   after N hours without sleep or N new memories (defaults 24 / 500; integers ≥ 1, hours ≤ 720).
+ *   Two number fields like Memory's. A gateway whose profile has no `sleep` block yet gets one
+ *   sentence in the card and the two fields disabled.
  *
  * Every change saves itself (`PUT …/cognition-profile`; a number on Enter or when the field is left),
  * then the page reads the profile again and shows what the gateway stores. Saves run one at a time;
@@ -63,6 +67,9 @@ export const MEMORY_HELP =
   "A rebuild is when a new memory or a surprise makes him revisit what he already understood. Every change saves itself when you press Enter or leave the field.";
 
 export type MemoryField = "shelf_size" | "sensitivity" | "cap_per_turn";
+export type SleepField = "after_hours" | "after_events";
+/** Every number field (the Memory card's and the Sleep card's): typed, then saved on Enter or leave. */
+export type NumberField = MemoryField | SleepField;
 
 export const MEMORY_FIELDS: ReadonlyArray<{ id: MemoryField; label: string; help: string; min: number; max: number; step: number }> = [
   {
@@ -75,6 +82,15 @@ export const MEMORY_FIELDS: ReadonlyArray<{ id: MemoryField; label: string; help
   },
   { id: "sensitivity", label: "Rebuild sensitivity", help: "How easily a new memory or a surprise starts a rebuild.", min: 0, max: 1, step: 0.05 },
   { id: "cap_per_turn", label: "Rebuilds per turn, at most", help: "A safety cap. 0 = only while he rests.", min: 0, max: 10, step: 1 },
+];
+
+export const SLEEP_HELP = "When he is idle, he goes to sleep on his own once either is reached. Sleep is maintenance: he consolidates and enriches his memory.";
+/** The Sleep card on a gateway whose profile has no `sleep` block yet (no silent hiding). */
+export const SLEEP_UNAVAILABLE = "This gateway does not offer the sleep settings yet.";
+
+export const SLEEP_FIELDS: ReadonlyArray<{ id: SleepField; label: string; min: number; max?: number; step: number }> = [
+  { id: "after_hours", label: "Sleep after (hours without sleep)", min: 1, max: 720, step: 1 },
+  { id: "after_events", label: "Sleep after (new memories)", min: 1, step: 1 },
 ];
 
 // ------------------------------------------------------------- the answer
@@ -124,14 +140,22 @@ export function cognitionProfileOf(raw: unknown): EntityCognitionProfile {
   num(rebuild.sensitivity, "rebuild.sensitivity");
   num(rebuild.cap_per_turn, "rebuild.cap_per_turn");
   oneOf(rebuild.source, SETTING_SOURCES, "rebuild.source");
+  // v3 D2: absent on a gateway that does not serve it yet (the Sleep card says so); once there,
+  // both thresholds are numbers.
+  if (root.sleep !== undefined) {
+    const sleep = obj(root.sleep, "sleep");
+    num(sleep.after_hours, "sleep.after_hours");
+    num(sleep.after_events, "sleep.after_events");
+  }
   return root as unknown as EntityCognitionProfile;
 }
 
-/** What the page shows for a stored profile: each part's picker value and its line, and the three
- * memory fields as their input text. */
+/** What the page shows for a stored profile: each part's picker value and its line, and the number
+ * fields (Memory's three, Sleep's two; "" while the gateway serves no sleep block) as their input
+ * text. */
 export interface ProfileValue {
   parts: Record<CognitionCapability, { picker: ProviderModelPickerValue; line: string }>;
-  memory: Record<MemoryField, string>;
+  memory: Record<NumberField, string>;
 }
 
 function isInherit(choice: CognitionCapabilityChoice): choice is { inherit: "mind" } {
@@ -153,13 +177,15 @@ export function profileValueOf(profile: EntityCognitionProfile): ProfileValue {
       shelf_size: String(profile.recall.shelf_size),
       sensitivity: String(profile.rebuild.sensitivity),
       cap_per_turn: String(profile.rebuild.cap_per_turn),
+      after_hours: profile.sleep ? String(profile.sleep.after_hours) : "",
+      after_events: profile.sleep ? String(profile.sleep.after_events) : "",
     },
   };
 }
 
 // ---------------------------------------------------------------- a change
 
-export type ProfileChange = { part: CognitionCapability; value: ProviderModelPickerValue } | { field: MemoryField; text: string };
+export type ProfileChange = { part: CognitionCapability; value: ProviderModelPickerValue } | { field: NumberField; text: string };
 
 /** Half a provider/model pair: the picker waits for the other half before anything is saved. */
 export function pickerPending(value: ProviderModelPickerValue): boolean {
@@ -190,12 +216,16 @@ export function profileSaveBody(change: ProfileChange, profile: EntityCognitionP
   if (!Number.isFinite(n)) return null;
   if (change.field === "shelf_size") return n === profile.recall.shelf_size ? null : { recall: { shelf_size: n } };
   if (change.field === "sensitivity") return n === profile.rebuild.sensitivity ? null : { rebuild: { sensitivity: n } };
-  return n === profile.rebuild.cap_per_turn ? null : { rebuild: { cap_per_turn: n } };
+  if (change.field === "cap_per_turn") return n === profile.rebuild.cap_per_turn ? null : { rebuild: { cap_per_turn: n } };
+  // Sleep: only where the gateway serves the block (its fields are disabled otherwise).
+  if (!profile.sleep) return null;
+  if (change.field === "after_hours") return n === profile.sleep.after_hours ? null : { sleep: { after_hours: n } };
+  return n === profile.sleep.after_events ? null : { sleep: { after_events: n } };
 }
 
 // ------------------------------------------------------------ read and save
 
-export type ProfileAt = CognitionCapability | MemoryField;
+export type ProfileAt = CognitionCapability | NumberField;
 /** What a control holds before it is stored: a picker value or a field's text. */
 export type ProfileDraft = ProviderModelPickerValue | string;
 export type ProfileStatus = { text: string; tone: "" | "ok" | "refused" };
@@ -204,8 +234,8 @@ export interface ProfileState {
   phase: "reading" | "ready" | "unavailable" | "error";
   profile: EntityCognitionProfile | null;
   error: string | null;
-  /** What is being chosen or typed and not stored yet. */
-  drafts: { parts: Partial<Record<CognitionCapability, ProviderModelPickerValue>>; memory: Partial<Record<MemoryField, string>> };
+  /** What is being chosen or typed and not stored yet (`memory`: every number field, Sleep's too). */
+  drafts: { parts: Partial<Record<CognitionCapability, ProviderModelPickerValue>>; memory: Partial<Record<NumberField, string>> };
   /** Each control's own status line (its last save), cleared when that control changes. */
   status: Partial<Record<ProfileAt, ProfileStatus>>;
 }
@@ -302,9 +332,9 @@ export interface ProfileController {
   /** A picker's change. */
   part(part: CognitionCapability, value: ProviderModelPickerValue): void;
   /** A number field's text, as typed (saved by `commit`). */
-  field(field: MemoryField, text: string): void;
+  field(field: NumberField, text: string): void;
   /** Enter, or the field left: save what it holds. */
-  commit(field: MemoryField): void;
+  commit(field: NumberField): void;
   /** Resolves once every queued save has landed. */
   idle(): Promise<void>;
 }
@@ -362,8 +392,8 @@ export interface CognitionProfileViewProps {
   /** The access sentence of a member who may not configure him (null = may). */
   refused: string | null;
   onPart(part: CognitionCapability, value: ProviderModelPickerValue): void;
-  onField(field: MemoryField, text: string): void;
-  onCommit(field: MemoryField): void;
+  onField(field: NumberField, text: string): void;
+  onCommit(field: NumberField): void;
 }
 
 function StatusLine({ state, at }: { state: ProfileState; at: ProfileAt }): React.ReactElement | null {
@@ -377,10 +407,59 @@ function StatusLine({ state, at }: { state: ProfileState; at: ProfileAt }): Reac
   );
 }
 
+/** One number field in a kit setting row (Memory's and Sleep's alike): saves on Enter or when left,
+ * its own status line under it. */
+function NumberRow(props: {
+  id: string;
+  field: NumberField;
+  label: string;
+  help?: string;
+  min: number;
+  max?: number;
+  step: number;
+  value: string;
+  disabled: boolean;
+  /** The card's data attribute naming the field ("data-memory-field", "data-sleep-field"). */
+  dataAttr: "data-memory-field" | "data-sleep-field";
+  setting: string;
+  state: ProfileState;
+  onField(field: NumberField, text: string): void;
+  onCommit(field: NumberField): void;
+}): React.ReactElement {
+  const { id, field, onField, onCommit } = props;
+  return (
+    <>
+      <AfSettingRow label={props.label} help={props.help} htmlFor={id} setting={props.setting} className="mcp_field">
+        <input
+          id={id}
+          type="number"
+          className="stg_input mcp_number"
+          inputMode={props.step < 1 ? "decimal" : "numeric"}
+          min={props.min}
+          max={props.max}
+          step={props.step}
+          value={props.value}
+          disabled={props.disabled}
+          {...{ [props.dataAttr]: field }}
+          onChange={(e) => onField(field, e.target.value)}
+          onBlur={() => onCommit(field)}
+          onKeyDown={(e) => {
+            // Enter saves in place: the focus stays in the field (Tab goes on to the next one).
+            if (e.key === "Enter") onCommit(field);
+          }}
+        />
+      </AfSettingRow>
+      <StatusLine state={props.state} at={field} />
+    </>
+  );
+}
+
 export function CognitionProfileView({ baseUrl, state, refused, onPart, onField, onCommit }: CognitionProfileViewProps): React.ReactElement {
   const ids = useId().replace(/:/g, "");
   const value = state.profile ? profileValueOf(state.profile) : null;
   const disabled = Boolean(refused) || state.phase !== "ready";
+  // The Sleep card: its fields wait for a gateway that serves the block.
+  const sleepServed = Boolean(state.profile?.sleep);
   return (
     <div className="stg_stack mcp" data-testid="entity-cognition-profile" data-phase={state.phase}>
       {state.phase === "unavailable" ? (
@@ -429,29 +508,49 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
       <AfSettingsGroup title="Memory" help={MEMORY_HELP}>
         {refused ? <RefusalLine text={refused} /> : null}
         {MEMORY_FIELDS.map((f) => (
-          <React.Fragment key={f.id}>
-            <AfSettingRow label={f.label} help={f.help} htmlFor={`${ids}-${f.id}`} setting={`memory-${f.id}`} className="mcp_field">
-              <input
-                id={`${ids}-${f.id}`}
-                type="number"
-                className="stg_input mcp_number"
-                inputMode={f.step < 1 ? "decimal" : "numeric"}
-                min={f.min}
-                max={f.max}
-                step={f.step}
-                value={state.drafts.memory[f.id] ?? value?.memory[f.id] ?? ""}
-                disabled={disabled}
-                data-memory-field={f.id}
-                onChange={(e) => onField(f.id, e.target.value)}
-                onBlur={() => onCommit(f.id)}
-                onKeyDown={(e) => {
-                  // Enter saves in place: the focus stays in the field (Tab goes on to the next one).
-                  if (e.key === "Enter") onCommit(f.id);
-                }}
-              />
-            </AfSettingRow>
-            <StatusLine state={state} at={f.id} />
-          </React.Fragment>
+          <NumberRow
+            key={f.id}
+            id={`${ids}-${f.id}`}
+            field={f.id}
+            label={f.label}
+            help={f.help}
+            min={f.min}
+            max={f.max}
+            step={f.step}
+            value={state.drafts.memory[f.id] ?? value?.memory[f.id] ?? ""}
+            disabled={disabled}
+            dataAttr="data-memory-field"
+            setting={`memory-${f.id}`}
+            state={state}
+            onField={onField}
+            onCommit={onCommit}
+          />
+        ))}
+      </AfSettingsGroup>
+      <AfSettingsGroup title="Sleep" help={SLEEP_HELP}>
+        {refused ? <RefusalLine text={refused} /> : null}
+        {state.phase === "ready" && !sleepServed ? (
+          <div className="stg_callout" role="note" data-sleep-unavailable="">
+            <WordsLine text={SLEEP_UNAVAILABLE} />
+          </div>
+        ) : null}
+        {SLEEP_FIELDS.map((f) => (
+          <NumberRow
+            key={f.id}
+            id={`${ids}-${f.id}`}
+            field={f.id}
+            label={f.label}
+            min={f.min}
+            max={f.max}
+            step={f.step}
+            value={state.drafts.memory[f.id] ?? value?.memory[f.id] ?? ""}
+            disabled={disabled || !sleepServed}
+            dataAttr="data-sleep-field"
+            setting={`sleep-${f.id}`}
+            state={state}
+            onField={onField}
+            onCommit={onCommit}
+          />
         ))}
       </AfSettingsGroup>
     </div>

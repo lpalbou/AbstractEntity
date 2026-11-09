@@ -4,6 +4,28 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Five states: visit, idle, work, own time, sleep — and no work switch.** The phase bar follows
+  the gateway's v3 phases (operator ruling 2026-11-09). Work is no longer a toggle: the work pill
+  lights while he works on a job someone queued for him (you, an automation or an entity allowed to
+  ask) and has nothing to click; its tooltip names the current job and since when, and the line
+  beside the pills says how many jobs are queued ("2 jobs queued"). Personal (his own time) is the
+  only toggle. A newborn starts idle: awake and visitable, own time off.
+- **Stop also cancels his own time.** The Stop question now says it before you click: "Stop halts
+  everything now and cancels his own time; after Resume he is idle until you grant own time
+  again." After a stop the gateway's receipt is shown ("Own time was revoked."). Resume brings him
+  back idle; turn personal on again to give him his own time.
+- **Why he is asleep.** When he went to sleep because a threshold was reached, the line says so:
+  "asleep: 24 h since the last sleep" or "asleep: 500 new memories since the last sleep", as the
+  gateway words it.
+- **Settings → Mind → Sleep.** Two new fields, "Sleep after (hours without sleep)" (default 24, at
+  most 720) and "Sleep after (new memories)" (default 500): when he is idle he goes to sleep on his
+  own once either is reached, to consolidate and enrich his memory. They save like the Memory
+  fields (Enter or leaving the field), each with its own "Saved" or the gateway's refusal. A gateway
+  that does not offer them yet says so in the card.
+- **Needs a gateway that serves the v3 phases.** An older gateway (with the work switch) gets "This
+  gateway does not serve the phase bar yet." The phase graph is spec v25 (the five-state life
+  cycle); the gateway and the runtime must re-vendor it.
+
 - **A mention is answered once, even when you send it again.** Each mention now carries its own
   id (the message, the entity and its place in the message). When an answer was lost on the way
   back (a timeout, a dropped connection) and you send the same words again, the gateway gives back

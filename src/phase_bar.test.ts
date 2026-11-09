@@ -1,11 +1,13 @@
 /**
- * The phase bar's pure rules (operator ruling 2026-11-08, CONTRACT-phases v2): state -> view (which
- * pill is lit, which toggle pressed, what `can` allows, the power button, the sentence and since),
- * click -> plan, and the stale rule (rev + generation) for reads, answers and stream markers.
+ * The phase bar's pure rules (operator ruling 2026-11-08, CONTRACT-phases v2 + the v3 deltas: the
+ * five-state life cycle): state -> view (which pill is lit, the one toggle pressed, what `can`
+ * allows, the work indicator and its queue, why he sleeps, the power button, the sentence and
+ * since), click -> plan, and the stale rule (rev + generation) for reads, answers and stream
+ * markers.
  */
 import { describe, expect, it } from "vitest";
 
-import { ALREADY_ASLEEP, CAN_ALL, IN_VISIT, LOOP_CRASHED, STOPPED_SLEEP, STOPPED_TOGGLE, STOPPED_VISIT, phaseBody } from "./fixtures/phase_bodies";
+import { ALREADY_ASLEEP, CAN_ALL, IN_VISIT, LOOP_CRASHED, NO_JOBS, OWN_TIME_REVOKED, REVOKED_ITEM, STOPPED_SLEEP, STOPPED_TOGGLE, STOPPED_VISIT, phaseBody } from "./fixtures/phase_bodies";
 import {
   BACK_AFTER_SLEEP,
   BACK_AFTER_VISIT,
@@ -20,8 +22,8 @@ import {
   STOP_TITLE,
   VISIT_OFFER,
   VISIT_SHOW,
-  WORK_ALLOWED,
-  WORK_NOT_ALLOWED,
+  WORK_IDLE,
+  REFUSAL_SENTENCES,
   adoptPhaseBar,
   adoptPhaseMarker,
   adoptPhaseRead,
@@ -33,6 +35,9 @@ import {
   sinceWords,
   thenWords,
   afterLine,
+  jobLine,
+  queueWords,
+  reasonWords,
   type PhaseBarRead,
   type PhaseBarUi,
 } from "./phase_bar";
@@ -64,24 +69,24 @@ describe("which pill is lit: exactly the served phase, none for idle and stopped
   });
 });
 
-describe("toggles: pressed = allowed, the label never changes", () => {
-  it("work and personal are toggles; visit and sleep are indicators (no pressed state)", () => {
+describe("the one toggle (v3 D1): personal is pressed = allowed, the label never changes", () => {
+  it("personal is the only toggle; visit, work and sleep are indicators (no pressed state)", () => {
     expect(view(served("personal")).slots.map((s) => [s.key, s.pressed])).toEqual([
       ["visit", undefined],
-      ["work", true],
+      ["work", undefined],
       ["personal", true],
       ["sleep", undefined],
     ]);
   });
-  it("pressed follows the toggles, whatever the phase", () => {
-    expect(pressed(served("idle"))).toEqual({ work: true, personal: false });
-    expect(pressed(served("work"))).toEqual({ work: false, personal: false });
-    expect(pressed(served("visit", { toggles: { work: false, personal: true } }))).toEqual({ work: false, personal: true });
+  it("pressed follows the toggle, whatever the phase", () => {
+    expect(pressed(served("idle"))).toEqual({ personal: false });
+    expect(pressed(served("work"))).toEqual({ personal: true });
+    expect(pressed(served("visit", { toggles: { personal: false } }))).toEqual({ personal: false });
   });
-  it("a toggle is lit AND pressed when it is the current, allowed phase; lit and not pressed when turned off mid-phase", () => {
+  it("the toggle is lit AND pressed when it is the current, allowed phase; lit and not pressed when turned off mid-phase", () => {
     const on = slot(served("personal"), "personal");
     expect([on.lit, on.pressed]).toEqual([true, true]);
-    const winding = slot(served("personal", { toggles: { work: true, personal: false } }), "personal");
+    const winding = slot(served("personal", { toggles: { personal: false } }), "personal");
     expect([winding.lit, winding.pressed]).toEqual([true, false]);
   });
   it("labels and glyphs are the same in every state", () => {
@@ -89,20 +94,21 @@ describe("toggles: pressed = allowed, the label never changes", () => {
     expect(labels.size).toBe(1);
     expect([...labels][0]).toBe(JSON.stringify([["visit", "💬"], ["work", "🛠"], ["personal", "⏻"], ["sleep", "🌙"]]));
   });
-  it("titles say what the toggle allows", () => {
-    expect(slot(served("idle"), "work").title).toBe(WORK_ALLOWED);
+  it("titles say what the toggle allows; the unlit work pill says a job starts it", () => {
+    expect(slot(served("idle"), "work").title).toBe(WORK_IDLE);
     expect(slot(served("idle"), "personal").title).toBe(PERSONAL_NOT_ALLOWED);
     expect(slot(served("personal"), "personal").title).toBe(`${PERSONAL_ALLOWED} On his own time.`);
   });
 });
 
 describe("can drives every control (contract §1.5, §8.3)", () => {
-  it("a toggle the gateway does not allow is disabled, its tooltip the gateway's sentence; the click is refused with it", () => {
+  it("the toggle the gateway does not allow is disabled, its tooltip the gateway's sentence; the click is refused with it", () => {
     const read = served("idle", { can: { ...CAN_ALL, toggle_personal: refusedCan("This entity is archived.") } });
     expect(slot(read, "personal")).toMatchObject({ disabled: true, title: "This entity is archived.", pressed: false });
-    expect(slot(read, "work")).toMatchObject({ disabled: false, title: WORK_ALLOWED });
     expect(phaseActPlan(read, "personal")).toEqual({ kind: "refused", sentence: "This entity is archived." });
-    expect(phaseActPlan(read, "work")).toEqual({ kind: "toggle", key: "work", on: false });
+    // Work is no control at all: never a toggle, whatever can says.
+    expect(slot(read, "work")).toMatchObject({ disabled: true, title: WORK_IDLE });
+    expect(phaseActPlan(read, "work")).toEqual({ kind: "none" });
   });
   it("sleep now during a visit: disabled with the gateway's in_visit sentence (a visit is never ended implicitly)", () => {
     expect(slot(served("visit"), "sleep")).toMatchObject({ disabled: true, title: IN_VISIT });
@@ -112,8 +118,8 @@ describe("can drives every control (contract §1.5, §8.3)", () => {
     // Asleep: the pill is lit and holds; the click asks for nothing.
     expect(slot(served("sleep"), "sleep")).toMatchObject({ lit: true, disabled: true });
     expect(phaseActPlan(served("sleep"), "sleep")).toEqual({ kind: "none" });
-    // Woken into idle (both toggles off): the gateway allows it, so the bar offers it.
-    const woke = served("idle", { toggles: { work: false, personal: false } });
+    // Woken into idle (own time off): the gateway allows it, so the bar offers it.
+    const woke = served("idle", { toggles: { personal: false } });
     expect(slot(woke, "sleep")).toMatchObject({ disabled: false, title: SLEEP_OFFER });
     expect(phaseActPlan(woke, "sleep")).toEqual({ kind: "confirm", confirm: "sleep" });
   });
@@ -125,7 +131,11 @@ describe("can drives every control (contract §1.5, §8.3)", () => {
   it("sleep now when allowed: offered, asked first; a lit sleep holds with its sentence and what comes next", () => {
     expect(slot(served("personal"), "sleep")).toMatchObject({ disabled: false, title: SLEEP_OFFER });
     expect(phaseActPlan(served("personal"), "sleep")).toEqual({ kind: "confirm", confirm: "sleep" });
-    expect(slot(served("sleep"), "sleep")).toMatchObject({ lit: true, disabled: true, title: "Resting for maintenance; wakes when done. When maintenance is done he wakes and his own time resumes." });
+    expect(slot(served("sleep"), "sleep")).toMatchObject({
+      lit: true,
+      disabled: true,
+      title: "Resting for maintenance; wakes when done. Asleep: maintenance requested. When maintenance is done he wakes and his own time resumes.",
+    });
     expect(phaseActPlan(served("sleep"), "sleep")).toEqual({ kind: "none" });
   });
   it("the client never invents a refusal the gateway did not serve: sleep now offered during a visit if can says so", () => {
@@ -164,20 +174,108 @@ describe("visit: open, show, wait, and Resume and visit while stopped", () => {
   });
 });
 
-describe("work: finishing after Work was turned off", () => {
-  it("the lit work pill shows 'finishing' beside its label and says it in its tooltip", () => {
+describe("work is an indicator with the job queue (v3 D1: no work switch)", () => {
+  const job = (o: Record<string, unknown> = {}) => ({ kind: "summon", run_id: "run_a11", since: "2026-11-08T18:20:00.000+00:00", ...o });
+  const barOf = (r: PhaseBarRead) => {
+    if (r.kind !== "served") throw new Error("fixture");
+    return r.bar;
+  };
+  it("lit while working: no pressed state, no click; its tooltip is the gateway's sentence, the current job and since when, and the queue", () => {
     const s = slot(served("work"), "work");
-    expect(s).toMatchObject({ lit: true, pressed: false, badge: "finishing", label: "work" });
-    // The gateway's sentence says it; the app adds nothing on top.
-    expect(s.title).toBe(`${WORK_NOT_ALLOWED} Working on a request from an agent; Work is off, so he stops after this run.`);
-    expect(slot(served("work", { work: { kind: "summon", run_id: "r", since: null, finishing: false }, toggles: { work: true, personal: false } }), "work").badge).toBe("");
+    expect(s).toMatchObject({ lit: true, disabled: true, badge: "", label: "work" });
+    expect(s.pressed).toBeUndefined();
+    expect(s.title).toBe(`Working on a request from an agent. Current job: summon, ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}. 2 jobs queued.`);
+    expect(phaseActPlan(served("work"), "work")).toEqual({ kind: "none" });
+  });
+  it("the line says how many jobs are queued, in any phase; nothing when none", () => {
+    expect(view(served("work")).queue).toBe("2 jobs queued");
+    expect(view(served("visit", { work: { jobs_queued: 1, current: null } })).queue).toBe("1 job queued");
+    expect(view(served("idle")).queue).toBe("");
+    expect(queueWords({ jobs_queued: 0, current: null })).toBe("");
+    expect(queueWords({ jobs_queued: 7, current: null })).toBe("7 jobs queued");
+  });
+  it("the current job in words: its kind and since when, in the viewer's time; no job, no line", () => {
+    expect(jobLine({ jobs_queued: 0, current: job({ kind: "work_order", since: null }) }, NOW)).toBe("Current job: work order.");
+    expect(jobLine({ jobs_queued: 0, current: job() }, NOW)).toBe(`Current job: summon, ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}.`);
+    expect(jobLine(NO_JOBS, NOW)).toBe("");
+  });
+  it("unlit: a job starts work (no switch); a queue waiting through a visit still shows; stopped says the stop", () => {
+    expect(slot(served("idle"), "work")).toMatchObject({ lit: false, disabled: true, title: WORK_IDLE });
+    expect(slot(served("visit", { work: { jobs_queued: 1, current: job() } }), "work").title).toBe(
+      `${WORK_IDLE} Current job: summon, ${sinceWords("2026-11-08T18:20:00.000+00:00", NOW)}. 1 job queued.`,
+    );
+    expect(slot(served("stopped"), "work")).toMatchObject({ disabled: true, title: "Stopped. Nothing runs until you resume him." });
+  });
+  it("then: where he returns when all jobs are done, as served", () => {
+    expect(view(served("work")).then).toBe("then: own time");
+    expect(afterLine(barOf(served("work")))).toBe("When his jobs are done, his own time resumes.");
+  });
+  it("no 'finishing' state word is left (it belonged to the work switch)", () => {
+    for (const phase of ["visit", "work", "personal", "sleep", "stopped", "idle"] as const) {
+      expect(view(served(phase)).slots.map((s) => s.badge)).not.toContain("finishing");
+    }
+  });
+});
+
+describe("why he sleeps (v3 D2): the served sleep.reason beside the sentence and in the sleep pill", () => {
+  const sweep = (reason: string | null) =>
+    served("sleep", { sentence: "Resting for maintenance; wakes when done.", next: { phase: "idle", sentence: "When maintenance is done he wakes, awake and reachable." }, sleep: { kind: "self", reason, since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" } });
+  it("each threshold, as served", () => {
+    expect(view(sweep("24 h since the last sleep")).reason).toBe("asleep: 24 h since the last sleep");
+    expect(view(sweep("500 new memories since the last sleep.")).reason).toBe("asleep: 500 new memories since the last sleep");
+    expect(slot(sweep("24 h since the last sleep"), "sleep").title).toBe(
+      "Resting for maintenance; wakes when done. Asleep: 24 h since the last sleep. When maintenance is done he wakes, awake and reachable.",
+    );
+  });
+  it("no reason served, or not asleep: nothing", () => {
+    expect(view(sweep(null)).reason).toBe("");
+    expect(slot(sweep(null), "sleep").title).toBe("Resting for maintenance; wakes when done. When maintenance is done he wakes, awake and reachable.");
+    for (const phase of ["visit", "work", "personal", "stopped", "idle"] as const) expect(view(served(phase)).reason).toBe("");
+    const r = sweep("24 h since the last sleep");
+    if (r.kind !== "served") throw new Error("fixture");
+    expect(reasonWords({ ...r.bar, phase: "idle" })).toBe("");
+  });
+});
+
+describe("Stop cancels his own time; Resume lands him idle (v3 D3)", () => {
+  const item = (item: string, outcome: string, extra: Record<string, unknown> = {}) => ({ item, id: null, outcome, code: null, sentence: null, ...extra });
+  it("the stop's receipt says own time was revoked, with any part that failed", () => {
+    const stop = phaseWriteOutcome({
+      status: 200,
+      code: null,
+      body: { ...phaseBody("stopped"), action: "stop", already: false, complete: true, items: [item("run", "cancelled"), REVOKED_ITEM, item("loop", "killed_sigterm")] },
+    });
+    expect(stop).toMatchObject({ ok: true, sentence: OWN_TIME_REVOKED, incomplete: false });
+    expect(stop.bar).toMatchObject({ stopped: true, toggles: { personal: false } });
+    const partly = phaseWriteOutcome({
+      status: 200,
+      code: null,
+      body: { ...phaseBody("stopped"), complete: false, items: [item("visit", "failed", { code: "visit_close_failed", sentence: "The visit could not be closed yet; press Stop again to retry." }), REVOKED_ITEM] },
+    });
+    expect(partly.sentence).toBe(`The visit could not be closed yet; press Stop again to retry. ${OWN_TIME_REVOKED}`);
+    expect(partly.incomplete).toBe(true);
+  });
+  it("while stopped the toggle shows own time revoked and holds", () => {
+    expect(slot(served("stopped"), "personal")).toMatchObject({ pressed: false, disabled: true, title: STOPPED_TOGGLE });
+  });
+  it("Resume says he comes back idle and own time waits for a grant; its answer lands idle and says so", () => {
+    expect(RESUME_TITLE).toBe("Resume him: he comes back idle, awake and visitable. His own time starts again only when you grant it.");
+    expect(STOP_TITLE).toContain("his own time, which is cancelled");
+    const resumed = phaseWriteOutcome({ status: 200, code: null, body: { ...phaseBody("idle", { rev: 49 }), action: "resume", already: false, complete: true, items: [] } });
+    expect(resumed.bar).toMatchObject({ phase: "idle", stopped: false, toggles: { personal: false } });
+    expect(resumed.sentence).toBe(OWN_TIME_OFF);
+  });
+  it("the work switch's refusal words are gone; a body naming work is refused in the gateway's words", () => {
+    expect(REFUSAL_SENTENCES).not.toHaveProperty("work_off");
+    expect(REFUSAL_SENTENCES.unknown_field).toBe("There is no work switch: work starts when a job is queued.");
+    expect(REFUSAL_SENTENCES.invalid_toggles).not.toMatch(/\bwork\b/);
   });
 });
 
 describe("own time is a privilege (operator ruling 2026-11-09): a served sentence wins, else the app says where he returns", () => {
-  const visitWith = (personal: boolean, next: unknown = null) => served("visit", { toggles: { work: true, personal }, next });
+  const visitWith = (personal: boolean, next: unknown = null) => served("visit", { toggles: { personal }, next });
   const selfSleep = (personal: boolean, next: unknown = null) =>
-    served("sleep", { toggles: { work: true, personal }, next, sleep: { kind: "self", reason: "done enough", since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" } });
+    served("sleep", { toggles: { personal }, next, sleep: { kind: "self", reason: "done enough", since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" } });
   const barOf = (r: PhaseBarRead) => {
     if (r.kind !== "served") throw new Error("fixture");
     return r.bar;
@@ -194,7 +292,7 @@ describe("own time is a privilege (operator ruling 2026-11-09): a served sentenc
       expect(v).not.toContain(OWN_TIME_OFF);
     }
     const sleepServed = selfSleep(true, { phase: "personal", sentence: "When maintenance is done he wakes and his own time resumes." });
-    expect(slot(sleepServed, "sleep").title).toBe("Resting for maintenance; wakes when done. When maintenance is done he wakes and his own time resumes.");
+    expect(slot(sleepServed, "sleep").title).toBe("Resting for maintenance; wakes when done. Asleep: done enough. When maintenance is done he wakes and his own time resumes.");
     expect(slot(sleepServed, "sleep").title).not.toContain(BACK_AFTER_SLEEP);
   });
   it("a visit with no served next: back to his own time while personal is granted; with it revoked he stays awake", () => {
@@ -211,31 +309,31 @@ describe("own time is a privilege (operator ruling 2026-11-09): a served sentenc
   it("a sleep he chose himself, no served next: back to his own time when he wakes while granted; an operator sleep gets no app line", () => {
     const r = selfSleep(true);
     expect(afterLine(barOf(r))).toBe(BACK_AFTER_SLEEP);
-    expect(slot(r, "sleep").title).toBe(`Resting for maintenance; wakes when done. ${BACK_AFTER_SLEEP}`);
+    expect(slot(r, "sleep").title).toBe(`Resting for maintenance; wakes when done. Asleep: done enough. ${BACK_AFTER_SLEEP}`);
     expect(view(r).sentenceTitle).toMatch(/^Since .+\. Back to his own time when he wakes\.$/);
     expect(afterLine(barOf(selfSleep(false)))).toBe("");
     const operatorSleep = served("sleep", { next: null });
     expect(afterLine(barOf(operatorSleep))).toBe("");
-    expect(slot(operatorSleep, "sleep").title).toBe("Resting for maintenance; wakes when done.");
+    expect(slot(operatorSleep, "sleep").title).toBe("Resting for maintenance; wakes when done. Asleep: maintenance requested.");
   });
   it("the idle line: own time off says he stays awake; own time on (blocked) does not; his own time running has nothing to add", () => {
     expect(afterLine(barOf(served("idle")))).toBe(OWN_TIME_OFF);
     expect(view(served("idle")).sentenceTitle).toMatch(/^Since .+\. Own time is off; he stays awake\.$/);
     expect(slot(served("idle"), "personal").title).toBe(PERSONAL_NOT_ALLOWED);
-    expect(afterLine(barOf(served("idle", { ...LOOP_CRASHED, toggles: { work: true, personal: true } })))).toBe("");
+    expect(afterLine(barOf(served("idle", { ...LOOP_CRASHED, toggles: { personal: true } })))).toBe("");
     expect(afterLine(barOf(served("personal")))).toBe("");
     expect(afterLine(barOf(served("stopped")))).toBe("");
   });
   it("then: where he goes next, from the served next.phase — own time, work or idle; nothing when none is served", () => {
     expect(view(served("visit")).then).toBe("then: own time");
-    expect(view(served("work")).then).toBe("then: idle");
+    expect(view(served("work", { next: { phase: "idle", sentence: "When his jobs are done, he stays awake and reachable." } })).then).toBe("then: idle");
     expect(thenWords(barOf(visitWith(true, { phase: "work", sentence: "When the visit closes, he goes back to work." })))).toBe("then: work");
     expect(view(visitWith(true, { phase: null, sentence: "When the visit closes, he returns to what he was doing." })).then).toBe("");
     expect(view(served("personal")).then).toBe("");
     expect(view({ kind: "unserved" }).then).toBe("");
   });
   it("a toggle's answer says what happens next: the gateway's words, else the app's line", () => {
-    const off = phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit", { rev: 50, toggles: { work: true, personal: false }, next: null }) });
+    const off = phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit", { rev: 50, toggles: { personal: false }, next: null }) });
     expect(off.sentence).toBe(OWN_TIME_OFF);
     const on = phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit", { rev: 50, next: null }) });
     expect(on.sentence).toBe(BACK_AFTER_VISIT);
@@ -243,7 +341,7 @@ describe("own time is a privilege (operator ruling 2026-11-09): a served sentenc
     expect(phaseWriteOutcome({ status: 200, code: null, body: phaseBody("personal") }).sentence).toBeNull();
   });
   it("a stream marker into a visit drops next until the re-read: the app's line holds the place", () => {
-    const m = parsePhaseMarker({ kind: "phase_changed", name: "castor", from: "personal", to: "visit", phase: "visit", toggles: { work: true, personal: true }, stopped: false, since: "2026-11-08T18:50:00.000+00:00", rev: 49, generation: 7, cause: "visit_open", sentence: "In a visit with Laurent." })!;
+    const m = parsePhaseMarker({ kind: "phase_changed", name: "castor", from: "personal", to: "visit", phase: "visit", toggles: { personal: true }, stopped: false, since: "2026-11-08T18:50:00.000+00:00", rev: 49, generation: 7, cause: "visit_open", sentence: "In a visit with Laurent." })!;
     const r = adoptPhaseMarker(served("personal"), m)!;
     expect(view(r).then).toBe("");
     expect(view(r).sentenceTitle).toMatch(/Back to his own time after the visit\.$/);
@@ -254,15 +352,14 @@ describe("the power button: red Stop while he runs, Resume when stopped", () => 
   it.each(["visit", "work", "personal", "sleep", "idle"] as const)("%s -> Stop (danger)", (phase) => {
     expect(view(served(phase)).power).toEqual({ label: "Stop", danger: true, disabled: false, title: STOP_TITLE });
   });
-  it("stopped -> Resume; the toggles and sleep hold with the gateway's sentences", () => {
+  it("stopped -> Resume; the toggle and sleep hold with the gateway's sentences", () => {
     const v = view(served("stopped"));
     expect(v.power).toEqual({ label: "Resume", danger: false, disabled: false, title: RESUME_TITLE });
     expect(v.stopped).toBe(true);
-    expect(slot(served("stopped"), "work")).toMatchObject({ disabled: true, title: STOPPED_TOGGLE });
     expect(slot(served("stopped"), "personal")).toMatchObject({ disabled: true, title: STOPPED_TOGGLE });
     expect(slot(served("stopped"), "sleep")).toMatchObject({ disabled: true, title: STOPPED_SLEEP });
-    // The toggles still show what is allowed (stop never changes them).
-    expect(pressed(served("stopped"))).toEqual({ work: true, personal: true });
+    // The toggle shows what the gateway serves (v3 D3: the stop revoked own time).
+    expect(pressed(served("stopped"))).toEqual({ personal: false });
   });
   it("a stop that left something outstanding keeps a Stop beside Resume, sent at once", () => {
     expect(view(served("stopped")).stopAgain).toBeNull();
@@ -343,7 +440,8 @@ describe("clicks -> plans", () => {
   it("a toggle asks the opposite of what it shows when the gateway allows it (the gateway says what it means)", () => {
     expect(phaseActPlan(served("idle"), "personal")).toEqual({ kind: "toggle", key: "personal", on: true });
     expect(phaseActPlan(served("visit"), "personal")).toEqual({ kind: "toggle", key: "personal", on: false });
-    expect(phaseActPlan(served("work"), "work")).toEqual({ kind: "toggle", key: "work", on: true });
+    expect(phaseActPlan(served("work"), "personal")).toEqual({ kind: "toggle", key: "personal", on: false });
+    expect(phaseActPlan(served("work"), "work")).toEqual({ kind: "none" });
     expect(phaseActPlan(served("stopped"), "personal")).toEqual({ kind: "refused", sentence: STOPPED_TOGGLE });
   });
   it("Stop asks first; Resume acts; Resume does nothing while he runs", () => {
@@ -362,7 +460,7 @@ describe("clicks -> plans", () => {
     expect(phaseActPlan({ kind: "loading" }, "stop")).toEqual({ kind: "confirm", confirm: "stop" });
     expect(phaseActPlan({ kind: "failed", sentence: "x" }, "stop")).toEqual({ kind: "confirm", confirm: "stop" });
   });
-  it.each(["work", "personal", "resume", "retry"] as const)("while a %s write is in flight every pill holds, and Stop stays live", (busy) => {
+  it.each(["personal", "resume", "retry"] as const)("while a %s write is in flight every pill holds, and Stop stays live", (busy) => {
     for (const phase of ["visit", "work", "personal", "sleep", "idle"] as const) {
       const v = view(served(phase), { busy, confirm: null });
       expect(v.slots.every((s) => s.disabled)).toBe(true);
@@ -382,7 +480,7 @@ describe("clicks -> plans", () => {
   });
   it("Resume and Retry wait for a write in flight (only Stop is the kill switch)", () => {
     expect(view(served("stopped"), { busy: "resume", confirm: null }).power).toMatchObject({ label: "Resume", disabled: true });
-    expect(view(served("idle", LOOP_CRASHED), { busy: "work", confirm: null }).retry).toEqual({ disabled: true, title: RETRY_TITLE });
+    expect(view(served("idle", LOOP_CRASHED), { busy: "personal", confirm: null }).retry).toEqual({ disabled: true, title: RETRY_TITLE });
   });
 });
 
@@ -419,22 +517,32 @@ describe("the stale rule: highest rev wins, and nothing from before a Stop (cont
     expect(adoptPhaseRead(failed, { kind: "loading" })).toEqual({ kind: "loading" });
     expect(adoptPhaseRead({ kind: "loading" }, { kind: "failed", sentence: "x" })).toEqual({ kind: "failed", sentence: "x" });
   });
-  const marker = (o: Record<string, unknown>) => parsePhaseMarker({ kind: "phase_changed", name: "castor", from: "visit", to: "idle", phase: "idle", toggles: { work: true, personal: false }, stopped: false, since: "2026-11-08T18:41:00.000+00:00", rev: 48, generation: 7, cause: "visit_closed", sentence: "Awake and reachable; nothing of his own is running.", ...o })!;
+  const marker = (o: Record<string, unknown>) => parsePhaseMarker({ kind: "phase_changed", name: "castor", from: "visit", to: "idle", phase: "idle", toggles: { personal: false }, stopped: false, since: "2026-11-08T18:41:00.000+00:00", rev: 48, generation: 7, cause: "visit_closed", sentence: "Awake and reachable; nothing of his own is running.", ...o })!;
   it("a newer marker repaints phase, toggles, stop, since and sentence; next/blocked, another phase's facts and can (the phase moved) wait for the re-read", () => {
     const read = served("visit"); // rev 43
     const next = adoptPhaseMarker(read, marker({}));
-    expect(next).toMatchObject({ kind: "served", bar: { rev: 48, generation: 7, phase: "idle", toggles: { work: true, personal: false }, sentence: "Awake and reachable; nothing of his own is running.", next: null, blocked: null, visit: null } });
+    expect(next).toMatchObject({ kind: "served", bar: { rev: 48, generation: 7, phase: "idle", toggles: { personal: false }, sentence: "Awake and reachable; nothing of his own is running.", next: null, blocked: null, visit: null } });
     expect(lit(next!)).toEqual([]);
     // The controls hold until the re-read says what is allowed now; Stop does not.
     expect(view(next!).slots.every((s) => s.disabled)).toBe(true);
     expect(view(next!).power.disabled).toBe(false);
   });
-  it("a marker that changes only the toggles keeps can", () => {
+  it("a marker that changes only the toggle keeps can", () => {
     const read = served("personal"); // rev 45
-    const next = adoptPhaseMarker(read, marker({ phase: "personal", to: "personal", from: "personal", rev: 46, toggles: { work: false, personal: true }, cause: "toggle", sentence: "On his own time." }));
+    const next = adoptPhaseMarker(read, marker({ phase: "personal", to: "personal", from: "personal", rev: 46, toggles: { personal: false }, cause: "toggle", sentence: "On his own time." }));
     if (!next || next.kind !== "served") throw new Error("marker");
     expect(next.bar.can).toEqual(CAN_ALL);
-    expect(slot(next, "work").disabled).toBe(false);
+    expect(slot(next, "personal")).toMatchObject({ disabled: false, pressed: false });
+  });
+  it("a marker into or out of work keeps the queue's count and drops the job until the re-read", () => {
+    const working = served("work"); // rev 44, 2 queued, a summon running
+    const out = adoptPhaseMarker(working, marker({ phase: "visit", to: "visit", from: "work", rev: 45, generation: 7, sentence: "In a visit with Laurent." }));
+    if (!out || out.kind !== "served") throw new Error("marker");
+    expect(out.bar.work).toEqual({ jobs_queued: 2, current: null });
+    expect(view(out).queue).toBe("2 jobs queued");
+    const same = adoptPhaseMarker(working, marker({ phase: "work", to: "work", from: "work", rev: 45, generation: 7, sentence: "Working on his work order." }));
+    if (!same || same.kind !== "served") throw new Error("marker");
+    expect(same.bar.work.current?.kind).toBe("summon");
   });
   it("an older or equal marker, or one from before a Stop, changes nothing; without a served bar the caller re-reads", () => {
     const read = served("idle"); // rev 48, gen 8
@@ -445,17 +553,27 @@ describe("the stale rule: highest rev wins, and nothing from before a Stop (cont
   });
 });
 
-describe("a newborn's sleep holds until he is woken (contract §13)", () => {
-  // Born asleep: an operator sleep with no end; Personal on arms own time for the wake, never now.
-  const newborn = (personal: boolean) =>
+describe("a newborn is idle (v3 D5)", () => {
+  const newborn = served("idle", { rev: 1, generation: 0, toggles: { personal: false }, since: "2026-11-08T18:02:00.000+00:00" });
+  it("nothing lit, awake and reachable; own time off says he stays awake; granting it is the one toggle", () => {
+    expect(lit(newborn)).toEqual([]);
+    expect(view(newborn).sentence).toBe("Awake and reachable; nothing of his own is running.");
+    expect(afterLine((newborn as Extract<PhaseBarRead, { kind: "served" }>).bar)).toBe(OWN_TIME_OFF);
+    expect(phaseActPlan(newborn, "personal")).toEqual({ kind: "toggle", key: "personal", on: true });
+    expect(phaseActPlan(newborn, "visit")).toEqual({ kind: "open_visit" });
+  });
+});
+
+describe("an operator sleep with no end holds until he is woken (contract §13)", () => {
+  const held = (personal: boolean) =>
     served("sleep", {
-      toggles: { work: true, personal },
+      toggles: { personal },
       sentence: "Asleep until you wake him.",
       next: null,
-      sleep: { kind: "operator", reason: "born asleep", since: "2026-11-08T18:02:00.000+00:00", ends: null },
+      sleep: { kind: "operator", reason: null, since: "2026-11-08T18:02:00.000+00:00", ends: null },
     });
   it.each([false, true])("personal %s: the sleep stays lit and holds; nothing says he wakes on his own", (personal) => {
-    const read = newborn(personal);
+    const read = held(personal);
     expect(lit(read)).toEqual(["sleep"]);
     expect(slot(read, "sleep")).toMatchObject({ lit: true, disabled: true, title: "Asleep until you wake him." });
     expect(afterLine((read as Extract<PhaseBarRead, { kind: "served" }>).bar)).toBe("");
@@ -463,8 +581,8 @@ describe("a newborn's sleep holds until he is woken (contract §13)", () => {
     expect(view(read).retry).toBeNull();
   });
   it("turning Personal on is a toggle, never a wake; its answer adds no words of the app's", () => {
-    expect(phaseActPlan(newborn(false), "personal")).toEqual({ kind: "toggle", key: "personal", on: true });
-    const body = phaseBody("sleep", { toggles: { work: true, personal: true }, sentence: "Asleep until you wake him.", next: null, sleep: { kind: "operator", reason: "born asleep", since: null, ends: null } });
-    expect(phaseWriteOutcome({ status: 200, code: null, body: { ...body, changed: { work: null, personal: { from: false, to: true } } } })).toMatchObject({ ok: true, sentence: null });
+    expect(phaseActPlan(held(false), "personal")).toEqual({ kind: "toggle", key: "personal", on: true });
+    const body = phaseBody("sleep", { toggles: { personal: true }, sentence: "Asleep until you wake him.", next: null, sleep: { kind: "operator", reason: null, since: null, ends: null } });
+    expect(phaseWriteOutcome({ status: 200, code: null, body: { ...body, changed: { personal: { from: false, to: true } } } })).toMatchObject({ ok: true, sentence: null });
   });
 });

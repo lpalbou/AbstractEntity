@@ -67,7 +67,7 @@ describe("phase refusals are sentences (contract §7)", () => {
 
 describe("a write that succeeded says what happens next, or which stop step failed", () => {
   it("personal on during a visit: the answer's next sentence", () => {
-    const out = phaseWriteOutcome({ status: 200, code: null, body: { ...phaseBody("visit"), changed: { work: null, personal: { from: false, to: true } } } });
+    const out = phaseWriteOutcome({ status: 200, code: null, body: { ...phaseBody("visit"), changed: { personal: { from: false, to: true } } } });
     expect(out.ok).toBe(true);
     expect(out.bar?.phase).toBe("visit");
     expect(out.sentence).toBe("When the visit closes, his own time resumes.");

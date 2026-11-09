@@ -1,7 +1,8 @@
 /**
- * The phase bar's gateway seam (CONTRACT-phases v2): the exact routes, methods and bodies, the
- * strict parse (a field the contract always sends that is missing = unserved), the error code from
- * body or header, and the stream marker fold.
+ * The phase bar's gateway seam (CONTRACT-phases v2 + v3 deltas): the exact routes, methods and
+ * bodies (the toggle PUT never carries `work`), the strict parse (a field the contract always sends
+ * that is missing = unserved; v2's work sub-object is not the v3 queue), the error code from body
+ * or header, and the stream marker fold.
  */
 import { describe, expect, it } from "vitest";
 
@@ -32,9 +33,10 @@ function recordingFetch(status = 200, body: unknown = phaseBody("idle"), headers
 }
 
 describe("request bodies (contract §2, §3, §8.5)", () => {
-  it("a toggle PUT sends only the toggle that moved, a strict boolean", () => {
+  it("the toggle PUT sends {personal} alone, a strict boolean — never work (v3 D1: 422 unknown_field)", () => {
     expect(toggleBody("personal", false)).toEqual({ personal: false });
-    expect(toggleBody("work", true)).toEqual({ work: true });
+    expect(toggleBody("personal", true)).toEqual({ personal: true });
+    expect(Object.keys(toggleBody("personal", true))).toEqual(["personal"]);
   });
   it("lifecycle sends the action alone: stop, resume or retry", () => {
     expect(lifecycleBody("stop")).toEqual({ action: "stop" });
@@ -66,8 +68,9 @@ describe("routes and methods", () => {
     // Writes carry JSON and the credential.
     expect(r.calls[1].headers["Content-Type"]).toBe("application/json");
     expect(r.calls[1].headers["Authorization"]).toBe("Bearer tok");
-    // No old route is ever called.
+    // No old route is ever called, and no body names work.
     expect(r.calls.some((c) => /loop\/(start|stop)|personal-grant/.test(c.url))).toBe(false);
+    expect(r.calls.some((c) => c.body && typeof c.body === "object" && "work" in (c.body as object))).toBe(false);
   });
   it("the entity name is path-encoded", async () => {
     const r = recordingFetch();
@@ -83,7 +86,7 @@ describe("the error code: detail.reason_code, then the body's, then the header",
     expect((await mk({ detail: "Admin principal required", reason_code: "admin_required" })).code).toBe("admin_required");
     expect((await mk({ detail: "Stopped. Resume to visit.", code: "stopped_use_resume" })).code).toBe("stopped_use_resume");
     expect((await mk({ code: "in_visit", detail: { reason_code: "in_visit", message: "He is in a visit; end it to let him sleep.", life_state: null } })).code).toBe("in_visit");
-    expect((await mk({ detail: "x" }, { "X-Gateway-Error-Code": "work_off" })).code).toBe("work_off");
+    expect((await mk({ detail: "x" }, { "X-Gateway-Error-Code": "unknown_field" })).code).toBe("unknown_field");
     expect((await mk({ detail: "x" })).code).toBeNull();
   });
   it("a body that is not JSON is null, never a throw", async () => {
@@ -93,7 +96,7 @@ describe("the error code: detail.reason_code, then the body's, then the header",
 });
 
 describe("parse: every field the contract always sends", () => {
-  it("each §1.6 example parses, with can, generation, waiting_for, finishing and blocked.action", () => {
+  it("each §1.6 example parses (v3 shapes), with can, generation, waiting_for, the job queue and blocked.action", () => {
     for (const phase of ["visit", "work", "personal", "sleep", "stopped", "idle"] as const) {
       expect(parsePhaseBar(phaseBody(phase))?.phase).toBe(phase);
     }
@@ -101,7 +104,10 @@ describe("parse: every field the contract always sends", () => {
     expect(parsePhaseBar(phaseBody("stopped"))).toMatchObject({ generation: 8, can: { visit: { allowed: false, sentence: "Stopped. Resume to visit." } } });
     expect(parsePhaseBar(phaseBody("visit"))?.visit?.waiting_for).toBeNull();
     expect(parsePhaseBar(phaseBody("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for: "maintenance" } }))?.visit?.waiting_for).toBe("maintenance");
-    expect(parsePhaseBar(phaseBody("work"))?.work).toEqual({ kind: "summon", run_id: "run_a11", since: "2026-11-08T18:20:00.000+00:00", finishing: true });
+    expect(parsePhaseBar(phaseBody("work"))?.work).toEqual({ jobs_queued: 2, current: { kind: "summon", run_id: "run_a11", since: "2026-11-08T18:20:00.000+00:00" } });
+    expect(parsePhaseBar(phaseBody("idle"))?.work).toEqual({ jobs_queued: 0, current: null });
+    expect(parsePhaseBar(phaseBody("idle"))?.toggles).toEqual({ personal: false });
+    expect(Object.keys(parsePhaseBar(phaseBody("idle"))!.can).sort()).toEqual(["sleep_now", "toggle_personal", "visit"]);
     const crashed = parsePhaseBar(phaseBody("idle", { blocked: { code: "loop_crashed", sentence: "His own time stopped unexpectedly. Retry to start it again.", action: "retry" } }));
     expect(crashed?.blocked).toEqual({ code: "loop_crashed", sentence: "His own time stopped unexpectedly. Retry to start it again.", action: "retry" });
   });
@@ -113,15 +119,15 @@ describe("parse: every field the contract always sends", () => {
   it("wrong values are unserved too (never guessed)", () => {
     expect(parsePhaseBar(phaseBody("idle", { phase: "resting" }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { rev: 0 }))).toBeNull();
-    expect(parsePhaseBar(phaseBody("idle", { toggles: { work: true } }))).toBeNull();
-    expect(parsePhaseBar(phaseBody("idle", { toggles: { work: "true", personal: false } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { toggles: {} }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { toggles: { personal: "false" } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { sentence: "" }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { stopped: "no" }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { next: { phase: "idle" } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("visit", { visit: { lane: "visit" } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { generation: -1 }))).toBeNull();
-    // can: four entries, strict booleans; a refusal always says why.
-    expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, toggle_work: undefined } }))).toBeNull();
+    // can: three entries (v3: no toggle_work), strict booleans; a refusal always says why.
+    expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, toggle_personal: undefined } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, visit: { allowed: "yes", sentence: null } } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, sleep_now: { allowed: false, sentence: null } } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { can: { ...CAN_ALL, sleep_now: { allowed: false } } }))).toBeNull();
@@ -129,11 +135,26 @@ describe("parse: every field the contract always sends", () => {
     const { waiting_for: _w, ...visitV1 } = phaseBody("visit").visit as Record<string, unknown>;
     expect(parsePhaseBar(phaseBody("visit", { visit: visitV1 }))).toBeNull();
     expect(parsePhaseBar(phaseBody("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for: "lunch" } }))).toBeNull();
-    expect(parsePhaseBar(phaseBody("work", { work: { kind: "summon", run_id: null, since: null } }))).toBeNull();
+    // v3 D1: work is the job queue, always an object; a count is a whole number ≥ 0; a job has its three fields.
+    expect(parsePhaseBar(phaseBody("idle", { work: null }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { work: { jobs_queued: 0 } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { work: { jobs_queued: -1, current: null } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { work: { jobs_queued: 1.5, current: null } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("work", { work: { jobs_queued: 1, current: { kind: "summon", run_id: null } } }))).toBeNull();
+    expect(parsePhaseBar(phaseBody("work", { work: { jobs_queued: 1, current: { kind: "", run_id: null, since: null } } }))).toBeNull();
     expect(parsePhaseBar(phaseBody("idle", { blocked: { code: "loop_crashed", sentence: "x" } }))).toBeNull();
   });
   it("today's life_state (before the contract) is unserved", () => {
     expect(parsePhaseBar({ phase: "sleep", posture: "resting", chat_open: false, state: "awake", own_time_running: false })).toBeNull();
+  });
+  it("a v2 body (the work toggle and finishing, no job queue) is unserved: the app has no fallback", () => {
+    const v2 = phaseBody("work", {
+      toggles: { work: false, personal: false },
+      can: { ...CAN_ALL, toggle_work: { allowed: true, sentence: null } },
+      work: { kind: "summon", run_id: "run_a11", since: "2026-11-08T18:20:00.000+00:00", finishing: true },
+    });
+    expect(parsePhaseBar(v2)).toBeNull();
+    expect(parsePhaseBar(phaseBody("idle", { work: null }))).toBeNull();
   });
   it("a v1 body (rev, but no can and no generation) is unserved: the app has no fallback (contract v2 §8.1)", () => {
     const v1 = phaseBody("personal");
@@ -146,13 +167,15 @@ describe("parse: every field the contract always sends", () => {
 describe("the stream marker (contract §5)", () => {
   const env = (seq: number, payload: unknown, family = "host"): ReplayEnvelope =>
     ({ stream: "abstractmemory.replay", stream_version: 1, seq, family, observed_at: "", scope: "", owner_id: "castor", trace_id: null, turn_id: null, run_id: null, payload, display: {} }) as unknown as ReplayEnvelope;
-  const marker = (rev: number, phase = "idle") => ({ kind: "phase_changed", name: "castor", from: "personal", to: phase, phase, toggles: { work: true, personal: false }, stopped: false, since: null, rev, generation: 2, cause: "toggle", sentence: "Awake and reachable." });
+  const marker = (rev: number, phase = "idle") => ({ kind: "phase_changed", name: "castor", from: "personal", to: phase, phase, toggles: { personal: false }, stopped: false, since: null, rev, generation: 2, cause: "toggle", sentence: "Awake and reachable." });
   it("only host phase_changed payloads with the fields count", () => {
     expect(parsePhaseMarker(marker(3))).toMatchObject({ rev: 3, generation: 2 });
     expect(parsePhaseMarker({ ...marker(3), generation: undefined })).toBeNull();
     expect(parsePhaseMarker({ ...marker(3), kind: "wake" })).toBeNull();
     expect(parsePhaseMarker({ ...marker(3), rev: undefined })).toBeNull();
     expect(parsePhaseMarker({ ...marker(3), phase: "asleep" })).toBeNull();
+    expect(parsePhaseMarker({ ...marker(3), toggles: {} })).toBeNull();
+    expect(parsePhaseMarker(marker(3))?.toggles).toEqual({ personal: false });
   });
   it("the highest rev wins, not the last one; other families are ignored; the fold is incremental", () => {
     const envs = [env(1, marker(5)), env(2, marker(9, "personal")), env(3, marker(7)), env(4, marker(12), "event")];

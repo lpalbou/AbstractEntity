@@ -1,6 +1,6 @@
 /**
  * Settings → Mind, the cognition profile (entity 0002, contract 2026-11-08): the three parts of
- * thinking and the memory bounds. The package ships no DOM for tests: the rules are pinned through the
+ * thinking, the memory bounds, and (phase contract v3 D2) the sleep thresholds. The package ships no DOM for tests: the rules are pinned through the
  * pure mappings and the read/save steps (fetch stubbed at the wire), and the page through its
  * static markup in each state the steps produce.
  */
@@ -17,6 +17,8 @@ import {
   MEMORY_HELP,
   NO_MIND_YET,
   PROFILE_READING,
+  SLEEP_HELP,
+  SLEEP_UNAVAILABLE,
   afterSave,
   cognitionProfileOf,
   pickerPending,
@@ -40,6 +42,7 @@ const DEFAULTS: EntityCognitionProfile = {
   recall: { shelf_size: 50, source: "default", applies_to_running_loop: "on restart" },
   rebuild: { sensitivity: 0.5, cap_per_turn: 3, source: "default" },
   mind: { ...MIND, source: "entity" },
+  sleep: { after_hours: 24, after_events: 500, source: "default" },
 };
 const FORGE = { provider: "theforge-nvidia", model: "qwen/qwen3.8-27b" };
 const WITH_FORGE: EntityCognitionProfile = {
@@ -73,10 +76,13 @@ function page(state: ProfileState, refused: string | null = null): string {
 }
 const ready = (profile: EntityCognitionProfile): ProfileState => ({ ...PROFILE_READING, phase: "ready", profile });
 const count = (html: string, needle: string | RegExp) => (typeof needle === "string" ? html.split(needle).length - 1 : [...html.matchAll(needle)].length);
-/** The value of a memory field's input (undefined = no such input). */
+/** The value of a number field's input, Memory's or Sleep's (undefined = no such input). */
 function inputValue(html: string, field: string): string | undefined {
-  const tag = new RegExp(`<input[^>]*data-memory-field="${field}"[^>]*>`).exec(html)?.[0];
+  const tag = inputTag(html, field);
   return tag === undefined ? undefined : (/ value="([^"]*)"/.exec(tag)?.[1] ?? "(no value)");
+}
+function inputTag(html: string, field: string): string | undefined {
+  return new RegExp(`<input[^>]*data-(?:memory|sleep)-field="${field}"[^>]*>`).exec(html)?.[0];
 }
 /** The markup of one part's row. */
 function row(html: string, part: string): string {
@@ -119,7 +125,7 @@ describe("profileValueOf: what the page shows for a stored profile", () => {
     for (const part of ["summaries", "understanding", "extraction"] as const) {
       expect(v.parts[part]).toEqual({ picker: { provider: "", model: "" }, line: "Same as the mind (gpt-5.6-terra)" });
     }
-    expect(v.memory).toEqual({ shelf_size: "50", sensitivity: "0.5", cap_per_turn: "3" });
+    expect(v.memory).toEqual({ shelf_size: "50", sensitivity: "0.5", cap_per_turn: "3", after_hours: "24", after_events: "500" });
   });
 
   it("a part with its own model shows it in the picker (with its reasoning) and in its line", () => {
@@ -286,7 +292,8 @@ describe("a member who may not configure him", () => {
     const html = page(ready(DEFAULTS), NOT_CREATOR);
     expect(count(html, /<input[^>]*disabled=""[^>]*data-memory-field=/g)).toBe(3);
     expect(count(html, /<button[^>]*role="tab"[^>]*disabled=""/g)).toBe(6);
-    expect(count(html, `data-af-tip="${NOT_CREATOR.replace(/'/g, "&#x27;")}"`)).toBe(2);
+    expect(count(html, `data-af-tip="${NOT_CREATOR.replace(/'/g, "&#x27;")}"`)).toBe(3);
+    expect(count(html, /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(2);
     // The stored state still reads truthfully.
     expect(count(html, "Same as the mind (gpt-5.6-terra)")).toBe(3);
     expect(inputValue(html, "shelf_size")).toBe("50");
@@ -486,7 +493,7 @@ describe("(3) keyboard: Enter saves in place, and the same save is sent once", (
 
   it("the field's Enter commits without blurring (the focus stays; Tab goes on to the next field)", () => {
     const src = fs.readFileSync(path.join(__dirname, "mind_cognition_profile.tsx"), "utf8");
-    expect(src).toContain('if (e.key === "Enter") onCommit(f.id);');
+    expect(src).toContain('if (e.key === "Enter") onCommit(field);');
     expect(src).not.toContain(".blur()");
   });
 });
@@ -541,5 +548,107 @@ describe("(5) words", () => {
 
   it("the access sentence stays a note, not an error", () => {
     expect(page(ready(DEFAULTS), NOT_CREATOR)).toMatch(/class="wsp_status wsp_status_refused" role="note"[^>]*data-tone="note"/);
+  });
+});
+
+// ------------------------------------------------------------ the Sleep card (phase contract v3 D2)
+
+describe("Sleep: when he goes to sleep on his own while idle (v3 D2, operator 2026-11-09)", () => {
+  const HOURS_RANGE = "Sleep after (hours) must be a whole number from 1 to 720.";
+  const withSleep = (after_hours: number, after_events: number): EntityCognitionProfile => ({ ...DEFAULTS, sleep: { after_hours, after_events, source: "profile" } });
+  const { sleep: _gone, ...NO_SLEEP } = DEFAULTS;
+
+  it("the answer: the sleep block's two numbers are checked; a gateway without the block still reads", () => {
+    expect(cognitionProfileOf(structuredClone(DEFAULTS)).sleep).toEqual({ after_hours: 24, after_events: 500, source: "default" });
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: { after_hours: "24", after_events: 500 } })).toThrow(/sleep\.after_hours/);
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: { after_hours: 24 } })).toThrow(/sleep\.after_events/);
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: null })).toThrow(/no valid sleep\./);
+    expect(cognitionProfileOf(structuredClone(NO_SLEEP)).sleep).toBeUndefined();
+  });
+
+  it("the card: its title, the help line, the two fields with the stored 24 / 500, usable", () => {
+    const html = page(ready(DEFAULTS));
+    expect(html).toMatch(/af-settings-group__title"[^>]*>Sleep</);
+    expect(html).toContain(SLEEP_HELP);
+    expect(SLEEP_HELP).toBe("When he is idle, he goes to sleep on his own once either is reached. Sleep is maintenance: he consolidates and enriches his memory.");
+    expect(html).toContain("Sleep after (hours without sleep)");
+    expect(html).toContain("Sleep after (new memories)");
+    expect(html.indexOf("Sleep after (hours without sleep)")).toBeGreaterThan(html.indexOf("Rebuilds per turn, at most"));
+    expect(inputValue(html, "after_hours")).toBe("24");
+    expect(inputValue(html, "after_events")).toBe("500");
+    expect(inputTag(html, "after_hours")).toMatch(/ min="1" max="720" step="1"/);
+    expect(inputTag(html, "after_events")).toMatch(/ min="1" step="1"/);
+    expect(inputTag(html, "after_hours")).not.toContain("disabled");
+    expect(inputTag(html, "after_events")).not.toContain("disabled");
+    expect(html).not.toContain(SLEEP_UNAVAILABLE);
+  });
+
+  it("what a change writes: only the threshold that moved, as typed (the gateway owns the ranges); the stored value writes nothing", () => {
+    expect(profileSaveBody({ field: "after_hours", text: "48" }, DEFAULTS)).toEqual({ sleep: { after_hours: 48 } });
+    expect(profileSaveBody({ field: "after_events", text: "800" }, DEFAULTS)).toEqual({ sleep: { after_events: 800 } });
+    expect(profileSaveBody({ field: "after_hours", text: "0" }, DEFAULTS)).toEqual({ sleep: { after_hours: 0 } });
+    expect(profileSaveBody({ field: "after_hours", text: "24" }, DEFAULTS)).toBeNull();
+    expect(profileSaveBody({ field: "after_events", text: " 500 " }, DEFAULTS)).toBeNull();
+    expect(profileSaveBody({ field: "after_events", text: "" }, DEFAULTS)).toBeNull();
+    // A gateway without the block: nothing to write to.
+    expect(profileSaveBody({ field: "after_hours", text: "48" }, NO_SLEEP)).toBeNull();
+  });
+
+  it("a save: PUT the one threshold with the token, read the profile again, Saved under that field only", async () => {
+    gateway({ PUT: [200, withSleep(48, 500)], GET: [200, withSleep(48, 500)] });
+    const outcome = await saveCognitionChange("http://gw.test", "nerin", "tok", profileSaveBody({ field: "after_hours", text: "48" }, DEFAULTS)!);
+    expect(calls.map((c) => [c.method, c.url, c.body, c.auth])).toEqual([
+      ["PUT", URL_OF, { sleep: { after_hours: 48 } }, "Bearer tok"],
+      ["GET", URL_OF, undefined, undefined],
+    ]);
+    const typed: ProfileState = { ...ready(DEFAULTS), drafts: { parts: {}, memory: { after_hours: "48" } } };
+    const after = afterSave(typed, "after_hours", outcome, "48");
+    expect(after.profile?.sleep?.after_hours).toBe(48);
+    const html = page(after);
+    expect(inputValue(html, "after_hours")).toBe("48");
+    expect(html).toMatch(/data-cognition-status="after_hours"[^>]*><div class="pc-md wl_line"><p[^>]*>Saved</);
+    expect(html).not.toContain('data-cognition-status="after_events"');
+  });
+
+  it("a refusal: the gateway's sentence as an error under the field, which returns to the stored value", async () => {
+    gateway({ PUT: [422, { detail: { reason_code: "invalid_sleep", message: HOURS_RANGE } }], GET: [200, DEFAULTS] });
+    const outcome = await saveCognitionChange("http://gw.test", "nerin", "tok", { sleep: { after_hours: 900 } });
+    expect(outcome).toEqual({ saved: false, sentence: HOURS_RANGE });
+    expect(calls.map((c) => c.method)).toEqual(["PUT"]);
+    const typed: ProfileState = { ...ready(DEFAULTS), drafts: { parts: {}, memory: { after_hours: "900" } } };
+    const html = page(afterSave(typed, "after_hours", outcome, "900"));
+    expect(inputValue(html, "after_hours")).toBe("24");
+    expect(html).toMatch(new RegExp(`<div class="stg_error wsp_status_refused" role="alert"[^>]*data-tone="error"><div class="pc-md wl_line"><p[^>]*>${HOURS_RANGE.replace(/[.()]/g, "\\$&")}<`));
+  });
+
+  it("the controller: typed then Enter saves once; each field keeps its own status beside Memory's", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.field("after_events", "600");
+    h.c.commit("after_events");
+    h.c.commit("after_events");
+    h.c.field("shelf_size", "500");
+    h.c.commit("shelf_size");
+    await flush();
+    // One save at a time: Memory's waits for Sleep's.
+    expect(h.sends).toEqual([{ sleep: { after_events: 600 } }]);
+    h.replies[0](storedRead(withSleep(24, 600)));
+    await flush();
+    expect(h.sends).toEqual([{ sleep: { after_events: 600 } }, { recall: { shelf_size: 500 } }]);
+    h.replies[1]({ saved: false, sentence: RANGE });
+    await h.c.idle();
+    expect(h.state.status).toEqual({ after_events: { text: "Saved", tone: "ok" }, shelf_size: { text: RANGE, tone: "refused" } });
+    expect(inputValue(page(h.state), "after_events")).toBe("600");
+  });
+
+  it("a gateway whose profile has no sleep block: one sentence in the card, its two fields disabled, the rest usable", () => {
+    const html = page(ready(NO_SLEEP as EntityCognitionProfile));
+    expect(SLEEP_UNAVAILABLE).toBe("This gateway does not offer the sleep settings yet.");
+    expect(count(html, SLEEP_UNAVAILABLE)).toBe(1);
+    expect(count(html, /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(2);
+    expect(count(html, /<input[^>]*disabled=""[^>]*data-memory-field=/g)).toBe(0);
+    expect(inputValue(html, "after_hours")).toBe("");
+    // Reading, or a gateway without the whole route: no sleep sentence of its own (the page says it once).
+    expect(page(PROFILE_READING)).not.toContain(SLEEP_UNAVAILABLE);
+    expect(count(page(PROFILE_READING), /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(2);
   });
 });

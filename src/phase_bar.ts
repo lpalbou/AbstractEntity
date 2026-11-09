@@ -1,27 +1,33 @@
 /**
  * The phase bar, as pure functions (operator ruling 2026-11-08, root
- * untracked/entity-phases-2026-11-08/TARGET.md; CONTRACT-phases.md v2, 2026-11-09): what the top bar
- * shows for one served life_state, what a click asks for, and what a write's answer means. No DOM,
- * so the tests pin every rule.
+ * untracked/entity-phases-2026-11-08/TARGET.md; CONTRACT-phases.md v2, 2026-11-09, and
+ * CONTRACT-v3-deltas.md: the five-state life cycle): what the top bar shows for one served
+ * life_state, what a click asks for, and what a write's answer means. No DOM, so the tests pin
+ * every rule.
  *
- * - Four pills. `visit` and `sleep` are indicators (lit when current; a click opens a visit /
- *   offers "sleep now"). `work` and `personal` are TOGGLES: pressed = allowed, and they light as
- *   well when they are the current phase. Labels never change (toggles show state, never verbs).
+ * - Four pills. `visit`, `work` and `sleep` are indicators (lit when current; a click on visit opens
+ *   a visit, on sleep offers "sleep now"; work has no click: it lights while he works, and its
+ *   tooltip names the current job and since when, and how many jobs are queued — v3 D1, there is
+ *   no work switch). `personal` is the one TOGGLE: pressed = allowed, and it lights as well when
+ *   it is the current phase. Labels never change (toggles show state, never verbs).
  * - What a pill may do, and its tooltip when it may not, come from the served `can` (§1.5), never a
  *   client rule: "sleep now" during a visit or while asleep (§13: only while asleep; once a sleep
  *   has ended, idle included, it is offered again), a toggle while stopped. One exception
  *   the contract asks for (§6.1, §8.3): while stopped the visit pill offers "Resume and visit", two
  *   visible acts, never a silent bypass.
- * - `idle` lights nothing (awake, reachable, nothing of his own running); `stopped` lights nothing
- *   either and turns the one power button into "Resume".
+ * - `idle` lights nothing (awake, reachable, nothing to do, own time not granted; a newborn starts
+ *   there); `stopped` lights nothing either and turns the one power button into "Resume".
  * - One power button, apart from the pills: red "Stop" while he runs, "Resume" when stopped. Stop
  *   is the kill switch: never held by a write in flight, a refusal, a failed read or the first
  *   read; only a stopped entity (then Resume) or a gateway without the bar holds it. A stop that
  *   left something outstanding (`complete: false`) keeps a Stop beside Resume, to retry it (§8.7).
+ *   v3 D3: Stop also cancels his own time (its confirmation says so before the click, its receipt
+ *   after); Resume lands him idle, and own time waits for the operator's grant.
  * - The status line is the gateway's sentence (it carries no clock time) and `since` formatted in
- *   the viewer's time (§8.8), then "then: own time" / "then: work" / "then: idle" when the gateway
- *   serves where he goes next (`next.phase`); `blocked` is a warning, with a Retry when the gateway
- *   offers that act (`blocked.action == "retry"`, §3.4).
+ *   the viewer's time (§8.8), then why he sleeps ("asleep: 24 h since the last sleep", from the
+ *   served `sleep.reason`, v3 D2), how many jobs are queued, and "then: own time" / "then: work" /
+ *   "then: idle" when the gateway serves where he goes next (`next.phase`); `blocked` is a
+ *   warning, with a Retry when the gateway offers that act (`blocked.action == "retry"`, §3.4).
  * - A served sentence wins: the app never adds its own words on top of it (operator 2026-11-09).
  *   What comes after now (`afterLine`) is the gateway's `next.sentence`; only where none is served
  *   does the app say it, by the ruling "own time is a privilege" (TARGET.md): the operator alone
@@ -33,7 +39,7 @@
  */
 import { formatExactTime, formatShortDate, timeValueMs } from "@abstractframework/ui-kit";
 
-import { PHASE_BAR_UNSERVED, parsePhaseBar, type PhaseBar, type PhaseCan, type PhaseCanEntry, type PhaseMarker, type PhaseToggles, type PhaseWire } from "./phase_bar_source";
+import { PHASE_BAR_UNSERVED, parsePhaseBar, type PhaseBar, type PhaseCan, type PhaseCanEntry, type PhaseMarker, type PhaseToggles, type PhaseWire, type PhaseWork } from "./phase_bar_source";
 
 export type PhaseSlotKey = "visit" | "work" | "personal" | "sleep";
 export const PHASE_SLOT_KEYS: readonly PhaseSlotKey[] = ["visit", "work", "personal", "sleep"];
@@ -89,12 +95,11 @@ export interface PhaseSlotView {
   glyph: string;
   /** The current phase. */
   lit: boolean;
-  /** Toggles only (work, personal): the phase is allowed. Undefined on indicators. */
+  /** The toggle only (personal): own time is allowed. Undefined on indicators. */
   pressed?: boolean;
   disabled: boolean;
   title: string;
-  /** A short state word beside the label ("waiting" while a visit waits for him, "finishing"
-   * while work winds down after Work was turned off), or "". */
+  /** A short state word beside the label ("waiting" while a visit waits for him), or "". */
   badge: string;
 }
 
@@ -117,6 +122,10 @@ export interface PhaseBarView {
   sentence: string;
   /** Since when, in the viewer's time ("since 19:30", "since Nov 7, 23:10"), or "". */
   since: string;
+  /** Why he sleeps ("asleep: 24 h since the last sleep"), from the served `sleep.reason`, or "". */
+  reason: string;
+  /** How many jobs are queued ("2 jobs queued"), or "" when none. */
+  queue: string;
   /** Where he goes next ("then: own time"), from the served `next.phase`, or "". */
   then: string;
   /** The sentence's tooltip: since when (exact, viewer-local) and what comes next. */
@@ -128,17 +137,19 @@ export interface PhaseBarView {
   live: boolean;
 }
 
-export const WORK_ALLOWED = "Work is allowed: automations, assigned tasks and requests may run.";
-export const WORK_NOT_ALLOWED = "Work is not allowed: nothing new is assigned to him.";
+/** The unlit work pill (v3 D1): no switch, a job starts it. */
+export const WORK_IDLE = "Not working now. Work starts when a job is queued for him: by you, an automation or an entity allowed to ask.";
 export const PERSONAL_ALLOWED = "Personal time is allowed: he explores his own ideas, sleeps for maintenance when he needs to and wakes by himself.";
 export const PERSONAL_NOT_ALLOWED = "Personal time is not allowed: he stays awake and can be visited.";
 export const VISIT_OFFER = "Visit him: opens the conversation.";
 export const VISIT_SHOW = "Click to see the conversation.";
 export const RESUME_AND_VISIT_OFFER = "Click to resume him, then visit.";
 export const SLEEP_OFFER = "Sleep now: he rests for his maintenance, then wakes by himself.";
-export const STOP_TITLE = "Stop everything at once: his own time, any work, any conversation in progress. Nothing starts again until you resume him.";
+export const STOP_TITLE = "Stop everything at once: any work, any conversation in progress, and his own time, which is cancelled. Nothing starts again until you resume him.";
+/** What Stop does, said in its confirmation before the click (v3 D3, operator 2026-11-09). */
+export const STOP_CONSEQUENCE = "Stop halts everything now and cancels his own time; after Resume he is idle until you grant own time again.";
 export const STOP_AGAIN_TITLE = "Part of the last stop did not finish. Stop again to retry what is left; he stays stopped either way.";
-export const RESUME_TITLE = "Resume him: his own time starts again if personal time is allowed, and visits can open.";
+export const RESUME_TITLE = "Resume him: he comes back idle, awake and visitable. His own time starts again only when you grant it.";
 export const RETRY_TITLE = "Start his own time again.";
 const READING = "Reading his phase…";
 /** The app's own lines about own time, only where the gateway serves no `next` (operator ruling
@@ -177,9 +188,34 @@ export function sinceWords(iso: string | null, nowMs: number): string {
   return new Date(nowMs).toDateString() === d.toDateString() ? `since ${clock}` : `since ${formatShortDate(ms, nowMs)}, ${clock}`;
 }
 
-const toggleCan = (can: PhaseCan, key: "work" | "personal"): PhaseCanEntry => (key === "work" ? can.toggle_work : can.toggle_personal);
+/** "summon", "work_order" -> "summon", "work order": the served kind, in words. */
+const kindWords = (kind: string): string => kind.replace(/_/g, " ");
 
-function slotView(bar: PhaseBar, key: PhaseSlotKey, writing: boolean, offerResume: boolean): PhaseSlotView {
+/** The job he works on now: "Current job: summon, since 18:20." ("" when none runs). */
+export function jobLine(work: PhaseWork, nowMs: number): string {
+  const job = work.current;
+  if (!job) return "";
+  const since = sinceWords(job.since, nowMs);
+  return `Current job: ${kindWords(job.kind)}${since ? `, ${since}` : ""}.`;
+}
+
+/** "1 job queued", "2 jobs queued"; "" when none. */
+export function queueWords(work: PhaseWork): string {
+  const n = work.jobs_queued;
+  return n > 0 ? `${n} ${n === 1 ? "job" : "jobs"} queued` : "";
+}
+
+/** Why he sleeps, as served (v3 D2: the threshold that fired): "asleep: 24 h since the last sleep";
+ * "" when he is not asleep or no reason is served. */
+export function reasonWords(bar: PhaseBar): string {
+  const reason = bar.phase === "sleep" ? bar.sleep?.reason?.replace(/\.$/, "") : null;
+  return reason ? `asleep: ${reason}` : "";
+}
+
+/** "2 jobs queued" -> "2 jobs queued."; "asleep: x" -> "Asleep: x." (a fragment as a tooltip sentence). */
+const sentenceOf = (words: string): string => (words ? `${words.charAt(0).toUpperCase()}${words.slice(1)}.` : "");
+
+function slotView(bar: PhaseBar, key: PhaseSlotKey, writing: boolean, offerResume: boolean, nowMs: number): PhaseSlotView {
   const lit = bar.phase === key;
   const base = { key, label: PHASE_LABELS[key], glyph: PHASE_GLYPHS[key], lit };
   switch (key) {
@@ -194,19 +230,22 @@ function slotView(bar: PhaseBar, key: PhaseSlotKey, writing: boolean, offerResum
       // waits), what comes after the visit, and the click.
       return { ...base, disabled: writing, title: lit ? [bar.sentence, afterLine(bar), VISIT_SHOW].filter(Boolean).join(" ") : VISIT_OFFER, badge: waiting ? "waiting" : "" };
     }
-    case "work":
+    case "work": {
+      // An indicator (v3 D1): nothing to click. Lit (or stopped): the gateway's sentence; always
+      // the current job (kind, since when) and the queue when the gateway serves them.
+      const title = [lit || bar.stopped ? bar.sentence : WORK_IDLE, jobLine(bar.work, nowMs), sentenceOf(queueWords(bar.work))].filter(Boolean).join(" ");
+      return { ...base, disabled: true, title, badge: "" };
+    }
     case "personal": {
-      const can = toggleCan(bar.can, key);
-      const finishing = key === "work" && lit && bar.work?.finishing === true;
-      const allowedWords = key === "work" ? (bar.toggles.work ? WORK_ALLOWED : WORK_NOT_ALLOWED) : bar.toggles.personal ? PERSONAL_ALLOWED : PERSONAL_NOT_ALLOWED;
-      // Lit: the gateway's sentence. Personal during an interruption: what happens to his own
-      // time after it.
-      const interrupted = key === "personal" && (bar.phase === "visit" || bar.phase === "work" || bar.phase === "sleep");
+      const can = bar.can.toggle_personal;
+      const allowedWords = bar.toggles.personal ? PERSONAL_ALLOWED : PERSONAL_NOT_ALLOWED;
+      // Lit: the gateway's sentence. During an interruption: what happens to his own time after it.
+      const interrupted = bar.phase === "visit" || bar.phase === "work" || bar.phase === "sleep";
       const title = can.allowed ? [allowedWords, lit ? bar.sentence : interrupted ? afterLine(bar) : ""].filter(Boolean).join(" ") : (can.sentence ?? "");
-      return { ...base, pressed: bar.toggles[key], disabled: writing || !can.allowed, title, badge: finishing ? "finishing" : "" };
+      return { ...base, pressed: bar.toggles.personal, disabled: writing || !can.allowed, title, badge: "" };
     }
     case "sleep": {
-      if (lit) return { ...base, disabled: true, title: [bar.sentence, afterLine(bar)].filter(Boolean).join(" "), badge: "" };
+      if (lit) return { ...base, disabled: true, title: [bar.sentence, sentenceOf(reasonWords(bar)), afterLine(bar)].filter(Boolean).join(" "), badge: "" };
       const can = bar.can.sleep_now;
       return { ...base, disabled: writing || !can.allowed, title: can.allowed ? SLEEP_OFFER : (can.sentence ?? ""), badge: "" };
     }
@@ -237,7 +276,7 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
         label: PHASE_LABELS[key],
         glyph: PHASE_GLYPHS[key],
         lit: false,
-        pressed: key === "work" || key === "personal" ? false : undefined,
+        pressed: key === "personal" ? false : undefined,
         disabled: true,
         title,
         badge: "",
@@ -247,6 +286,8 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
       retry: null,
       sentence,
       since: "",
+      reason: "",
+      queue: "",
       then: "",
       sentenceTitle: "",
       blocked: "",
@@ -257,7 +298,7 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
   const { bar } = read;
   // While an act (a Stop included) is in flight no pill acts.
   const writing = ui.busy !== null || ui.stopping === true;
-  const slots = PHASE_SLOT_KEYS.map((key) => slotView(bar, key, writing, offerResume));
+  const slots = PHASE_SLOT_KEYS.map((key) => slotView(bar, key, writing, offerResume, nowMs));
   const power: PowerView = bar.stopped
     ? { label: "Resume", danger: false, disabled: writing, title: RESUME_TITLE }
     : // The kill switch: never held by a write in flight (a Stop pressed again sends again).
@@ -272,6 +313,8 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
     retry,
     sentence: bar.sentence,
     since: sinceWords(bar.since, nowMs),
+    reason: reasonWords(bar),
+    queue: queueWords(bar.work),
     then: thenWords(bar),
     sentenceTitle: [exact, afterLine(bar)].filter(Boolean).join(" "),
     blocked: bar.blocked?.sentence ?? "",
@@ -325,7 +368,7 @@ export function adoptPhaseRead(read: PhaseBarRead, next: PhaseBarRead): PhaseBar
 /** Until the re-read: nothing may act on a moment the marker changed (phase or stop). */
 function heldCan(sentence: string): PhaseCan {
   const held = { allowed: false, sentence };
-  return { visit: held, sleep_now: held, toggle_work: held, toggle_personal: held };
+  return { visit: held, sleep_now: held, toggle_personal: held };
 }
 
 /** A stream marker with a higher rev repaints phase, toggles, stop, since and sentence at once; the
@@ -351,7 +394,8 @@ export function adoptPhaseMarker(read: PhaseBarRead, marker: PhaseMarker): Phase
       blocked: null,
       can: same && old.stopped === marker.stopped ? old.can : heldCan(READING),
       visit: same ? old.visit : null,
-      work: same ? old.work : null,
+      // The queue keeps its count until the re-read; the current job is that phase's fact.
+      work: same ? old.work : { jobs_queued: old.work.jobs_queued, current: null },
       sleep: same ? old.sleep : null,
     },
   };
@@ -363,7 +407,7 @@ export type PhaseActPlan =
   | { kind: "show_visit" }
   /** No visit: open the conversation and knock (the Chat tab's button; the visit door answers). */
   | { kind: "open_visit" }
-  /** Allow or stop allowing a phase (the gateway says what it means now). */
+  /** Allow or stop allowing own time (the one toggle; the gateway says what it means now). */
   | { kind: "toggle"; key: keyof PhaseToggles; on: boolean }
   /** Ask first, in the bar. */
   | { kind: "confirm"; confirm: PhaseConfirm }
@@ -396,9 +440,11 @@ export function phaseActPlan(read: PhaseBarRead, act: PhaseBarAct): PhaseActPlan
       if (!bar.can.visit.allowed) return bar.stopped ? { kind: "confirm", confirm: "resume_visit" } : refused(bar.can.visit);
       return bar.phase === "visit" ? { kind: "show_visit" } : { kind: "open_visit" };
     case "work":
+      // An indicator: there is no work switch (v3 D1).
+      return { kind: "none" };
     case "personal": {
-      const can = toggleCan(bar.can, act);
-      return can.allowed ? { kind: "toggle", key: act, on: !bar.toggles[act] } : refused(can);
+      const can = bar.can.toggle_personal;
+      return can.allowed ? { kind: "toggle", key: "personal", on: !bar.toggles.personal } : refused(can);
     }
     case "sleep":
       if (bar.phase === "sleep") return { kind: "none" };
@@ -412,14 +458,14 @@ export const REFUSAL_SENTENCES: Record<string, string> = {
   in_visit: "He is in a visit; end it to let him sleep.",
   already_asleep: "He is already resting; a sleep cannot follow a sleep.",
   entity_archived: "This entity is archived; restore it from the roster first.",
-  work_off: "Work is off for him; turn Work on to send him requests.",
+  unknown_field: "There is no work switch: work starts when a job is queued.",
   invalid_body: "The request body is not valid JSON.",
-  invalid_toggles: "Say which to change: work, personal or both, each true or false.",
+  invalid_toggles: "Say whether own time is allowed: personal, true or false.",
   invalid_action: "The action is stop, resume or retry.",
   entity_not_found: "There is no entity by this name.",
 };
 /** admin_required's own words are machine words ("Admin principal required."): always this one. */
-export const ADMIN_REQUIRED = "Only an admin can change what he may do, stop or resume him.";
+export const ADMIN_REQUIRED = "Only an admin can grant his own time, stop or resume him.";
 
 function messageOf(wire: PhaseWire): string {
   const b = wire.body;
@@ -435,7 +481,9 @@ function messageOf(wire: PhaseWire): string {
 
 /** What a write's answer means: the bar it carries (the answer's GET shape, or a refusal's
  * `detail.life_state`), the one sentence to show, and whether a stop left something outstanding
- * (`complete: false`: press Stop again to retry it). */
+ * (`complete: false`: press Stop again to retry it). A stop's receipt is its items' words: each
+ * item that failed (its sentence, else which one) and each item the gateway words (v3 D3: "Own
+ * time was revoked."). */
 export interface PhaseWriteOutcome {
   ok: boolean;
   bar: PhaseBar | null;
@@ -447,13 +495,17 @@ export function phaseWriteOutcome(wire: PhaseWire): PhaseWriteOutcome {
   if (wire.status >= 200 && wire.status < 300) {
     const bar = parsePhaseBar(wire.body);
     const items = Array.isArray(wire.body?.items) ? (wire.body!.items as unknown[]) : [];
-    const failed = items
-      .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object" && (i as Record<string, unknown>).outcome === "failed")
-      .map((i) => (typeof i.sentence === "string" && i.sentence.trim() ? i.sentence.trim() : `One part of the stop did not finish (${String(i.code ?? i.item ?? "unknown")}).`));
-    // A stop that stands with an item that failed says which; a toggle or a retry says what
-    // happens next: the gateway's words ("When the visit closes, his own time resumes."), else
-    // the app's ("Own time is off; he stays awake.").
-    return { ok: true, bar, sentence: failed.length ? failed.join(" ") : (bar ? afterLine(bar) || null : null), incomplete: wire.body?.complete === false };
+    const receipt = items
+      .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+      .map((i) => {
+        const said = typeof i.sentence === "string" ? i.sentence.trim() : "";
+        return said || (i.outcome === "failed" ? `One part of the stop did not finish (${String(i.code ?? i.item ?? "unknown")}).` : "");
+      })
+      .filter(Boolean);
+    // A stop says what its items say (a part that failed, own time revoked); a toggle or a retry
+    // says what happens next: the gateway's words ("When the visit closes, his own time
+    // resumes."), else the app's ("Own time is off; he stays awake.").
+    return { ok: true, bar, sentence: receipt.length ? receipt.join(" ") : (bar ? afterLine(bar) || null : null), incomplete: wire.body?.complete === false };
   }
   const detail = wire.body && typeof wire.body.detail === "object" && !Array.isArray(wire.body.detail) ? (wire.body.detail as Record<string, unknown>) : null;
   const carried = parsePhaseBar(detail?.life_state);

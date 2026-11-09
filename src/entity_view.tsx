@@ -1779,10 +1779,11 @@ export function EntityView(): React.ReactElement {
 
       {sourceKind === "gateway" && entityName && !gatewayLocked ? (
         <div className="entity_controls">
-          {/* THE PHASE BAR (operator ruling 2026-11-08, phase_bar.ts): visit and sleep are
-            * indicators, work and personal are toggles (pressed = allowed) that light when
-            * current, one Stop / Resume button apart from them; the line beside them is the
-            * gateway's sentence for now. A gateway without it gets one sentence and no controls. */}
+          {/* THE PHASE BAR (operator ruling 2026-11-08 + the 2026-11-09 five-state life cycle,
+            * phase_bar.ts): visit, work and sleep are indicators, personal is the one toggle
+            * (pressed = allowed) that lights when current, one Stop / Resume button apart from
+            * them; the line beside them is the gateway's sentence for now. A gateway without it
+            * gets one sentence and no controls. */}
           <PhaseBarControls
             view={phaseView}
             ui={phaseUi}

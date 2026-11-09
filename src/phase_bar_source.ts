@@ -1,41 +1,48 @@
 /**
  * The phase bar's gateway seam (operator ruling 2026-11-08, root
  * untracked/entity-phases-2026-11-08/TARGET.md; built against CONTRACT-phases.md v2 there,
- * 2026-11-09).
+ * 2026-11-09, with CONTRACT-v3-deltas.md on top: the five-state life cycle).
  *
  * One read and three writes, nothing else:
- *   - GET  /entities/{name}/life_state           (§1) the phase, the two toggles, the kill switch,
- *                                                 the sentence for now (no clock time: the app
- *                                                 formats `since`), what comes next, what blocks
- *                                                 (and the act that unblocks), what a person may
- *                                                 ask for now (`can`), the visit/work/sleep facts,
- *                                                 `rev` and `generation`;
- *   - PUT  /entities/{name}/life_state/toggles   (§2) {work?, personal?}: allow, or stop allowing;
+ *   - GET  /entities/{name}/life_state           (§1) the phase, the one toggle (personal), the
+ *                                                 kill switch, the sentence for now (no clock
+ *                                                 time: the app formats `since`), what comes next,
+ *                                                 what blocks (and the act that unblocks), what a
+ *                                                 person may ask for now (`can`), the visit/work/
+ *                                                 sleep facts (work: the job queue, v3 D1), `rev`
+ *                                                 and `generation`;
+ *   - PUT  /entities/{name}/life_state/toggles   (§2, v3 D1) {personal}: allow own time, or stop
+ *                                                 allowing it. There is no work switch: a body
+ *                                                 with `work` is refused (422 unknown_field), and
+ *                                                 this app never sends one;
  *   - POST /entities/{name}/lifecycle            (§3) {action: "stop" | "resume" | "retry"}: the
- *                                                 kill switch, and retry (start his own time again
- *                                                 after it stopped unexpectedly);
+ *                                                 kill switch (v3 D3: Stop also revokes own time;
+ *                                                 Resume lands idle), and retry (start his own
+ *                                                 time again after it stopped unexpectedly);
  *   - POST /entities/{name}/state                (§4.3, §8.5) {state: "sleep", dream: true}: the
  *                                                 operator's "sleep now".
  * Live (§5): a host envelope `payload.kind == "phase_changed"` on the replay stream the app already
  * holds; the highest `rev` wins, a lower one is ignored.
  *
  * Never hedged: a life_state answer without the contract's fields (an older gateway, v1's body
- * included: no `can`, no `generation`) is "this gateway does not serve the phase bar yet" (one
- * visible sentence, every control off), never a fall back to the old loop/start, loop/stop or
- * `state paused` routes, which this app no longer calls.
+ * included: no `can`, no `generation`; v2's too: its `work` is not the job queue) is "this gateway
+ * does not serve the phase bar yet" (one visible sentence, every control off), never a fall back
+ * to the old loop/start, loop/stop or `state paused` routes, which this app no longer calls.
  */
 import { joinBaseUrl } from "@abstractframework/ui-kit";
 
 import { gatewayReadHeaders, gatewayWriteHeaders } from "./stream_source";
 import type { ReplayEnvelope } from "./stream_types";
 
-/** What life_state.phase says (§1.2). `idle` = awake and reachable, nothing of his own running (a
- * computed label); `stopped` = the kill switch is on (outside the machine, unreachable). */
+/** What life_state.phase says (§1.2). `idle` = awake and reachable, nothing to do, own time not
+ * granted (v3: a state of its own; a newborn starts idle); `stopped` = the kill switch is on
+ * (outside the machine, unreachable). */
 export const SERVED_PHASES = ["visit", "work", "personal", "sleep", "stopped", "idle"] as const;
 export type ServedPhase = (typeof SERVED_PHASES)[number];
 
+/** v3 D1: the one toggle. Own time, granted or revoked by the operator only; there is no work
+ * switch (work starts when a job is queued). */
 export interface PhaseToggles {
-  work: boolean;
   personal: boolean;
 }
 
@@ -51,17 +58,25 @@ export interface PhaseVisit {
   waiting_for: "loop" | "maintenance" | null;
 }
 
-/** §1.3, present while the phase is work. `finishing`: Work was turned off while this work runs;
- * it finishes, then nothing new starts. */
-export interface PhaseWork {
+/** The job he is working on now (v3 D1): its kind ("summon", "work_order", "automation", …),
+ * its run and since when. */
+export interface PhaseJob {
   kind: string;
   run_id: string | null;
   since: string | null;
-  finishing: boolean;
+}
+
+/** v3 D1: his job queue, always served. A queued job moves idle or own time to work; when all are
+ * done he returns where `next.phase` says. `current` is null when no job runs. */
+export interface PhaseWork {
+  jobs_queued: number;
+  current: PhaseJob | null;
 }
 
 /** §1.3, present while the phase is sleep. `ends`: "when maintenance is done", an ISO time, or null
- * (nothing but a person ends it). */
+ * (nothing but a person ends it). `reason`: why he sleeps — for a sleep the idle thresholds started
+ * (v3 D2), the threshold that fired ("24 h since the last sleep", "500 new memories since the last
+ * sleep"). */
 export interface PhaseSleep {
   kind: string;
   reason: string | null;
@@ -75,14 +90,14 @@ export interface PhaseCanEntry {
   sentence: string | null;
 }
 
-/** §1.5: what a person may ask for now. Every control's enabled state and tooltip come from it. */
+/** §1.5: what a person may ask for now. Every control's enabled state and tooltip come from it.
+ * v3 D1: `toggle_work` is gone (no work switch). */
 export interface PhaseCan {
   visit: PhaseCanEntry;
   sleep_now: PhaseCanEntry;
-  toggle_work: PhaseCanEntry;
   toggle_personal: PhaseCanEntry;
 }
-export const PHASE_CAN_KEYS = ["visit", "sleep_now", "toggle_work", "toggle_personal"] as const;
+export const PHASE_CAN_KEYS = ["visit", "sleep_now", "toggle_personal"] as const;
 
 /** The served phase bar: the contract's GET body, the fields this app reads. */
 export interface PhaseBar {
@@ -104,7 +119,8 @@ export interface PhaseBar {
   blocked: { code: string; sentence: string; action: string | null } | null;
   can: PhaseCan;
   visit: PhaseVisit | null;
-  work: PhaseWork | null;
+  /** The job queue (v3 D1), in every phase. */
+  work: PhaseWork;
   sleep: PhaseSleep | null;
 }
 
@@ -170,11 +186,20 @@ function visitOf(v: unknown): PhaseVisit | null | undefined {
   };
 }
 
-function workOf(v: unknown): PhaseWork | null | undefined {
+function jobOf(v: unknown): PhaseJob | null | undefined {
   if (v === null) return null;
-  if (!isObj(v) || !has(v, "kind", "run_id", "since", "finishing") || typeof v.finishing !== "boolean") return undefined;
+  if (!isObj(v) || !has(v, "kind", "run_id", "since")) return undefined;
   const kind = text(v.kind);
-  return kind ? { kind, run_id: text(v.run_id), since: text(v.since), finishing: v.finishing } : undefined;
+  return kind ? { kind, run_id: text(v.run_id), since: text(v.since) } : undefined;
+}
+
+/** v3 D1: `{jobs_queued, current}`, never null (a v2 body's work sub-object is not the queue). */
+function workOf(v: unknown): PhaseWork | undefined {
+  if (!isObj(v) || !has(v, "jobs_queued", "current")) return undefined;
+  const n = v.jobs_queued;
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 0) return undefined;
+  const current = jobOf(v.current);
+  return current === undefined ? undefined : { jobs_queued: n, current };
 }
 
 function sleepOf(v: unknown): PhaseSleep | null | undefined {
@@ -194,7 +219,7 @@ export function parsePhaseBar(body: unknown): PhaseBar | null {
   if (typeof generation !== "number" || !Number.isInteger(generation) || generation < 0) return null;
   if (typeof phase !== "string" || !(SERVED_PHASES as readonly string[]).includes(phase)) return null;
   if (typeof stopped !== "boolean") return null;
-  if (!isObj(toggles) || typeof toggles.work !== "boolean" || typeof toggles.personal !== "boolean") return null;
+  if (!isObj(toggles) || typeof toggles.personal !== "boolean") return null;
   const sentence = text(body.sentence);
   if (!sentence) return null;
   if (body.since !== null && typeof body.since !== "string") return null;
@@ -210,7 +235,7 @@ export function parsePhaseBar(body: unknown): PhaseBar | null {
     generation,
     phase: phase as ServedPhase,
     stopped,
-    toggles: { work: toggles.work, personal: toggles.personal },
+    toggles: { personal: toggles.personal },
     since: text(body.since),
     sentence,
     next,
@@ -239,10 +264,10 @@ export function parsePhaseMarker(payload: unknown): PhaseMarker | null {
   if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1) return null;
   if (typeof generation !== "number" || !Number.isInteger(generation) || generation < 0) return null;
   if (typeof phase !== "string" || !(SERVED_PHASES as readonly string[]).includes(phase)) return null;
-  if (typeof stopped !== "boolean" || !isObj(toggles) || typeof toggles.work !== "boolean" || typeof toggles.personal !== "boolean") return null;
+  if (typeof stopped !== "boolean" || !isObj(toggles) || typeof toggles.personal !== "boolean") return null;
   const sentence = text(payload.sentence);
   if (!sentence) return null;
-  return { rev, generation, phase: phase as ServedPhase, stopped, toggles: { work: toggles.work, personal: toggles.personal }, since: text(payload.since), sentence };
+  return { rev, generation, phase: phase as ServedPhase, stopped, toggles: { personal: toggles.personal }, since: text(payload.since), sentence };
 }
 
 /** The highest-rev phase marker (§5) among `envelopes[from..]` and `prev` (the one an earlier pass
@@ -293,10 +318,14 @@ export async function getPhaseBar(baseUrl: string, entity: string, fetchImpl: Ph
   return phaseWireOf(res);
 }
 
-/** The PUT body for one toggle change: only the toggle that moved (§2: at least one key, no other
- * key, strict booleans). */
-export function toggleBody(key: keyof PhaseToggles, on: boolean): Record<string, boolean> {
-  return key === "work" ? { work: on } : { personal: on };
+/** The PUT body for the one toggle (§2, v3 D1): `{personal}`, a strict boolean, and nothing else —
+ * never `work` (there is no work switch; the gateway answers 422 unknown_field). */
+export function toggleBody(key: keyof PhaseToggles, on: boolean): PhaseToggles {
+  // Exhaustive: a second toggle key would fail to compile here, never send itself.
+  switch (key) {
+    case "personal":
+      return { personal: on };
+  }
 }
 
 export type LifecycleAction = "stop" | "resume" | "retry";
