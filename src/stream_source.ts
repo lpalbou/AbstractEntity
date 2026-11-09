@@ -1111,9 +1111,10 @@ function authHeaders(token: string | null): Record<string, string> {
   return headers;
 }
 
-async function postJson<T>(url: string, body: unknown, token: string | null, timeoutMs = 120000): Promise<T> {
+async function postJson<T>(url: string, body: unknown, token: string | null, timeoutMs: number | null = 120000): Promise<T> {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  // null = no client limit: the visit lane (a visit request never fails, operator 2026-11-09, root ADR-0027).
+  const timer = timeoutMs === null ? null : window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { credentials: "include", method: "POST", headers: authHeaders(token), body: JSON.stringify(body), signal: controller.signal });
     if (!res.ok) {
@@ -1124,7 +1125,7 @@ async function postJson<T>(url: string, body: unknown, token: string | null, tim
     }
     return (await res.json()) as T;
   } finally {
-    window.clearTimeout(timer);
+    if (timer !== null) window.clearTimeout(timer);
   }
 }
 
@@ -1156,9 +1157,9 @@ export function openChat(
   if (options.provider?.trim()) body["provider"] = options.provider.trim();
   if (options.model?.trim()) body["model"] = options.model.trim();
   if (options.base_url?.trim()) body["base_url"] = options.base_url.trim();
-  // The open may wait up to ~55s for the entity's own-time loop to yield
-  // at a tick boundary — the timeout must outlast that, honestly.
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/open`), body, token, 90000);
+  // No client limit: the open waits for the entity's own-time loop to finish
+  // its step in progress; a visit request never fails (operator 2026-11-09).
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/open`), body, token, null);
 }
 
 export function sendChatTurn(
@@ -1174,14 +1175,13 @@ export function sendChatTurn(
   // never to whoever originally opened the session.
   const body: Record<string, unknown> = { text };
   if (speaker?.trim()) body["speaker"] = speaker.trim();
-  // 10 min: the turn budget is 20 tool calls (maintainer ruling 2026-07-11)
-  // and a research-heavy turn legitimately chains many lookups — the client
-  // must not abort a healthy turn the server is still working.
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/turn`), body, token, 600000);
+  // No client limit: a research-heavy turn legitimately chains many lookups —
+  // the client never aborts a turn the server is still working.
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/turn`), body, token, null);
 }
 
 export function closeChat(baseUrl: string, entity: string, chatId: string, token: string | null): Promise<ChatCloseResult> {
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/close`), { reflect: true }, token, 300000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/chat/${encodeURIComponent(chatId)}/close`), { reflect: true }, token, null);
 }
 
 // ----------------------------------------------------------------- meets
@@ -1254,8 +1254,8 @@ export interface MeetCloseResult {
 
 /** Open a two-entity meet. Both legs summon under one visit_id; if the
  * second entity refuses, the gateway closes the first so a meet never
- * half-opens. The open can wait for a yielding own-time loop, so the
- * timeout outlasts a tick boundary (mirrors openChat). */
+ * half-opens. The open can wait for a yielding own-time loop, so it has
+ * no client limit (mirrors openChat). */
 export function openMeet(
   baseUrl: string,
   entityA: string,
@@ -1265,7 +1265,7 @@ export function openMeet(
 ): Promise<MeetOpenResult> {
   const body: Record<string, unknown> = { entity_a: entityA, entity_b: entityB };
   if (sessionId?.trim()) body["session_id"] = sessionId.trim();
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/meets/open`), body, token, 120000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/meets/open`), body, token, null);
 }
 
 /** One exchange: `opener` ('a'|'b') speaks the convener's `text`; the
@@ -1412,9 +1412,9 @@ export function openVisit(baseUrl: string, entity: string, token: string | null,
   const body: Record<string, unknown> = {};
   if (sessionId?.trim()) body["session_id"] = sessionId.trim();
   if (conversation) body["conversation"] = true;
-  // The open may auto-yield the own-time loop at a tick boundary (up to
-  // ~55s server-side) — same budget as the hosted lane's open.
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/open`), body, token, 90000);
+  // No client limit, as the hosted lane's open: the door waits for the own-time
+  // loop to finish its step in progress; a visit request never fails.
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/open`), body, token, null);
 }
 
 /** Public conversation projection and owned reply paths. Never read entity-private ledgers. */
@@ -1449,13 +1449,13 @@ export function getVisitConversation(baseUrl: string, entity: string, runId: str
   return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/state`));
 }
 export function guideVisit(baseUrl: string, entity: string, runId: string, text: string, displayText: string, token: string | null): Promise<{ accepted: boolean; seq?: number; run_id?: string }> {
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/guidance`), { text, display_text: displayText }, token);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/guidance`), { text, display_text: displayText }, token, null);
 }
 export function answerVisit(baseUrl: string, entity: string, runId: string, target: VisitPublicWait, response: string, token: string | null): Promise<{ accepted: boolean }> {
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/answer`), { wait_key: target.wait_key, response, target_run_id: target.run_id }, token);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/answer`), { wait_key: target.wait_key, response, target_run_id: target.run_id }, token, null);
 }
 export function decideVisit(baseUrl: string, entity: string, runId: string, target: VisitPublicWait, approved: boolean, token: string | null): Promise<{ accepted: boolean }> {
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/decision`), { wait_key: target.wait_key, approved }, token);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/decision`), { wait_key: target.wait_key, approved }, token, null);
 }
 /** Summoned Flow runs use the principal's workflow runtime, unlike private durable visits. */
 export function flowConversationCommand(baseUrl: string, runId: string, type: "inject_guidance" | "resume", payload: Record<string, unknown>, token: string | null): Promise<{ accepted: boolean; seq?: number }> {
@@ -1480,8 +1480,8 @@ export function sendVisitTurn(
   const body: Record<string, unknown> = { text };
   if (speaker?.trim()) body["speaker"] = speaker.trim();
   if (attachments.length > 0) body["attachments"] = attachments.map((a) => ({ path: a.path }));
-  // Same 10-min budget as the hosted lane (20-tool-call turns are legal).
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`), body, token, 600000);
+  // No client limit, as the hosted lane (20-tool-call turns are legal).
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`), body, token, null);
 }
 
 /** One `@entity` mention as the gateway answered it (`POST /sessions/{session_id}/mentions`,
@@ -1498,16 +1498,16 @@ export interface MentionWire {
  * that entity (its visit bound to this session) and records the reply as a turn of the session
  * with its `author`. `repeat_of`: the person's own turn of this session that carried the same
  * words (the gateway marks the mention turn with it; 422 `repeat_of_unknown` when it is not a
- * turn of this session). Ten minutes, as a visit turn (a mention IS one). */
+ * turn of this session). No client limit, as a visit turn (a mention IS one). */
 export async function postMention(
   baseUrl: string,
   sessionId: string,
   body: { entity: string; text: string; mention_index: number; repeat_of?: string },
   token: string | null,
-  timeoutMs = 600000,
+  timeoutMs: number | null = null,
 ): Promise<MentionWire> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = timeoutMs === null ? null : setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/sessions/${encodeURIComponent(sessionId)}/mentions`), {
       credentials: "include",
@@ -1526,7 +1526,7 @@ export async function postMention(
     const bodyCode = parsed && typeof parsed.code === "string" && parsed.code ? parsed.code : null;
     return { status: res.status, body: parsed, code: bodyCode || res.headers.get("X-Gateway-Error-Code") || null };
   } finally {
-    clearTimeout(timer);
+    if (timer !== null) clearTimeout(timer);
   }
 }
 
@@ -1539,14 +1539,14 @@ export function closeVisit(
   reason = "",
 ): Promise<VisitTurnResult> {
   const body = { closed_by: closedBy, reason };
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/close`), body, token, 300000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/close`), body, token, null);
 }
 
 /** Drive-to-park after a mid-turn kill (crash recovery; idempotent). The
  * door's turn() self-recovers running runs too — this is the explicit
  * repair verb for status views. */
 export function tickVisit(baseUrl: string, entity: string, runId: string, token: string | null): Promise<VisitTurnResult> {
-  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/tick`), {}, token, 600000);
+  return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/tick`), {}, token, null);
 }
 
 /** The conversation SEAT (gateway seat slice 1, c5390): who holds the one

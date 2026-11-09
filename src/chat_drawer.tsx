@@ -599,7 +599,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     // entity's persisted choice — the visit never asks separately. If no
     // choice exists anywhere, the gateway's refusal names the fix.
     setBusy("opening");
-    setNote("Opening — if his own time is running, this waits for the tick boundary (up to a minute)…");
+    setNote("Opening — if he is busy with his own time, he finishes what he is doing, then the visit opens…");
     const onOpened = (r: Awaited<ReturnType<typeof openVisit>>) => {
       setSeatBusy(false);
       setRunId(r.run_id);

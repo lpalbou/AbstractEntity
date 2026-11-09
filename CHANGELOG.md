@@ -4,6 +4,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Knocking for a visit always ends in the visit.** The app used to give up on its own after 90
+  seconds when the entity was busy with his own time, and showed an error. Opening a visit, sending
+  a message, answering his question, approving, guiding, closing, the recovery step, an @mention
+  and opening a meeting now wait for the gateway as long as it takes: the entity finishes the step
+  he is in, then the visit opens (operator 2026-11-09). The knock line says so instead of "up to a
+  minute".
 - **The phase bar: what he is doing, what he may do, and one Stop button.** The four pills at the
   top of an entity's page now say two different things. `work` and `personal` are switches:
   pressed (a filled ring) means he is allowed to work, or to have his own time (explore his ideas,
