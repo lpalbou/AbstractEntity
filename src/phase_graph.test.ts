@@ -328,10 +328,10 @@ describe("v19 cause-registry classes (semantics c4857)", () => {
 });
 
 describe("v22 target phases (operator ruling 2026-11-08 19:02 + 19:11; contract v2 §9)", () => {
-  it("is version 22 and ruled_by cites TARGET + the contract", () => {
-    expect(graph.version).toBe(22);
-    const last = graph.ruled_by[graph.ruled_by.length - 1];
-    expect(last.startsWith("v22-target-phases (operator ruling 2026-11-08 19:02 + 19:11 correction, untracked/entity-phases-2026-11-08/TARGET.md; contract v2 2026-11-09 §9): ")).toBe(true);
+  it("v22 is in ruled_by, citing TARGET + the contract", () => {
+    expect(graph.version).toBeGreaterThanOrEqual(22);
+    const v22 = graph.ruled_by.filter((r) => r.startsWith("v22-target-phases (operator ruling 2026-11-08 19:02 + 19:11 correction, untracked/entity-phases-2026-11-08/TARGET.md; contract v2 2026-11-09 §9): "));
+    expect(v22).toHaveLength(1);
   });
 
   it("idle and stopped are STATUSES outside the four phases: named, never phase keys, never an edge endpoint", () => {
@@ -391,6 +391,84 @@ describe("v22 target phases (operator ruling 2026-11-08 19:02 + 19:11; contract 
     const decision = inv.find((x) => x.startsWith("SLEEP-IS-A-DECISION")) ?? "";
     expect(decision).toContain("NEVER disarms the personal toggle and NEVER clears the work order");
     expect(graph.phases.personal.gating).toContain("Sleep never disarms it");
+  });
+});
+
+describe("v23 own time is a privilege (operator ruling 2026-11-09, TARGET 'Own time is a privilege')", () => {
+  const inv = graph.invariants as string[];
+  const intoPersonal = EDGES.filter((t) => t.to === "personal");
+
+  it("is version 23 and its ruled_by entry is the last one, citing the ruling", () => {
+    expect(graph.version).toBe(23);
+    const last = graph.ruled_by[graph.ruled_by.length - 1];
+    expect(last.startsWith("v23-own-time-privilege (operator ruling 2026-11-09, untracked/entity-phases-2026-11-08/TARGET.md 'Own time is a privilege'): ")).toBe(true);
+    expect(last).toContain("SCHEMA UNCHANGED");
+  });
+
+  it("the invariant: only the operator grants or revokes own time; personal is entered by his grant/resume or a return via resume_to, never from idle by the entity's choice; revoked meanwhile = idle", () => {
+    const rule = inv.filter((x) => x.startsWith("OWN-TIME-IS-A-PRIVILEGE (v23"));
+    expect(rule).toHaveLength(1);
+    for (const words of [
+      "granted or revoked ONLY by the operator",
+      "The entity NEVER gives itself own time",
+      "RETURNING to it via resume_to",
+      "never from idle by the entity's own choice",
+      "he ends IDLE: awake and visitable",
+      "No edge into personal carries the entity's own election",
+    ]) {
+      expect(rule[0]).toContain(words);
+    }
+  });
+
+  it("no edge into personal is the entity's own act: every entry is the operator, a door's restore or the loop's return", () => {
+    expect(intoPersonal.map((t) => t.edge_id).sort()).toEqual([
+      "personal->personal#personal_cycle",
+      "sleep->personal#maintenance_done",
+      "sleep->personal#operator",
+      "visit->personal#visit_close",
+      "work->personal#no_task",
+      "work->personal#operator",
+    ]);
+    for (const t of intoPersonal) {
+      expect(t.authority, t.edge_id).not.toBe("entity");
+      expect(t.cause, t.edge_id).not.toBe("self_elected");
+      expect(t.guards ?? [], t.edge_id).toContain("grant_armed");
+    }
+  });
+
+  it("every entry into personal that is not the operator's act is a RETURN: the restore at a visit close, resume_to after work or a sleep, or staying in personal", () => {
+    const returns = intoPersonal.filter((t) => t.authority !== "operator");
+    const why: Record<string, string> = {
+      "visit->personal#visit_close": "RESTORE-PREVIOUS",
+      "work->personal#no_task": "own time resumes when resume_to names it",
+      "sleep->personal#maintenance_done": "RETURNS to the phase the sleep interrupted (resume_to)",
+      "personal->personal#personal_cycle": "SELF-LOOP",
+    };
+    expect(returns.map((t) => t.edge_id).sort()).toEqual(Object.keys(why).sort());
+    for (const t of returns) expect(t.semantics, t.edge_id).toContain(why[t.edge_id]);
+    expect(EDGES.find((t) => t.edge_id === "work->personal#no_task")?.semantics).toContain("v23 OWN-TIME-IS-A-PRIVILEGE");
+    expect(EDGES.find((t) => t.edge_id === "sleep->personal#maintenance_done")?.semantics).toContain("v23 OWN-TIME-IS-A-PRIVILEGE");
+  });
+
+  it("personal says how it is entered, and idle is left for personal only by the operator's grant", () => {
+    expect(graph.phases.personal.entered_by.startsWith("v23 OWN-TIME-IS-A-PRIVILEGE: ONLY by the operator's grant or resume, or by RETURNING to it via resume_to — never from idle by the entity's own choice.")).toBe(true);
+    expect(graph.phases.personal.gating).toContain("v23: only the operator grants it too");
+    const idle = (graph as unknown as { statuses: Record<string, Record<string, string>> }).statuses.idle;
+    expect(idle.left_when).toContain("the operator turns personal on and reconcile starts own time (personal — the operator's grant only, never the entity's own choice");
+  });
+
+  it("the schema is v22's: same top-level keys, same edge fields, no cause added", () => {
+    expect(Object.keys(graph).sort()).toEqual(
+      [
+        "$comment", "artifact", "version", "ruled_by", "liveness_axis", "axes_note", "representation_note", "consumption_contract", "phases", "statuses",
+        "initial_phase", "transition_causes", "transition_causes_reserved", "transitions", "visit_boundaries", "composite_precedence", "wake_conditions",
+        "tunables", "invariants", "newborn_shape", "resolved_questions", "open_questions", "pressure_floor", "state_mode_axis", "cause_evaluators",
+        "graph_overlay_contract",
+      ].sort(),
+    );
+    const fields = new Set(["from", "to", "cause", "semantics", "edge_id", "authority", "edit_policy", "owner", "edit_policy_reason", "guards"]);
+    for (const t of graph.transitions) for (const k of Object.keys(t)) expect(fields.has(k), `${(t as Edge).edge_id}.${k}`).toBe(true);
+    expect([...graph.transition_causes].sort()).toEqual(["maintenance_done", "no_task", "operator", "personal_cycle", "self_elected", "task_complete", "visit_close", "visit_open", "crash_recovered"].sort());
   });
 });
 

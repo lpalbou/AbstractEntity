@@ -936,8 +936,10 @@ body {
   color: var(--text-dim);
   background: color-mix(in srgb, var(--text-dim) 14%, transparent);
 }
-/* Since when, in the viewer's time (the sentence carries no clock time). */
+/* Since when, in the viewer's time (the sentence carries no clock time), and where he goes next
+ * ("then: own time", from the served next.phase). */
 .ec_pb_since,
+.ec_pb_then,
 .esb_since {
   font-style: normal;
   white-space: nowrap;

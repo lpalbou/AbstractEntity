@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import { ALREADY_ASLEEP, CAN_ALL, IN_VISIT, LOOP_CRASHED, STOPPED_SLEEP, STOPPED_TOGGLE, STOPPED_VISIT, phaseBody } from "./fixtures/phase_bodies";
 import {
+  BACK_AFTER_SLEEP,
+  BACK_AFTER_VISIT,
+  OWN_TIME_OFF,
   PERSONAL_ALLOWED,
   PERSONAL_NOT_ALLOWED,
   RESUME_AND_VISIT_OFFER,
@@ -17,10 +20,7 @@ import {
   STOP_TITLE,
   VISIT_OFFER,
   VISIT_SHOW,
-  VISIT_WAITING_LOOP,
-  VISIT_WAITING_MAINTENANCE,
   WORK_ALLOWED,
-  WORK_FINISHING,
   WORK_NOT_ALLOWED,
   adoptPhaseBar,
   adoptPhaseMarker,
@@ -29,7 +29,10 @@ import {
   phaseActPlan,
   phaseBarRead,
   phaseBarView,
+  phaseWriteOutcome,
   sinceWords,
+  thenWords,
+  afterLine,
   type PhaseBarRead,
   type PhaseBarUi,
 } from "./phase_bar";
@@ -128,14 +131,15 @@ describe("visit: open, show, wait, and Resume and visit while stopped", () => {
     expect(slot(served("idle"), "visit").title).toBe(VISIT_OFFER);
     expect(phaseActPlan(served("idle"), "visit")).toEqual({ kind: "open_visit" });
     expect(phaseActPlan(served("visit"), "visit")).toEqual({ kind: "show_visit" });
-    expect(slot(served("visit"), "visit")).toMatchObject({ title: `In a visit with Laurent. ${VISIT_SHOW}`, badge: "" });
+    expect(slot(served("visit"), "visit")).toMatchObject({ title: `In a visit with Laurent. When the visit closes, his own time resumes. ${VISIT_SHOW}`, badge: "" });
   });
-  it("a visit that waits for him says so: 'waiting' beside the label, and for what in the tooltip", () => {
-    const visit = (waiting_for: string) => served("visit", { visit: { ...(phaseBody("visit").visit as object), waiting_for } });
-    expect(slot(visit("loop"), "visit")).toMatchObject({ badge: "waiting", lit: true });
-    expect(slot(visit("loop"), "visit").title).toContain(VISIT_WAITING_LOOP);
-    expect(slot(visit("maintenance"), "visit").title).toContain(VISIT_WAITING_MAINTENANCE);
-    expect(slot(visit("maintenance"), "visit").label).toBe("visit");
+  it("a visit that waits for him: 'waiting' beside the label; the tooltip is the gateway's sentence, which says it, with no words of the app's on top", () => {
+    const waitingSentence = "In a visit with Laurent; he is finishing what he was doing.";
+    const visit = (waiting_for: string) => served("visit", { sentence: waitingSentence, visit: { ...(phaseBody("visit").visit as object), waiting_for } });
+    for (const w of ["loop", "maintenance"]) {
+      expect(slot(visit(w), "visit")).toMatchObject({ badge: "waiting", lit: true, label: "visit" });
+      expect(slot(visit(w), "visit").title).toBe(`${waitingSentence} When the visit closes, his own time resumes. ${VISIT_SHOW}`);
+    }
   });
   it("stopped: the visit pill offers 'Resume and visit', asked first (two visible acts, never a silent bypass)", () => {
     expect(slot(served("stopped"), "visit")).toMatchObject({ disabled: false, title: `${STOPPED_VISIT} ${RESUME_AND_VISIT_OFFER}` });
@@ -155,8 +159,85 @@ describe("work: finishing after Work was turned off", () => {
   it("the lit work pill shows 'finishing' beside its label and says it in its tooltip", () => {
     const s = slot(served("work"), "work");
     expect(s).toMatchObject({ lit: true, pressed: false, badge: "finishing", label: "work" });
-    expect(s.title).toBe(`${WORK_NOT_ALLOWED} ${WORK_FINISHING} Working on a request from an agent; Work is off, so he stops after this run.`);
+    // The gateway's sentence says it; the app adds nothing on top.
+    expect(s.title).toBe(`${WORK_NOT_ALLOWED} Working on a request from an agent; Work is off, so he stops after this run.`);
     expect(slot(served("work", { work: { kind: "summon", run_id: "r", since: null, finishing: false }, toggles: { work: true, personal: false } }), "work").badge).toBe("");
+  });
+});
+
+describe("own time is a privilege (operator ruling 2026-11-09): a served sentence wins, else the app says where he returns", () => {
+  const visitWith = (personal: boolean, next: unknown = null) => served("visit", { toggles: { work: true, personal }, next });
+  const selfSleep = (personal: boolean, next: unknown = null) =>
+    served("sleep", { toggles: { work: true, personal }, next, sleep: { kind: "self", reason: "done enough", since: "2026-11-08T18:02:00.000+00:00", ends: "when maintenance is done" } });
+  const barOf = (r: PhaseBarRead) => {
+    if (r.kind !== "served") throw new Error("fixture");
+    return r.bar;
+  };
+  it("the gateway's next sentence wins everywhere it shows: the app's line is never added on top", () => {
+    const served_ = "When the visit closes, he returns to what he was doing.";
+    const r = visitWith(true, { phase: null, sentence: served_ });
+    expect(afterLine(barOf(r))).toBe(served_);
+    expect(slot(r, "visit").title).toBe(`In a visit with Laurent. ${served_} ${VISIT_SHOW}`);
+    expect(slot(r, "personal").title).toBe(`${PERSONAL_ALLOWED} ${served_}`);
+    expect(view(r).sentenceTitle).toMatch(new RegExp(`^Since .+\\. ${served_.replace(/\./g, "\\.")}$`));
+    for (const v of [slot(r, "visit").title, slot(r, "personal").title, view(r).sentenceTitle]) {
+      expect(v).not.toContain(BACK_AFTER_VISIT);
+      expect(v).not.toContain(OWN_TIME_OFF);
+    }
+    const sleepServed = selfSleep(true, { phase: "personal", sentence: "When maintenance is done he wakes and his own time resumes." });
+    expect(slot(sleepServed, "sleep").title).toBe("Resting for maintenance; wakes when done. When maintenance is done he wakes and his own time resumes.");
+    expect(slot(sleepServed, "sleep").title).not.toContain(BACK_AFTER_SLEEP);
+  });
+  it("a visit with no served next: back to his own time while personal is granted; with it revoked he stays awake", () => {
+    const granted = visitWith(true);
+    expect(afterLine(barOf(granted))).toBe(BACK_AFTER_VISIT);
+    expect(slot(granted, "visit").title).toBe(`In a visit with Laurent. ${BACK_AFTER_VISIT} ${VISIT_SHOW}`);
+    expect(slot(granted, "personal").title).toBe(`${PERSONAL_ALLOWED} ${BACK_AFTER_VISIT}`);
+    expect(view(granted).sentenceTitle).toMatch(/^Since .+\. Back to his own time after the visit\.$/);
+    const revoked = visitWith(false);
+    expect(afterLine(barOf(revoked))).toBe(OWN_TIME_OFF);
+    expect(slot(revoked, "visit").title).toBe(`In a visit with Laurent. ${OWN_TIME_OFF} ${VISIT_SHOW}`);
+    expect(slot(revoked, "personal").title).toBe(`${PERSONAL_NOT_ALLOWED} ${OWN_TIME_OFF}`);
+  });
+  it("a sleep he chose himself, no served next: back to his own time when he wakes while granted; an operator sleep gets no app line", () => {
+    const r = selfSleep(true);
+    expect(afterLine(barOf(r))).toBe(BACK_AFTER_SLEEP);
+    expect(slot(r, "sleep").title).toBe(`Resting for maintenance; wakes when done. ${BACK_AFTER_SLEEP}`);
+    expect(view(r).sentenceTitle).toMatch(/^Since .+\. Back to his own time when he wakes\.$/);
+    expect(afterLine(barOf(selfSleep(false)))).toBe("");
+    const operatorSleep = served("sleep", { next: null });
+    expect(afterLine(barOf(operatorSleep))).toBe("");
+    expect(slot(operatorSleep, "sleep").title).toBe("Resting for maintenance; wakes when done.");
+  });
+  it("the idle line: own time off says he stays awake; own time on (blocked) does not; his own time running has nothing to add", () => {
+    expect(afterLine(barOf(served("idle")))).toBe(OWN_TIME_OFF);
+    expect(view(served("idle")).sentenceTitle).toMatch(/^Since .+\. Own time is off; he stays awake\.$/);
+    expect(slot(served("idle"), "personal").title).toBe(PERSONAL_NOT_ALLOWED);
+    expect(afterLine(barOf(served("idle", { ...LOOP_CRASHED, toggles: { work: true, personal: true } })))).toBe("");
+    expect(afterLine(barOf(served("personal")))).toBe("");
+    expect(afterLine(barOf(served("stopped")))).toBe("");
+  });
+  it("then: where he goes next, from the served next.phase — own time, work or idle; nothing when none is served", () => {
+    expect(view(served("visit")).then).toBe("then: own time");
+    expect(view(served("work")).then).toBe("then: idle");
+    expect(thenWords(barOf(visitWith(true, { phase: "work", sentence: "When the visit closes, he goes back to work." })))).toBe("then: work");
+    expect(view(visitWith(true, { phase: null, sentence: "When the visit closes, he returns to what he was doing." })).then).toBe("");
+    expect(view(served("personal")).then).toBe("");
+    expect(view({ kind: "unserved" }).then).toBe("");
+  });
+  it("a toggle's answer says what happens next: the gateway's words, else the app's line", () => {
+    const off = phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit", { rev: 50, toggles: { work: true, personal: false }, next: null }) });
+    expect(off.sentence).toBe(OWN_TIME_OFF);
+    const on = phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit", { rev: 50, next: null }) });
+    expect(on.sentence).toBe(BACK_AFTER_VISIT);
+    expect(phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit") }).sentence).toBe("When the visit closes, his own time resumes.");
+    expect(phaseWriteOutcome({ status: 200, code: null, body: phaseBody("personal") }).sentence).toBeNull();
+  });
+  it("a stream marker into a visit drops next until the re-read: the app's line holds the place", () => {
+    const m = parsePhaseMarker({ kind: "phase_changed", name: "castor", from: "personal", to: "visit", phase: "visit", toggles: { work: true, personal: true }, stopped: false, since: "2026-11-08T18:50:00.000+00:00", rev: 49, generation: 7, cause: "visit_open", sentence: "In a visit with Laurent." })!;
+    const r = adoptPhaseMarker(served("personal"), m)!;
+    expect(view(r).then).toBe("");
+    expect(view(r).sentenceTitle).toMatch(/Back to his own time after the visit\.$/);
   });
 });
 

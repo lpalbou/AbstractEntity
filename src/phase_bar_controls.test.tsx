@@ -41,6 +41,14 @@ describe("PhaseBarControls", () => {
     expect(html).toContain(`>On his own time.<span class="ec_pb_since"> · ${sinceWords("2026-11-08T18:30:00.000+00:00", NOW)}</span></span>`);
   });
 
+  it("where he goes next sits after since ('then: own time' from the served next.phase); nothing when none is served", () => {
+    const html = render(read("visit"));
+    expect(html).toContain(`>In a visit with Laurent.<span class="ec_pb_since"> · ${sinceWords("2026-11-08T18:15:02.000+00:00", NOW)}</span><span class="ec_pb_then"> · then: own time</span></span>`);
+    expect(render(read("work"))).toContain('<span class="ec_pb_then"> · then: idle</span>');
+    expect(render(read("personal"))).not.toContain("ec_pb_then");
+    expect(render(read("visit", { next: { phase: null, sentence: "When the visit closes, he returns to what he was doing." } }))).not.toContain("ec_pb_then");
+  });
+
   it("idle: nothing lit, the toggles as they are, the gateway's sentence", () => {
     const html = render(read("idle"));
     expect(html).not.toContain("ec_pb_lit");

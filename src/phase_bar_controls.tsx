@@ -97,6 +97,7 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
         <span className="ec_pb_sentence" role="status" title={view.sentenceTitle || undefined}>
           {view.sentence}
           {view.since ? <span className="ec_pb_since"> · {view.since}</span> : null}
+          {view.then ? <span className="ec_pb_then"> · {view.then}</span> : null}
         </span>
       ) : null}
       {view.blocked ? <span className="ec_pb_blocked">{view.blocked}</span> : null}

@@ -4,6 +4,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **The phase bar says where he goes back to: own time is yours to give.** Only you grant or take
+  away his own time (the personal toggle, or Resume); he never gives it to himself. When a visit,
+  a sleep he chose or work ends, he goes back to what he was doing while you still allow it, and
+  stays awake and visitable when you turned it off. The line beside the pills now ends with
+  "then: own time", "then: work" or "then: idle" when the gateway says where he goes next, and the
+  tooltips say it in words: the gateway's own sentence when it sends one, otherwise "Back to his
+  own time after the visit", "Own time is off; he stays awake" or "Back to his own time when he
+  wakes". Tooltips no longer repeat in other words what the gateway's sentence already says (a
+  visit that waits for him, work that finishes). The phase graph (spec v23) records the rule.
 - **Sending a message again after a mention could not answer asks only who has not answered.**
   When one of the entities you mentioned cannot answer (it is asleep, say) or the call fails, the
   message box keeps your words and only the chips of the entities that were not asked, as before.

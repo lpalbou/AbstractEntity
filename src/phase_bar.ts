@@ -18,8 +18,13 @@
  *   read; only a stopped entity (then Resume) or a gateway without the bar holds it. A stop that
  *   left something outstanding (`complete: false`) keeps a Stop beside Resume, to retry it (§8.7).
  * - The status line is the gateway's sentence (it carries no clock time) and `since` formatted in
- *   the viewer's time (§8.8); `next` is the tooltip's second line, `blocked` a warning, with a
- *   Retry when the gateway offers that act (`blocked.action == "retry"`, §3.4).
+ *   the viewer's time (§8.8), then "then: own time" / "then: work" / "then: idle" when the gateway
+ *   serves where he goes next (`next.phase`); `blocked` is a warning, with a Retry when the gateway
+ *   offers that act (`blocked.action == "retry"`, §3.4).
+ * - A served sentence wins: the app never adds its own words on top of it (operator 2026-11-09).
+ *   What comes after now (`afterLine`) is the gateway's `next.sentence`; only where none is served
+ *   does the app say it, by the ruling "own time is a privilege" (TARGET.md): the operator alone
+ *   grants or revokes own time, and an interruption returns to it while it is granted.
  * - Every refusal is a sentence: the gateway's message, else the code's (contract §7).
  * - The highest `rev` wins (contract §5), and an answer from before a Stop (a lower `generation`)
  *   never repaints after it: an older read, answer or stream marker never repaints, and a failed
@@ -111,6 +116,8 @@ export interface PhaseBarView {
   sentence: string;
   /** Since when, in the viewer's time ("since 19:30", "since Nov 7, 23:10"), or "". */
   since: string;
+  /** Where he goes next ("then: own time"), from the served `next.phase`, or "". */
+  then: string;
   /** The sentence's tooltip: since when (exact, viewer-local) and what comes next. */
   sentenceTitle: string;
   /** Why an allowed phase is not running (shown as a warning), or "". */
@@ -122,13 +129,10 @@ export interface PhaseBarView {
 
 export const WORK_ALLOWED = "Work is allowed: automations, assigned tasks and requests may run.";
 export const WORK_NOT_ALLOWED = "Work is not allowed: nothing new is assigned to him.";
-export const WORK_FINISHING = "He finishes what he is doing; nothing new starts.";
 export const PERSONAL_ALLOWED = "Personal time is allowed: he explores his own ideas, sleeps for maintenance when he needs to and wakes by himself.";
 export const PERSONAL_NOT_ALLOWED = "Personal time is not allowed: he stays awake and can be visited.";
 export const VISIT_OFFER = "Visit him: opens the conversation.";
 export const VISIT_SHOW = "Click to see the conversation.";
-export const VISIT_WAITING_LOOP = "He is finishing what he was doing; the visit starts when he is done.";
-export const VISIT_WAITING_MAINTENANCE = "He is finishing his maintenance; the visit starts when it is done.";
 export const RESUME_AND_VISIT_OFFER = "Click to resume him, then visit.";
 export const SLEEP_OFFER = "Sleep now: he rests for his maintenance, then wakes by himself.";
 export const STOP_TITLE = "Stop everything at once: his own time, any work, any conversation in progress. Nothing starts again until you resume him.";
@@ -136,6 +140,32 @@ export const STOP_AGAIN_TITLE = "Part of the last stop did not finish. Stop agai
 export const RESUME_TITLE = "Resume him: his own time starts again if personal time is allowed, and visits can open.";
 export const RETRY_TITLE = "Start his own time again.";
 const READING = "Reading his phase…";
+/** The app's own lines about own time, only where the gateway serves no `next` (operator ruling
+ * 2026-11-09, TARGET.md "Own time is a privilege"). */
+export const BACK_AFTER_VISIT = "Back to his own time after the visit.";
+export const BACK_AFTER_SLEEP = "Back to his own time when he wakes.";
+export const OWN_TIME_OFF = "Own time is off; he stays awake.";
+
+/** What comes after now: the gateway's `next.sentence` when served (it wins, nothing added on
+ * top); else the app's line: a visit returns to his own time while personal is granted, and with
+ * it revoked he stays awake; a sleep he chose himself returns to his own time while it is granted;
+ * idle with own time off says so. "" when there is nothing to say. */
+export function afterLine(bar: PhaseBar): string {
+  if (bar.next) return bar.next.sentence;
+  const granted = bar.toggles.personal;
+  if (bar.phase === "visit") return granted ? BACK_AFTER_VISIT : OWN_TIME_OFF;
+  if (bar.phase === "sleep" && bar.sleep?.kind === "self" && granted) return BACK_AFTER_SLEEP;
+  if (bar.phase === "idle" && !granted) return OWN_TIME_OFF;
+  return "";
+}
+
+/** Where he goes next, as the gateway serves it (`next.phase`): "then: own time", "then: work",
+ * "then: idle"; "" when it serves none. */
+export function thenWords(bar: PhaseBar): string {
+  const phase = bar.next?.phase;
+  if (!phase) return "";
+  return `then: ${phase === "personal" ? "own time" : phase}`;
+}
 
 /** Since when, in the viewer's time: "since 19:30" today, "since Nov 7, 23:10" another day. */
 export function sinceWords(iso: string | null, nowMs: number): string {
@@ -154,24 +184,28 @@ function slotView(bar: PhaseBar, key: PhaseSlotKey, writing: boolean, offerResum
   switch (key) {
     case "visit": {
       const waiting = lit ? (bar.visit?.waiting_for ?? null) : null;
-      const waitWords = waiting === "maintenance" ? VISIT_WAITING_MAINTENANCE : waiting === "loop" ? VISIT_WAITING_LOOP : "";
       if (!bar.can.visit.allowed) {
         // Stopped: "Resume and visit", asked first (contract §6.1) — where a Resume is offered.
         const resumeVisit = bar.stopped && offerResume;
         return { ...base, disabled: writing || !resumeVisit, title: resumeVisit ? `${bar.can.visit.sentence} ${RESUME_AND_VISIT_OFFER}` : (bar.can.visit.sentence ?? ""), badge: "" };
       }
-      return { ...base, disabled: writing, title: lit ? [bar.sentence, waitWords, VISIT_SHOW].filter(Boolean).join(" ") : VISIT_OFFER, badge: waiting ? "waiting" : "" };
+      // Lit: the gateway's sentence (it says he is finishing what he was doing while the visit
+      // waits), what comes after the visit, and the click.
+      return { ...base, disabled: writing, title: lit ? [bar.sentence, afterLine(bar), VISIT_SHOW].filter(Boolean).join(" ") : VISIT_OFFER, badge: waiting ? "waiting" : "" };
     }
     case "work":
     case "personal": {
       const can = toggleCan(bar.can, key);
       const finishing = key === "work" && lit && bar.work?.finishing === true;
       const allowedWords = key === "work" ? (bar.toggles.work ? WORK_ALLOWED : WORK_NOT_ALLOWED) : bar.toggles.personal ? PERSONAL_ALLOWED : PERSONAL_NOT_ALLOWED;
-      const title = can.allowed ? [allowedWords, finishing ? WORK_FINISHING : "", lit ? bar.sentence : ""].filter(Boolean).join(" ") : (can.sentence ?? "");
+      // Lit: the gateway's sentence. Personal during an interruption: what happens to his own
+      // time after it.
+      const interrupted = key === "personal" && (bar.phase === "visit" || bar.phase === "work" || bar.phase === "sleep");
+      const title = can.allowed ? [allowedWords, lit ? bar.sentence : interrupted ? afterLine(bar) : ""].filter(Boolean).join(" ") : (can.sentence ?? "");
       return { ...base, pressed: bar.toggles[key], disabled: writing || !can.allowed, title, badge: finishing ? "finishing" : "" };
     }
     case "sleep": {
-      if (lit) return { ...base, disabled: true, title: bar.next ? `${bar.sentence} ${bar.next.sentence}` : bar.sentence, badge: "" };
+      if (lit) return { ...base, disabled: true, title: [bar.sentence, afterLine(bar)].filter(Boolean).join(" "), badge: "" };
       const can = bar.can.sleep_now;
       return { ...base, disabled: writing || !can.allowed, title: can.allowed ? SLEEP_OFFER : (can.sentence ?? ""), badge: "" };
     }
@@ -212,6 +246,7 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
       retry: null,
       sentence,
       since: "",
+      then: "",
       sentenceTitle: "",
       blocked: "",
       stopped: false,
@@ -236,7 +271,8 @@ export function phaseBarView(read: PhaseBarRead, ui: PhaseBarUi, opts: PhaseBarV
     retry,
     sentence: bar.sentence,
     since: sinceWords(bar.since, nowMs),
-    sentenceTitle: [exact, bar.next?.sentence ?? ""].filter(Boolean).join(" "),
+    then: thenWords(bar),
+    sentenceTitle: [exact, afterLine(bar)].filter(Boolean).join(" "),
     blocked: bar.blocked?.sentence ?? "",
     stopped: bar.stopped,
     live: true,
@@ -414,8 +450,9 @@ export function phaseWriteOutcome(wire: PhaseWire): PhaseWriteOutcome {
       .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object" && (i as Record<string, unknown>).outcome === "failed")
       .map((i) => (typeof i.sentence === "string" && i.sentence.trim() ? i.sentence.trim() : `One part of the stop did not finish (${String(i.code ?? i.item ?? "unknown")}).`));
     // A stop that stands with an item that failed says which; a toggle or a retry says what
-    // happens next ("When the visit closes, his own time resumes.").
-    return { ok: true, bar, sentence: failed.length ? failed.join(" ") : (bar?.next?.sentence ?? null), incomplete: wire.body?.complete === false };
+    // happens next: the gateway's words ("When the visit closes, his own time resumes."), else
+    // the app's ("Own time is off; he stays awake.").
+    return { ok: true, bar, sentence: failed.length ? failed.join(" ") : (bar ? afterLine(bar) || null : null), incomplete: wire.body?.complete === false };
   }
   const detail = wire.body && typeof wire.body.detail === "object" && !Array.isArray(wire.body.detail) ? (wire.body.detail as Record<string, unknown>) : null;
   const carried = parsePhaseBar(detail?.life_state);
