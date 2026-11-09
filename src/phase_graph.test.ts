@@ -46,8 +46,13 @@ describe("the canonical phase graph (spec/entity_phases.json)", () => {
     }
   });
 
-  it("newborn entities begin asleep", () => {
-    expect(graph.initial_phase).toBe("sleep");
+  it("v25: newborn entities begin idle (contract v3 D5) — initial_phase names the idle state, never a phase key", () => {
+    expect(graph.initial_phase).toBe("idle");
+    expect(PHASE_KEYS).not.toContain(graph.initial_phase);
+    expect(Object.keys((graph as unknown as { statuses: Record<string, unknown> }).statuses)).toContain(graph.initial_phase);
+    expect(graph.newborn_shape.startsWith("NEWBORN = IDLE (v25")).toBe(true);
+    expect((graph.invariants as string[]).some((x) => x.startsWith("NEWBORN = IDLE (v25"))).toBe(true);
+    expect((graph.invariants as string[]).some((x) => x.startsWith("NEWBORN = SLEEP"))).toBe(false);
   });
 
   it("visit-close restores work, personal (via grant), and sleep — all three restore edges exist", () => {
@@ -225,14 +230,16 @@ describe("this app's derivation maps onto the artifact's keys", () => {
     for (const t of md) expect(t.edit_policy).toBe("locked");
   });
 
-  it("v8 records laurent's dm#89 day rulings + the banked consumer asks; v22 makes work a TOGGLE (no longer always granted)", () => {
+  it("v8 records laurent's dm#89 day rulings + the banked consumer asks; v25 retires the v22 work TOGGLE: work is the job queue", () => {
     expect(graph.version).toBeGreaterThanOrEqual(8);
     expect(graph.ruled_by.some((r) => r.includes("drives-day-rulings"))).toBe(true);
-    // v22 supersedes dm#89 (3): the work toggle gates every admission point,
-    // and it ALLOWS work, never forces it.
-    expect(graph.phases.work.gating).toMatch(/^TOGGLE \(v22, supersedes dm#89 'work is always granted'\)/);
-    expect(graph.phases.work.gating).not.toMatch(/^NONE/);
-    for (const t of EDGES.filter((e) => e.to === "work")) expect(t.guards ?? [], `${t.edge_id} work_on`).toContain("work_on");
+    // v25 (contract v3 D1) supersedes v22's toggle: no switch admits or
+    // refuses work; a queued job starts it, every edge into work is guarded
+    // by the queue, and no edge carries the retired work_on guard.
+    expect(graph.phases.work.gating).toMatch(/^NONE \(v25, supersedes v22 TOGGLE; contract v3 D1\): there is NO work switch/);
+    for (const t of EDGES.filter((e) => e.to === "work")) expect(t.guards ?? [], `${t.edge_id} job_queued`).toEqual(["job_queued"]);
+    for (const t of EDGES) expect(t.guards ?? [], `${t.edge_id} retired guards`).not.toContain("work_on");
+    expect(JSON.stringify(graph)).not.toContain('"work_order_present"');
     for (const t of EDGES.filter((e) => e.to === "personal")) expect(t.guards ?? [], `${t.edge_id} grant_armed`).toContain("grant_armed");
     // Machine-readable mode axis (observer's banked ask): words + role enum.
     const sm = (graph as { state_mode_axis?: { words?: Record<string, { role?: string; phase?: string }> } }).state_mode_axis;
@@ -262,14 +269,17 @@ describe("v18 structural-edit schema (c4837 build order)", () => {
     }
   });
 
-  it("the v22 census holds: 21 edges = 6 loop / 8 door / 5 operator / 2 entity", () => {
+  it("the v25 census holds: 20 edges = 6 loop / 8 door / 4 operator / 2 entity", () => {
     // v21 was B's 22-edge census (9/8/4/1). v22 removed 8 timed/grant edges
     // and added 7 (two self-loops, no_task->personal, two maintenance_done
-    // wakes, work->sleep for the operator and for his own election).
+    // wakes, work->sleep for the operator and for his own election): 21.
+    // v25 removed work->personal#operator (the operator turning Work off —
+    // there is no work switch any more): 20.
     const by: Record<string, number> = {};
     for (const t of EDGES) by[t.authority] = (by[t.authority] ?? 0) + 1;
-    expect(by).toEqual({ loop: 6, door: 8, operator: 5, entity: 2 });
-    expect(EDGES).toHaveLength(21);
+    expect(by).toEqual({ loop: 6, door: 8, operator: 4, entity: 2 });
+    expect(EDGES).toHaveLength(20);
+    expect(EDGES.some((t) => t.edge_id === "work->personal#operator")).toBe(false);
   });
 
   it("every cause word has an evaluator row and no registry row is orphaned; both sleep elections are the entity's, locked", () => {
@@ -343,7 +353,9 @@ describe("v22 target phases (operator ruling 2026-11-08 19:02 + 19:11; contract 
     expect(statuses.stopped.axis).toContain("liveness_axis");
     expect(graph.liveness_axis.values).toEqual(["alive", "stop"]); // the kill switch keeps its axis
     const inv = graph.invariants as string[];
-    expect(inv.some((x) => x.startsWith("IDLE-IS-A-STATUS"))).toBe(true);
+    // v25 renames it: idle is one of the five STATES, still in the statuses block.
+    expect(inv.some((x) => x.startsWith("IDLE-IS-A-STATE (v25"))).toBe(true);
+    expect(inv.some((x) => x.startsWith("IDLE-IS-A-STATUS"))).toBe(false);
     expect(inv.some((x) => x.startsWith("IDLE-IS-SLEEP"))).toBe(false);
   });
 
@@ -424,7 +436,6 @@ describe("v23 own time is a privilege (operator ruling 2026-11-09, TARGET 'Own t
       "sleep->personal#operator",
       "visit->personal#visit_close",
       "work->personal#no_task",
-      "work->personal#operator",
     ]);
     for (const t of intoPersonal) {
       expect(t.authority, t.edge_id).not.toBe("entity");
@@ -448,7 +459,11 @@ describe("v23 own time is a privilege (operator ruling 2026-11-09, TARGET 'Own t
   });
 
   it("personal says how it is entered, and idle is left for personal only by the operator's grant", () => {
-    expect(graph.phases.personal.entered_by.startsWith("v23 OWN-TIME-IS-A-PRIVILEGE: ONLY by the operator's grant or resume, or by RETURNING to it via resume_to — never from idle by the entity's own choice.")).toBe(true);
+    expect(
+      graph.phases.personal.entered_by.startsWith(
+        "v23 OWN-TIME-IS-A-PRIVILEGE: ONLY by the operator's grant, or by RETURNING to it via resume_to — never from idle by the entity's own choice (v25: his Resume lands idle and never gives own time back; Stop revoked it).",
+      ),
+    ).toBe(true);
     expect(graph.phases.personal.gating).toContain("v23: only the operator grants it too");
     const idle = (graph as unknown as { statuses: Record<string, Record<string, string>> }).statuses.idle;
     expect(idle.left_when).toContain("the operator turns personal on and reconcile starts own time (personal — the operator's grant only, never the entity's own choice");
@@ -482,11 +497,11 @@ describe("v21 guard-merge law (c4934)", () => {
 describe("v24 maintenance_done shipped (runtime be5d4ce + a5ac083: the loop writes the phase_changed marker)", () => {
   const reg = (graph as unknown as Record<string, unknown>).cause_evaluators as Record<string, Record<string, unknown>>;
 
-  it("is version 24 and its ruled_by entry is the last one, citing the runtime receipts", () => {
-    expect(graph.version).toBe(24);
-    const last = graph.ruled_by[graph.ruled_by.length - 1];
-    expect(last.startsWith("v24-maintenance-done-shipped (runtime build receipts be5d4ce + a5ac083, 2026-11-09): ")).toBe(true);
-    expect(last).toContain("SCHEMA UNCHANGED");
+  it("its ruled_by entry is there once, citing the runtime receipts", () => {
+    expect(graph.version).toBeGreaterThanOrEqual(24);
+    const v24 = graph.ruled_by.filter((r) => r.startsWith("v24-maintenance-done-shipped (runtime build receipts be5d4ce + a5ac083, 2026-11-09): "));
+    expect(v24).toHaveLength(1);
+    expect(v24[0]).toContain("SCHEMA UNCHANGED");
   });
 
   it("maintenance_done is a SHIPPED evaluated predicate (the v20 vocabulary: status shipped, honest null symbol + site note); nothing else moved", () => {
@@ -502,5 +517,68 @@ describe("v24 maintenance_done shipped (runtime be5d4ce + a5ac083: the loop writ
       visit_open: "shipped", visit_close: "shipped", crash_recovered: "reserved", operator: "shipped", task_complete: "shipped",
       no_task: "shipped", self_elected: "shipped", personal_cycle: "reserved", maintenance_done: "shipped",
     });
+  });
+});
+
+describe("v25 the five-state life cycle (operator diagram 2026-11-09 15:38 + answers; TARGET 'FIVE-STATE LIFE CYCLE'; contract v3 D1-D5)", () => {
+  const inv = graph.invariants as string[];
+  const statuses = (graph as unknown as { statuses: Record<string, Record<string, string>> }).statuses;
+
+  it("is version 25 and its ruled_by entry is the last one, citing TARGET and the v3 deltas, schema unchanged", () => {
+    expect(graph.version).toBe(25);
+    const last = graph.ruled_by[graph.ruled_by.length - 1];
+    expect(last.startsWith("v25-five-state-life-cycle (operator diagram 2026-11-09 15:38 + answers, untracked/entity-phases-2026-11-08/TARGET.md 'FIVE-STATE LIFE CYCLE'; CONTRACT-v3-deltas.md D1-D5): ")).toBe(true);
+    expect(last).toContain("SCHEMA UNCHANGED");
+    expect(graph.ruled_by.filter((r) => r.startsWith("v25-"))).toHaveLength(1);
+  });
+
+  it("the five states are named once, idle among them; the statuses block keeps idle out of the phase keys and the edges", () => {
+    const rule = inv.filter((x) => x.startsWith("FIVE-STATE-LIFE-CYCLE (v25"));
+    expect(rule).toHaveLength(1);
+    expect(rule[0]).toContain("visit · idle · work · personal · sleep");
+    expect(statuses.$comment).toContain("FIVE STATES — visit · idle · work · personal · sleep");
+    expect(statuses.idle.definition).toContain("one of the five STATES");
+    expect(PHASE_KEYS).not.toContain("idle");
+    expect(EDGES.some((t) => t.from === "idle" || t.to === "idle")).toBe(false);
+  });
+
+  it("no work grant: work is the job queue; the toggle invariant is gone, the queue invariant is there", () => {
+    expect(inv.some((x) => x.startsWith("WORK-IS-A-TOGGLE"))).toBe(false);
+    const queue = inv.filter((x) => x.startsWith("WORK-IS-THE-JOB-QUEUE (v25"));
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toContain("there is no work switch");
+    expect(queue[0]).toContain("INTERRUPTS own time");
+    expect(inv.find((x) => x.startsWith("TOGGLES-ALLOW-NEVER-FORCE"))).toContain("personal is the one permission");
+    expect(graph.phases.work.entered_by.startsWith("v25 (contract v3 D1")).toBe(true);
+    // No surviving text gates work on a switch.
+    expect(JSON.stringify({ ...graph, ruled_by: [] })).not.toMatch(/Work on\b|Work is still on|Work allows/);
+  });
+
+  it("idle -> sleep by the operator's two Mind thresholds (24 h / 500 new memories), from idle only, back to idle — no edge, no new cause, no tunable", () => {
+    for (const text of [graph.phases.sleep.entered_by, statuses.idle.left_when]) {
+      expect(text).toContain("sleep.after_hours");
+      expect(text).toContain("sleep.after_events");
+    }
+    expect(graph.phases.sleep.entered_by).toContain("he RETURNS TO IDLE");
+    expect(graph.phases.sleep.behavior).toContain("from IDLE only, by the gateway's idle sweep");
+    expect(inv.find((x) => x.startsWith("SLEEP-IS-A-DECISION"))).toContain("No threshold ever applies in visit, work or personal.");
+    expect(Object.keys(graph.tunables)).not.toContain("sleep");
+    expect(JSON.stringify(graph.tunables)).not.toContain("after_hours");
+    expect([...graph.transition_causes].sort()).toEqual(["crash_recovered", "maintenance_done", "no_task", "operator", "personal_cycle", "self_elected", "task_complete", "visit_close", "visit_open"]);
+  });
+
+  it("Stop revokes own time; Resume lands idle and never gives it back", () => {
+    expect(statuses.stopped.entered_when).toContain("Stop also REVOKES the personal grant (written by the gateway as revoked_by: kill_switch) and clears resume_to");
+    expect(statuses.stopped.left_when).toContain("he lands IDLE, always");
+    expect(statuses.stopped.left_when).toContain("never gives own time back");
+    expect(statuses.stopped.toggles).toContain("Stop REVOKES the personal grant");
+    expect(statuses.idle.entered_when).toContain("the operator's Resume (always");
+    expect(inv.find((x) => x.startsWith("OWN-TIME-IS-A-PRIVILEGE"))).toContain("Resume lands IDLE");
+    expect(graph.phases.personal.gating).toContain("Stop REVOKES it (revoked_by kill_switch)");
+  });
+
+  it("the NEWBORN open question is resolved, not left open", () => {
+    expect((graph.open_questions as string[]).some((x) => x.startsWith("NEWBORN"))).toBe(false);
+    expect((graph.resolved_questions as string[]).some((x) => x.startsWith("NEWBORN (RESOLVED v25"))).toBe(true);
   });
 });
