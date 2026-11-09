@@ -4,6 +4,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **A mention is answered once, even when you send it again.** Each mention now carries its own
+  id (the message, the entity and its place in the message). When an answer was lost on the way
+  back (a timeout, a dropped connection) and you send the same words again, the gateway gives back
+  the answer the entity already wrote instead of asking it a second time; a new message is asked
+  as new. Needs an AbstractGateway that keeps mention ids (main f0f23bb0 or later).
+- **Phase bar, checked against the gateway's final notes.** "Sleep now" is refused only while he
+  is asleep; once a sleep has ended, it is offered again. "His own time is not running" gets the
+  same Retry button as a crash. A newborn's sleep stays lit until you wake him, with nothing saying
+  he wakes on his own. No behaviour change: these are now pinned by tests.
 - **The phase bar says where he goes back to: own time is yours to give.** Only you grant or take
   away his own time (the personal toggle, or Resume); he never gives it to himself. When a visit,
   a sleep he chose or work ends, he goes back to what he was doing while you still allow it, and

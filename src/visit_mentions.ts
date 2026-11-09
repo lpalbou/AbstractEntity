@@ -7,7 +7,7 @@
  * `GET /entities`, minus the entity being visited), never `@` read out of the text. On send the
  * person's turn goes to the visited entity exactly as before; then each mention, in the order it
  * was picked, is one `POST /sessions/{session_id}/mentions {entity, text, mention_index,
- * repeat_of?}`, the next only once the previous answered (so the second entity sees the first
+ * repeat_of?, mention_id}`, the next only once the previous answered (so the second entity sees the first
  * one's answer), and each reply is shown as a turn with its author. In a visit, the gateway also
  * says the reply to the entity being visited (`mirrors`): one small line says so.
  *
@@ -24,6 +24,13 @@
  * new turn of the person and never an entity that already answered. Different words are a new
  * message. Each entity is asked once per message (a duplicate pick keeps its first index).
  *
+ * ONE ANSWER PER MENTION (AbstractGateway f0f23bb0, `mention_id`): every mention carries its own
+ * id, `<message>:<entity>:<mention_index>`, where the message is the person's own turn
+ * (`repeat_of`) or, with none (the visit lane), an id minted once for that message and held with
+ * it. A resend of that mention (after a 503, a timeout or a lost answer) names the same id, so the
+ * gateway gives back the first answer instead of asking the entity again; a new message names a
+ * new one.
+ *
  * DOM-free; pinned by visit_mentions.test.ts.
  */
 import {
@@ -39,11 +46,39 @@ import {
   type MentionResend,
 } from "@abstractframework/panel-chat";
 
-import type { MentionWire } from "./stream_source";
+import type { MentionBody, MentionWire } from "./stream_source";
 import type { ChatComposerProps } from "./vendor/abstractchat/conversation";
 
 /** The one sentence on a gateway without the mentions route. */
 export const MENTIONS_UNAVAILABLE = "This gateway does not offer mentions yet";
+
+/** A fresh message id for `mention_id`: "msg-" and 24 random hex digits (crypto.getRandomValues:
+ * any page, secure context or not). */
+export function mintMessageId(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  return `msg-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** The message part of its mentions' ids: the person's own turn of the session (`repeat_of`, the
+ * flow lane) when the message has one, else an id minted now (the visit lane: its turn lives in
+ * the entity's home, not in the session). Taken ONCE per message and held with it for a resend. */
+export function mentionMessageKey(repeatOf: string | null, mint: () => string = mintMessageId): string {
+  return String(repeatOf ?? "").trim() || mint();
+}
+
+/** One mention's `mention_id`: `<message>:<entity>:<mention_index>`, the same on every resend of
+ * that mention, another for a new message. A message without its key is a bug: it throws. */
+export function mentionId(message: string, mention: Pick<ChatMentionSent, "id" | "index">): string {
+  const key = String(message ?? "").trim();
+  if (!key) throw new Error("A mention needs its message key (mention_id).");
+  return `${key}:${mention.id}:${mention.index}`;
+}
+
+/** The request body of one mention: the words as typed, the entity, its index, `repeat_of` when the
+ * message has a turn in the session, and its `mention_id`. */
+export function mentionBody(text: string, mention: ChatMentionSent, repeatOf: string | null, message: string): MentionBody {
+  return { entity: mention.id, text, mention_index: mention.index, ...(repeatOf ? { repeat_of: repeatOf } : {}), mention_id: mentionId(message, mention) };
+}
 
 /** The `GET /entities` row slice a mention list reads. */
 export type MentionableEntity = { name: string; slug: string; entity_id?: string; avatar?: ChatAvatarLook | null };
@@ -227,18 +262,21 @@ export function chipsToRestore(sent: readonly ChatMention[], unsent: readonly Ch
 
 /**
  * A message whose mentions stopped partway, held for its resend: the conversation it belongs to
- * (`sessionId`), its words, `repeat_of` and the mentions not answered with their first index
- * (`resend`, the kit's shape), and every entity that answered it (`answered`, mention keys).
+ * (`sessionId`), its key (`message`: every resend names the same `mention_id`s), its words,
+ * `repeat_of` and the mentions not answered with their first index (`resend`, the kit's shape),
+ * and every entity that answered it (`answered`, mention keys).
  */
-export type HeldMentions = { sessionId: string; resend: MentionResend; answered: string[] };
+export type HeldMentions = { sessionId: string; message: string; resend: MentionResend; answered: string[] };
 
 /**
  * What a run leaves to resend: held when a 503 or a failure stopped it with mentions not
- * answered, else null (every mention answered, was skipped, or the route is missing).
+ * answered, else null (every mention answered, was skipped, or the route is missing). `message`:
+ * the key its mentions were sent with (`mentionMessageKey`), kept for the resend.
  * `answeredBefore`: the entities that answered the earlier sends of the same message.
  */
 export function heldAfterRun(
   sessionId: string,
+  message: string,
   text: string,
   repeatOf: string | null,
   result: Pick<MentionRunResult, "unsent" | "answered">,
@@ -247,7 +285,7 @@ export function heldAfterRun(
   // `unsent` is only ever set by a stop (a 503 or a failure), never by a skip or a missing route.
   if (!result.unsent.length) return null;
   const answered = [...new Set([...answeredBefore, ...result.answered.map(mentionKey)])];
-  return { sessionId, resend: { text, repeatOf, unsent: result.unsent.map((m) => ({ ...m })) }, answered };
+  return { sessionId, message, resend: { text, repeatOf, unsent: result.unsent.map((m) => ({ ...m })) }, answered };
 }
 
 /** A resend: the mentions to ask, and the chips naming an entity that already answered (said,

@@ -16,11 +16,15 @@ import {
   flowMentionKey,
   heldAfterRun,
   meetOffers,
+  mentionBody,
   mentionCandidatesFor,
+  mentionId,
+  mentionMessageKey,
   mentionMirrors,
   mentionNotice,
   mentionOutcome,
   mentionResendPlan,
+  mintMessageId,
   mirrorLine,
   orderedMentions,
   runMentions,
@@ -260,21 +264,21 @@ describe("the resend of a message whose mentions stopped partway", () => {
   const WORDS = "is the plan sound?";
   // Castor answered, Pollux could not (503): Polaris was not asked.
   const stopped = { keepDraft: true, answered: [sent("castor", "Castor", 0)], unsent: [sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)] };
-  const held = heldAfterRun("s-1", WORDS, "run-turn-1", stopped) as HeldMentions;
+  const held = heldAfterRun("s-1", "run-turn-1", WORDS, "run-turn-1", stopped) as HeldMentions;
 
   it("a stop holds the words, the repeat_of, the mentions not answered (first index) and who answered", () => {
-    expect(held).toEqual({ sessionId: "s-1", resend: { text: WORDS, repeatOf: "run-turn-1", unsent: [sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)] }, answered: ["entity:castor"] });
-    // The visit lane sends no repeat_of: held as null, resent as null.
-    expect(heldAfterRun("s-1", WORDS, null, stopped)?.resend.repeatOf).toBeNull();
+    expect(held).toEqual({ sessionId: "s-1", message: "run-turn-1", resend: { text: WORDS, repeatOf: "run-turn-1", unsent: [sent("pollux", "Pollux", 1), sent("polaris", "Polaris", 2)] }, answered: ["entity:castor"] });
+    // The visit lane sends no repeat_of: held as null, resent as null; its minted key is held.
+    expect(heldAfterRun("s-1", "msg-1", WORDS, null, stopped)).toMatchObject({ message: "msg-1", resend: { repeatOf: null } });
   });
 
   it("nothing is held when nothing stopped (all answered, a 409 skip, the route missing)", async () => {
-    expect(heldAfterRun("s-1", WORDS, null, { answered: [sent("castor", "Castor", 0)], unsent: [] })).toBeNull();
-    expect(heldAfterRun("s-1", WORDS, null, { answered: [], unsent: [] })).toBeNull();
+    expect(heldAfterRun("s-1", "msg-1", WORDS, null, { answered: [sent("castor", "Castor", 0)], unsent: [] })).toBeNull();
+    expect(heldAfterRun("s-1", "msg-1", WORDS, null, { answered: [], unsent: [] })).toBeNull();
     // From real runs: a 409 skip and an older gateway's missing route leave nothing to resend.
     for (const wire of [refused(409, "in_another_conversation", "x"), refused(404, null), refused(405, null)]) {
       const out = await runMentions([sent("castor", "Castor", 0)], { post: async () => wire, onReply: () => undefined });
-      expect(heldAfterRun("s-1", WORDS, null, out)).toBeNull();
+      expect(heldAfterRun("s-1", "msg-1", WORDS, null, out)).toBeNull();
     }
   });
 
@@ -305,7 +309,7 @@ describe("the resend of a message whose mentions stopped partway", () => {
   });
 
   it("a resend that stops again keeps everyone who answered, across both sends", () => {
-    const again = heldAfterRun("s-1", WORDS, "run-turn-1", { keepDraft: true, answered: [sent("pollux", "Pollux", 1)], unsent: [sent("polaris", "Polaris", 2)] }, held.answered)!;
+    const again = heldAfterRun("s-1", "run-turn-1", WORDS, "run-turn-1", { keepDraft: true, answered: [sent("pollux", "Pollux", 1)], unsent: [sent("polaris", "Polaris", 2)] }, held.answered)!;
     expect(again.answered).toEqual(["entity:castor", "entity:pollux"]);
     expect(again.resend.unsent).toEqual([sent("polaris", "Polaris", 2)]);
     expect(mentionResendPlan(again, "s-1", WORDS, [sent("pollux", "Pollux", 0), sent("polaris", "Polaris", 1)])).toEqual({ ask: [sent("polaris", "Polaris", 2)], alreadyAnswered: [sent("pollux", "Pollux", 3)] });
@@ -316,13 +320,56 @@ describe("the resend of a message whose mentions stopped partway", () => {
     const answers = [ok("Castor here."), refused(503, "entity_cannot_answer", "Pollux cannot answer: asleep."), ok("Pollux here.")];
     const post = async (m: ChatMentionSent) => (posted.push(`${m.id}#${m.index}`), answers.shift()!);
     const first = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], { post, onReply: () => undefined });
-    const kept = heldAfterRun("s-1", WORDS, null, first)!;
+    const kept = heldAfterRun("s-1", "msg-1", WORDS, null, first)!;
     const chips = chipsToRestore([{ id: "castor", name: "Castor", kind: "entity" }, { id: "pollux", name: "Pollux", kind: "entity" }], first.unsent);
     expect(chips.map((c) => c.id)).toEqual(["pollux"]);
     const plan = mentionResendPlan(kept, "s-1", WORDS, chips.map((c, index) => ({ id: c.id, name: c.name, kind: c.kind, index })))!;
     const second = await runMentions(plan.ask, { post, onReply: () => undefined });
     expect(posted).toEqual(["castor#0", "pollux#1", "pollux#1"]);
-    expect(heldAfterRun("s-1", WORDS, null, second, kept.answered)).toBeNull();
+    expect(heldAfterRun("s-1", "msg-1", WORDS, null, second, kept.answered)).toBeNull();
+  });
+});
+
+describe("one answer per mention: mention_id (AbstractGateway f0f23bb0)", () => {
+  const WORDS = "is the plan sound?";
+  const bodyOf = (text: string, m: ChatMentionSent, repeatOf: string | null, message: string) => mentionBody(text, m, repeatOf, message);
+
+  it("the key is <message>:<entity>:<mention_index>; the message is the person's turn, else an id minted for it", () => {
+    expect(mentionBody(WORDS, sent("castor", "Castor", 0), "run-turn-1", "run-turn-1")).toEqual({ entity: "castor", text: WORDS, mention_index: 0, repeat_of: "run-turn-1", mention_id: "run-turn-1:castor:0" });
+    expect(mentionBody(WORDS, sent("pollux", "Pollux", 1), null, "msg-7")).toEqual({ entity: "pollux", text: WORDS, mention_index: 1, mention_id: "msg-7:pollux:1" });
+    expect(mentionMessageKey("run-turn-1", () => "msg-x")).toBe("run-turn-1");
+    expect(mentionMessageKey(null, () => "msg-x")).toBe("msg-x");
+    expect(mentionMessageKey("  ", () => "msg-x")).toBe("msg-x");
+    expect(mintMessageId()).toMatch(/^msg-[0-9a-f]{24}$/);
+    // A message without its key fails loudly, never an id that is the same for every message.
+    expect(() => mentionId("", sent("castor", "Castor", 0))).toThrow();
+  });
+
+  it("a new message changes the key: another turn, or another minted id in the visit lane", () => {
+    const castor = sent("castor", "Castor", 0);
+    expect(bodyOf(WORDS, castor, "run-turn-1", "run-turn-1").mention_id).not.toBe(bodyOf(WORDS, castor, "run-turn-2", "run-turn-2").mention_id);
+    const a = mentionMessageKey(null);
+    const b = mentionMessageKey(null);
+    expect(a).not.toBe(b);
+    expect(bodyOf(WORDS, castor, null, a).mention_id).not.toBe(bodyOf(WORDS, castor, null, b).mention_id);
+  });
+
+  it.each([["the flow lane (repeat_of)", "run-turn-1"], ["the visit lane (no repeat_of)", null]] as const)("%s: a resend after a 503 or a lost answer names the same mention_id", async (_lane, repeatOf) => {
+    const posted: Array<{ mention_id: string; repeat_of?: string }> = [];
+    const answers: Array<MentionWire | Error> = [ok("Castor here."), new Error("timeout"), ok("Pollux here.")];
+    const message = mentionMessageKey(repeatOf);
+    const post = (msg: string) => async (m: ChatMentionSent) => {
+      posted.push(bodyOf(WORDS, m, repeatOf, msg));
+      const next = answers.shift()!;
+      if (next instanceof Error) throw next;
+      return next;
+    };
+    const first = await runMentions([sent("castor", "Castor", 0), sent("pollux", "Pollux", 1)], { post: post(message), onReply: () => undefined });
+    const held = heldAfterRun("s-1", message, WORDS, repeatOf, first)!;
+    const plan = mentionResendPlan(held, "s-1", WORDS, [sent("pollux", "Pollux", 0)])!;
+    await runMentions(plan.ask, { post: post(held.message), onReply: () => undefined });
+    expect(posted.map((b) => b.mention_id)).toEqual([`${message}:castor:0`, `${message}:pollux:1`, `${message}:pollux:1`]);
+    expect(posted[2]).toEqual(posted[1]);
   });
 });
 
@@ -387,22 +434,22 @@ describe("the transport", () => {
         ? new Response(JSON.stringify({ detail: "Castor is in another conversation.", code: "in_another_conversation", session_id: "s-9" }), { status: 409 })
         : new Response(JSON.stringify({ detail: "Castor cannot answer: x" }), { status: 503, headers: { "X-Gateway-Error-Code": "entity_cannot_answer" } });
     }));
-    const first = await postMention("http://gw", "visit castor/1", { entity: "castor", text: "hi @all", mention_index: 2 }, "tok");
+    const first = await postMention("http://gw", "visit castor/1", { entity: "castor", text: "hi @all", mention_index: 2, mention_id: "msg-1:castor:2" }, "tok");
     expect(seen[0].url).toBe("http://gw/api/gateway/sessions/visit%20castor%2F1/mentions");
     expect(seen[0].init.method).toBe("POST");
-    expect(JSON.parse(String(seen[0].init.body))).toEqual({ entity: "castor", text: "hi @all", mention_index: 2 });
+    expect(JSON.parse(String(seen[0].init.body))).toEqual({ entity: "castor", text: "hi @all", mention_index: 2, mention_id: "msg-1:castor:2" });
     expect((seen[0].init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
     expect(first).toEqual({ status: 409, body: { detail: "Castor is in another conversation.", code: "in_another_conversation", session_id: "s-9" }, code: "in_another_conversation" });
-    const second = await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0, repeat_of: "run-turn-1" }, null);
+    const second = await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0, repeat_of: "run-turn-1", mention_id: "run-turn-1:castor:0" }, null);
     expect(second.code).toBe("entity_cannot_answer");
     expect(second.status).toBe(503);
-    expect(JSON.parse(String(seen[1].init.body))).toEqual({ entity: "castor", text: "hi", mention_index: 0, repeat_of: "run-turn-1" });
+    expect(JSON.parse(String(seen[1].init.body))).toEqual({ entity: "castor", text: "hi", mention_index: 0, repeat_of: "run-turn-1", mention_id: "run-turn-1:castor:0" });
     expect("repeat_of" in JSON.parse(String(seen[0].init.body))).toBe(false);
   });
 
   it("a body that is not JSON is null, not a throw", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>bad gateway</html>", { status: 502 })));
-    expect(await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0 }, null)).toEqual({ status: 502, body: null, code: null });
+    expect(await postMention("http://gw", "s-1", { entity: "castor", text: "hi", mention_index: 0, mention_id: "msg-1:castor:0" }, null)).toEqual({ status: 502, body: null, code: null });
   });
 
   it("GET /entities rows carry the identity look the list draws", async () => {

@@ -1494,6 +1494,17 @@ export interface MentionWire {
   code: string | null;
 }
 
+/** One mention's request body. `mention_id`: this mention's own id (AbstractGateway f0f23bb0): a
+ * resend with the same id gets the first answer back, the entity is never asked twice
+ * (visit_mentions.mentionBody builds it). */
+export interface MentionBody {
+  entity: string;
+  text: string;
+  mention_index: number;
+  repeat_of?: string;
+  mention_id: string;
+}
+
 /** Mention `entity` in the conversation `sessionId`: the gateway runs `text` as a visit turn of
  * that entity (its visit bound to this session) and records the reply as a turn of the session
  * with its `author`. `repeat_of`: the person's own turn of this session that carried the same
@@ -1502,7 +1513,7 @@ export interface MentionWire {
 export async function postMention(
   baseUrl: string,
   sessionId: string,
-  body: { entity: string; text: string; mention_index: number; repeat_of?: string },
+  body: MentionBody,
   token: string | null,
   timeoutMs: number | null = null,
 ): Promise<MentionWire> {

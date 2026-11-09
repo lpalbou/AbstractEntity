@@ -108,7 +108,16 @@ describe("can drives every control (contract §1.5, §8.3)", () => {
     expect(slot(served("visit"), "sleep")).toMatchObject({ disabled: true, title: IN_VISIT });
     expect(phaseActPlan(served("visit"), "sleep")).toEqual({ kind: "refused", sentence: IN_VISIT });
   });
-  it("sleep now right after a sleep: the gateway says no, and why", () => {
+  it("sleep now is refused only while asleep (contract §13): after a sleep has ended, idle included, it is offered again", () => {
+    // Asleep: the pill is lit and holds; the click asks for nothing.
+    expect(slot(served("sleep"), "sleep")).toMatchObject({ lit: true, disabled: true });
+    expect(phaseActPlan(served("sleep"), "sleep")).toEqual({ kind: "none" });
+    // Woken into idle (both toggles off): the gateway allows it, so the bar offers it.
+    const woke = served("idle", { toggles: { work: false, personal: false } });
+    expect(slot(woke, "sleep")).toMatchObject({ disabled: false, title: SLEEP_OFFER });
+    expect(phaseActPlan(woke, "sleep")).toEqual({ kind: "confirm", confirm: "sleep" });
+  });
+  it("a refusal the gateway serves is followed in any phase, with its words", () => {
     const read = served("idle", { can: { ...CAN_ALL, sleep_now: refusedCan(ALREADY_ASLEEP) } });
     expect(slot(read, "sleep")).toMatchObject({ disabled: true, title: ALREADY_ASLEEP });
     expect(phaseActPlan(read, "sleep")).toEqual({ kind: "refused", sentence: ALREADY_ASLEEP });
@@ -272,6 +281,16 @@ describe("blocked and Retry (contract §1.4, §3.4)", () => {
     expect(v.retry).toEqual({ disabled: false, title: RETRY_TITLE });
     expect(phaseActPlan(read, "retry")).toEqual({ kind: "retry" });
   });
+  it("his own time is not running (contract §13, own_time_not_running): the same Retry", () => {
+    const read = served("idle", {
+      toggles: { work: true, personal: true },
+      sentence: "Awake and reachable; his own time is not running.",
+      blocked: { code: "own_time_not_running", sentence: "His own time is not running. Retry to start it.", action: "retry" },
+    });
+    expect(view(read).blocked).toBe("His own time is not running. Retry to start it.");
+    expect(view(read).retry).toEqual({ disabled: false, title: RETRY_TITLE });
+    expect(phaseActPlan(read, "retry")).toEqual({ kind: "retry" });
+  });
   it("no Retry without the gateway's action (a block with action null)", () => {
     const read = served("idle", { blocked: { code: "work_order_waits_for_runtime", sentence: "Work is off and a work order stands; his own time waits until Work is back on.", action: null } });
     expect(view(read).blocked).toContain("work order stands");
@@ -423,5 +442,29 @@ describe("the stale rule: highest rev wins, and nothing from before a Stop (cont
     expect(adoptPhaseMarker(read, marker({ rev: 48, generation: 8 }))).toBeNull();
     expect(adoptPhaseMarker(read, marker({ rev: 60, generation: 7 }))).toBeNull();
     expect(adoptPhaseMarker({ kind: "loading" }, marker({ rev: 99 }))).toBeNull();
+  });
+});
+
+describe("a newborn's sleep holds until he is woken (contract §13)", () => {
+  // Born asleep: an operator sleep with no end; Personal on arms own time for the wake, never now.
+  const newborn = (personal: boolean) =>
+    served("sleep", {
+      toggles: { work: true, personal },
+      sentence: "Asleep until you wake him.",
+      next: null,
+      sleep: { kind: "operator", reason: "born asleep", since: "2026-11-08T18:02:00.000+00:00", ends: null },
+    });
+  it.each([false, true])("personal %s: the sleep stays lit and holds; nothing says he wakes on his own", (personal) => {
+    const read = newborn(personal);
+    expect(lit(read)).toEqual(["sleep"]);
+    expect(slot(read, "sleep")).toMatchObject({ lit: true, disabled: true, title: "Asleep until you wake him." });
+    expect(afterLine((read as Extract<PhaseBarRead, { kind: "served" }>).bar)).toBe("");
+    expect(view(read).then).toBe("");
+    expect(view(read).retry).toBeNull();
+  });
+  it("turning Personal on is a toggle, never a wake; its answer adds no words of the app's", () => {
+    expect(phaseActPlan(newborn(false), "personal")).toEqual({ kind: "toggle", key: "personal", on: true });
+    const body = phaseBody("sleep", { toggles: { work: true, personal: true }, sentence: "Asleep until you wake him.", next: null, sleep: { kind: "operator", reason: "born asleep", since: null, ends: null } });
+    expect(phaseWriteOutcome({ status: 200, code: null, body: { ...body, changed: { work: null, personal: { from: false, to: true } } } })).toMatchObject({ ok: true, sentence: null });
   });
 });

@@ -25,7 +25,7 @@ import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat
 import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage } from "./vendor/abstractchat/conversation";
-import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, flowMentionKey, heldAfterRun, meetOffers, mentionCandidatesFor, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, type HeldMentions, type MentionableEntity } from "./visit_mentions";
+import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -802,13 +802,15 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * reply is a turn with its author (and, in a visit, one small line: who else heard it). A 503 or
    * a failure puts the words and the unsent chips back, and holds the message for its resend.
    * `repeatOf`: the person's own turn of the session (the flow lane's summoned run); a visit turn
-   * lives in the entity's home, not in the session, so the visit lane sends none. `answeredBefore`
-   * (a resend): who answered this message already; `notes`: sentences said before the outcome. */
+   * lives in the entity's home, not in the session, so the visit lane sends none. `message`: the
+   * message's key (`mentionMessageKey`, held for a resend): each mention's `mention_id`, so a resend
+   * gets the first answer back, never a second one. `answeredBefore` (a resend): who answered this
+   * message already; `notes`: sentences said before the outcome. */
   const sendMentions = useCallback(
-    async (sessionId: string, text: string, sent: ChatMentionSent[], chips: ChatMention[], repeatOf: string | null, answeredBefore: string[] = [], notes: string[] = []): Promise<void> => {
+    async (sessionId: string, message: string, text: string, sent: ChatMentionSent[], chips: ChatMention[], repeatOf: string | null, answeredBefore: string[] = [], notes: string[] = []): Promise<void> => {
       const nameOf = (id: string) => mentionRowsReadRef.current.find((r) => r.entity_id === id)?.name ?? null;
       const result = await runMentions(sent, {
-        post: (m) => postMention(baseUrl, sessionId, { entity: m.id, text, mention_index: m.index, ...(repeatOf ? { repeat_of: repeatOf } : {}) }, token),
+        post: (m) => postMention(baseUrl, sessionId, mentionBody(text, m, repeatOf, message), token),
         onReply: (m, reply, author, mirrors) => {
           push({ role: "assistant", content: reply, title: m.name, ...(author ? { author } : {}) });
           const line = mirrorLine(mirrors, nameOf);
@@ -817,7 +819,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       });
       for (const id of result.refused) mentionRefusedRef.current.add(id);
       if (result.unavailable) setMentionsUnavailable(MENTIONS_UNAVAILABLE);
-      heldMentionsRef.current = heldAfterRun(sessionId, text, repeatOf, result, answeredBefore);
+      heldMentionsRef.current = heldAfterRun(sessionId, message, text, repeatOf, result, answeredBefore);
       const sentences = [...notes, ...result.sentences];
       setMentionStatus(sentences.length ? sentences.join(" ") : null);
       if (result.keepDraft) {
@@ -908,7 +910,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       setMentionChips([]);
       setDraft("");
       setBusy("turn");
-      void sendMentions(held.sessionId, held.resend.text, resend.ask, askedChips, held.resend.repeatOf, held.answered, answeredLine ? [answeredLine] : []).finally(() => setBusy("idle"));
+      void sendMentions(held.sessionId, held.message, held.resend.text, resend.ask, askedChips, held.resend.repeatOf, held.answered, answeredLine ? [answeredLine] : []).finally(() => setBusy("idle"));
       return;
     }
     // The chips as picked (for their looks), cleared from the composer like the words.
@@ -939,7 +941,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         // His turn did not land (failed, queued, stopped): the mentions were not sent.
         if (!landed || !sessionId) { chipsBack(); return; }
         setBusy("turn");
-        return sendMentions(sessionId, flowText, mentionsSent, sentChips, turnRunId).finally(() => setBusy("idle"));
+        return sendMentions(sessionId, mentionMessageKey(turnRunId), flowText, mentionsSent, sentChips, turnRunId).finally(() => setBusy("idle"));
       });
       return;
     }
@@ -1020,7 +1022,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           setRunId(null);
         }
         // His answer is in the thread: now each mention, in order (busy until the last answered).
-        if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, words, mentionsSent, sentChips, null);
+        if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, mentionMessageKey(null), words, mentionsSent, sentChips, null);
         chipsBack();
       })
       .catch((e: Error & { status?: number }) => {

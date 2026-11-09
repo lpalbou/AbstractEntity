@@ -21,7 +21,7 @@ describe("the visit lane has no client time limit", () => {
     ["guidance", () => guideVisit("http://gw", "aletheia", "run-1", "look here", "look here", "t")],
     ["answer", () => answerVisit("http://gw", "aletheia", "run-1", { run_id: "run-1", wait_key: "w-1" }, "yes", "t")],
     ["decision", () => decideVisit("http://gw", "aletheia", "run-1", { run_id: "run-1", wait_key: "w-1" }, true, "t")],
-    ["mention", () => postMention("http://gw", "s-1", { entity: "aletheia", text: "hi", mention_index: 0 }, "t")],
+    ["mention", () => postMention("http://gw", "s-1", { entity: "aletheia", text: "hi", mention_index: 0, mention_id: "msg-1:aletheia:0" }, "t")],
     ["meet open", () => openMeet("http://gw", "aletheia", "castor", "t")],
   ];
 

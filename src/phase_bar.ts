@@ -8,7 +8,8 @@
  *   offers "sleep now"). `work` and `personal` are TOGGLES: pressed = allowed, and they light as
  *   well when they are the current phase. Labels never change (toggles show state, never verbs).
  * - What a pill may do, and its tooltip when it may not, come from the served `can` (§1.5), never a
- *   client rule: "sleep now" during a visit or after a sleep, a toggle while stopped. One exception
+ *   client rule: "sleep now" during a visit or while asleep (§13: only while asleep; once a sleep
+ *   has ended, idle included, it is offered again), a toggle while stopped. One exception
  *   the contract asks for (§6.1, §8.3): while stopped the visit pill offers "Resume and visit", two
  *   visible acts, never a silent bypass.
  * - `idle` lights nothing (awake, reachable, nothing of his own running); `stopped` lights nothing
