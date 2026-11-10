@@ -394,6 +394,18 @@ export function parseOffsets(raw: string | null): Map<string, { dx: number; dy: 
   return out;
 }
 
+/** The offsets of the topics this version serves (by key): a key gone
+ * (renamed, dissolved) leaves nothing behind in storage (review N2). The
+ * same map comes back when every key is still served. */
+export function pruneOffsets(offsets: Map<string, { dx: number; dy: number }>, keys: ReadonlySet<string>): Map<string, { dx: number; dy: number }> {
+  let gone = false;
+  for (const key of offsets.keys()) if (!keys.has(key)) gone = true;
+  if (!gone) return offsets;
+  const out = new Map<string, { dx: number; dy: number }>();
+  for (const [key, o] of offsets) if (keys.has(key)) out.set(key, o);
+  return out;
+}
+
 export function serializeOffsets(offsets: ReadonlyMap<string, { dx: number; dy: number }>): string {
   const o: Record<string, [number, number]> = {};
   for (const [id, v] of offsets) o[id] = [Math.round(v.dx * 10) / 10, Math.round(v.dy * 10) / 10];

@@ -63,12 +63,13 @@ import { nodeLabel, summaryLabel } from "./node_label";
 import type { TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
 import { useServedCommunities, type TopicSource } from "./communities_source";
-import { topicSummary, topicTitle, type ServedCommunities, type ServedCommunity } from "./communities";
+import { heldCount, topicSummary, topicTitle, type ServedCommunities, type ServedCommunity } from "./communities";
 import {
   dragCircle,
   membershipOf,
   parseOffsets,
   placeCommunities,
+  pruneOffsets,
   seatFold,
   serializeOffsets,
   topicColor,
@@ -76,7 +77,7 @@ import {
   type CommunityPlacement,
   type SeatedFold,
 } from "./topic_layout";
-import { memberOpensIn, memoriesWord, TopicsPanel, type TopicsView } from "./topics_panel";
+import { memberOpensIn, topicCountWords, TopicsPanel, type TopicsView } from "./topics_panel";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -457,16 +458,76 @@ function readStoredLayout(key: string): string | null {
 /** The DOM overlays over the canvas, in canvas px (what a topic's title
  * must never sit under). */
 const CANVAS_OVERLAYS = ".gc_topics, .gc_recall_legend, .gc_motion_controls, .entity_legend";
-function overlayRectsOver(canvas: HTMLCanvasElement): Rect[] {
+function overlayRectsOver(canvas: HTMLCanvasElement): { rects: Rect[]; els: Element[] } {
   const host = canvas.parentElement;
-  if (!host) return [];
+  if (!host) return { rects: [], els: [] };
   const c = canvas.getBoundingClientRect();
-  const out: Rect[] = [];
-  host.querySelectorAll(CANVAS_OVERLAYS).forEach((el) => {
+  const rects: Rect[] = [];
+  const els = Array.from(host.querySelectorAll(CANVAS_OVERLAYS));
+  for (const el of els) {
     const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.height > 0) out.push({ x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height });
-  });
-  return out;
+    if (r.width > 0 && r.height > 0) rects.push({ x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height });
+  }
+  return { rects, els };
+}
+
+/** The overlays' rects over the canvas, CACHED (review S3): re-read from
+ * the DOM only after the canvas or an overlay resized (ResizeObserver) or
+ * the DOM around the canvas changed (an overlay came, went, folded or
+ * re-rendered: MutationObserver) — a frame with none of that reads nothing.
+ * `rev` moves when the rects do (what the titles' cache keys on). */
+export class OverlayRects {
+  rev = 0;
+  private rects: Rect[] = [];
+  private dirty = true;
+  private readonly watched = new Set<Element>();
+  private readonly resize: ResizeObserver | null;
+  private readonly dom: MutationObserver | null;
+  constructor(private readonly canvas: HTMLCanvasElement) {
+    const mark = () => {
+      this.dirty = true;
+    };
+    this.resize = typeof ResizeObserver === "function" ? new ResizeObserver(mark) : null;
+    this.resize?.observe(canvas);
+    // The canvas's own attributes (its cursor, its pixel size) never move an
+    // overlay: only changes elsewhere in its host mark the rects stale.
+    this.dom = typeof MutationObserver === "function" ? new MutationObserver((records) => {
+      if (records.some((r) => r.target !== canvas)) mark();
+    }) : null;
+    if (canvas.parentElement) this.dom?.observe(canvas.parentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+    window.addEventListener("resize", mark);
+    this.onResize = mark;
+  }
+  private readonly onResize: () => void;
+  /** The rects as they are (read from the DOM only when marked stale). */
+  current(): Rect[] {
+    if (!this.dirty) return this.rects;
+    this.dirty = false;
+    const { rects, els } = overlayRectsOver(this.canvas);
+    // An overlay seen for the first time is watched for its own resizes
+    // (its first observation marks the rects once more, then holds).
+    for (const el of els) {
+      if (this.watched.has(el)) continue;
+      this.watched.add(el);
+      this.resize?.observe(el);
+    }
+    for (const el of [...this.watched]) {
+      if (els.includes(el)) continue;
+      this.watched.delete(el);
+      this.resize?.unobserve(el);
+    }
+    const same = rects.length === this.rects.length && rects.every((r, i) => r.x === this.rects[i].x && r.y === this.rects[i].y && r.w === this.rects[i].w && r.h === this.rects[i].h);
+    if (!same) {
+      this.rects = rects;
+      this.rev += 1;
+    }
+    return this.rects;
+  }
+  dispose(): void {
+    this.resize?.disconnect();
+    this.dom?.disconnect();
+    window.removeEventListener("resize", this.onResize);
+  }
 }
 function rectsMeet(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -586,7 +647,7 @@ export function GraphCanvas({
   const offsetsRevRef = useRef(0);
   /** The frame's placement and seating, recomputed only when the served
    * topics, the viewer's offsets or the fold change. */
-  const placementCacheRef = useRef<{ data: ServedCommunities | null; rev: number; placement: CommunityPlacement | null; fold: FoldState | null; seated: SeatedFold | null }>({ data: null, rev: -1, placement: null, fold: null, seated: null });
+  const placementCacheRef = useRef<{ data: ServedCommunities | null; rev: number; placement: CommunityPlacement | null; fold: FoldState | null; seated: SeatedFold | null; gen: number }>({ data: null, rev: -1, placement: null, fold: null, seated: null, gen: 0 });
   const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic });
   /** Topic title rects drawn last frame (screen px) — click and drag targets. */
   const topicLabelsRef = useRef<Array<{ rect: Rect; topic: string; label: string }>>([]);
@@ -774,6 +835,23 @@ export function GraphCanvas({
     }
   }, [layoutKey]);
 
+  // Each version read keeps the drags of the topics it serves only: a key
+  // renamed or dissolved leaves no offset behind, here or in storage
+  // (review N2).
+  useEffect(() => {
+    if (!servedRead) return;
+    const pruned = pruneOffsets(offsetsRef.current, new Set(servedRead.communities.map((c) => c.key)));
+    if (pruned === offsetsRef.current) return;
+    offsetsRef.current = pruned;
+    offsetsRevRef.current += 1;
+    if (!layoutKey) return;
+    try {
+      localStorage.setItem(topicOffsetsStorageKey(layoutKey), serializeOffsets(pruned));
+    } catch {
+      // Quota/private mode: pruned for this session only.
+    }
+  }, [servedRead, layoutKey]);
+
   useEffect(() => {
     reducedMotionRef.current = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
   }, []);
@@ -813,6 +891,19 @@ export function GraphCanvas({
     const themeObserver = new MutationObserver(() => resolveCanvasTheme());
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
+    // THE OVERLAYS' RECTS (what a topic's title never sits under), read from
+    // the DOM only when something can have moved them — the canvas or an
+    // overlay resized, an overlay came or went, the overlays' DOM changed —
+    // never per frame (review S3: the ruling, no per-frame recompute).
+    const overlays = new OverlayRects(canvas);
+
+    // THE TOPIC TITLES' PLACEMENT (each title off every node, off the other
+    // titles, never under an overlay): computed once per change of what it
+    // depends on — the camera, the canvas size, the overlays, the seated
+    // placement (served topics, the viewer's drags, the fold) and, while a
+    // new version glides in, the moving seats — then only drawn per frame.
+    const titlesCache: { key: string; placed: Array<{ rect: Rect; topic: string; label: string; lines: string[] }> } = { key: "", placed: [] };
+
     const frame = () => {
       if (disposed) return;
       const { fold, usage, scrubSeq, selectedId, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics: topicsOn, topicsPending: pending, pickedTopic: picked } = stateRef.current;
@@ -827,10 +918,12 @@ export function GraphCanvas({
         pc.rev = offsetsRevRef.current;
         pc.placement = served ? placeCommunities(served, offsetsRef.current) : null;
         pc.fold = null;
+        pc.gen += 1;
       }
       if (pc.placement && pc.fold !== fold) {
         pc.fold = fold;
         pc.seated = seatFold(fold, pc.placement);
+        pc.gen += 1;
       }
       const placement = pc.placement;
       const seated = placement ? pc.seated : null;
@@ -1179,6 +1272,11 @@ export function GraphCanvas({
         for (const circle of placement.circles) {
           const ids = seated.rowsOf.get(circle.id);
           const c = communityByKey.get(circle.id);
+          // A topic none of whose memories the graph has loaded draws NO
+          // circle and no title (review S1): an empty ring would claim a
+          // place on the map for memories this view does not hold, and a
+          // title there would frame nothing; the panel names it, with its
+          // count, and says why its list is empty.
           if (!ids || ids.length === 0 || !c) continue;
           let lit = false;
           if (emphasis) for (const id of ids) if (emphasis.has(id)) { lit = true; break; }
@@ -1537,43 +1635,54 @@ export function GraphCanvas({
 
       // Topic LABELS go last, on top: they were placed off every node, so
       // on top they cover only the faint edges under their plate.
-      const labelHits: Array<{ rect: Rect; topic: string; label: string }> = [];
+      let labelHits: Array<{ rect: Rect; topic: string; label: string }> = [];
       if (topicHalos.length > 0 && cam.zoom >= TOPIC_LABEL_MIN_ZOOM) {
-        const screenNodes: Array<{ x: number; y: number; r: number }> = [];
-        for (const ln of layout.values()) {
-          const p = toScreen(ln.x, ln.y);
-          screenNodes.push({ x: p.x, y: p.y, r: Math.max(2.5, ln.r * cam.zoom * 0.75) + 3 });
-        }
-        const placed: Rect[] = [];
-        // The DOM overlays over the canvas (the Topics panel, the Context
-        // legend, the kinds legend, the motion buttons): a title never
-        // hides under one.
-        const overlays = overlayRectsOver(canvas);
         ctx.font = "600 11px system-ui, -apple-system, Segoe UI, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        for (const halo of topicHalos) {
-          if (halo.r < TOPIC_LABEL_MIN_SCREEN_R) continue;
-          // Never cut mid-word at a fixed count: the title wraps onto two
-          // lines; the hover card carries the whole title.
-          const words = halo.label;
-          const { lines } = wrapTopicLabel(words, TOPIC_LABEL_MAX_W, (t) => ctx.measureText(t).width);
-          const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 14;
-          const h = 6 + lines.length * TOPIC_LABEL_LINE_H;
-          const rect = placeTopicLabel({
-            halo: { cx: halo.cx, cy: halo.cy, r: halo.r },
-            w,
-            h,
-            nodes: screenNodes,
-            placed,
-            bounds: { w: cssW, h: cssH },
-            // The lens row / recall line / motion buttons own the top
-            // strip; the legend owns the bottom-left corner; no overlay.
-            blocked: (rc) => rc.y < 78 || overlayBand(rc.x, rc.y) || (rc.y + rc.h > cssH - 78 && rc.x < cssW - 190) || overlays.some((o) => rectsMeet(o, rc)),
-          });
-          if (!rect) continue;
-          placed.push(rect);
-          labelHits.push({ rect, topic: halo.topic, label: words });
+        // The DOM overlays over the canvas (the Topics panel, the Context
+        // legend, the kinds legend, the motion buttons): a title never
+        // hides under one. Their rects are cached (OverlayRects).
+        const overlayRects = overlays.current();
+        const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}`;
+        if (titlesCache.key !== titlesKey) {
+          titlesCache.key = titlesKey;
+          titlesCache.placed = [];
+          const screenNodes: Array<{ x: number; y: number; r: number }> = [];
+          for (const ln of layout.values()) {
+            const p = toScreen(ln.x, ln.y);
+            screenNodes.push({ x: p.x, y: p.y, r: Math.max(2.5, ln.r * cam.zoom * 0.75) + 3 });
+          }
+          const placed: Rect[] = [];
+          for (const halo of topicHalos) {
+            if (halo.r < TOPIC_LABEL_MIN_SCREEN_R) continue;
+            // Never cut mid-word at a fixed count: the title wraps onto two
+            // lines; the hover card carries the whole title.
+            const words = halo.label;
+            const { lines } = wrapTopicLabel(words, TOPIC_LABEL_MAX_W, (t) => ctx.measureText(t).width);
+            const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 14;
+            const h = 6 + lines.length * TOPIC_LABEL_LINE_H;
+            const rect = placeTopicLabel({
+              halo: { cx: halo.cx, cy: halo.cy, r: halo.r },
+              w,
+              h,
+              nodes: screenNodes,
+              placed,
+              bounds: { w: cssW, h: cssH },
+              // The lens row / recall line / motion buttons own the top
+              // strip; the legend owns the bottom-left corner; no overlay.
+              blocked: (rc) => rc.y < 78 || overlayBand(rc.x, rc.y) || (rc.y + rc.h > cssH - 78 && rc.x < cssW - 190) || overlayRects.some((o) => rectsMeet(o, rc)),
+            });
+            if (!rect) continue;
+            placed.push(rect);
+            titlesCache.placed.push({ rect, topic: halo.topic, label: words, lines });
+          }
+        }
+        labelHits = titlesCache.placed;
+        const haloOf = new Map(topicHalos.map((hl) => [hl.topic, hl]));
+        for (const { rect, topic, lines } of titlesCache.placed) {
+          const halo = haloOf.get(topic);
+          if (!halo) continue;
           ctx.globalAlpha = halo.hd;
           ctx.beginPath();
           ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 9);
@@ -1845,6 +1954,7 @@ export function GraphCanvas({
       cancelAnimationFrame(raf);
       observer.disconnect();
       themeObserver.disconnect();
+      overlays.dispose();
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("mousedown", onDown);
@@ -1905,9 +2015,14 @@ export function GraphCanvas({
     if (!c || !membership) return null;
     return { key, rowIds: new Set(membership.rowsOf.get(key) ?? []), label: topicTitle(c, TITLE_BEING_WRITTEN) };
   };
+  /** How many of a topic's memories the graph has loaded (its list). */
+  const loadedOf = (key: string): number => membership?.rowsOf.get(key)?.length ?? 0;
   /** FOCUS a topic (its title on the graph, the panel, a card): the camera
    * frames its circle, its memories light (the topic filter), the panel
-   * lists them. null lets it go. World positions are untouched. */
+   * lists them. null lets it go. World positions are untouched. A topic
+   * none of whose memories the graph has loaded has no circle: it stays
+   * focused (the panel marks it and says so in one sentence) and the camera
+   * holds (review S1). */
   const focusTopic = (key: string | null) => {
     if (key === null) {
       onPickTopic(null);
@@ -1916,6 +2031,7 @@ export function GraphCanvas({
     const pick = pickOf(key);
     if (!pick) return;
     onPickTopic(pick);
+    if (pick.rowIds.size === 0) return;
     // Framed once the panel has settled (it may just have folded).
     requestAnimationFrame(() => frameTopic(key));
   };
@@ -2119,11 +2235,13 @@ export function GraphCanvas({
           <div className="gc_hc_rows">
             <span>memories</span>
             <span>
-              {memoriesWord(topicCard.members.length)}
+              {/* The panel's words: what it holds, and how many of them are loaded when that differs. */}
+              {topicCountWords(heldCount(topicCard), loadedOf(topicCard.key))}
               {topicCard.provisional.size > 0 ? ` (${topicCard.provisional.size} placed until his next sleep)` : ""}
             </span>
           </div>
-          <CardActions actions={topicActions(topicCard.members.length)} onAction={runCardAction} />
+          {/* "N memories →" opens the list: N is its length. */}
+          <CardActions actions={topicActions(loadedOf(topicCard.key))} onAction={runCardAction} />
         </HoverCardBox>
       ) : null}
       {lineTip && tipLine && tipTo && tipFrom ? (
@@ -2150,8 +2268,10 @@ export function GraphCanvas({
           onFocus={(key) => {
             // On a phone the open panel covers the short canvas: a topic
             // picked there folds it so the graph shows the circle (its
-            // members stay one tap away, unfolded under its title).
-            if (key !== null && narrowViewport()) setTopicsOpen(false);
+            // members stay one tap away, unfolded under its title). A
+            // topic with none of its memories loaded has no circle: the
+            // panel stays open on its sentence.
+            if (key !== null && narrowViewport() && loadedOf(key) > 0) setTopicsOpen(false);
             focusTopic(key);
           }}
           onOpenMember={openMember}

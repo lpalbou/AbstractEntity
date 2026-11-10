@@ -18,6 +18,7 @@ import {
   membershipOf,
   parseOffsets,
   placeCommunities,
+  pruneOffsets,
   relaxCircles,
   rimSeat,
   SEAT_MARGIN,
@@ -335,6 +336,18 @@ describe("the viewer's drag: circles repel only, never attract", () => {
     expect(parseOffsets(null).size).toBe(0);
     expect(parseOffsets("{not json").size).toBe(0);
     expect(parseOffsets(JSON.stringify({ a: [1, "2"], b: [1] })).size).toBe(0);
+  });
+
+  it("a key the version no longer serves (renamed, dissolved) leaves no offset behind (review N2)", () => {
+    const offsets = new Map([
+      ["k1", { dx: 12, dy: -5 }],
+      ["community-key-03", { dx: 40, dy: 8 }],
+    ]);
+    const pruned = pruneOffsets(offsets, new Set(["k1", "k2"]));
+    expect(pruned).toEqual(new Map([["k1", { dx: 12, dy: -5 }]]));
+    expect(serializeOffsets(pruned)).toBe('{"k1":[12,-5]}');
+    // Every key still served: the same map (nothing written back).
+    expect(pruneOffsets(pruned, new Set(["k1", "k2"]))).toBe(pruned);
   });
 });
 

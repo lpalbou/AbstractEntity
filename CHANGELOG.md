@@ -4,6 +4,34 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **A topic's count matches its list, and a topic whose memories are not in the graph says so.**
+  Each topic in the Topics panel shows how many memories it holds (his memory's count, plus those
+  placed in it since his last sleep) and, when the graph has loaded a different number of them
+  (an earlier moment in the playback, memories outside the loaded window), how many: "28
+  memories · 0 loaded in this view". That number is the length of the list the topic unfolds; a
+  memory two topics both list is listed, and counted, in the first one only, and a memory listed
+  twice in one topic counts once. Clicking a topic none of whose memories the graph has loaded
+  used to do nothing; it now stays selected and says "Its memories are outside the loaded
+  window." where its list would be (on a phone the panel stays open on that sentence). The graph
+  draws no circle and no title for such a topic, and nothing dims. The title's card on the graph
+  counts the same way.
+- **The open Topics panel keeps room for a topic on a short phone screen.** At 400 × 700 the
+  panel opened with nothing under its heading (its list was 0 px tall). Open, it now keeps its
+  heading plus one topic row, reaching down over the motion buttons until it is folded again;
+  taller screens are unchanged.
+- **"freeze" can be clicked again.** On a wide graph without topics, the lens row's box lay over
+  the four motion buttons, so a click on "freeze" did nothing. The buttons now wrap two by two
+  inside the room the lens row leaves them.
+- **Topic titles on the graph no longer re-measure the page every frame.** The rectangles of the
+  panels over the graph are re-read only when one of them resizes, appears or changes, and the
+  titles are placed again only when the view moves, the canvas or a panel changes, or the topics
+  or their memories change; each frame only draws them.
+- Smaller fixes: a topics answer that cannot be read names the topic by its place and title
+  ("topic 3 (“Night walks”): layout.xy is not [x, y]"), never by its key or a memory's id; two
+  topics sharing one record id are refused like two sharing a key; where you dragged a topic's
+  circle is forgotten once his memory no longer serves that topic; the panel heading's ▸/▾ mark
+  is no longer read out by screen readers; before his first sleep the panel says "His topics
+  form during his next sleep."
 - **Playing his history back no longer freezes the graph.** On a big life at a high speed (or on a
   120 Hz screen), the graph stopped changing a moment after Play while the position at the bottom
   right kept counting, and only a pause brought it up to date. The playback paces page updates so

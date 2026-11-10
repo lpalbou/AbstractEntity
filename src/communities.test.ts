@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-import { NO_COMMON_SUBJECT, readCommunities, SUMMARY_BEING_WRITTEN, topicSummary, topicTitle, UNTITLED_TOPIC, type CommunitiesRead } from "./communities";
+import { heldCount, NO_COMMON_SUBJECT, readCommunities, SUMMARY_BEING_WRITTEN, topicSummary, topicTitle, UNTITLED_TOPIC, type CommunitiesRead } from "./communities";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -57,12 +57,12 @@ const served = (read: CommunitiesRead) => {
 };
 
 describe("readCommunities: payload v2", () => {
-  it("reads the served communities: key, record id, title, summary, members, layout", () => {
+  it("reads the served communities: key, title, summary, members, layout (the record id is read, not kept)", () => {
     const data = served(readCommunities(rawPayload([rawCommunity("a", ["ex:episode-1", "ex:diary-2"], { layout: { xy: [3, -4], radius: 7, seats: { "ex:episode-1": [1, 2] } } })])));
     expect(data.versionSeq).toBe(102850);
     const [c] = data.communities;
     expect(c.key).toBe("a");
-    expect(c.recordId).toBe("ex:community-a-r1");
+    expect("recordId" in c).toBe(false);
     expect(c.title).toBe("Topic a");
     expect(c.summary).toBe("What a is about.");
     expect(c.titlePending).toBe(false);
@@ -208,7 +208,7 @@ describe("readCommunities: payload v2", () => {
     expect(readCommunities({ communities: [] })).toEqual({ kind: "unserved" });
     // A v2 answer whose layout is there but not an object is named.
     const noLayout = readCommunities(rawPayload([rawCommunity("a", ["ex:m1"], { layout: null })]));
-    expect(noLayout).toEqual({ kind: "malformed", problem: "community a: layout is not an object" });
+    expect(noLayout).toEqual({ kind: "malformed", problem: "topic 1 (“Topic a”): layout is not an object" });
   });
 
   it("a wrong v2 shape is named, never repaired", () => {
@@ -222,36 +222,88 @@ describe("readCommunities: payload v2", () => {
     expect(problem(rawPayload([], { first_sleep_pending: "no" }))).toBe("first_sleep_pending is not true or false");
     expect(problem(rawPayload([], { version_seq: "102850" }))).toBe("version_seq is not a number");
     expect(problem(rawPayload([], { communities: {} }))).toBe("communities is not a list");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { key: "" })]))).toBe("communities[0].key is not a string");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { id: 7 })]))).toBe("communities[0].id is not a string");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"]), rawCommunity("a", ["ex:m2"])]))).toBe("two communities share the key a");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { title: 3 })]))).toBe("community a: title is neither text nor null");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { pending: "title" })]))).toBe("community a: pending is not a list of field names");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { members: ["ex:m1"] })]))).toBe("community a: a member is not {id, via}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { members: { "ex:m1": "detected" } })]))).toBe("community a: members is not a list");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { provisional_ids: null })]))).toBe("community a: provisional_ids is not a list of ids");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { summary: 4 })]))).toBe("community a: summary is neither text nor null");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { cohesion: "0.6" })]))).toBe("community a: cohesion is not a number");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { key: "" })]))).toBe("topic 1: key is not a string");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { id: 7 })]))).toBe("topic 1: id is not a string");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"]), rawCommunity("a", ["ex:m2"], { id: "ex:community-a2-r1" })]))).toBe("two topics share one key");
+    // The record id is checked like the key (review N1): two topics, one revision record.
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"]), rawCommunity("b", ["ex:m2"], { id: "ex:community-a-r1" })]))).toBe("two topics share one record id");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { title: 3 })]))).toBe("topic 1: title is neither text nor null");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { pending: "title" })]))).toBe("topic 1 (“Topic a”): pending is not a list of field names");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { members: ["ex:m1"] })]))).toBe("topic 1 (“Topic a”): a member is not {id, via}");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { members: { "ex:m1": "detected" } })]))).toBe("topic 1 (“Topic a”): members is not a list");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { provisional_ids: null })]))).toBe("topic 1 (“Topic a”): provisional_ids is not a list of ids");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { summary: 4 })]))).toBe("topic 1 (“Topic a”): summary is neither text nor null");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { cohesion: "0.6" })]))).toBe("topic 1 (“Topic a”): cohesion is not a number");
     expect(problem(rawPayload([], { algorithm: null }))).toBe("algorithm is not a name");
     expect(problem(rawPayload([], { links: {} }))).toBe("links is not a list");
     expect(problem(rawPayload([], { links: [{ a: "a", b: "b", weight: "1" }] }))).toBe("links[0] is not {a, b, weight}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { verdict: "unrelated" })]))).toBe('community a: verdict "unrelated" is not one this app reads');
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { verdict: false })]))).toBe("community a: verdict false is not one this app reads");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { size: "1" })]))).toBe("community a: size is not a count");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { kinds: { episode: "1" } })]))).toBe("community a: kinds is not {kind: count}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { centroid_stale: null })]))).toBe("community a: centroid_stale is not true or false");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: null })]))).toBe("community a: facts is not an object");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { span: "2026" } })]))).toBe("community a: facts.span is not {first, last}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { span: { first: 1, last: null } } })]))).toBe("community a: facts.span is not {first, last}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { activity: "9" } })]))).toBe("community a: facts.activity is not a count");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { hub: 3 } })]))).toBe("community a: facts.hub is neither an id nor null");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { bridges: "ex:m1" } })]))).toBe("community a: facts.bridges is not a list of ids");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { paths: {} } })]))).toBe("community a: facts.paths is not a list");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { paths: [{ from: "ex:m1", to: "ex:m2", count: "2" }] } })]))).toBe("community a: facts.paths[0] is not {from, to, count}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { changed_since_last_sleep: { added: 1, moved: 0, split_from: 7 } } })]))).toBe("community a: facts.changed_since_last_sleep is not {added, moved, split_from}");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { layout: { xy: { x: 1, y: 2 }, radius: 3, seats: {} } })]))).toBe("community a: layout.xy is not [x, y]");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { layout: { xy: [1, 2], radius: 0, seats: {} } })]))).toBe("community a: layout.radius is not a positive number");
-    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { layout: { xy: [1, 2], radius: 3, seats: { "ex:m1": [1] } } })]))).toBe("community a: the seat of ex:m1 is not [dx, dy]");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { verdict: "unrelated" })]))).toBe("topic 1 (“Topic a”): its verdict is not one this app reads");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { verdict: false })]))).toBe("topic 1 (“Topic a”): its verdict is not one this app reads");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { size: "1" })]))).toBe("topic 1 (“Topic a”): size is not a count");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { kinds: { episode: "1" } })]))).toBe("topic 1 (“Topic a”): kinds is not {kind: count}");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { centroid_stale: null })]))).toBe("topic 1 (“Topic a”): centroid_stale is not true or false");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: null })]))).toBe("topic 1 (“Topic a”): facts is not an object");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { span: "2026" } })]))).toBe("topic 1 (“Topic a”): facts.span is not {first, last}");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { span: { first: 1, last: null } } })]))).toBe("topic 1 (“Topic a”): facts.span is not {first, last}");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { activity: "9" } })]))).toBe("topic 1 (“Topic a”): facts.activity is not a count");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { hub: 3 } })]))).toBe("topic 1 (“Topic a”): facts.hub is neither an id nor null");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { bridges: "ex:m1" } })]))).toBe("topic 1 (“Topic a”): facts.bridges is not a list of ids");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { paths: {} } })]))).toBe("topic 1 (“Topic a”): facts.paths is not a list");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { paths: [{ from: "ex:m1", to: "ex:m2", count: "2" }] } })]))).toBe("topic 1 (“Topic a”): facts.paths[0] is not {from, to, count}");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { facts: { changed_since_last_sleep: { added: 1, moved: 0, split_from: 7 } } })]))).toBe("topic 1 (“Topic a”): facts.changed_since_last_sleep is not {added, moved, split_from}");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { layout: { xy: { x: 1, y: 2 }, radius: 3, seats: {} } })]))).toBe("topic 1 (“Topic a”): layout.xy is not [x, y]");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { layout: { xy: [1, 2], radius: 0, seats: {} } })]))).toBe("topic 1 (“Topic a”): layout.radius is not a positive number");
+    expect(problem(rawPayload([rawCommunity("a", ["ex:m1"], { layout: { xy: [1, 2], radius: 3, seats: { "ex:m1": [1] } } })]))).toBe("topic 1 (“Topic a”): a member's seat is not [dx, dy]");
+  });
+
+  it("a problem names a topic by its place and its title — never its key, its record id or a member's id (review N4)", () => {
+    const key = "community-key-00";
+    const bad = [
+      { verdict: "mixed" },
+      { layout: { xy: [1, 2], radius: 3, seats: { "ex:episode-secret-1": [1] } } },
+      { layout: { xy: "here", radius: 3, seats: {} } },
+      { facts: { hub: 4 } },
+      { title: 9 },
+    ];
+    for (const over of bad) {
+      const r = readCommunities(rawPayload([rawCommunity("b", ["ex:m0"]), rawCommunity(key, ["ex:episode-secret-1"], { id: "ex:community-rev-77", title: "The harbour archive", ...over })]));
+      if (r.kind !== "malformed") throw new Error(JSON.stringify(r));
+      expect(r.problem).toMatch(/^topic 2\b/);
+      for (const raw of [key, "ex:community-rev-77", "ex:episode-secret-1", "mixed"]) expect(r.problem, JSON.stringify(over)).not.toContain(raw);
+    }
+  });
+
+  it("a member listed twice in ONE topic is one memory: listed once, counted once (review S4)", () => {
+    const [c] = served(
+      readCommunities(
+        rawPayload([
+          rawCommunity("a", ["ex:m1", "ex:m2"], {
+            members: [
+              { id: "ex:m1", via: "detected" },
+              { id: "ex:m2", via: "detected" },
+              { id: "ex:m1", via: "attached" },
+            ],
+          }),
+        ]),
+      ),
+    ).communities;
+    expect(c.members).toEqual([
+      { id: "ex:m1", via: "detected" },
+      { id: "ex:m2", via: "detected" },
+    ]);
+    expect(c.listed).toBe(2);
+    expect(heldCount(c)).toBe(2);
+  });
+
+  it("a topic holds memory's count plus the memories placed in it since — whatever the graph has loaded (heldCount)", () => {
+    const [c] = served(readCommunities(rawPayload([rawCommunity("a", ["ex:m1"], { size: 28, provisional_ids: ["ex:m9", "ex:m1"] })]))).communities;
+    expect(c.listed).toBe(1);
+    expect(c.members.map((m) => m.id)).toEqual(["ex:m1", "ex:m9"]);
+    expect(heldCount(c)).toBe(29);
+    // Served with no member listed (memory's size kept): it still holds them.
+    const [none] = served(readCommunities(rawPayload([rawCommunity("b", [], { size: 28 })]))).communities;
+    expect(none.listed).toBe(0);
+    expect(heldCount(none)).toBe(28);
   });
 });
 

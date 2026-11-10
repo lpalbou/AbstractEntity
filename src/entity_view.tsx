@@ -1618,7 +1618,9 @@ export function EntityView(): React.ReactElement {
     const fromLens = lensIds(fold, temporal, lens);
     if (fromLens !== null) sources.push(fromLens);
     if (searchIds !== null) sources.push(searchIds);
-    if (topicFilter !== null) sources.push(topicFilter.ids);
+    // A focused topic none of whose memories the graph has loaded lights
+    // nothing and dims nothing (its panel row says why: review S1).
+    if (topicFilter !== null && topicFilter.ids.size > 0) sources.push(topicFilter.ids);
     if (sources.length === 0) return null;
     let acc = sources[0];
     for (const s of sources.slice(1)) {
@@ -2158,7 +2160,11 @@ export function EntityView(): React.ReactElement {
               {topicFilter !== null ? (
                 <button
                   className="lens_chip active tm_filter_chip gc_topic_chip_full"
-                  title={`The graph is lit to the "${topicFilter.label}" topic (${topicFilter.ids.size} memories) — click to clear`}
+                  title={
+                    topicFilter.ids.size > 0
+                      ? `The graph is lit to the "${topicFilter.label}" topic (${topicFilter.ids.size} memories) — click to clear`
+                      : `The "${topicFilter.label}" topic: its memories are outside the loaded window — click to clear`
+                  }
                   onClick={() => setTopicFilter(null)}
                 >
                   {/* The whole label (it wraps; graph_canvas.css), never cut. */}
@@ -2213,7 +2219,7 @@ export function EntityView(): React.ReactElement {
             }}
             showTopics={showTopics}
             showContext={contextOn}
-            onPickTopic={(pick) => setTopicFilter(pick && pick.rowIds.size > 0 ? { key: pick.key, ids: pick.rowIds, label: pick.label } : null)}
+            onPickTopic={(pick) => setTopicFilter(pick ? { key: pick.key, ids: pick.rowIds, label: pick.label } : null)}
             pickedTopic={topicFilter?.key ?? null}
             communitiesMarker={communitiesMarker}
             communitiesPlaced={communitiesPlaced}

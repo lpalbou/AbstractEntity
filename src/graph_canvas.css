@@ -266,13 +266,19 @@
   cursor: pointer;
 }
 
+/* The fold mark is drawn, not said: an empty alternative text keeps it out
+ * of the head's accessible name ("Topics 15 2 being written"; review N3) —
+ * the Context legend's pattern (the plain value first, for a browser
+ * without alternative text). */
 .gc_tp_head::before {
   content: "▸";
+  content: "▸" / "";
   color: var(--text-dim);
 }
 
 .gc_tp_open .gc_tp_head::before {
   content: "▾";
+  content: "▾" / "";
 }
 
 .gc_tp_head_word {
@@ -344,8 +350,10 @@
   height: 7px;
 }
 
+/* The title keeps a readable width: a long count ("28 memories · 0 loaded
+ * in this view") wraps under it instead of squeezing it to a word a line. */
 .gc_tp_title {
-  flex: 1;
+  flex: 1 1 12em;
   min-width: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -449,6 +457,17 @@
   color: var(--text-dim);
 }
 
+/* A focused topic none of whose memories the graph has loaded: the one
+ * sentence where its list would be (review S1). */
+.gc_tp_unloaded {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0 4px;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
 .gc_tp_waiting {
   margin: 6px 8px 2px;
   color: var(--text-dim);
@@ -488,6 +507,22 @@
   /* No Context legend over the canvas: open, it may reach the lens row. */
   .entity_canvas_wrap:not(:has(.gc_recall_legend)) .gc_topics {
     max-height: calc(100% - var(--gc-legend-top) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px));
+  }
+  /* OPEN, its FLOOR is its head plus one topic row (--gc-topics-floor,
+   * bounded by the room under the lens row): on a short canvas (400 × 700,
+   * review S2: the body was 0 px) it never shrinks below that; its bottom
+   * yields down toward the canvas's edge instead (the legend's B1 pattern:
+   * what is below moves, the floor holds) and, open, it sits over the
+   * motion buttons and the kinds strip until it is folded again (its head
+   * stays under the lens row, tappable). A tall canvas is unchanged. */
+  .gc_topics.gc_tp_open {
+    --gc-tp-floor: min(var(--gc-topics-floor), calc(100% - var(--gc-legend-top) - 16px));
+    bottom: max(8px, min(calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px), calc(100% - var(--gc-legend-top) - 8px - var(--gc-tp-floor))));
+    max-height: max(var(--gc-tp-floor), calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px)));
+    z-index: 3;
+  }
+  .entity_canvas_wrap:not(:has(.gc_recall_legend)) .gc_topics.gc_tp_open {
+    max-height: max(var(--gc-tp-floor), calc(100% - var(--gc-legend-top) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px)));
   }
   /* It ends above the motion buttons (bottom: --gc-motion-bottom, one tap
    * target tall, then an 8 px gap) and scrolls inside, so it never sits

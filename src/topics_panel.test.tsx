@@ -20,6 +20,7 @@ import type { ReplayEnvelope } from "./stream_types";
 import { membershipOf } from "./topic_layout";
 import {
   CENTROID_STALE_NOTE,
+  EMPTY_TOPIC_SENTENCE,
   FACTS_WINDOW_DAYS,
   factsText,
   memberOpensIn,
@@ -29,8 +30,10 @@ import {
   TOPICS_LOADING,
   topicFacts,
   TopicsPanel,
+  topicCountWords,
   topicOrder,
   topicsNote,
+  UNLOADED_SENTENCE,
   VERDICT_SENTENCE,
   waitingLine,
   type TopicsView,
@@ -116,7 +119,8 @@ function render(view: TopicsView, over: Partial<React.ComponentProps<typeof Topi
 describe("not served: one sentence", () => {
   it("his first sleep has not formed topics yet", () => {
     const html = render({ kind: "read", read: { kind: "first_sleep" } });
-    expect(FIRST_SLEEP_SENTENCE).toBe("His topics form at his next sleep.");
+    // COMMUNITIES-DESIGN §4: "topics form during his next sleep".
+    expect(FIRST_SLEEP_SENTENCE).toBe("His topics form during his next sleep.");
     expect(html).toBe(`<div class="gc_topics gc_topics_note" role="status">${FIRST_SLEEP_SENTENCE}</div>`);
   });
 
@@ -132,8 +136,8 @@ describe("not served: one sentence", () => {
     expect(failed).toContain("His topics could not be read — HTTP 503");
     expect(failed).toContain("gc_topics_error");
     expect(failed).toContain(">retry</button>");
-    const wrong: CommunitiesRead = { kind: "malformed", problem: "community a: no layout" };
-    expect(render({ kind: "read", read: wrong })).toContain("His topics could not be read: community a: no layout.");
+    const wrong: CommunitiesRead = { kind: "malformed", problem: "topic 1 (“The harbour archive”): layout is not an object" };
+    expect(render({ kind: "read", read: wrong })).toContain("His topics could not be read: topic 1 (“The harbour archive”): layout is not an object.");
     expect(topicsNote({ kind: "read", read: { kind: "served", data: { versionSeq: 1, communities: [], links: [] } } })).toEqual({ text: NO_TOPICS, error: false });
     // A required field left out (an older v2 gateway) is the same one sentence.
     expect(render({ kind: "read", read: { kind: "unserved", missing: "communities[0].facts" } })).toBe(`<div class="gc_topics gc_topics_note" role="status">${UNSERVED_SENTENCE}</div>`);
@@ -302,5 +306,89 @@ describe("the topic view: what memory counts of it, in words", () => {
   it.skipIf(!fs.existsSync(MEMORY_INDEX_PY))("the window said is memory's FACTS_WINDOW_DAYS (drift pin)", () => {
     const m = fs.readFileSync(MEMORY_INDEX_PY, "utf8").match(/^FACTS_WINDOW_DAYS = (\d+)$/m);
     expect(Number(m?.[1])).toBe(FACTS_WINDOW_DAYS);
+  });
+});
+
+// ------------------------------------------------------------ counts that agree with the lists (review S1)
+
+describe("a topic's count says what it holds and what the graph has loaded — the length of its list", () => {
+  // "ghost": every member outside the loaded graph; "empty": served holding
+  // none; "harbour" lists ex:episode-2, which "tides" listed first.
+  const ODD = readCommunities({
+    version: 2,
+    version_seq: 102851,
+    first_sleep_pending: false,
+    algorithm: "louvain-warm-v1",
+    links: [],
+    communities: [
+      comm("tides", ["ex:episode-2", "ex:lesson-5"]),
+      comm("harbour", ["ex:episode-1", "ex:episode-2", "ex:diary-3", "ex:episode-absent-1"]),
+      comm("ghost", ["ex:episode-gone-1", "ex:episode-gone-2", "ex:episode-gone-3"], { size: 28 }),
+      comm("empty", [], { size: 0 }),
+    ],
+  });
+  const ODD_VIEW: TopicsView = { kind: "read", read: ODD };
+  const rows = (html: string) => {
+    // Each topic row's count, and what is listed under it (members, or the sentence).
+    const out = new Map<string, { count: string; members: string[]; sentence: string | null }>();
+    let at: string | null = null;
+    for (const m of html.matchAll(/data-topic="([^"]+)"|gc_tp_count[^>]*><span class="af-chip__label">([^<]+)<|data-member="([^"]+)"|class="gc_tp_unloaded" data-unloaded="[^"]+">([^<]+)</g)) {
+      if (m[1]) {
+        at = m[1];
+        out.set(at, { count: "", members: [], sentence: null });
+      } else if (m[2] && at) out.get(at)!.count = m[2];
+      else if (m[3] && at) out.get(at)!.members.push(m[3]);
+      else if (m[4] && at) out.get(at)!.sentence = m[4];
+    }
+    return out;
+  };
+
+  it("the words: the count alone when every memory is loaded, else beside how many are", () => {
+    expect(topicCountWords(84, 84)).toBe("84 memories");
+    expect(topicCountWords(1, 1)).toBe("1 memory");
+    expect(topicCountWords(28, 0)).toBe("28 memories · 0 loaded in this view");
+    expect(topicCountWords(4, 3)).toBe("4 memories · 3 loaded in this view");
+  });
+
+  it("every topic row: memory's count, and the loaded number when it differs", () => {
+    const r = rows(render(ODD_VIEW));
+    expect(r.get("ghost")!.count).toBe("28 memories · 0 loaded in this view");
+    expect(r.get("empty")!.count).toBe("0 memories");
+    expect(r.get("tides")!.count).toBe("2 memories");
+    // One absent, one seated in "tides" (listed there first).
+    expect(r.get("harbour")!.count).toBe("4 memories · 2 loaded in this view");
+  });
+
+  it("focused, a topic none of whose memories the graph has loaded says so in one sentence — never an empty list", () => {
+    expect(UNLOADED_SENTENCE).toBe("Its memories are outside the loaded window.");
+    const ghost = rows(render(ODD_VIEW, { focused: "ghost" })).get("ghost")!;
+    expect(ghost.members).toEqual([]);
+    expect(ghost.sentence).toBe(UNLOADED_SENTENCE);
+    const html = render(ODD_VIEW, { focused: "ghost" });
+    expect(html).toContain("gc_tp_focused");
+    // A static row: never selected, never focused.
+    const row = html.slice(html.lastIndexOf("<li", html.indexOf("gc_tp_unloaded")), html.indexOf("</li>", html.indexOf("gc_tp_unloaded")));
+    expect(row).toContain("af-disclosure__row--static");
+    // A topic served holding none says that instead.
+    expect(rows(render(ODD_VIEW, { focused: "empty" })).get("empty")!.sentence).toBe(EMPTY_TOPIC_SENTENCE);
+    // A topic with loaded memories lists them, no sentence.
+    expect(rows(render(ODD_VIEW, { focused: "tides" })).get("tides")!.sentence).toBeNull();
+  });
+
+  it("unfolded, every topic lists exactly the number its count says is loaded; a memory listed by two topics is listed once", () => {
+    if (ODD.kind !== "served") throw new Error("fixture");
+    const rowsOf = membershipOf(FOLD, ODD.data).rowsOf;
+    for (const key of ["tides", "harbour"]) {
+      const r = rows(render(ODD_VIEW, { focused: key })).get(key)!;
+      expect(r.members.length, key).toBe(rowsOf.get(key)!.length);
+      expect(r.count, key).toMatch(new RegExp(`^\\d+ memor(y|ies)( · ${r.members.length} loaded in this view)?$`));
+    }
+    const listedBy = (id: string) => ["tides", "harbour"].filter((k) => rows(render(ODD_VIEW, { focused: k })).get(k)!.members.includes(id));
+    expect(listedBy("ex:episode-2")).toEqual(["tides"]);
+  });
+
+  it("biggest first by the count each row says", () => {
+    if (ODD.kind !== "served") throw new Error("fixture");
+    expect(topicOrder(ODD.data.communities).map((c) => c.key)).toEqual(["ghost", "harbour", "tides", "empty"]);
   });
 });

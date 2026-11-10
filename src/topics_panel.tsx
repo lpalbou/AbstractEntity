@@ -5,7 +5,12 @@
  * - Each topic (the kit's DisclosureList, one row per community, biggest
  *   first): its authored title, its summary and how many memories it holds;
  *   "title being written…" / "summary being written…" while memory says so,
- *   never a label the app made.
+ *   never a label the app made. The count is memory's (its size plus the
+ *   memories placed since) and, when the graph has loaded a different
+ *   number of them, that number too ("28 memories · 0 loaded in this
+ *   view") — the length of the list it unfolds. A focused topic none of
+ *   whose memories the graph has loaded says so in one sentence ("Its
+ *   memories are outside the loaded window."), never an empty list.
  * - A click on a topic FOCUSES it: the graph frames its circle and lights
  *   its memories, and the topic unfolds to list them (titles, newest first).
  *   A click on the focused topic lets it go.
@@ -30,7 +35,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AfChip, DisclosureList, type DisclosureListHandle, type DisclosureRow, type DisclosureSelection } from "@abstractframework/ui-kit";
 
-import { FIRST_SLEEP_SENTENCE, NO_COMMON_SUBJECT, PROVISIONAL_BADGE, topicSummary, topicTitle, UNSERVED_SENTENCE, type CommunitiesRead, type ServedCommunity } from "./communities";
+import { FIRST_SLEEP_SENTENCE, heldCount, NO_COMMON_SUBJECT, PROVISIONAL_BADGE, topicSummary, topicTitle, UNSERVED_SENTENCE, type CommunitiesRead, type ServedCommunity } from "./communities";
 import { topicColor } from "./topic_layout";
 import type { FoldState, NodeState } from "./stream_fold";
 import { isDiaryNode, plainCardTitle } from "./hover_card";
@@ -59,6 +64,22 @@ export function topicsNote(view: TopicsView): { text: string; error: boolean } |
 export function memoriesWord(n: number): string {
   return `${n} ${n === 1 ? "memory" : "memories"}`;
 }
+
+/** A topic's count: how many memories it holds (communities.heldCount) and,
+ * when the graph has loaded a different number of them (a scrubbed past,
+ * members outside the loaded window, a member another topic lists first),
+ * how many — the number its list shows. "28 memories · 0 loaded in this
+ * view". */
+export function topicCountWords(held: number, loaded: number): string {
+  return loaded === held ? memoriesWord(held) : `${memoriesWord(held)} · ${loaded} loaded in this view`;
+}
+
+/** What a focused topic none of whose memories the graph has loaded says
+ * where its members would be listed (review S1): one sentence, never an
+ * empty list. */
+export const UNLOADED_SENTENCE = "Its memories are outside the loaded window.";
+/** …and a topic served holding none (memory counts it 0). */
+export const EMPTY_TOPIC_SENTENCE = "It holds no memories.";
 
 /** The newer memories the version does not list (they join a topic at his
  * next sleep). */
@@ -131,21 +152,27 @@ export function factsText(facts: TopicFact[]): string {
   return facts.map((f) => (f.kind === "paths" ? `${f.text}: ${f.paths.map((p) => `${p.a} ↔ ${p.b} (${p.count})`).join("; ")}` : f.text)).join(". ");
 }
 
-/** Topics biggest first (ties by key: stable). */
+/** Topics biggest first (the count each row says; ties by key: stable). */
 export function topicOrder(communities: ServedCommunity[]): ServedCommunity[] {
-  return [...communities].sort((a, b) => b.members.length - a.members.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return [...communities].sort((a, b) => heldCount(b) - heldCount(a) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
-type TopicRowData = { kind: "topic"; c: ServedCommunity } | { kind: "facts"; c: ServedCommunity; facts: TopicFact[] } | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
+type TopicRowData =
+  | { kind: "topic"; c: ServedCommunity; loaded: number }
+  | { kind: "facts"; c: ServedCommunity; facts: TopicFact[] }
+  | { kind: "unloaded"; c: ServedCommunity; text: string }
+  | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
 type TopicRow = DisclosureRow<TopicRowData>;
 
 export const topicRowKey = (key: string) => `topic:${key}`;
 export const memberRowKey = (key: string, row: string) => `member:${key}:${row}`;
 export const factsRowKey = (key: string) => `facts:${key}`;
+export const unloadedRowKey = (key: string) => `unloaded:${key}`;
 
-/** The panel's visible rows: every topic; an unfolded one's facts (a static
- * row: never focused or selected) then its members (the memories of the
- * fold, newest first). */
+/** The panel's visible rows: every topic (its count beside how many the
+ * graph has loaded); an unfolded one's facts (a static row: never focused
+ * or selected) then its members (the memories of the fold, newest first) —
+ * or, with none loaded, the one sentence that says so (a static row). */
 export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState): TopicRow[] {
   const out: TopicRow[] = [];
   const byKey = new Map(communities.map((c) => [c.key, c]));
@@ -159,13 +186,18 @@ export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<
   };
   for (const c of topicOrder(communities)) {
     const open = expanded.has(c.key);
-    out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c } });
+    const nodes = (rowsOf.get(c.key) ?? []).map((r) => fold.nodes.get(r)).filter((n): n is NodeState => Boolean(n));
+    out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c, loaded: nodes.length } });
     if (!open) continue;
     const facts = topicFacts(c, titleOf, topicTitleOf);
     if (facts.length) {
       out.push({ key: factsRowKey(c.key), entityId: factsRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: factsText(facts), data: { kind: "facts", c, facts } });
     }
-    const nodes = (rowsOf.get(c.key) ?? []).map((r) => fold.nodes.get(r)).filter((n): n is NodeState => Boolean(n));
+    if (nodes.length === 0) {
+      const text = heldCount(c) > 0 ? UNLOADED_SENTENCE : EMPTY_TOPIC_SENTENCE;
+      out.push({ key: unloadedRowKey(c.key), entityId: unloadedRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: text, data: { kind: "unloaded", c, text } });
+      continue;
+    }
     nodes.sort((a, b) => b.first_seq - a.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     for (const node of nodes) {
       out.push({
@@ -249,7 +281,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
           <i className="gc_tp_dot" style={{ background: topicColor(c.key) }} aria-hidden="true" />
           <span className={`gc_tp_title${c.titlePending ? " gc_tp_pending" : ""}`}>{row.textValue}</span>
           <AfChip size="sm" tone="muted" className="gc_tp_count">
-            {memoriesWord(c.members.length)}
+            {topicCountWords(heldCount(c), d.loaded)}
           </AfChip>
           {summary ? <span className={`gc_tp_summary${c.summaryPending ? " gc_tp_pending" : ""}`}>{summary}</span> : null}
           {c.verdict ? <span className="gc_tp_verdict">{VERDICT_SENTENCE[c.verdict]}</span> : null}
@@ -278,6 +310,13 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
               </span>
             ),
           )}
+        </span>
+      );
+    }
+    if (d.kind === "unloaded") {
+      return (
+        <span className="gc_tp_unloaded" data-unloaded={d.c.key}>
+          {d.text}
         </span>
       );
     }

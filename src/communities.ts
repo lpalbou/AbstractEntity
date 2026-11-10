@@ -38,8 +38,9 @@
 
 export const COMMUNITIES_PAYLOAD_VERSION = 2;
 
-/** The graph's one sentence while his first sleep has not formed topics. */
-export const FIRST_SLEEP_SENTENCE = "His topics form at his next sleep.";
+/** The graph's one sentence while his first sleep has not formed topics
+ * (COMMUNITIES-DESIGN §4: "topics form during his next sleep"). */
+export const FIRST_SLEEP_SENTENCE = "His topics form during his next sleep.";
 /** The one sentence for a gateway that does not serve this shape. */
 export const UNSERVED_SENTENCE = "This gateway does not serve topics yet.";
 export const SUMMARY_BEING_WRITTEN = "summary being written…";
@@ -77,20 +78,25 @@ export interface TopicFacts {
 }
 
 export interface ServedCommunity {
-  /** The stable community key (identity across versions). */
+  /** The stable community key (identity across versions). The record's
+   * `id` is read (required, unique across the answer) and not kept: nothing
+   * here rides the revision. */
   key: string;
-  /** The current revision's record id. */
-  recordId: string;
   title: string | null;
   summary: string | null;
   titlePending: boolean;
   summaryPending: boolean;
   /** null, or NO_COMMON_SUBJECT: his author found no common subject. */
   verdict: typeof NO_COMMON_SUBJECT | null;
+  /** How many memories the version holds in it (memory's count). */
   size: number;
   kinds: Map<string, number>;
-  /** Members, then provisional ids not listed among them: join order. */
+  /** Members, each once, then provisional ids not listed among them: join
+   * order. */
   members: ServedMember[];
+  /** How many of `members` the version lists (the rest joined since:
+   * provisional_ids, placed events on the stream). */
+  listed: number;
   provisional: Set<string>;
   cohesion: number | null;
   layout: { x: number; y: number; radius: number; seats: Map<string, { dx: number; dy: number }> };
@@ -199,22 +205,29 @@ function readFacts(raw: unknown, where: string, path: string): TopicFacts {
   return facts;
 }
 
-function readCommunity(raw: unknown, i: number): ServedCommunity {
+/** A topic named in a problem as a person reads it: its place in the
+ * answer and its authored title once read — never its key, its record id
+ * or a member's id (review N4). */
+function topicNamed(i: number, title?: unknown): string {
+  return typeof title === "string" && title.trim() ? `topic ${i + 1} (“${title.trim()}”)` : `topic ${i + 1}`;
+}
+
+function readCommunity(raw: unknown, i: number): { id: string; community: ServedCommunity } {
   const at = `communities[${i}]`;
-  if (!isObj(raw)) wrong(`${at} is not an object`);
+  if (!isObj(raw)) wrong(`${topicNamed(i)} is not an object`);
   const id = need(raw, "id", at);
-  if (typeof id !== "string" || !id) wrong(`${at}.id is not a string`);
+  if (typeof id !== "string" || !id) wrong(`${topicNamed(i)}: id is not a string`);
   const key = need(raw, "key", at);
-  if (typeof key !== "string" || !key) wrong(`${at}.key is not a string`);
-  const where = `community ${key}`;
+  if (typeof key !== "string" || !key) wrong(`${topicNamed(i)}: key is not a string`);
   const title = need(raw, "title", at);
-  if (!textOrNull(title)) wrong(`${where}: title is neither text nor null`);
+  if (!textOrNull(title)) wrong(`${topicNamed(i)}: title is neither text nor null`);
+  const where = topicNamed(i, title);
   const summary = need(raw, "summary", at);
   if (!textOrNull(summary)) wrong(`${where}: summary is neither text nor null`);
   const pending = need(raw, "pending", at);
   if (!isStrList(pending)) wrong(`${where}: pending is not a list of field names`);
   const verdict = need(raw, "verdict", at);
-  if (verdict !== null && verdict !== NO_COMMON_SUBJECT) wrong(`${where}: verdict ${JSON.stringify(verdict)} is not one this app reads`);
+  if (verdict !== null && verdict !== NO_COMMON_SUBJECT) wrong(`${where}: its verdict is not one this app reads`);
   const size = need(raw, "size", at);
   if (!isNum(size) || size < 0) wrong(`${where}: size is not a count`);
   const rawKinds = need(raw, "kinds", at);
@@ -226,10 +239,12 @@ function readCommunity(raw: unknown, i: number): ServedCommunity {
   const listed = new Set<string>();
   for (const m of rawMembers) {
     if (!isObj(m) || typeof m.id !== "string" || !m.id || typeof m.via !== "string") wrong(`${where}: a member is not {id, via}`);
+    // A member listed twice is one memory: counted once, one seat.
     if (listed.has(m.id)) continue;
     listed.add(m.id);
     members.push({ id: m.id, via: m.via });
   }
+  const listedCount = members.length;
   const provisionalIds = need(raw, "provisional_ids", at);
   if (!isStrList(provisionalIds)) wrong(`${where}: provisional_ids is not a list of ids`);
   const provisional = new Set<string>();
@@ -254,15 +269,14 @@ function readCommunity(raw: unknown, i: number): ServedCommunity {
   const seats = new Map<string, { dx: number; dy: number }>();
   for (const [mid, seat] of Object.entries(rawSeats)) {
     const p = readPair(seat);
-    if (!p) wrong(`${where}: the seat of ${mid} is not [dx, dy]`);
+    if (!p) wrong(`${where}: a member's seat is not [dx, dy]`);
     seats.set(mid, { dx: p[0], dy: p[1] });
   }
   const centroidStale = need(raw, "centroid_stale", at);
   if (typeof centroidStale !== "boolean") wrong(`${where}: centroid_stale is not true or false`);
   const facts = readFacts(need(raw, "facts", at), where, `${at}.facts`);
-  return {
+  const community: ServedCommunity = {
     key,
-    recordId: id,
     title: typeof title === "string" && title.trim() ? title.trim() : null,
     summary: typeof summary === "string" && summary.trim() ? summary.trim() : null,
     titlePending: pending.includes("title"),
@@ -271,12 +285,14 @@ function readCommunity(raw: unknown, i: number): ServedCommunity {
     size,
     kinds,
     members,
+    listed: listedCount,
     provisional,
     cohesion,
     layout: { x: xy[0], y: xy[1], radius, seats },
     centroidStale,
     facts,
   };
+  return { id, community };
 }
 
 function readLinks(raw: unknown): ServedLink[] {
@@ -305,10 +321,13 @@ function readBody(body: Obj): CommunitiesRead {
   if (!Array.isArray(rawCommunities)) wrong("communities is not a list");
   const communities: ServedCommunity[] = [];
   const keys = new Set<string>();
+  const ids = new Set<string>();
   rawCommunities.forEach((raw, i) => {
-    const c = readCommunity(raw, i);
-    if (keys.has(c.key)) wrong(`two communities share the key ${c.key}`);
+    const { id, community: c } = readCommunity(raw, i);
+    if (keys.has(c.key)) wrong("two topics share one key");
+    if (ids.has(id)) wrong("two topics share one record id");
     keys.add(c.key);
+    ids.add(id);
     communities.push(c);
   });
   return { kind: "served", data: { versionSeq, communities, links: readLinks(rawLinks) } };
@@ -341,4 +360,12 @@ export function topicTitle(c: Pick<ServedCommunity, "title" | "titlePending">, b
 export function topicSummary(c: Pick<ServedCommunity, "summary" | "summaryPending">): string | null {
   if (c.summaryPending) return SUMMARY_BEING_WRITTEN;
   return c.summary;
+}
+
+/** How many memories a topic holds: the version's count (`size`, memory's
+ * own) plus the memories placed in it since (provisional, not listed by the
+ * version). What the panel and the title's card say, beside how many of
+ * them the graph has loaded when the two differ. */
+export function heldCount(c: Pick<ServedCommunity, "size" | "members" | "listed">): number {
+  return c.size + Math.max(0, c.members.length - c.listed);
 }
