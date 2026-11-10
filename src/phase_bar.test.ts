@@ -33,6 +33,7 @@ import {
   phaseActPlan,
   phaseBarRead,
   phaseBarView,
+  phaseNoteOf,
   phaseWriteOutcome,
   sinceWords,
   thenWords,
@@ -43,7 +44,10 @@ import {
   type PhaseBarRead,
   type PhaseBarUi,
 } from "./phase_bar";
-import { PHASE_BAR_UNSERVED, parsePhaseMarker, type ServedPhase } from "./phase_bar_source";
+import { PHASE_BAR_UNSERVED, parsePhaseMarker, type PhaseWire, type ServedPhase } from "./phase_bar_source";
+
+/** A phase route's refusal (contract-phases §7): {code, detail: {reason_code, message, life_state}}. */
+const refusalWire = (status: number, code: string, message: string): PhaseWire => ({ status, code, body: { code, detail: { reason_code: code, message, life_state: null } } });
 
 const IDLE_UI: PhaseBarUi = { busy: null, confirm: null };
 const NOW = Date.parse("2026-11-08T20:00:00.000+00:00");
@@ -620,5 +624,58 @@ describe("an operator sleep with no end holds until he is woken (contract §13)"
     expect(phaseActPlan(held(false), "personal")).toEqual({ kind: "toggle", key: "personal", on: true });
     const body = phaseBody("sleep", { toggles: { personal: true }, sentence: "Asleep until you wake him.", next: null, sleep: { kind: "operator", reason: null, since: null, ends: null } });
     expect(phaseWriteOutcome({ status: 200, code: null, body: { ...body, changed: { personal: { from: false, to: true } } } })).toMatchObject({ ok: true, sentence: null });
+  });
+});
+
+describe("the Stop receipt shows every row by its sentence (AbstractGateway 2fffc91d loop_unverified, the signal row)", () => {
+  const SIGNAL = "The Stop stands, but its signal file could not be written; other processes see it at their next read. Press Stop again. (Permission denied)";
+  const LOOP = "His own-time process could not be checked (its status file is denied); press Stop again.";
+  const partial = phaseWriteOutcome({
+    status: 200,
+    code: null,
+    body: {
+      ...phaseBody("stopped"),
+      action: "stop",
+      complete: false,
+      items: [
+        { item: "own_time", id: null, outcome: "done", code: "revoked", sentence: OWN_TIME_REVOKED },
+        { item: "signal", id: null, outcome: "failed", code: "lifecycle_signal_unwritten", sentence: SIGNAL },
+        { item: "loop", id: "4242", outcome: "failed", code: "loop_unverified", sentence: LOOP },
+        { item: "visit", id: null, outcome: "not_open", code: null, sentence: null },
+        { item: "tomorrows_item", id: null, outcome: "done", code: null, sentence: "Something new was stopped." },
+        { item: "queue", id: null, outcome: "failed", code: "queue_clear_failed", sentence: null },
+      ],
+    },
+  });
+
+  it("each row that speaks, in order, whatever its item; a failed row is marked failed", () => {
+    expect(partial.receipt).toEqual([
+      { sentence: OWN_TIME_REVOKED, failed: false },
+      { sentence: SIGNAL, failed: true },
+      { sentence: LOOP, failed: true },
+      { sentence: "Something new was stopped.", failed: false },
+      { sentence: "One part of the stop did not finish (queue_clear_failed).", failed: true },
+    ]);
+    expect(partial.incomplete).toBe(true);
+    expect(phaseNoteOf(partial)).toEqual({ receipt: partial.receipt });
+    // The joined sentence stays for the hosts that show one line.
+    expect(partial.sentence).toBe(partial.receipt.map((r) => r.sentence).join(" "));
+  });
+
+  it("an answer without items leaves its sentence; a refusal has no receipt", () => {
+    const toggled = phaseWriteOutcome({ status: 200, code: null, body: phaseBody("visit") });
+    expect(toggled.receipt).toEqual([]);
+    expect(phaseNoteOf(toggled)).toBe("When the visit closes, his own time resumes.");
+    expect(phaseWriteOutcome(refusalWire(409, "stopped_use_resume", "Stopped. Resume him first.")).receipt).toEqual([]);
+  });
+});
+
+describe("own time's start refused (409 stopped_use_resume / already_running): the served sentence", () => {
+  it("the phase routes' shape and the loop's own {detail: {reason_code, message}}", () => {
+    for (const act of ["personal", "retry"] as const) {
+      expect(phaseWriteOutcome(refusalWire(409, "stopped_use_resume", "Stopped. Resume him first, then choose what he may do."), act).sentence).toBe("Stopped. Resume him first, then choose what he may do.");
+      expect(phaseWriteOutcome(refusalWire(409, "already_running", "castor's own time is already running."), act).sentence).toBe("castor's own time is already running.");
+      expect(phaseWriteOutcome({ status: 409, code: "already_running", body: { detail: { reason_code: "already_running", message: "castor's own time is already starting.", loop: {} } } }, act).sentence).toBe("castor's own time is already starting.");
+    }
   });
 });

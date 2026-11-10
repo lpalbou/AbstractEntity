@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { phaseBody } from "./fixtures/phase_bodies";
-import { adoptPhaseBar, phaseBarRead, phaseBarView, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
+import { adoptPhaseBar, phaseBarRead, phaseBarView, type PhaseBarRead, type PhaseBarUi, type PhaseNote } from "./phase_bar";
 import type { PhaseWire, ServedPhase } from "./phase_bar_source";
 import { PhaseWrites, type PhaseWriteHost } from "./phase_bar_writes";
 
@@ -26,7 +26,7 @@ const wire = (phase: ServedPhase, overrides: Record<string, unknown> = {}, statu
 /** A page in miniature: the same rules the entity page applies (adoptPhaseBar for every answer). */
 function page(initial: ServedPhase) {
   const start = phaseBarRead(wire(initial));
-  const state = { read: start as PhaseBarRead, ui: { busy: null, confirm: null } as PhaseBarUi, note: null as string | null, refreshes: 0, authRefused: 0, current: true };
+  const state = { read: start as PhaseBarRead, ui: { busy: null, confirm: null } as PhaseBarUi, note: null as PhaseNote, refreshes: 0, authRefused: 0, current: true };
   const host: PhaseWriteHost = {
     current: () => state.current,
     adopt: (bar) => {
@@ -72,7 +72,7 @@ describe("Stop goes out while a toggle is in flight", () => {
     await flush();
     expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 47, generation: 8, stopped: true } });
     expect(p.view().power.label).toBe("Resume");
-    expect(p.state.note).toBe("The visit could not be closed: it was already closing.");
+    expect(p.state.note).toEqual({ receipt: [{ sentence: "The visit could not be closed: it was already closing.", failed: true }] });
     expect(p.state.ui.stopping).toBe(false);
     // Something is outstanding: a second Stop stays beside Resume.
     expect(p.state.ui.stopIncomplete).toBe(true);
@@ -83,7 +83,7 @@ describe("Stop goes out while a toggle is in flight", () => {
     await flush();
     expect(p.state.read).toMatchObject({ kind: "served", bar: { rev: 47, stopped: true, phase: "stopped" } });
     expect(p.view().power.label).toBe("Resume");
-    expect(p.state.note).toBe("The visit could not be closed: it was already closing.");
+    expect(p.state.note).toEqual({ receipt: [{ sentence: "The visit could not be closed: it was already closing.", failed: true }] });
     expect(p.state.ui.busy).toBe(null);
     expect(writes.held()).toBe(false);
   });

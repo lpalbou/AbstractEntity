@@ -823,6 +823,11 @@ export function summonEntity(
     queue?: boolean;
     /** The leave-it-with-her posture (§5): entry persists poll-less. */
     park?: boolean;
+    /** The other entities the message mentions: the composer's `@` chips (slugs, in pick order,
+     * each once), never parsed from the text (AbstractGateway 20e77103, the /runs/start
+     * semantics). The gateway tells him they answer for themselves; he answers only what is
+     * addressed to him, or says nothing. Absent when the message carries no chips. */
+    mentions?: string[];
   },
   token: string | null,
 ): Promise<{
@@ -1091,9 +1096,14 @@ async function postJson<T>(url: string, body: unknown, token: string | null, tim
   try {
     const res = await fetch(url, { credentials: "include", method: "POST", headers: authHeaders(token), body: JSON.stringify(body), signal: controller.signal });
     if (!res.ok) {
-      const detail = refusalDetail(await res.text().catch(() => ""));
-      const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number };
+      const text = await res.text().catch(() => "");
+      const detail = refusalDetail(text);
+      const err = new Error(detail || `HTTP ${res.status}`) as Error & { status?: number; code?: string };
       err.status = res.status;
+      // The refusal's machine code rides beside its sentence (refusalCodeOf): a stopped entity's
+      // open or summon is answered by what it means (Resume), never by the busy-seat reading.
+      const code = refusalCodeOf(text);
+      if (code) err.code = code;
       throw err;
     }
     return (await res.json()) as T;
@@ -2219,6 +2229,36 @@ export function embeddingsUnconfiguredError(): EmbeddingsUnconfigured {
 
 export function isEmbeddingsUnconfigured(e: unknown): e is EmbeddingsUnconfigured {
   return Boolean(e && typeof e === "object" && (e as { unconfigured?: unknown }).unconfigured === true);
+}
+
+/** A refusal body's machine code: the visit and chat doors' sibling `code` (`{detail: "<sentence>",
+ * code}`), the phase routes' `code` / `detail.reason_code`, the summon door's `detail.reason_code`;
+ * null when the body names none. */
+export function refusalCodeOf(text: string): string | null {
+  try {
+    const body = JSON.parse(text) as { code?: unknown; reason_code?: unknown; detail?: unknown };
+    const detail = body && typeof body.detail === "object" && body.detail !== null ? (body.detail as { reason_code?: unknown }) : null;
+    for (const v of [body?.code, body?.reason_code, detail?.reason_code]) if (typeof v === "string" && v.trim()) return v.trim();
+  } catch {
+    /* plain text: no code */
+  }
+  return null;
+}
+
+/** The code a gateway refusal carried (`postJson`'s errors), or null. */
+export function refusalCode(e: unknown): string | null {
+  const code = e && typeof e === "object" ? (e as { code?: unknown }).code : null;
+  return typeof code === "string" && code ? code : null;
+}
+
+/** The door's refusal of a STOPPED entity (a Stop landed during the open or the summon). */
+export const STOPPED_USE_RESUME = "stopped_use_resume";
+
+/** The gateway's sentence when a visit open or a summon was refused because he is stopped
+ * (409 `stopped_use_resume`: "Stopped. Resume to visit."); null for any other refusal. */
+export function stoppedSentence(e: Error & { status?: number }): string | null {
+  if (e.status !== 409 || refusalCode(e) !== STOPPED_USE_RESUME) return null;
+  return refusalText(e).trim() || null;
 }
 
 /** The gateway's refusal as a sentence: `{"detail": …}` bodies give their detail, never raw JSON. */

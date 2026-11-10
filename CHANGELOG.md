@@ -31,6 +31,30 @@ All notable changes to `@abstractframework/entity` are recorded here.
     graph shows his memories without circles and one sentence: "His topics form at his next
     sleep." A gateway that serves the old shape gets one sentence too: "This gateway does not
     serve topics yet." No topics are worked out in the app.
+- **@ mentions in the flow-brain lane: he answers only what is addressed to him.** A flow message
+  with @ chips now sends them with the turn (`mentions` on `POST /entities/{name}/summon`: the
+  chips' slugs in pick order, each once, never read from the text; AbstractGateway 20e77103), so
+  the gateway tells him the mentioned entities answer for themselves. If he then says nothing, no
+  bubble and no line show, and the mentioned entities still answer. A message without chips sends
+  no `mentions`.
+- **Identity card statements cut when saved.** A value or a purpose whose record was cut when it
+  was saved shows its title and "Older record: its summary was cut when saved; he rewrites it in
+  his sleep." (the hover card's line) instead of the cut words. Read from the gateway's `cut` on
+  the card's statements (`GET /entities/{name}/card`, AbstractGateway 32c9cc05), never from the
+  text.
+- **A Stop during a visit's opening.** When the door answers that he is stopped (409
+  `stopped_use_resume`, a Stop that landed while the visit opened), the Chat tab shows the
+  gateway's sentence ("Stopped. Resume to visit.") and a "Resume and visit" button: the phase
+  bar's own act, he resumes, then the visit opens. It no longer says his seat is taken. The
+  flow-brain lane shows the gateway's sentence too and offers no wait in line.
+- **A visit cancelled by a hand-over says so in the ledger.** A visit parked on an approval or a
+  question ends when you continue in another conversation (AbstractGateway 486d4dbe); its line
+  reads "Session cancelled" with the marker's own words ("the visitor continued in another
+  conversation").
+- **Every row of a Stop's answer.** The bar shows each row of the Stop's receipt by its sentence,
+  whatever the part (the new `signal` row and the loop's `loop_unverified` included), in order; a
+  part that failed shows in the kit's warning tone. A refused start of his own time
+  (`stopped_use_resume`, `already_running`) shows the gateway's sentence.
 - **An older record whose summary was cut says so instead of showing the cut text.** Some older
   memories had their summary cut short when they were saved (the flow brain's moments, and session
   reflections from before the whole summary was kept), and their hover card and Detail showed the

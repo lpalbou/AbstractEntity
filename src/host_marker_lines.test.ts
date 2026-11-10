@@ -280,3 +280,24 @@ describe("phase_changed (the gateway's marker, entity_phase._announce; the runti
     expect(ledgerLine(hostEnv(37, { ...SERVED, cause: undefined })).detail).toBe("cause unrecorded");
   });
 });
+
+describe("session_closed of a cancelled visit (AbstractGateway 486d4dbe: a visit parked on an approval, handed over)", () => {
+  it("reads cancelled, with the marker's own words", () => {
+    const line = ledgerLine(
+      hostEnv(9, { kind: "session_closed", session_id: "visit-castor-1", transport: "visit-run", output: {}, status: "cancelled", reason: "the visitor continued in another conversation" }),
+    );
+    expect(line.title).toBe("Session cancelled");
+    expect(line.detail).toBe("the session was cancelled (visit-castor-1) — the visitor continued in another conversation");
+  });
+
+  it("without words it still says what happened, never a '?'", () => {
+    const line = ledgerLine(hostEnv(10, { kind: "session_closed", status: "cancelled", reason: null }));
+    expect(line).toMatchObject({ title: "Session cancelled", detail: "the session was cancelled" });
+    expect(`${line.title} ${line.detail}`).not.toContain("?");
+  });
+
+  it("an ordinary close stays a close", () => {
+    const line = ledgerLine(hostEnv(11, { kind: "session_closed", session_id: "s2", close_reason: "idle deadline", closed_by: "operator" }));
+    expect(line).toMatchObject({ title: "Session closed", detail: "the session ended (s2) — idle deadline — by operator" });
+  });
+});

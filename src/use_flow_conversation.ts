@@ -9,8 +9,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { flowSession, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, queueCardLine, screenDiaryFences, waitingLine, type PollOutcome } from "./flow_lane";
-import { gatewayReplayView, getRunSummary, leaveQueue, pollQueueEntry, refusalText, summonEntity } from "./stream_source";
+import { emptyAnswerLine, flowSession, flowTurnBody, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, queueCardLine, screenDiaryFences, waitingLine, type PollOutcome } from "./flow_lane";
+import { gatewayReplayView, getRunSummary, leaveQueue, pollQueueEntry, refusalText, stoppedSentence, summonEntity } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import type { ReplayEnvelope } from "./stream_types";
 import type { DrawerMessage } from "./chat_message_list";
@@ -27,10 +27,12 @@ export interface FlowConversationApi {
   flowPublicHistory: ChatMessage[];
   /** Open the conversation view (resuming a stored unclosed session). */
   startConversation(): void;
-  /** Resolves once the turn settled: `landed` = his answer reached the thread (so a mention can
-   * follow it), `sessionId` = the conversation's session (minted on the first message), `runId` =
-   * the person's turn in it (a mention's `repeat_of`). */
-  sendFlow(text: string, opts?: { queue?: boolean; park?: boolean }): Promise<FlowTurnSettled>;
+  /** Resolves once the turn settled: `landed` = his answer reached the thread, or he said nothing
+   * to a message addressed to the entities it mentions (so a mention can follow it), `sessionId` =
+   * the conversation's session (minted on the first message), `runId` = the person's turn in it
+   * (a mention's `repeat_of`). `mentions`: the message's @ chips as slugs in pick order
+   * (flow_lane.flowMentionSlugs), sent with the summon. */
+  sendFlow(text: string, opts?: { queue?: boolean; park?: boolean; mentions?: string[] }): Promise<FlowTurnSettled>;
   endFlowConversation(): void;
   /** Stop waiting on the current poll — the run keeps ticking server-side. */
   stopWaiting(): void;
@@ -99,9 +101,10 @@ export function useFlowConversation(io: {
   /** Render one summoned turn's terminal outcome — the ONE fold both the
    * direct summon path and the queue's admitted state ride (contract §4).
    * Failure shapes THROW so each caller's catch owns its wording. Resolves true when his answer
-   * reached the thread. */
+   * reached the thread, or when he said nothing to a message addressed to other entities
+   * (`entitiesAnswer`: it carried @ chips; flow_lane.emptyAnswerLine). */
   const renderFlowOutcome = useCallback(
-    async (outcome: PollOutcome, runId: string): Promise<boolean> => {
+    async (outcome: PollOutcome, runId: string, entitiesAnswer = false): Promise<boolean> => {
       if (outcome.kind === "aborted") {
         push({
           role: "system",
@@ -120,13 +123,10 @@ export function useFlowConversation(io: {
       // from "the turn died" — never parsed from brackets.
       const fold = foldFlowAnswer(outcome.output);
       if (fold.answer === null) {
-        push({
-          role: "system",
-          content: fold.degraded
-            ? `The moment could not be lived: ${fold.momentError ?? "unnamed effect failure"}`
-            : "The turn completed but served no readable answer — he said nothing this moment.",
-          level: fold.degraded ? "warn" : "info",
-        });
+        // His silence to a message addressed to others: no bubble, no line; the mentions follow.
+        const line = emptyAnswerLine(fold, entitiesAnswer);
+        if (!line) return true;
+        push({ role: "system", ...line });
         return false;
       }
       // DIARY-FENCE GUARD (c5342 P0 + fable5 findings 2/3): one shared
@@ -287,7 +287,7 @@ export function useFlowConversation(io: {
   }, [queueState?.queueId, baseUrl, entity, push, driveFlowTurn]);
 
   const sendFlow = useCallback(
-    (text: string, opts: { queue?: boolean; park?: boolean } = {}) => {
+    (text: string, opts: { queue?: boolean; park?: boolean; mentions?: string[] } = {}) => {
       setBusy("turn");
       // envelopesRef, not the envelopes prop (fable5 finding 8): this
       // callback's identity is stable across the conversation, so the
@@ -304,27 +304,10 @@ export function useFlowConversation(io: {
       // ranks request > home substrate.yaml, so a mount-time copy pinned
       // here would defeat a Settings change mid-conversation. The gateway
       // resolves the entity's stored mind — one source.
-      return summonEntity(
-        baseUrl,
-        entity,
-        {
-          prompt: text,
-          flow_id: "entity-chat",
-          bundle_id: "entity-life",
-          session_id: flowSessionRef.current,
-          // SERIALIZABILITY (operator order 3, c5330): the conversation
-          // state lives server-side — each summon seeds the prior turns
-          // of THIS session from the run store (durable-sessions v1),
-          // so a reload or another client resumes the same thread. Her
-          // memory carries the meaning; the session carries the words.
-          input_data: { use_session_history: true, ...(conversationRef.current ? { _runtime: { conversation: { enabled: true } } } : {}) },
-          // Queue opt-in ONLY from the human's buttons (contract §1) —
-          // never sent on a plain send.
-          ...(opts.queue ? { queue: true } : {}),
-          ...(opts.park ? { park: true } : {}),
-        },
-        token,
-      )
+      // The body (flow_lane.flowTurnBody): the session's history seeds the turn server-side, the
+      // queue only from the human's buttons, the message's @ chips as `mentions` (none, no key).
+      const entitiesAnswer = Boolean(opts.mentions?.length);
+      return summonEntity(baseUrl, entity, flowTurnBody(text, { sessionId, conversation: Boolean(conversationRef.current), queue: opts.queue, park: opts.park, mentions: opts.mentions }), token)
         .then(async (r): Promise<boolean> => {
           const newWarnings = Array.isArray(r.warnings) ? r.warnings.filter((w) => typeof w === "string" && !flowWarnedRef.current.has(w)) : [];
           if (newWarnings.length > 0) {
@@ -360,20 +343,24 @@ export function useFlowConversation(io: {
           // provider calls per turn on top of the lived turn (flow c5285
           // ask1); contended-model turns measured 1-8 min BEFORE tools.
           const outcome = await followRunRef.current(r.run_id, gen, 600_000);
-          return renderFlowOutcomeRef.current(outcome, r.run_id);
+          return renderFlowOutcomeRef.current(outcome, r.run_id, entitiesAnswer);
         })
         .catch((e: Error & { status?: number }): boolean => {
+          // A Stop landed (409 stopped_use_resume): the gateway's sentence, never the busy seat, and
+          // no queue (a stopped entity's line never admits).
+          const stopped = stoppedSentence(e);
           push({
             role: "system",
-            content:
-              e.status === 409
+            content: stopped
+              ? stopped
+              : e.status === 409
                 ? `He is mid-moment (the door answered busy) — your words are back in the composer; send again shortly, or use the wait buttons below. (door: ${refusalText(e)})`
                 : `The flow-brain turn failed: ${refusalText(e)}`,
             level: "error",
           });
           // A held-seat 409 offers the QUEUE (contract §1: opt-in rides a
           // human's deliberate click, never a silent re-send).
-          if (e.status === 409 && !opts.queue) setQueueOffer(text);
+          if (e.status === 409 && !opts.queue && !stopped) setQueueOffer(text);
           // The failed words come back; the flow session survives (a
           // summon error must never reset the conversation — c5330).
           setDraft((cur) => cur || text);

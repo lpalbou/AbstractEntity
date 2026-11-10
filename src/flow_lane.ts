@@ -8,8 +8,10 @@
  * component composes these and owns only pixels + state.
  */
 
-import { ReplayViewFold, chatAuthorOf, type ChatAuthor, type ChatNotice, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import { ReplayViewFold, chatAuthorOf, type ChatAuthor, type ChatMentionSent, type ChatNotice, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
+import type { summonEntity } from "./stream_source";
 import { viewReplyNotices } from "./turn_notices";
+import { orderedMentions } from "./visit_mentions";
 
 export type PollOutcome =
   | { kind: "aborted"; lastStatus: string }
@@ -302,6 +304,50 @@ export function foldFlowAnswer(output: unknown): FlowAnswerFold {
     toolsRan: Array.isArray(o.tools_ran) ? (o.tools_ran as unknown[]).map((t) => String(t)) : null,
     toolRoundsPresent: typeof o.tool_rounds === "number",
   };
+}
+
+/** The `mentions` a flow turn's summon carries (AbstractGateway 20e77103, the /runs/start
+ * semantics): the message's entity chips as picked (their slugs, the ids the mention door is then
+ * sent), in pick order, each once. Never read from the typed text. */
+export function flowMentionSlugs(sent: readonly ChatMentionSent[]): string[] {
+  return orderedMentions(sent.filter((m) => m.kind === "entity")).map((m) => m.id);
+}
+
+/** One flow turn's summon body (entity-chat in the entity-life bundle). */
+export function flowTurnBody(
+  prompt: string,
+  opts: { sessionId: string; conversation: boolean; queue?: boolean; park?: boolean; mentions?: readonly string[] },
+): Parameters<typeof summonEntity>[2] {
+  return {
+    prompt,
+    flow_id: "entity-chat",
+    bundle_id: "entity-life",
+    session_id: opts.sessionId,
+    // SERIALIZABILITY (operator order 3, c5330): the conversation
+    // state lives server-side — each summon seeds the prior turns
+    // of THIS session from the run store (durable-sessions v1),
+    // so a reload or another client resumes the same thread. Her
+    // memory carries the meaning; the session carries the words.
+    input_data: { use_session_history: true, ...(opts.conversation ? { _runtime: { conversation: { enabled: true } } } : {}) },
+    // Queue opt-in ONLY from the human's buttons (contract §1) —
+    // never sent on a plain send.
+    ...(opts.queue ? { queue: true } : {}),
+    ...(opts.park ? { park: true } : {}),
+    // The message's @ chips: the gateway tells him the mentioned entities answer for themselves.
+    // No chips, no key.
+    ...(opts.mentions && opts.mentions.length ? { mentions: [...opts.mentions] } : {}),
+  };
+}
+
+/** A completed turn that served no readable answer: the line it gets, or null for none. A message
+ * addressed to other entities (`entitiesAnswer`: it carried @ chips) lets him say nothing (the
+ * gateway's mentions line): his silence renders no bubble and no line, the rule of the other apps
+ * (AbstractCode 3fcf843, AbstractAssistant 2a85897), and the mentions follow. A degraded moment
+ * still says why. */
+export function emptyAnswerLine(fold: FlowAnswerFold, entitiesAnswer: boolean): { content: string; level: "info" | "warn" } | null {
+  if (fold.degraded) return { content: `The moment could not be lived: ${fold.momentError ?? "unnamed effect failure"}`, level: "warn" };
+  if (entitiesAnswer) return null;
+  return { content: "The turn completed but served no readable answer — he said nothing this moment.", level: "info" };
 }
 
 /** Goodbye fold: the close's words, routed through the fence guard by the

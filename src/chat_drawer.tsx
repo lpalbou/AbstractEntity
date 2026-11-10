@@ -32,7 +32,7 @@ import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowCon
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
 import { useIdentityLook } from "./use_identity_look";
-import { screenDiaryFences } from "./flow_lane";
+import { flowMentionSlugs, screenDiaryFences } from "./flow_lane";
 import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
@@ -62,7 +62,7 @@ import { ownVisitSignal, type ClientVisitSignal } from "./entity_state";
 import { foldVisitStatus } from "./visit_status_poll";
 import { ChatMessageList, splitVisitDecoration, toolGaugeTrustworthy, type DrawerMessage } from "./chat_message_list";
 export { splitVisitDecoration } from "./chat_message_list";
-import { getEntitySeat, listEntities, postMention, refusalText, type EntitySeat, type IdentityRef } from "./stream_source";
+import { getEntitySeat, listEntities, postMention, refusalText, stoppedSentence, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
 import { RefusalLine, type SubstrateChoice } from "./mind_voice_settings";
@@ -154,6 +154,9 @@ export interface ChatDrawerProps {
   /** A new number = knock now (the phase bar's visit pill): opens a visit as the start screen's
    * "visit <name>" button does. */
   knockRequest?: number;
+  /** "Resume and visit" (the phase bar's own act, entity_view resumeAndVisit): resume him, then
+   * knock once he runs again. Offered when an open met a Stop (409 stopped_use_resume). */
+  onResumeAndVisit(): void;
   /** The panel remains mounted on tab changes; background speech/cues stay silent. */
   visible?: boolean;
   /** Open a record in the Detail panel by its GRAPH id: a reply's notice badge (what the turn
@@ -227,6 +230,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * retry affordance on the start screen; the queue-instead-of-409 half
    * is the gateway's build (its button lands when the door serves it). */
   const [seatBusy, setSeatBusy] = useState(false);
+  /** The open met a Stop (409 stopped_use_resume, a Stop landed during the open): the note shows
+   * the gateway's sentence and the start screen offers "Resume and visit". */
+  const [stoppedOffer, setStoppedOffer] = useState(false);
   /** The seat read (gateway slice 1, c5390): WHO holds the conversation —
    * the occupancy line's source. Null = endpoint absent (pre-slice door)
    * or unread; render-when-served, facts only (preemption is slice 2 —
@@ -600,6 +606,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     // entity's persisted choice — the visit never asks separately. If no
     // choice exists anywhere, the gateway's refusal names the fix.
     setBusy("opening");
+    setStoppedOffer(false);
     setNote("Opening — if he is busy with his own time, he finishes what he is doing, then the visit opens…");
     const onOpened = (r: Awaited<ReturnType<typeof openVisit>>) => {
       setSeatBusy(false);
@@ -651,13 +658,20 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         return;
       }
       const refusal = refusalText(e);
+      // A Stop landed during the open (409 stopped_use_resume): the gateway's sentence ("Stopped.
+      // Resume to visit.") and the phase bar's "Resume and visit", never the busy-seat retry.
+      const stopped = stoppedSentence(e);
       // No client wake (operator: no fallbacks): the door opens the visit
       // from any state and returns him to that state at close; writing his
       // state to awake here would END his sleep instead of interrupting it.
       // 409 occupancy = the busy signal (operator order via c5330): keep
       // the words gentle and hand back a one-click retry on the start
       // screen. Anything else stays the door's verbatim refusal.
-      if (e.status === 409) {
+      if (stopped) {
+        setSeatBusy(false);
+        setStoppedOffer(true);
+        setNote(stopped);
+      } else if (e.status === 409) {
         setSeatBusy(true);
         setNote(`His seat is taken right now — ${refusal}. Try again when his current conversation ends.`);
       } else {
@@ -924,7 +938,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       }
       setDraft("");
       push({ role: "user", content: flowText });
-      void sendFlow(flowText).then(({ landed, sessionId, runId: turnRunId }) => {
+      // The summon carries the chips as `mentions`: he answers only what is addressed to him.
+      void sendFlow(flowText, { mentions: flowMentionSlugs(mentionsSent) }).then(({ landed, sessionId, runId: turnRunId }) => {
         if (!mentionsSent.length) return;
         // His turn did not land (failed, queued, stopped): the mentions were not sent.
         if (!landed || !sessionId) { chipsBack(); return; }
@@ -1362,6 +1377,20 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             <div className="cd_note" role="status">
               <WordsLine text={note} />
             </div>
+          ) : null}
+          {stoppedOffer ? (
+            <button
+              className="cd_open_btn"
+              onClick={() => {
+                setStoppedOffer(false);
+                setNote(null);
+                props.onResumeAndVisit();
+              }}
+              disabled={busy !== "idle" || !participant}
+              title="Resume him (he comes back idle), then the visit opens."
+            >
+              Resume and visit
+            </button>
           ) : null}
           {seatBusy ? (
             <button

@@ -13,7 +13,7 @@
  * flight: their late answers touch nothing. A Stop's answer records whether it left something
  * outstanding (`ui.stopIncomplete`, contract §3.1 `complete: false`).
  */
-import { phaseWriteOutcome, type PhaseBarAct, type PhaseBarUi, type PhaseWriteOutcome } from "./phase_bar";
+import { phaseNoteOf, phaseWriteOutcome, type PhaseBarAct, type PhaseBarUi, type PhaseNote, type PhaseWriteOutcome } from "./phase_bar";
 import type { PhaseBar, PhaseWire } from "./phase_bar_source";
 
 /** What one write may touch on the page, resolved when the write starts. */
@@ -22,7 +22,8 @@ export interface PhaseWriteHost {
   current(): boolean;
   /** Paint a bar the gateway answered with (the page applies the rev rule). */
   adopt(bar: PhaseBar): void;
-  note(sentence: string | null): void;
+  /** The act's sentence, or its receipt's rows (a Stop's items, each by its sentence). */
+  note(note: PhaseNote): void;
   ui(update: (u: PhaseBarUi) => PhaseBarUi): void;
   /** Re-read the truth after an act. */
   refresh(): void;
@@ -87,7 +88,7 @@ export class PhaseWrites {
           if (out.bar) host.adopt(out.bar);
           if (stop && out.ok) host.ui((u) => ({ ...u, stopIncomplete: out.incomplete }));
           if (!overtaken()) {
-            host.note(out.sentence);
+            host.note(phaseNoteOf(out));
             host.after?.(out);
           }
           if (wire.status === 401) host.authRefused();

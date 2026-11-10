@@ -90,7 +90,8 @@ describe("the visit chat's wiring (source pins)", () => {
     const visitMentions = src.indexOf("if (mentionsSent.length && sessionForMentions) return sendMentions(sessionForMentions, mentionMessageKey(null), words, mentionsSent, sentChips, null);");
     expect(visitTurn).toBeGreaterThan(0);
     expect(visitMentions).toBeGreaterThan(visitTurn);
-    expect(src).toContain("void sendFlow(flowText).then(({ landed, sessionId, runId: turnRunId }) => {");
+    // The flow summon carries the chips as `mentions` (he answers only what is addressed to him).
+    expect(src).toContain("void sendFlow(flowText, { mentions: flowMentionSlugs(mentionsSent) }).then(({ landed, sessionId, runId: turnRunId }) => {");
     // The flow lane's summoned run is the person's turn of the session: the mentions' repeat_of.
     expect(src).toContain("return sendMentions(sessionId, mentionMessageKey(turnRunId), flowText, mentionsSent, sentChips, turnRunId).finally(() => setBusy(\"idle\"));");
     // The visit's session is the door's (open answer / visit status), never minted here.
@@ -139,7 +140,7 @@ describe("the visit chat's wiring (source pins)", () => {
     expect(sendAt).toBeGreaterThan(0);
     expect(plan).toBeGreaterThan(sendAt);
     // Decided before the flow summon, the visit turn and the person's bubble of a new message.
-    expect(src.indexOf("void sendFlow(flowText)", sendAt)).toBeGreaterThan(plan);
+    expect(src.indexOf("void sendFlow(flowText, ", sendAt)).toBeGreaterThan(plan);
     expect(src.indexOf("sendVisitTurn(baseUrl, entity, runId, text, token, speaker, attachments)", sendAt)).toBeGreaterThan(plan);
     expect(src.indexOf('push({ role: "user"', sendAt)).toBeGreaterThan(plan);
     // The held message is consumed by any send (a different one is a new message), words sent into

@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ChatMentionSent } from "@abstractframework/panel-chat";
 
-import { foldFlowAnswer, foldGoodbyeWords, pollRunToTerminal, queueCardLine, screenDiaryFences, type RunSummaryShape } from "./flow_lane";
+import { emptyAnswerLine, flowMentionSlugs, flowTurnBody, foldFlowAnswer, foldGoodbyeWords, pollRunToTerminal, queueCardLine, screenDiaryFences, type RunSummaryShape } from "./flow_lane";
+import { STOPPED_USE_RESUME, openVisit, refusalCode, stoppedSentence, summonEntity } from "./stream_source";
 
 /** Deterministic clock + instant sleep for table-driven poll tests. */
 function harness(reads: Array<RunSummaryShape | Error>, opts?: { abortAfter?: number }) {
@@ -167,5 +170,103 @@ describe("queueCardLine (decision:summon-queue-v1 §13/§3 — position honest, 
     expect(queueCardLine({ state: "failed", reason: "context floor" })).toContain("context floor");
     expect(queueCardLine({ state: "reaped" })).toContain("released");
     expect(queueCardLine({ state: "stepped_away" })).toContain("stepped away");
+  });
+});
+
+describe("the flow turn's @ mentions ride the summon (AbstractGateway 20e77103, the /runs/start semantics)", () => {
+  const chips: ChatMentionSent[] = [
+    { id: "nerin", name: "Nerin", kind: "entity", index: 1 },
+    { id: "veya", name: "Veya", kind: "entity", index: 0 },
+    { id: "nerin", name: "Nerin", kind: "entity", index: 2 },
+  ];
+  const base = { sessionId: "drawer-flow-s1", conversation: false };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("the chips as slugs in pick order, each once (never read from the text)", () => {
+    expect(flowMentionSlugs(chips)).toEqual(["veya", "nerin"]);
+    expect(flowMentionSlugs([])).toEqual([]);
+  });
+
+  it("the body carries them in that order; no chips, no key", () => {
+    expect(flowTurnBody("hello @Veya and @Nerin", { ...base, mentions: flowMentionSlugs(chips) }).mentions).toEqual(["veya", "nerin"]);
+    for (const none of [undefined, []]) expect("mentions" in flowTurnBody("hello", { ...base, mentions: none })).toBe(false);
+    // The rest of the body is today's.
+    expect(flowTurnBody("hello", base)).toEqual({ prompt: "hello", flow_id: "entity-chat", bundle_id: "entity-life", session_id: "drawer-flow-s1", input_data: { use_session_history: true } });
+  });
+
+  it("on the wire: POST /entities/{name}/summon carries mentions in order, and none without chips", async () => {
+    vi.stubGlobal("window", globalThis);
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ run_id: "run-1" }), { status: 200 });
+    }));
+    await summonEntity("http://gw.test/", "castor", flowTurnBody("hi both", { ...base, mentions: flowMentionSlugs(chips) }), "tok");
+    await summonEntity("http://gw.test/", "castor", flowTurnBody("hi", { ...base, mentions: flowMentionSlugs([]) }), "tok");
+    expect(bodies[0].mentions).toEqual(["veya", "nerin"]);
+    expect("mentions" in bodies[1]).toBe(false);
+  });
+
+  it("the hook and the drawer send them: the drawer's chips go to sendFlow, sendFlow into the body", () => {
+    const hook = readFileSync(new URL("./use_flow_conversation.ts", import.meta.url), "utf8");
+    const drawer = readFileSync(new URL("./chat_drawer.tsx", import.meta.url), "utf8");
+    expect(hook).toContain("flowTurnBody(text, { sessionId, conversation: Boolean(conversationRef.current), queue: opts.queue, park: opts.park, mentions: opts.mentions })");
+    expect(hook).toContain("return renderFlowOutcomeRef.current(outcome, r.run_id, entitiesAnswer);");
+    expect(drawer).toContain("void sendFlow(flowText, { mentions: flowMentionSlugs(mentionsSent) })");
+  });
+
+  it("his silence to a message addressed to others: no bubble, no line, and the mentions follow; a degraded moment still says why", () => {
+    const silent = foldFlowAnswer({ answer: "" });
+    expect(emptyAnswerLine(silent, true)).toBeNull();
+    expect(emptyAnswerLine(silent, false)).toEqual({ content: "The turn completed but served no readable answer — he said nothing this moment.", level: "info" });
+    expect(emptyAnswerLine(foldFlowAnswer({ degraded: true, moment_error: "the recall failed" }), true)).toEqual({ content: "The moment could not be lived: the recall failed", level: "warn" });
+    const hook = readFileSync(new URL("./use_flow_conversation.ts", import.meta.url), "utf8");
+    // null = nothing pushed and the turn counts as landed (the mentions run after it).
+    expect(hook).toMatch(/const line = emptyAnswerLine\(fold, entitiesAnswer\);\s*if \(!line\) return true;/);
+  });
+});
+
+describe("a Stop that lands during a summon or a visit open (409 stopped_use_resume)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const refuse = async (status: number, body: unknown, call: () => Promise<unknown>) => {
+    vi.stubGlobal("window", globalThis);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
+    try {
+      await call();
+    } catch (e) {
+      return e as Error & { status?: number };
+    }
+    throw new Error("the call did not refuse");
+  };
+
+  it("the visit door's {detail, code}: the gateway's sentence", async () => {
+    const e = await refuse(409, { detail: "Stopped. Resume to visit.", code: "stopped_use_resume" }, () => openVisit("http://gw.test/", "castor", "tok"));
+    expect(refusalCode(e)).toBe(STOPPED_USE_RESUME);
+    expect(stoppedSentence(e)).toBe("Stopped. Resume to visit.");
+  });
+
+  it("the summon door's {detail: {reason_code, message, reasons}}: its message", async () => {
+    const e = await refuse(
+      409,
+      { detail: { refused: true, reason_code: "stopped_use_resume", message: "Stopped. Resume him first.", reasons: ["#REFUSED summon: entity:castor is paused — the kill switch"] } },
+      () => summonEntity("http://gw.test/", "castor", { prompt: "hi" }, "tok"),
+    );
+    expect(stoppedSentence(e)).toBe("Stopped. Resume him first.");
+  });
+
+  it("a busy seat is not a Stop: no stopped sentence", async () => {
+    const e = await refuse(409, { detail: "a visit is open on castor" }, () => openVisit("http://gw.test/", "castor", "tok"));
+    expect(refusalCode(e)).toBeNull();
+    expect(stoppedSentence(e)).toBeNull();
+    const other = await refuse(409, { detail: "in another conversation", code: "in_another_conversation" }, () => openVisit("http://gw.test/", "castor", "tok"));
+    expect(stoppedSentence(other)).toBeNull();
+  });
+
+  it("the drawer: the sentence and 'Resume and visit' (the phase bar's act), never the busy seat's retry; the flow lane offers no queue", () => {
+    const drawer = readFileSync(new URL("./chat_drawer.tsx", import.meta.url), "utf8");
+    expect(drawer).toMatch(/const stopped = stoppedSentence\(e\);[\s\S]{0,700}if \(stopped\) \{\s*setSeatBusy\(false\);\s*setStoppedOffer\(true\);\s*setNote\(stopped\);\s*\} else if \(e\.status === 409\) \{/);
+    expect(drawer).toMatch(/\{stoppedOffer \? \([\s\S]{0,300}props\.onResumeAndVisit\(\);[\s\S]{0,300}Resume and visit/);
+    const hook = readFileSync(new URL("./use_flow_conversation.ts", import.meta.url), "utf8");
+    expect(hook).toContain("if (e.status === 409 && !opts.queue && !stopped) setQueueOffer(text);");
   });
 });

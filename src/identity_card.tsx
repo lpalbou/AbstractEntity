@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { FoldState } from "./stream_fold";
 import { fetchDiaryEntry, gatewayReadHeaders } from "./stream_source";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
+import { CUT_SUMMARY_LINE } from "./understanding";
 import { WordsLine } from "./words_line";
 import { shapeLabel } from "./node_label";
 import { AfChip, joinBaseUrl } from "@abstractframework/ui-kit";
@@ -44,8 +45,27 @@ function targetName(target: string): string {
 
 interface CardStatement {
   name?: string;
+  /** The statement's self record title (memory's entity_card identity section). */
+  title?: string;
   statement?: string;
   value_class?: string;
+  /** Its record's summary was cut when saved (a retired writer's stamp), served by the gateway
+   * (AbstractGateway 32c9cc05); absent from a gateway before it, or for a statement with no
+   * record found. */
+  cut?: boolean;
+}
+
+/** A statement's words, or, when the gateway says its record was cut when saved (`cut: true`,
+ * never read from the text), the one line the hover card shows instead of the cut text's marker
+ * lines. */
+function StatementWords({ statement, inline }: { statement: CardStatement; inline?: boolean }): React.ReactElement {
+  if (statement.cut === true)
+    return (
+      <span className="ic_cut" data-cut="true">
+        {CUT_SUMMARY_LINE}
+      </span>
+    );
+  return <WordsLine text={statement.statement ?? ""} inline={inline} />;
 }
 
 interface CardFeeling {
@@ -550,11 +570,12 @@ export function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fo
           {card.identity.values.map((v, i) => (
             <div key={i} className="ic_value">
               <span className="ic_value_name">
-                {v.name?.replace(/[_-]+/g, " ")}
+                {/* A cut value keeps its title (memory serves `title`), then the line, as the hover card. */}
+                {(v.name ?? (v.cut === true ? v.title : undefined))?.replace(/[_-]+/g, " ")}
                 {v.value_class === "core" ? <span className="ic_core"> core</span> : null}
               </span>
               <span className="ic_statement">
-                <WordsLine text={v.statement ?? ""} inline />
+                <StatementWords statement={v} inline />
               </span>
             </div>
           ))}
@@ -564,7 +585,9 @@ export function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fo
         <Section title="Purposes">
           {card.identity.purposes.map((v, i) => (
             <div key={i} className="ic_line">
-              <WordsLine text={v.statement ?? ""} />
+              {/* A cut purpose keeps its title (when served), then the line, as the hover card. */}
+              {v.cut === true && v.title ? <span className="ic_value_name">{v.title}</span> : null}
+              <StatementWords statement={v} />
             </div>
           ))}
         </Section>

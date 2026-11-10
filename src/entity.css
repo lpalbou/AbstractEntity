@@ -968,6 +968,10 @@ body {
 .ec_pb_note {
   color: var(--bond);
 }
+/* A receipt row that failed (a Stop's item, outcome failed): the kit's warning tone. */
+.ec_pb_receipt_failed {
+  color: var(--warning);
+}
 .ec_pb_blocked {
   color: color-mix(in srgb, var(--scar) 65%, var(--text));
 }
@@ -1435,6 +1439,12 @@ body {
   color: var(--text-dim);
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   line-height: 1.45;
+}
+
+/* A statement whose record was cut when saved: the one quiet line instead of its words. */
+.ic_cut {
+  color: var(--text-dim);
+  font-style: italic;
 }
 
 /* Likes beside dislikes where the card is wide (the modal); stacked in

@@ -518,32 +518,59 @@ export interface PhaseWriteOutcome {
   bar: PhaseBar | null;
   sentence: string | null;
   incomplete: boolean;
+  /** The receipt's rows, one per item that speaks, in the gateway's order (empty for a refusal or
+   * an answer without items). */
+  receipt: PhaseReceiptRow[];
+}
+
+/** One row of a write's receipt (contract §3.1 `items`): shown by its sentence whatever the item
+ * (`signal`, `loop`, `visit`, a kind this app does not know); a row whose outcome is `failed`
+ * gets the kit's warning tone (and, with no sentence, says which part did not finish). */
+export interface PhaseReceiptRow {
+  sentence: string;
+  failed: boolean;
+}
+
+/** What the bar's note shows: one sentence, or a receipt's rows. */
+export type PhaseNote = string | { receipt: PhaseReceiptRow[] } | null;
+
+/** The receipt rows of an item list: every row with a sentence, and every failed row (its
+ * sentence, else which part); an item that neither failed nor says anything ("not_open",
+ * "not_running") is a fact with no words. */
+export function receiptRows(items: unknown): PhaseReceiptRow[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
+    .map((i) => {
+      const failed = i.outcome === "failed";
+      const said = typeof i.sentence === "string" ? i.sentence.trim() : "";
+      return { sentence: said || (failed ? `One part of the stop did not finish (${String(i.code ?? i.item ?? "unknown")}).` : ""), failed };
+    })
+    .filter((r) => r.sentence !== "");
+}
+
+/** The note a write's answer leaves: its receipt's rows when it has any, else its sentence. */
+export function phaseNoteOf(out: PhaseWriteOutcome): PhaseNote {
+  return out.receipt.length ? { receipt: out.receipt } : out.sentence;
 }
 
 /** `act` = what was asked (the sentence for a code speaks of it only, REFUSAL_ACT); unknown: any. */
 export function phaseWriteOutcome(wire: PhaseWire, act?: PhaseBarAct): PhaseWriteOutcome {
   if (wire.status >= 200 && wire.status < 300) {
     const bar = parsePhaseBar(wire.body);
-    const items = Array.isArray(wire.body?.items) ? (wire.body!.items as unknown[]) : [];
-    const receipt = items
-      .filter((i): i is Record<string, unknown> => Boolean(i) && typeof i === "object")
-      .map((i) => {
-        const said = typeof i.sentence === "string" ? i.sentence.trim() : "";
-        return said || (i.outcome === "failed" ? `One part of the stop did not finish (${String(i.code ?? i.item ?? "unknown")}).` : "");
-      })
-      .filter(Boolean);
+    const receipt = receiptRows(wire.body?.items);
     // A stop says what its items say (a part that failed, own time revoked); a toggle or a retry
     // says what happens next: the gateway's words ("When the visit closes, his own time
     // resumes."), else the app's ("Own time is off; he stays awake.").
-    return { ok: true, bar, sentence: receipt.length ? receipt.join(" ") : (bar ? afterLine(bar) || null : null), incomplete: wire.body?.complete === false };
+    return { ok: true, bar, sentence: receipt.length ? receipt.map((r) => r.sentence).join(" ") : (bar ? afterLine(bar) || null : null), incomplete: wire.body?.complete === false, receipt };
   }
   const detail = wire.body && typeof wire.body.detail === "object" && !Array.isArray(wire.body.detail) ? (wire.body.detail as Record<string, unknown>) : null;
   const carried = parsePhaseBar(detail?.life_state);
-  if (wire.status === 401) return { ok: false, bar: carried, sentence: "Sign in again: the gateway did not accept this sign-in.", incomplete: false };
-  if (wire.code === "admin_required" || (wire.status === 403 && !messageOf(wire))) return { ok: false, bar: carried, sentence: ADMIN_REQUIRED, incomplete: false };
+  if (wire.status === 401) return { ok: false, bar: carried, sentence: "Sign in again: the gateway did not accept this sign-in.", incomplete: false, receipt: [] };
+  if (wire.code === "admin_required" || (wire.status === 403 && !messageOf(wire))) return { ok: false, bar: carried, sentence: ADMIN_REQUIRED, incomplete: false, receipt: [] };
   // A 404 without a code is a missing route, not a missing entity.
-  if ((wire.status === 404 || wire.status === 405) && !wire.code) return { ok: false, bar: null, sentence: PHASE_BAR_UNSERVED, incomplete: false };
+  if ((wire.status === 404 || wire.status === 405) && !wire.code) return { ok: false, bar: null, sentence: PHASE_BAR_UNSERVED, incomplete: false, receipt: [] };
   const codeAct = wire.code ? REFUSAL_ACT[wire.code] : undefined;
   const coded = wire.code && (!codeAct || !act || codeAct === act) ? REFUSAL_SENTENCES[wire.code] : undefined;
-  return { ok: false, bar: carried, sentence: messageOf(wire) || coded || (wire.status === 409 ? REFUSED_NO_WORDS : REFUSED_NO_REASON), incomplete: false };
+  return { ok: false, bar: carried, sentence: messageOf(wire) || coded || (wire.status === 409 ? REFUSED_NO_WORDS : REFUSED_NO_REASON), incomplete: false, receipt: [] };
 }

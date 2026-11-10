@@ -543,6 +543,13 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         return { ...base, title: "Summoned", detail: `a new session begins${session}`, subject_id: null, tone: "session" };
       }
       if (p.kind === "session_closed") {
+        // A visit CANCELLED (the marker's `status: cancelled`, AbstractGateway 486d4dbe): parked on
+        // an approval or a question when the same visitor continued in another conversation, or
+        // cut by the kill switch. Its own words (`reason`, the run's cancel reason) say why; a
+        // marker without them says it was cancelled, never a "?".
+        if (p["status"] === "cancelled") {
+          return { ...base, title: "Session cancelled", detail: `the session was cancelled${session}${reason ? ` — ${reason}` : ""}`, subject_id: null, tone: "session" };
+        }
         // Visit runs close with a WHY (D3 idle deadline / explicit close /
         // state-transition guards) and a WHO (closed_by) — surface both
         // when the door records them; older markers stay a plain close.

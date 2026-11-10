@@ -59,7 +59,7 @@ import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
 import { USAGE_HIGH, USAGE_LOW, USAGE_TITLE } from "./graph_usage";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
-import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi, type PhaseWriteOutcome } from "./phase_bar";
+import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi, type PhaseNote, type PhaseWriteOutcome } from "./phase_bar";
 import { PhaseWrites } from "./phase_bar_writes";
 import { PhaseBarControls } from "./phase_bar_controls";
 import { getPhaseBar, highestPhaseMarker, postLifecycle, postSleepNow, putPhaseToggle, type PhaseMarker, type PhaseWire } from "./phase_bar_source";
@@ -362,7 +362,7 @@ export function EntityView(): React.ReactElement {
    * the last act's sentence. */
   const [phaseRead, setPhaseRead] = useState<PhaseBarRead>({ kind: "loading" });
   const [phaseUi, setPhaseUi] = useState<PhaseBarUi>({ busy: null, confirm: null });
-  const [phaseNote, setPhaseNote] = useState<string | null>(null);
+  const [phaseNote, setPhaseNote] = useState<PhaseNote>(null);
   /** A click on the visit pill asks the Chat tab to knock (a nonce the drawer watches). */
   const [visitKnock, setVisitKnock] = useState(0);
   /** ONE-GRAPH drift check (dm#79 mechanism; my consumer half, c3564):
@@ -1170,13 +1170,12 @@ export function EntityView(): React.ReactElement {
     },
     [phaseRead, entityName, runPhaseWrite],
   );
-  const confirmPhaseAct = useCallback(() => {
-    const kind = phaseUi.confirm;
-    if (kind === "stop") runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
-    else if (kind === "sleep") sleepNow();
-    else if (kind === "resume_visit")
-      // "Resume and visit" (contract §6.1): two visible acts — resume, then (once he runs again)
-      // the visit opens as the visit pill opens it. Never a silent bypass of the stop.
+  /** "Resume and visit" (contract §6.1): two visible acts — resume, then (once he runs again) the
+   * visit opens as the visit pill opens it. Never a silent bypass of the stop. The bar's
+   * confirmation and the Chat tab's offer after an open met a Stop (409 stopped_use_resume) both
+   * run it. */
+  const resumeAndVisit = useCallback(
+    () =>
       runPhaseWrite(
         "resume",
         (base, token) => postLifecycle(base, entityName, "resume", token),
@@ -1185,8 +1184,15 @@ export function EntityView(): React.ReactElement {
           setRequestedTab({ tab: "chat", nonce: Date.now() });
           setVisitKnock((n) => n + 1);
         },
-      );
-  }, [phaseUi.confirm, entityName, runPhaseWrite, sleepNow]);
+      ),
+    [entityName, runPhaseWrite],
+  );
+  const confirmPhaseAct = useCallback(() => {
+    const kind = phaseUi.confirm;
+    if (kind === "stop") runPhaseWrite("stop", (base, token) => postLifecycle(base, entityName, "stop", token));
+    else if (kind === "sleep") sleepNow();
+    else if (kind === "resume_visit") resumeAndVisit();
+  }, [phaseUi.confirm, entityName, runPhaseWrite, sleepNow, resumeAndVisit]);
   const cancelPhaseConfirm = useCallback(() => setPhaseUi((u) => ({ ...u, confirm: null })), []);
   const phaseView = phaseBarView(phaseRead, phaseUi);
 
@@ -2294,6 +2300,7 @@ export function EntityView(): React.ReactElement {
                         }}
                         onVisitStateChange={handleVisitStateChange}
                         knockRequest={visitKnock}
+                        onResumeAndVisit={resumeAndVisit}
                         onAvatarModeChange={setAvatarChat}
                         visible={visible}
                         onOpenRecord={openInDetail}

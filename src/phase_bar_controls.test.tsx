@@ -348,7 +348,11 @@ describe("wiring: the phase bar is the one phase control", () => {
   });
 
   it("Resume and visit: the resume, then (once he runs again) the visit opens as the visit pill opens it", () => {
-    expect(view).toMatch(/kind === "resume_visit"\)[\s\S]{0,400}postLifecycle\(base, entityName, "resume", token\),[\s\S]{0,200}if \(!out\.ok \|\| !out\.bar \|\| out\.bar\.stopped\) return;[\s\S]{0,120}setVisitKnock\(\(n\) => n \+ 1\);/);
+    expect(view).toMatch(/const resumeAndVisit = useCallback\([\s\S]{0,200}postLifecycle\(base, entityName, "resume", token\),[\s\S]{0,200}if \(!out\.ok \|\| !out\.bar \|\| out\.bar\.stopped\) return;[\s\S]{0,120}setVisitKnock\(\(n\) => n \+ 1\);/);
+    expect(view).toContain('else if (kind === "resume_visit") resumeAndVisit();');
+    // The Chat tab's offer after an open met a Stop (409 stopped_use_resume) runs the same act.
+    expect(view).toContain("onResumeAndVisit={resumeAndVisit}");
+    expect(drawer).toContain("props.onResumeAndVisit();");
   });
 
   it("the roster's tiles draw the bar without Resume (so no Resume and visit), and ask only sleep now", () => {
@@ -361,5 +365,31 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(view).toContain("setVisitKnock((n) => n + 1);");
     expect(drawer).toContain("knockRequest?: number;");
     expect(drawer).toMatch(/if \(runId \|\| busy !== "idle"\) return;[\s\S]{0,140}open\(\);/);
+  });
+});
+
+describe("the Stop receipt in the bar: every row by its sentence, a failed one in the kit's warning tone", () => {
+  it("rows in order; the failed rows carry the warning tone, the others the note's", () => {
+    const html = render(read("stopped"), undefined, {
+      note: {
+        receipt: [
+          { sentence: OWN_TIME_REVOKED, failed: false },
+          { sentence: "The Stop stands, but its signal file could not be written; press Stop again.", failed: true },
+          { sentence: "His own-time process could not be checked (its status file is denied); press Stop again.", failed: true },
+        ],
+      },
+    });
+    const note = html.match(/<span class="ec_pb_note ec_pb_receipt" role="status">[\s\S]*?<\/span><\/span>(?=<|$)/)?.[0] ?? "";
+    expect(note).toContain(`<span class="ec_pb_receipt_row">${OWN_TIME_REVOKED}</span>`);
+    expect(note).toContain('<span class="ec_pb_receipt_row ec_pb_receipt_failed" data-tone="warning">The Stop stands, but its signal file could not be written; press Stop again.</span>');
+    expect(note).toContain('<span class="ec_pb_receipt_row ec_pb_receipt_failed" data-tone="warning">His own-time process could not be checked (its status file is denied); press Stop again.</span>');
+    expect(note.match(/ec_pb_receipt_row/g)).toHaveLength(3);
+    const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
+    expect(css).toMatch(/\.ec_pb_receipt_failed \{\s*color: var\(--warning\);/);
+  });
+
+  it("the page's Stop answers land as the receipt (phase_bar_writes: phaseNoteOf)", () => {
+    const writes = fs.readFileSync(path.join(__dirname, "phase_bar_writes.ts"), "utf8");
+    expect(writes).toContain("host.note(phaseNoteOf(out));");
   });
 });

@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import { CardBody, feelingLabel } from "./identity_card";
 import { foldEnvelopes } from "./stream_fold";
+import { CUT_SUMMARY_LINE } from "./understanding";
 import type { ReplayEnvelope } from "./stream_types";
 
 describe("feelingLabel: the name or title, never an id", () => {
@@ -122,5 +123,47 @@ describe("CardBody feeling rows", () => {
     expect(t).toContain("person grace -1 (+2 / −3)");
     expect(t).toContain("“she apologised, and meant it”");
     expect(t).toContain("person admin +12 (+12 / −0)");
+  });
+});
+
+describe("CardBody identity statements cut when saved (AbstractGateway 32c9cc05 `cut` on GET /card identity)", () => {
+  const CUT_WORDS = "I keep what I learn about the harb [#TRUNCATION: 140 kept]\nand I say so when I do not kn [#TRUNCATION: 140 kept]";
+  const card = {
+    name: "Castor",
+    entity_id: "entity:castor",
+    identity: {
+      values: [
+        { title: "honesty", statement: "I tell the truth, even when it costs me.", value_class: "core", cut: false },
+        { title: "curiosity", statement: CUT_WORDS, cut: true },
+      ],
+      purposes: [
+        { title: "keep the harbour archive", statement: CUT_WORDS, cut: true },
+        { title: "help Laurent", statement: "I help Laurent think out loud." },
+      ],
+    },
+  };
+  const html = renderToStaticMarkup(<CardBody card={card as never} fold={null} baseUrl="http://gw" entity="castor" />);
+
+  it("a cut statement shows its title and the hover card's line, never the cut text's marker lines", () => {
+    expect(html).not.toContain("#TRUNCATION");
+    expect(html).not.toContain("I keep what I learn");
+    const values = text(sectionOf(html, "Values"));
+    expect(values).toContain(`curiosity ${CUT_SUMMARY_LINE}`);
+    const purposes = text(sectionOf(html, "Purposes"));
+    expect(purposes).toContain(`keep the harbour archive ${CUT_SUMMARY_LINE}`);
+    expect(html.match(/data-cut="true"/g)).toHaveLength(2);
+  });
+
+  it("a whole statement (cut false, or no flag from an older gateway) keeps its words as today", () => {
+    expect(text(sectionOf(html, "Values"))).toContain("I tell the truth, even when it costs me.");
+    expect(text(sectionOf(html, "Purposes"))).toContain("I help Laurent think out loud.");
+    // A whole row's look is unchanged: no title is added to it.
+    expect(text(sectionOf(html, "Purposes"))).not.toContain("help Laurent I help");
+  });
+
+  it("read from the served flag, never parsed from the words: the same cut words without the flag render as words", () => {
+    const unflagged = renderToStaticMarkup(<CardBody card={{ ...card, identity: { purposes: [{ title: "x", statement: "plain words" }], values: [{ title: "y", statement: CUT_WORDS }] } } as never} fold={null} baseUrl="http://gw" entity="castor" />);
+    expect(unflagged).toContain("#TRUNCATION");
+    expect(unflagged).not.toContain(CUT_SUMMARY_LINE);
   });
 });

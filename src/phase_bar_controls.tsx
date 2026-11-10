@@ -11,15 +11,16 @@
 import React, { useId } from "react";
 import { AfChip, AfChipButton } from "@abstractframework/ui-kit";
 
-import { STOP_CONSEQUENCE, type PhaseBarAct, type PhaseBarUi, type PhaseBarView, type PhaseConfirm } from "./phase_bar";
+import { STOP_CONSEQUENCE, type PhaseBarAct, type PhaseBarUi, type PhaseBarView, type PhaseConfirm, type PhaseNote } from "./phase_bar";
 
 export interface PhaseBarControlsProps {
   view: PhaseBarView;
   ui: PhaseBarUi;
   /** The entity's display name (the confirmation's words). */
   entityName: string;
-  /** The last act's sentence (a refusal, or the gateway's word about a change). */
-  note: string | null;
+  /** The last act's sentence (a refusal, or the gateway's word about a change), or its receipt's
+   * rows (a Stop's items: each by its sentence; a failed one in the kit's warning tone). */
+  note: PhaseNote;
   onAct(act: PhaseBarAct): void;
   onConfirm(): void;
   onCancel(): void;
@@ -140,9 +141,20 @@ export function PhaseBarControls(props: PhaseBarControlsProps): React.ReactEleme
           Retry
         </AfChipButton>
       ) : null}
-      {note ? (
+      {typeof note === "string" && note ? (
         <span className="ec_pb_note" role="status">
           {note}
+        </span>
+      ) : note && typeof note === "object" && note.receipt.length ? (
+        <span className="ec_pb_note ec_pb_receipt" role="status">
+          {note.receipt.map((row, i) => (
+            <React.Fragment key={i}>
+              {i > 0 ? " " : null}
+              <span className={`ec_pb_receipt_row${row.failed ? " ec_pb_receipt_failed" : ""}`} data-tone={row.failed ? "warning" : undefined}>
+                {row.sentence}
+              </span>
+            </React.Fragment>
+          ))}
         </span>
       ) : null}
     </div>
