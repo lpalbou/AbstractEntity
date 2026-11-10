@@ -310,13 +310,14 @@ function topicVersionId(env: ReplayEnvelope): string | null {
   return rid || null;
 }
 
-/** A closed link between two versions of a topic: memory forms a version
- * with one edge, `refines` to the version before, and closes that link row
- * with the version (its display: kind "memory", the version's graph id).
- * Structural, the stream_fold rule: the row names a topic version seen on
- * the stream as its source — never its words. */
+/** A link between two versions of a topic: memory forms a version with one
+ * edge, `refines` to the version before, and closes that link row with the
+ * version (its display: kind "memory", the version's graph id); a binding
+ * of that row is the same link. Structural, the stream_fold rule
+ * (isTopicChainRow, closures and bindings): the row names a topic version
+ * seen on the stream as its source — never its words. */
 export function isTopicLink(env: ReplayEnvelope, topicIds: TopicIds): boolean {
-  if (env.family !== "closure" || env.display?.kind === COMMUNITY_RECORD_KIND) return false;
+  if ((env.family !== "closure" && env.family !== "binding") || env.display?.kind === COMMUNITY_RECORD_KIND) return false;
   const gid = typeof env.display?.graph_id === "string" ? env.display.graph_id.trim() : "";
   return gid !== "" && topicIds.has(gid);
 }

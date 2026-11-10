@@ -223,6 +223,12 @@ describe("the link between two versions of a topic has no row (castor 2026-11-10
     expect(later.topicIds.has("ex:community-a3")).toBe(true);
   });
 
+  it("the same link arriving as a binding has no row either (the graph's fold drops its node there too)", () => {
+    const asBinding = { ...v1, seq: 23, display: { record_id: "row-23", kind: "memory", title: "ex:community-a1 refines", graph_id: "ex:community-a1" } } as unknown as ReplayEnvelope;
+    expect(foldLedgerLines(null, [...night, asBinding]).lines.map((l) => l.line.seq)).toEqual([10, 20, 21]);
+    expect(foldEnvelopes([...night, asBinding]).nodes.size).toBe(0);
+  });
+
   it("read alone, with the topic ids: an audit line in words; with nothing saying it is a topic's, it stays a belief's line (the rule never reads its words)", () => {
     const quiet = ledgerLine(link(22, v1), undefined, new Set(["ex:community-a1"]));
     expect(quiet).toMatchObject({ title: "A topic's link to its earlier version was closed", detail: "a newer version replaced it", tone: "quiet", subject_id: null });
