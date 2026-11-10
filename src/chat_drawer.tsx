@@ -178,6 +178,13 @@ export interface ChatDrawerProps {
   replyFeed: ReplyFeed;
 }
 
+/** His reply to a visit turn as the thread holds it: his words, the turn's facts as `detail` (the
+ * probe the footer under his words opens; the visit lane's fields as served, `diary_entries` a list
+ * of entries) and what the turn formed as `notices` (the badges in his bubble). */
+export function visitReplyMessage(r: VisitTurnResult, entityName: string, thinkMs: number): Omit<DrawerMessage, "id"> {
+  return { role: "assistant", content: r.reply ?? "", title: entityName, detail: { ...(r as ChatTurnResult), think_ms: thinkMs } as ChatTurnResult, ...noticesField(r.reply_notices) };
+}
+
 export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const { baseUrl, entity, entityName, token, authUserId, envelopes, onAuthRefused, onConveneWith, onVisitStateChange } = props;
   /** Identity derives from the session principal — never typed, never
@@ -1002,7 +1009,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         // the probe payload (gap 1, gateway c1358). reply coerced by push().
         // What the turn formed (a diary entry, a lesson staged for the close, …) rides beside the
         // served reply as data (`reply_notices`): one badge each under his words, never read out of them.
-        push({ role: "assistant", content: r.reply ?? "", title: entityName, detail: { ...(r as ChatTurnResult), think_ms: Date.now() - turnT0 } as ChatTurnResult, ...noticesField(r.reply_notices) });
+        push(visitReplyMessage(r, entityName, Date.now() - turnT0));
         // Fabricated-lookup flag (seq 43 FAILURE 1): prose CLAIM vs driver
         // FACT mismatch is called out in the thread, loudly, at the moment
         // it happens — not discovered later in forensics. GAUGE GUARD

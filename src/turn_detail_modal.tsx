@@ -25,6 +25,7 @@ import type { ChatTurnResult } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 import type { VerbatimSource } from "./verbatim_modal";
+import { diaryEntryWords, turnDiaryEntries } from "./reply_notices_summary";
 import { MEMORY_DIGEST_CAP, MEMORY_TITLE_CAP, servedExcerpt, summarizeTools } from "./turn_probe_parse";
 import { ContextMemory, safeText, SystemPromptView, ToolCall, whyLabel, type ToolDetail } from "./turn_probe_views";
 import { WordsLine } from "./words_line";
@@ -69,7 +70,6 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
   const memories = allHandles.filter((m) => m.admission !== "self");
   const identityRows = allHandles.filter((m) => m.admission === "self");
   const formed = turn.records_formed ?? [];
-  const diary = turn.diary_entries ?? [];
   // tool_details EMPTY is not "no tools" (laurent dm#56 pt3: the visit
   // lane serves tool_details:[] for uncaptured details while tools_ran
   // carries the real names — `??` never fell through, so the modal said
@@ -80,7 +80,9 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
   const files = turn.files ?? [];
   const notices = turn.notices ?? [];
   const formedList = Array.isArray(formed) ? formed : [];
-  const diaryList = Array.isArray(diary) ? diary : [];
+  // The visit lane serves each entry as an object (`{entry_id, kind, visibility, projected_record_id,
+  // title}`), never a string: rendering one as a child was the panel's React error #31 (2026-11-10).
+  const diaryList = turnDiaryEntries(turn.diary_entries);
   const systemPrompt = turn.system_prompt ?? "";
   // Prose-claim vs driver-fact mismatch (seq 43 R6): flagged, never parsed
   // into facts — tools_ran stays the only authority on what ran.
@@ -205,9 +207,9 @@ export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetai
                         <span className="ei_kind ei_kind_episode">memory</span> <code>{id}</code>
                       </li>
                     ))}
-                    {diaryList.map((id) => (
-                      <li key={id}>
-                        <span className="ei_kind ei_kind_diary">diary</span> <code>{id}</code>
+                    {diaryList.map((entry, i) => (
+                      <li key={entry.entryId || i}>
+                        <span className="ei_kind ei_kind_diary">diary</span> <WordsLine text={diaryEntryWords(entry)} inline />
                       </li>
                     ))}
                   </ul>
