@@ -724,6 +724,17 @@
     flex: 0 1 auto;
     min-height: 0;
   }
+  /* The SHEET (open on its list) takes the whole column the stack leaves
+   * it, top to foot: its head keeps its height and its body is the one part
+   * that scrolls, so an opened list shows as much of itself as the canvas
+   * allows (it was content-sized and showed a "Memory types" row and two
+   * of its memories). Folded, the panel is its head, as before. */
+  .gc_overlay_stack[data-topics="sheet"] .gc_topics.gc_tp_open {
+    flex: 1 1 auto;
+  }
+  .gc_overlay_stack[data-topics="sheet"] .gc_tp_head {
+    flex: none;
+  }
   /* A topic in the list: its title (two lines at most) and its count; its
    * summary and his author's verdict once it is focused (unfolded). The
    * row is its fold button's height (a tap target) and centred on it, so

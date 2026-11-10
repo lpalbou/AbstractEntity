@@ -223,6 +223,23 @@ describe("the stylesheet", () => {
     }
   });
 
+  it("the sheet's panel takes the whole column; its head keeps its height, its body alone scrolls (an opened list shows what the canvas allows)", () => {
+    const sheetPanel = rule(narrow, '.gc_overlay_stack[data-topics="sheet"] .gc_topics.gc_tp_open');
+    expect(decl(sheetPanel, "flex")).toBe("1 1 auto");
+    expect(decl(rule(narrow, '.gc_overlay_stack[data-topics="sheet"] .gc_tp_head'), "flex")).toBe("none");
+    // Folded (a line) it keeps its own height, never grown.
+    expect(decl(rule(narrow, ".gc_topics"), "flex")).toBe("none");
+    // The panel is a column; the body is the part that takes the rest and scrolls.
+    expect(decl(rule(CANVAS_CSS, ".gc_topics"), "flex-direction")).toBe("column");
+    const body = rule(CANVAS_CSS, ".gc_tp_body");
+    expect(decl(body, "flex")).toBe("1");
+    expect(decl(body, "min-height")).toBe("0");
+    expect(decl(body, "overflow-y")).toBe("auto");
+    // Nothing else in the phone block scrolls the panel or caps its body.
+    expect(narrow).not.toMatch(/\.gc_tp_body[^{]*\{[^}]*max-height/);
+    expect(narrow).not.toMatch(/\.gc_topics[^{]*\{[^}]*overflow-y:\s*auto/);
+  });
+
   it("a topic in the phone list is its title (two lines at most) and its count, a tap target tall; the summary once focused", () => {
     const row = rule(narrow, '.gc_tp_list .af-disclosure__row[data-depth="0"]:not(:has(.gc_tp_focused))');
     expect(decl(row, "min-height")).toBe("calc(var(--tap-min, 32px) + 6px)");
