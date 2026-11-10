@@ -1,5 +1,7 @@
 // The home page's grid loads tile by tile (operator 2026-11-07: "reading the cards is extremely
-// slow"): drawn from the roster at once, live reads per tile, cards three at a time and kept.
+// slow"): drawn from the roster at once, live reads per tile, entity tiles three at a time and kept.
+// Each entity is the kit's EntityCard with its acts (operator 2026-11-10: Watch, Retry with the
+// served reason, Resume) and the shared phase bar.
 // The gateway is a mock answering on fake timers (no network, no live gateway).
 import fs from "node:fs";
 import path from "node:path";
@@ -8,17 +10,38 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CARD_READ_CONCURRENCY, CARD_READ_RETRY_MS, CARD_READ_TTL_MS, createCardReads } from "./card_reads";
-import { CARD_FAILED_NOTE, RosterCardBody, tilePhaseRead } from "./entities_index";
-import { phaseBody } from "./fixtures/phase_bodies";
-import { phaseBarRead, type PhaseBarRead } from "./phase_bar";
-import { createRosterLoader, type RosterCard, type RosterGateway, type RosterTile } from "./roster_tiles";
+import { RosterEntityCard, fetchRosterTile, tileCardStatus, tileLife, tilePending, tilePhaseRead } from "./entities_index";
+import { LOOP_CRASHED, phaseBody } from "./fixtures/phase_bodies";
+import { phaseBarRead, type PhaseBarAct, type PhaseBarRead } from "./phase_bar";
+import { PhaseBarControls } from "./phase_bar_controls";
+import { createRosterLoader, tileVersion, type RosterCard, type RosterGateway, type RosterTile } from "./roster_tiles";
 import type { EntitySummary } from "./stream_source";
 
 const T0 = Date.parse("2026-11-07T10:00:00Z");
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 type Row = { slug: string; state: string; changed_at: string };
 
-/** Roster in 20 ms, loop and life in 10 ms, each card in `cardMs[slug]` (default 15 ms). */
+/** An entity tile (`GET /entities/{name}/tile`, tile_version 1) as the gateway serves it. */
+function tileOf(slug: string, over: Partial<RosterCard> = {}): RosterCard {
+  return {
+    tile_version: 1,
+    name: slug.charAt(0).toUpperCase() + slug.slice(1),
+    slug,
+    look: { style: "watch-halo", color: "#39a5d0" },
+    born: "2026-10-08T10:00:00Z",
+    age_days: 30,
+    mind: { model: "gpt-5.6-terra", source: "entity" },
+    now: { phase: "sleep", state: "awake", detail: "resting", busy: false, since: "2026-11-07T09:00:00Z", trouble: null },
+    into_lately: [{ text: `interest of ${slug}`, at: "2026-11-06T10:00:00Z" }],
+    on_its_mind: null,
+    latest_lesson: null,
+    last_moment: { kind: "wake", at: "2026-11-07T09:00:00Z" },
+    counts: { open_questions: 1, lessons: 2, sleeps: 3 },
+    ...over,
+  };
+}
+
+/** Roster in 20 ms, loop and life in 10 ms, each tile in `cardMs[slug]` (default 15 ms). */
 function mockGateway(rows: Row[], cardMs: Record<string, number> = {}, failCard: Set<string> = new Set()) {
   const calls = { list: 0, loop: [] as string[], life: [] as string[], card: [] as string[], inFlight: 0, maxInFlight: 0 };
   const state = { rows };
@@ -45,7 +68,7 @@ function mockGateway(rows: Row[], cardMs: Record<string, number> = {}, failCard:
       try {
         await delay(cardMs[slug] ?? 15);
         if (failCard.has(slug)) throw new Error("The card could not be read (HTTP 500).");
-        return { age_days: 30, discoveries: [`interest of ${slug}`] };
+        return tileOf(slug);
       } finally {
         calls.inFlight -= 1;
       }
@@ -101,7 +124,8 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     const r = recorder();
     const loader = createRosterLoader({ gateway: m.gw, sink: r.sink, schedule: sync });
     void loader.refresh();
-    await vi.advanceTimersByTimeAsync(20 + 15 * 3 + 5);
+    // Roster 20 ms, live reads 10 ms (a tile is queued after its live answers), three rounds of 15 ms.
+    await vi.advanceTimersByTimeAsync(20 + 10 + 15 * 3 + 5);
     expect(m.calls.maxInFlight).toBe(CARD_READ_CONCURRENCY);
     expect(CARD_READ_CONCURRENCY).toBe(3);
     // Every quick card is in while ephemeral's is still on its way.
@@ -110,6 +134,46 @@ describe("the roster grid loads tile by tile (roster_tiles.ts)", () => {
     await vi.advanceTimersByTimeAsync(6000);
     expect(r.tile("ephemeral")?.cardStatus).toBe("loaded");
     expect(r.tile("ephemeral")?.card?.age_days).toBe(30);
+    loader.stop();
+  });
+
+  it("a tile is read once its live answers arrived (the cheap reads first)", async () => {
+    const m = mockGateway(rows("castor"));
+    const r = recorder();
+    const loader = createRosterLoader({ gateway: m.gw, sink: r.sink, schedule: sync });
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(25);
+    expect(m.calls.life).toEqual(["castor"]);
+    expect(m.calls.card).toEqual([]);
+    await vi.advanceTimersByTimeAsync(6);
+    expect(m.calls.card).toEqual(["castor"]);
+    loader.stop();
+  });
+
+  it("a new served phase (its rev) reads the tile again, so its now line follows the bar", async () => {
+    const m = mockGateway(rows("castor", "pollux"));
+    let rev = 46;
+    m.gw.life = async (slug) => {
+      m.calls.life.push(slug);
+      await delay(10);
+      return phaseBarRead({ status: 200, body: phaseBody("sleep", { rev: slug === "castor" ? rev : 46 }), code: null });
+    };
+    const r = recorder();
+    const loader = createRosterLoader({ gateway: m.gw, sink: r.sink, schedule: sync });
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(m.calls.card.sort()).toEqual(["castor", "pollux"]);
+    rev = 47; // castor's phase moved; pollux's did not
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(m.calls.card.slice(2)).toEqual(["castor"]);
+    // A failed life read keeps the newest seen rev: no extra read.
+    m.gw.life = () => Promise.reject(new Error("HTTP 502"));
+    void loader.refresh();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(m.calls.card).toHaveLength(3);
+    expect(tileVersion({ state: "awake", changed_at: "c1" }, phaseBarRead({ status: 200, body: phaseBody("idle"), code: null }))).toBe("c1|48");
+    expect(tileVersion(null, { kind: "loading" })).toBe("|0");
     loader.stop();
   });
 
@@ -283,26 +347,132 @@ describe("the phase bar while a tile's live reads are on their way (tilePhaseRea
   });
 });
 
-describe("the tile while its card is on its way", () => {
-  it("holds the card's lines with quiet placeholders (no 'reading his card' text), a failure says so in a few words", () => {
+describe("the roster card is the kit's EntityCard over the entity tile (operator 2026-11-10)", () => {
+  const T = Date.parse("2026-11-07T12:00:00Z");
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+  });
+  afterEach(() => vi.useRealTimers());
+  const served = (phase: Parameters<typeof phaseBody>[0], over: Record<string, unknown> = {}): PhaseBarRead => phaseBarRead({ status: 200, body: phaseBody(phase, over), code: null });
+  const tile = (over: Partial<RosterTile> = {}): RosterTile => ({
+    summary: { name: "Castor", slug: "castor", avatar: { style: "watch-halo", color: "#39a5d0" } } as RosterTile["summary"],
+    state: { state: "awake", changed_at: "2026-11-07T08:00:00Z" },
+    loop: { phase: "stopped", running: false } as RosterTile["loop"],
+    phase: served("idle"),
+    livePending: false,
+    card: tileOf("castor"),
+    cardStatus: "loaded",
+    cardError: "",
+    ...over,
+  });
+  const CRASHED = served("idle", { ...LOOP_CRASHED, blocked: { ...LOOP_CRASHED.blocked } });
+  const FAILURES = { phase: "stopped", running: false, stopped_by: "failures", updated_at: "2026-11-07T09:40:00Z" } as RosterTile["loop"];
+  type El = React.ReactElement<Record<string, unknown>>;
+  /** The words on the card, without the bar's hover tips (an indicator's tooltip holds the sentence). */
+  const shown = (html: string) => html.replace(/<span class="ec_pb_tip"[^>]*>[^<]*<\/span>/g, " ").replace(/<[^>]+>/g, " ");
+  const card = (t: RosterTile, extra: Partial<Parameters<typeof RosterEntityCard>[0]> = {}) => {
+    const acts: PhaseBarAct[] = [];
+    let opened = 0;
+    const el = RosterEntityCard({ tile: t, tileUi: null, note: null, onOpen: () => void (opened += 1), onAct: (a) => void acts.push(a), onConfirm() {}, onCancel() {}, ...extra }) as El;
+    return { el, props: el.props, acts, opened: () => opened, html: renderToStaticMarkup(el) };
+  };
+
+  it("the tile is read from GET /entities/{name}/tile (never the heavy /card compositor)", async () => {
+    vi.useRealTimers();
+    const urls: string[] = [];
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (u: string) => {
+      urls.push(String(u));
+      return new Response(JSON.stringify(tileOf("castor")), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      expect((await fetchRosterTile("http://gw", "castor")).slug).toBe("castor");
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(urls).toEqual(["http://gw/api/gateway/entities/castor/tile"]);
     const src = fs.readFileSync(path.join(__dirname, "entities_index.tsx"), "utf8");
-    expect(src).not.toContain("reading his card");
-    expect(src).toContain('<span className="eix_sk eix_sk_meta" aria-hidden="true" />');
-    expect(src).toContain('<span className="eix_sk eix_sk_upto" aria-hidden="true" />');
-    expect(src).toContain('<span className="eix_sk eix_sk_meta eix_sk_last" aria-hidden="true" />');
-    expect(src).toContain("{CARD_FAILED_NOTE}");
-    expect(CARD_FAILED_NOTE).toBe("details unavailable right now");
-    const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
-    expect(css).toMatch(/\.eix_sk_meta \{[^}]*height:/);
-    expect(css).toMatch(/\.eix_sk_upto \{[^}]*height:/);
-    // The grid no longer waits for every entity's reads (the old Promise.all over the roster).
-    expect(src).not.toMatch(/Promise\.all\(\s*entities\.map/);
+    expect(src).toContain("card: (slug) => fetchRosterTile(baseUrl, slug),");
+    expect(src).not.toContain("/card`");
   });
 
-  it("a loaded card reads as before", () => {
-    const html = renderToStaticMarkup(React.createElement(RosterCardBody, { card: { age_days: 12, discoveries: ["tides"], key_moments: { total: 4 } } }));
-    expect(html).toContain("12d old");
-    expect(html).toContain("tides");
-    expect(html).toContain("4 key moments");
+  it("calm: the kit card with a Watch button (his page), the tile's words, the shared phase bar", () => {
+    const c = card(tile());
+    expect(c.props.tile).toEqual(tileOf("castor"));
+    expect(c.props.status).toBe("ready");
+    expect(c.props.life).toEqual({ phase: "idle", stopped: false, sentence: "Awake and reachable; nothing of his own is running.", blocked: null });
+    expect(c.html).toMatch(/<button type="button" class="af-entity-card__act af-entity-card__watch is-primary" aria-label="Watch Castor"[^>]*>[\s\S]*?<span>Watch<\/span>/);
+    expect(c.html).toContain("interest of castor");
+    expect(c.html).not.toContain("af-entity-card__life");
+    expect(c.html).not.toContain("watch →");
+    (c.props.onWatch as () => void)();
+    (c.props.onOpen as () => void)();
+    expect(c.opened()).toBe(2);
+    const bar = c.props.actions as El;
+    expect(bar.type).toBe(PhaseBarControls);
+    expect(bar.props).toMatchObject({ showPower: false, showSentence: true, className: "eix_phase_bar" });
+    expect(c.html).toContain('class="ec_phase_bar eix_phase_bar"');
+  });
+
+  it("own time stopped unexpectedly: the served sentence, the reason and Retry on the card; the bar does not repeat it", () => {
+    const c = card(tile({ phase: CRASHED, loop: FAILURES }));
+    expect(c.props.life).toMatchObject({ blocked: { code: "loop_crashed", action: "retry" } });
+    expect(c.html).toContain('<span class="af-entity-card__life-sentence">His own time stopped unexpectedly. Retry to start it again.</span>');
+    expect(c.html).toContain('<span class="af-entity-card__life-reason">It stopped after repeated failures (Nov 7); its memory is intact.</span>');
+    expect(c.html).toMatch(/class="af-entity-card__act af-entity-card__retry is-primary"[^>]*>[\s\S]*?<span>Retry<\/span>/);
+    expect(c.html).toContain("af-entity-card__watch");
+    expect(shown(c.html).match(/His own time stopped unexpectedly\. Retry to start it again\./g)).toHaveLength(1);
+    expect(c.html).not.toContain("ec_pb_blocked");
+    (c.props.onRetry as () => void)();
+    expect(c.acts).toEqual(["retry"]);
+  });
+
+  it("stopped: the served sentence and Resume on the card, no Watch; the bar's sentence steps aside", () => {
+    const c = card(tile({ phase: served("stopped") }));
+    expect(c.html).toMatch(/<div class="af-entity-card__life" data-tone="stopped" role="note"><p class="af-entity-card__life-text"><span class="af-entity-card__life-sentence">Stopped\. Nothing runs until you resume him\.<\/span><\/p><button type="button" class="af-entity-card__act af-entity-card__resume is-primary" aria-label="Resume Castor"/);
+    expect(c.html).not.toContain("af-entity-card__watch");
+    // Shown once (the bar's indicators keep it in their hover tips only).
+    expect(shown(c.html).match(/Stopped\. Nothing runs until you resume him\./g)).toHaveLength(1);
+    expect((c.props.actions as El).props.showSentence).toBe(false);
+    (c.props.onResume as () => void)();
+    expect(c.acts).toEqual(["resume"]);
+  });
+
+  it("in flight and answered: the card's act says so; a refusal as served under the box, the bar's own notes stay in the bar", () => {
+    const stopped = tile({ phase: served("stopped") });
+    const busy = card(stopped, { tileUi: { slug: "castor", ui: { busy: "resume", confirm: null } } });
+    expect(busy.props.pending).toBe("resume");
+    expect(busy.html).toMatch(/aria-busy="true" aria-label="Resuming Castor"[^>]*>[\s\S]*?<span>Resuming…<\/span>/);
+    expect(card(stopped, { tileUi: { slug: "pollux", ui: { busy: "resume", confirm: null } } }).props.pending).toBe(null);
+    expect(tilePending({ slug: "castor", ui: { busy: "personal", confirm: null } }, "castor")).toBe(null);
+    const refused = card(stopped, { note: { text: "Only an admin can grant his own time, stop or resume him.", onCard: true, refused: true } });
+    expect(refused.html).toContain('<p class="af-entity-card__notice" data-refused="true" role="alert">Only an admin can grant his own time, stop or resume him.</p>');
+    expect(refused.html).not.toContain("ec_pb_note");
+    const barNote = card(tile(), { note: { text: "Own time is off; he stays awake." } });
+    expect(barNote.props.notice).toBe(null);
+    expect((barNote.props.actions as El).props.note).toBe("Own time is off; he stays awake.");
+  });
+
+  it("while the live reads are on their way the card offers Watch only; the tile's own states", () => {
+    const c = card(tile({ livePending: true, phase: served("stopped") }));
+    expect(c.props.life).toBe(null);
+    expect(tileLife({ kind: "failed", sentence: "x" })).toBe(null);
+    expect(c.html).toContain("af-entity-card__watch");
+    expect(tileCardStatus({ card: null, cardStatus: "pending", cardError: "" })).toBe("loading");
+    expect(tileCardStatus({ card: null, cardStatus: "failed", cardError: "HTTP 500" })).toBe("unavailable");
+    expect(tileCardStatus({ card: tileOf("castor"), cardStatus: "loaded", cardError: "HTTP 500" })).toBe("stale");
+    const failed = card(tile({ card: null, cardStatus: "failed", cardError: "The card could not be read (HTTP 500)." }));
+    expect(failed.html).toContain("Details unavailable right now");
+    expect(failed.html).toContain('title="The card could not be read (HTTP 500)."');
+  });
+
+  it("the grid wires the card's Retry and Resume to the lifecycle route, one tile at a time, the answer on the card", () => {
+    const src = fs.readFileSync(path.join(__dirname, "entities_index.tsx"), "utf8");
+    expect(src).toContain('if (plan.kind === "retry" || plan.kind === "resume") {');
+    expect(src).toContain("postLifecycle(baseUrl, slug, action, token)");
+    expect(src).toContain(".then((wire) => adoptTileAnswer(slug, wire, act, true))");
+    expect(src).toContain("onAct={(act) => actOnTile(tile, act)}");
+    expect(src).toContain("setTileNote(out.sentence ? { slug, text: out.sentence, onCard, refused: !out.ok } : null);");
   });
 });

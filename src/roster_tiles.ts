@@ -5,30 +5,33 @@
  * The grid's reads differ wildly in cost:
  *   - the roster (`GET /entities`, ~20 ms) names every entity and carries its state (the same
  *     record `GET /state` serves): every tile is drawn from it at once;
- *   - the live reads (`/loop`, `/life_state`, ~10-20 ms each) give the phase bar its truth: read
- *     for every tile on every refresh, each tile updated when its own answers arrive;
- *   - the card (`/card`) is the heavy compositor (88 KB and 1-6 s for a long life such as
- *     ephemeral): read through `createCardReads` (card_reads.ts): three at a time, kept between
- *     refreshes, read again after 5 minutes or when the row's `state.changed_at` moves.
+ *   - the live reads (`/loop`, `/life_state`, ~10-20 ms each) give the phase bar and the card's
+ *     acts their truth: read for every tile on every refresh, each tile updated when its own
+ *     answers arrive;
+ *   - the card is the entity TILE (`GET /entities/{name}/tile`, gateway backlog 1012: what one card
+ *     shows, about 2 KB; it replaced the heavy `/card` compositor here, operator 2026-11-10: one
+ *     card component, the kit's `EntityCard`): read through `createCardReads` (card_reads.ts):
+ *     three at a time, kept between refreshes, read again after 5 minutes or when the row's
+ *     `state.changed_at` or the served phase's `rev` moves (the tile's "now" line follows the bar).
+ *     A tile's read is queued once its live answers arrived (live reads first: the cheap ones).
  * Nothing blanks on a refresh: a tile keeps what the previous tick knew until a newer answer
  * replaces it (a live read that fails keeps the previous answer; an answer from a tick that a newer
- * one superseded is dropped). The gateway-side fix (a light roster card) is gateway backlog 1012.
+ * one superseded is dropped).
  */
 
+import type { EntityTile } from "@abstractframework/ui-kit";
+
 import { createCardReads, type CardReadStatus, type CardReads } from "./card_reads";
-import { adoptPhaseRead, type PhaseBarRead } from "./phase_bar";
+import { adoptPhaseRead, phaseSeen, type PhaseBarRead } from "./phase_bar";
 import type { EntityStateInfo, EntitySummary, LoopStatus } from "./stream_source";
 
-/** The slice of the card compositor the roster reads (the full shape belongs to the identity card). */
-export interface RosterCard {
-  age_days?: number;
-  mind_substrate?: { provider?: string; model?: string };
-  discoveries?: unknown[] | { interests?: unknown[] };
-  capabilities?: { tools?: unknown[]; workspace_files?: number };
-  sleep_stats?: { sleeps?: number; self_elected?: number; operator?: number; sleep_share?: number };
-  key_moments?: { total?: number };
-  moments?: Array<Record<string, unknown>>;
-  likes_dislikes?: { likes?: Array<{ target?: string }> };
+/** What the roster card shows: the gateway's entity tile, drawn by the kit's `EntityCard`. */
+export type RosterCard = EntityTile;
+
+/** The version a tile is kept under: the roster row's `state.changed_at` and the served phase's
+ * `rev` (a new phase reads the tile again, so its "now" line never contradicts the phase bar). */
+export function tileVersion(state: EntityStateInfo | null, phase: PhaseBarRead): string {
+  return `${state?.changed_at ?? ""}|${phaseSeen(phase).rev}`;
 }
 
 export interface RosterTile {
@@ -51,6 +54,7 @@ export interface RosterGateway {
   loop(slug: string): Promise<LoopStatus>;
   /** The tile's phase bar (`GET /life_state` read by phase_bar.phaseBarRead). */
   life(slug: string): Promise<PhaseBarRead>;
+  /** The entity tile (`GET /entities/{name}/tile`). */
   card(slug: string): Promise<RosterCard>;
 }
 
@@ -155,15 +159,17 @@ export function createRosterLoader(opts: {
           if (tick !== generation) return;
           const prev = tiles.get(s.slug);
           const prevPhase: PhaseBarRead = prev?.phase ?? { kind: "loading" };
+          // The highest rev wins (contract §5); a read that failed keeps the previous answer.
+          const nextPhase = phase === undefined ? prevPhase : adoptPhaseRead(prevPhase, phase);
           patch(s.slug, {
             loop: loop === undefined ? (prev?.loop ?? null) : loop,
-            // The highest rev wins (contract §5); a read that failed keeps the previous answer.
-            phase: phase === undefined ? prevPhase : adoptPhaseRead(prevPhase, phase),
+            phase: nextPhase,
             livePending: false,
           });
+          // The tile after the live answers (they go first), under the version they give it.
+          cards.want(s.slug, tileVersion(s.state ?? prev?.state ?? null, nextPhase));
         }),
       );
-      for (const s of roster) cards.want(s.slug, String(s.state?.changed_at ?? ""));
       await Promise.all(live);
     },
     stop() {

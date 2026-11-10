@@ -1,0 +1,22 @@
+/* The roster grid of kit EntityCards (entities_index.tsx, operator 2026-11-10: one card component for
+ * every app). The kit draws each card (theme.css .af-entity-card); this sheet only places them and
+ * fits the app's phase bar in the card's actions row. */
+.eix_grid.eix_cards {
+  gap: 14px;
+  align-items: stretch;
+}
+.eix_cards .af-entity-card__actions > .eix_phase_bar {
+  width: 100%;
+}
+@media (max-width: 767.98px) {
+  /* A phone: one card per row, a little space between them (the old flat sections had none). */
+  .eix_grid.eix_cards {
+    gap: 12px;
+  }
+}
+@media (max-width: 767.98px) and (pointer: coarse) {
+  /* The phase bar matches the panes on a touch phone. */
+  .eix_cards .ec_pb_pill.af-chip {
+    font-size: calc(14px * var(--ent-user-scale, 1));
+  }
+}

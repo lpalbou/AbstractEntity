@@ -14,24 +14,33 @@
  *
  * Loading (operator 2026-11-07, "reading the cards is extremely slow"):
  * every tile is drawn from the roster at once and fills in on its own —
- * live reads per tile, cards three at a time, kept and read again only
- * after 5 minutes or when the entity's state changed (roster_tiles.ts,
- * card_reads.ts). The light roster card is gateway backlog 1012.
+ * live reads per tile, tiles three at a time, kept and read again only
+ * after 5 minutes or when the entity's state or phase changed
+ * (roster_tiles.ts, card_reads.ts).
+ *
+ * One card for every app (operator 2026-11-10, second test round): each
+ * entity is the kit's `EntityCard` over its tile (`GET /entities/{name}/tile`),
+ * with the card's own acts fed by the served life state and loop: a clear
+ * "Watch" button (how a person starts the discussion with him), "Retry"
+ * beside the served reason when his own time stopped unexpectedly, and
+ * "Resume" when he is stopped (POST /entities/{name}/lifecycle). The phase
+ * bar stays at the bottom of the card.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { joinBaseUrl } from "@abstractframework/ui-kit";
+import { EntityCard, joinBaseUrl, type EntityCardLife, type EntityCardStatus } from "@abstractframework/ui-kit";
 
 import { ENTITY_IDENTITY } from "./app_about";
 import { CreateEntityForm } from "./create_entity_form";
 import { adoptPhaseBar, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi } from "./phase_bar";
 import { PhaseBarControls } from "./phase_bar_controls";
-import { getPhaseBar, postSleepNow, putPhaseToggle, type PhaseWire } from "./phase_bar_source";
+import { getPhaseBar, postLifecycle, postSleepNow, putPhaseToggle, type PhaseWire } from "./phase_bar_source";
 import { rosterHeadActions, rosterMode, type RosterMode } from "./roster_empty";
 import { createRosterLoader, type RosterCard, type RosterLoader, type RosterTile } from "./roster_tiles";
 import { WordsLine } from "./words_line";
 import { gatewayReadHeaders, getLoopStatus, listEntities } from "./stream_source";
+import "./roster_cards.css";
 
 export interface EntitiesIndexProps {
   baseUrl: string;
@@ -96,28 +105,6 @@ export function EmptyRoster({ onCreate }: { onCreate(): void }): React.ReactElem
 /** How often the roster and the live reads are refreshed (cards follow their own rules). */
 export const ROSTER_REFRESH_MS = 20_000;
 
-/** The words a tile shows when its card could not be read (the reason rides the tooltip). */
-export const CARD_FAILED_NOTE = "details unavailable right now";
-
-function gistOf(item: unknown): string {
-  if (typeof item === "string") return item;
-  if (item && typeof item === "object") {
-    const o = item as Record<string, unknown>;
-    return String(o["gist"] ?? o["title"] ?? o["statement"] ?? o["text"] ?? o["digest"] ?? "");
-  }
-  return "";
-}
-
-function interestsOf(card: RosterCard | null): string[] {
-  if (!card) return [];
-  const d = card.discoveries;
-  const list = Array.isArray(d) ? d : (d?.interests ?? []);
-  return list
-    .map(gistOf)
-    .filter(Boolean)
-    .slice(0, 3);
-}
-
 /** What stands in for the list while there is no list: the loading line,
  * or the empty state (which steps aside while the creation form is open). */
 export function RosterStatus({ mode, showCreate, onCreate }: { mode: RosterMode; showCreate: boolean; onCreate(): void }): React.ReactElement | null {
@@ -140,53 +127,97 @@ export function tilePhaseRead(tile: Pick<RosterTile, "phase" | "livePending">): 
   return tile.livePending ? { kind: "loading" } : tile.phase;
 }
 
-/** What a read card says on its tile: age and mind, what it is into lately, its sleeps and key moments. */
-export function RosterCardBody({ card }: { card: RosterCard | null }): React.ReactElement {
-  const interests = interestsOf(card);
-  const sleep = card?.sleep_stats;
-  const momentsTotal = card?.key_moments?.total ?? card?.moments?.length;
+/** The card's acts follow the served phase bar (the same read as the bar): the life state's
+ * fields as served, or null while it is not served (the card then offers Watch only). */
+export function tileLife(read: PhaseBarRead): EntityCardLife | null {
+  if (read.kind !== "served") return null;
+  const { phase, stopped, sentence, blocked } = read.bar;
+  return { phase, stopped, sentence, blocked };
+}
+
+/** The card's status from its tile read: a tile kept through a later failure is "stale", none read
+ * yet "loading", none read and the read failed "unavailable" (the reason rides the tooltip). */
+export function tileCardStatus(tile: Pick<RosterTile, "card" | "cardStatus" | "cardError">): EntityCardStatus {
+  if (tile.card) return tile.cardError ? "stale" : "ready";
+  return tile.cardStatus === "failed" ? "unavailable" : "loading";
+}
+
+/** The card's act in flight on this tile ("retry" or "resume"), or null. */
+export function tilePending(tileUi: { slug: string; ui: PhaseBarUi } | null, slug: string): "retry" | "resume" | null {
+  const busy = tileUi?.slug === slug ? tileUi.ui.busy : null;
+  return busy === "retry" || busy === "resume" ? busy : null;
+}
+
+/** One roster entity: the kit's EntityCard over its tile, the card's acts (Watch, Retry, Resume)
+ * from the served life state and loop, and the shared phase bar at the bottom. No hooks: the host
+ * owns the state and the acts (`onAct`), the tests read the element it returns. */
+export function RosterEntityCard({
+  tile,
+  tileUi,
+  note,
+  onOpen,
+  onAct,
+  onConfirm,
+  onCancel,
+}: {
+  tile: RosterTile;
+  tileUi: { slug: string; ui: PhaseBarUi } | null;
+  /** The last answer on this tile: on the card (`onCard`: Retry, Resume) or in the bar. */
+  note: { text: string; onCard?: boolean; refused?: boolean } | null;
+  onOpen(): void;
+  onAct(act: PhaseBarAct): void;
+  onConfirm(): void;
+  onCancel(): void;
+}): React.ReactElement {
+  const { summary, card, cardError } = tile;
+  const slug = summary.slug;
+  const ui: PhaseBarUi = tileUi?.slug === slug ? tileUi.ui : { busy: null, confirm: null };
+  const view = phaseBarView(tilePhaseRead(tile), ui, { resume: false });
+  const life = tileLife(tilePhaseRead(tile));
   return (
-    <>
-      {card?.age_days !== undefined || card?.mind_substrate?.model ? (
-        <div className="eix_meta">
-          {card?.age_days !== undefined ? <span>{card.age_days}d old</span> : null}
-          {card?.mind_substrate?.model ? <span title="mind substrate">{card.mind_substrate.model}</span> : null}
-        </div>
-      ) : null}
-      {interests.length > 0 ? (
-        <div className="eix_upto">
-          <span className="eix_upto_label">into lately</span>
-          {interests.map((g, i) => (
-            <span key={i} className="eix_interest">
-              <WordsLine text={g} inline />
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className="eix_note wl_p">
-          <WordsLine text="no interests recorded yet" />
-        </div>
-      )}
-      {sleep && (sleep.sleeps ?? 0) > 0 ? (
-        <div className="eix_meta">
-          <span title="sleeps (self-elected / operator)">
-            🌙 {sleep.sleeps} sleep{(sleep.sleeps ?? 0) === 1 ? "" : "s"}
-            {sleep.self_elected ? ` · ${sleep.self_elected} his own choice` : ""}
-          </span>
-          {momentsTotal ? <span>{momentsTotal} key moments</span> : null}
-        </div>
-      ) : momentsTotal ? (
-        <div className="eix_meta">
-          <span>{momentsTotal} key moments</span>
-        </div>
-      ) : null}
-    </>
+    <EntityCard
+      className="eix_entity_card"
+      tile={card}
+      status={tileCardStatus(tile)}
+      name={summary.name}
+      look={summary.avatar ?? null}
+      reason={cardError || undefined}
+      nowMs={Date.now()}
+      onOpen={onOpen}
+      // The card's acts: Watch opens his page (the head does too), Retry and Resume through the
+      // lifecycle route (the host's act); their answer under the card's box.
+      life={life}
+      loop={tile.loop}
+      onWatch={onOpen}
+      onRetry={() => onAct("retry")}
+      onResume={() => onAct("resume")}
+      pending={tilePending(tileUi, slug)}
+      notice={note?.onCard ? { text: note.text, refused: note.refused } : null}
+      actions={
+        // The card speaks the SAME phase bar as the entity page, all four pills (laurent dm#44
+        // 2026-07-16: "we should have the 4 badges always visible for each entity, so we know
+        // their state"); the kill switch stays on his page. The card's box says what blocks (with
+        // its Retry) and the stopped sentence (with its Resume), so the bar does not say them twice.
+        <PhaseBarControls
+          className="eix_phase_bar"
+          view={view.blocked ? { ...view, blocked: "" } : view}
+          ui={ui}
+          entityName={summary.name}
+          note={note && !note.onCard ? note.text : null}
+          onAct={onAct}
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+          showPower={false}
+          showSentence={!view.stopped}
+        />
+      }
+    />
   );
 }
 
-/** One roster card read (`GET /entities/{name}/card`), at its default size. */
-export async function fetchRosterCard(baseUrl: string, slug: string): Promise<RosterCard> {
-  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(slug)}/card`), {
+/** One entity tile (`GET /entities/{name}/tile`, gateway backlog 1012): what the card shows. */
+export async function fetchRosterTile(baseUrl: string, slug: string): Promise<RosterCard> {
+  const res = await fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(slug)}/tile`), {
     headers: gatewayReadHeaders({ Accept: "application/json" }),
   });
   if (!res.ok) throw new Error(`The card could not be read (HTTP ${res.status}).`);
@@ -231,7 +262,7 @@ export function EntitiesIndex({
         loop: (slug) => getLoopStatus(baseUrl, slug),
         // The phase bar (CONTRACT-phases §1): the same read as the entity page's.
         life: (slug) => getPhaseBar(baseUrl, slug).then(phaseBarRead),
-        card: (slug) => fetchRosterCard(baseUrl, slug),
+        card: (slug) => fetchRosterTile(baseUrl, slug),
       },
       sink: {
         tiles: setRows,
@@ -267,12 +298,14 @@ export function EntitiesIndex({
    * opens his page in its conversation, the toggles PUT and say what happens next, "sleep now"
    * asks first on the tile. One tile acts at a time; its sentence shows on that tile. */
   const [tileUi, setTileUi] = useState<{ slug: string; ui: PhaseBarUi } | null>(null);
-  const [tileNote, setTileNote] = useState<{ slug: string; text: string } | null>(null);
-  const adoptTileAnswer = useCallback((slug: string, wire: PhaseWire, act: PhaseBarAct) => {
+  /** The last answer on a tile: in the phase bar (its acts), or on the card under its box
+   * (`onCard`: Retry, Resume), a refusal said as served. */
+  const [tileNote, setTileNote] = useState<{ slug: string; text: string; onCard?: boolean; refused?: boolean } | null>(null);
+  const adoptTileAnswer = useCallback((slug: string, wire: PhaseWire, act: PhaseBarAct, onCard = false) => {
     const out = phaseWriteOutcome(wire, act);
     const bar = out.bar;
     if (bar) setRows((cur) => cur?.map((t) => (t.summary.slug === slug ? { ...t, phase: adoptPhaseBar(t.phase, bar) } : t)) ?? cur);
-    setTileNote(out.sentence ? { slug, text: out.sentence } : null);
+    setTileNote(out.sentence ? { slug, text: out.sentence, onCard, refused: !out.ok } : null);
   }, []);
   const actOnTile = useCallback(
     (tile: RosterTile, act: PhaseBarAct) => {
@@ -283,9 +316,25 @@ export function EntitiesIndex({
       if (plan.kind === "none") return;
       if (plan.kind === "refused") return setTileNote({ slug, text: plan.sentence });
       if (plan.kind === "show_visit" || plan.kind === "open_visit") return onOpen(slug);
-      // The tiles ask only "sleep now" (Stop, Resume and "Resume and visit" live on his page).
+      // The tiles ask only "sleep now" (Stop and "Resume and visit" live on his page).
       if (plan.kind === "confirm") return plan.confirm === "sleep" ? setTileUi({ slug, ui: { busy: null, confirm: "sleep" } }) : undefined;
-      if (plan.kind !== "toggle") return; // the tiles carry no Stop / Resume
+      // The card's own Retry and Resume (operator 2026-11-10: never leave him hanging): the
+      // lifecycle route, its answer (or refusal, as served) under the card's box.
+      if (plan.kind === "retry" || plan.kind === "resume") {
+        const action = plan.kind;
+        setBusySlug(slug);
+        setTileUi({ slug, ui: { busy: act, confirm: null } });
+        postLifecycle(baseUrl, slug, action, token)
+          .then((wire) => adoptTileAnswer(slug, wire, act, true))
+          .catch((e: Error) => setTileNote({ slug, text: `The gateway did not answer: ${e.message || "no response"}.`, onCard: true, refused: true }))
+          .finally(() => {
+            setBusySlug(null);
+            setTileUi(null);
+            refresh();
+          });
+        return;
+      }
+      if (plan.kind !== "toggle") return; // the tiles carry no Stop
       setBusySlug(slug);
       setTileUi({ slug, ui: { busy: act, confirm: null } });
       putPhaseToggle(baseUrl, slug, plan.key, plan.on, token)
@@ -393,76 +442,22 @@ export function EntitiesIndex({
       ) : null}
       <RosterStatus mode={mode} showCreate={showCreate} onCreate={openCreate} />
 
-      <div className="eix_grid">
+      <div className="eix_grid eix_cards">
         {(rows ?? []).map((tile) => {
-          const { summary, card, cardStatus, cardError } = tile;
+          const slug = tile.summary.slug;
           // ONE phase per card, served (CONTRACT-phases §1): the same bar as the entity page
           // (no roster-vs-page split, adversary G2), its sentence on the card.
-          const ui: PhaseBarUi = tileUi?.slug === summary.slug ? tileUi.ui : { busy: null, confirm: null };
-          const view = phaseBarView(tilePhaseRead(tile), ui, { resume: false });
-          const loop = tile.loop;
           return (
-            <div key={summary.slug} className="eix_card">
-              <button className="eix_card_head" onClick={() => onOpen(summary.slug)} title={`Watch ${summary.name}'s mind`}>
-                <span className="eix_name">{summary.name}</span>
-                {summary.handle ? (
-                  <span className="eix_handle" title="handle (declared address) — reachability, not identity">
-                    {summary.handle}
-                  </span>
-                ) : null}
-                {loop?.inbox_warning ? (
-                  <span className="eix_badge eix_loop_warning" title={loop.inbox_warning}>
-                    ⚠ inbox
-                  </span>
-                ) : null}
-                {!loop?.running && loop?.stopped_by === "failures" ? (
-                  <span className="eix_badge eix_loop_warning" title="Three consecutive ticks failed (usually LLM timeouts under load) and his own time stopped itself. Memory intact — restart when the substrate is healthy.">
-                    ⚠ stopped: failures
-                  </span>
-                ) : null}
-                <span className="eix_open">watch →</span>
-              </button>
-
-              <div className="eix_card_body" data-card={cardStatus}>
-                {cardStatus === "pending" ? (
-                  // The card arrives after the roster: quiet lines hold the loaded lines' place
-                  // (age and mind, what it is into, sleeps and key moments).
-                  <>
-                    <span className="eix_sk eix_sk_meta" aria-hidden="true" />
-                    <span className="eix_sk eix_sk_upto" aria-hidden="true" />
-                    <span className="eix_sk eix_sk_meta eix_sk_last" aria-hidden="true" />
-                  </>
-                ) : cardStatus === "failed" ? (
-                  <div className="eix_note eix_card_note wl_p" title={cardError}>
-                    <WordsLine text={CARD_FAILED_NOTE} />
-                  </div>
-                ) : (
-                  <RosterCardBody card={card} />
-                )}
-              </div>
-
-              <div className="eix_card_actions">
-                {/* The card speaks the SAME phase bar as the entity page, all four pills (laurent
-                  * dm#44 2026-07-16: "we should have the 4 badges always visible for each entity,
-                  * so we know their state"); the kill switch stays on his page. */}
-                <PhaseBarControls
-                  className="eix_phase_bar"
-                  view={view}
-                  ui={ui}
-                  entityName={summary.name}
-                  note={tileNote?.slug === summary.slug ? tileNote.text : null}
-                  onAct={(act) => actOnTile(tile, act)}
-                  onConfirm={confirmTile}
-                  onCancel={() => setTileUi(null)}
-                  showPower={false}
-                />
-                {/* NEVER the internal manifest key (laurent c2513: the
-                  * handle is <name>@ip; entity:<slug>@<home_id> is a birth
-                  * marker, not an identity to display). The roster header
-                  * already carries the door address; the card shows the
-                  * name — the internal key stays internal. */}
-              </div>
-            </div>
+            <RosterEntityCard
+              key={slug}
+              tile={tile}
+              tileUi={tileUi}
+              note={tileNote?.slug === slug ? tileNote : null}
+              onOpen={() => onOpen(slug)}
+              onAct={(act) => actOnTile(tile, act)}
+              onConfirm={confirmTile}
+              onCancel={() => setTileUi(null)}
+            />
           );
         })}
       </div>
