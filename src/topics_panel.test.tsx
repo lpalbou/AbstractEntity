@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { FIRST_SLEEP_SENTENCE, readCommunities, UNSERVED_SENTENCE, type CommunitiesRead, type ServedCommunity } from "./communities";
-import { foldEnvelopes } from "./stream_fold";
+import { foldEnvelopes, type FoldState } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { membershipOf, topicColor } from "./topic_layout";
 import {
@@ -28,8 +28,12 @@ import {
   memoriesWord,
   NO_TOPICS,
   PATHS_HEAD,
+  PATHS_SHOWN,
+  pathRowKey,
+  pathText,
   TOPICS_LOADING,
   topicFacts,
+  topicRows,
   TopicsPanel,
   topicCountWords,
   topicOrder,
@@ -262,7 +266,8 @@ describe("the topic view: what memory counts of it, in words", () => {
       { kind: "bridges", text: "2 memories bridge to other topics" },
       { kind: "changed", text: "changed since his last sleep: +2 joined · 1 moved out · split from “Tide tables”" },
       // The pair whose other memory the graph does not hold is not said (never an id).
-      { kind: "paths", text: PATHS_HEAD, paths: [{ a: "the archive opens", b: "tide tables", count: 4 }] },
+      // Each pair keeps its two memories' record ids (the graph lights and frames them).
+      { kind: "paths", text: PATHS_HEAD, paths: [{ a: "the archive opens", b: "tide tables", count: 4, from: "ex:episode-1", to: "ex:episode-2" }] },
       { kind: "stale", text: CENTROID_STALE_NOTE },
     ]);
     expect(CENTROID_STALE_NOTE).toBe("placement may be stale until his next sleep");
@@ -310,10 +315,11 @@ describe("the topic view: what memory counts of it, in words", () => {
     expect(words).toContain("|most used: tide tables for the week|");
     expect(words).toContain("|2 memories bridge to other topics|");
     expect(words).toContain("|changed since his last sleep: +2 joined · 1 moved out · split from “Tide tables”|");
-    expect(words).toContain(`|${PATHS_HEAD}|the harbour archive opens at nine|↔|tide tables for the week|(4)|`);
     expect(words).toContain(`|${CENTROID_STALE_NOTE}|`);
+    // The paths are rows of their own (backlog 0015), not lines of this one.
+    expect(words).not.toContain(PATHS_HEAD);
+    expect(facts).not.toContain("gc_tp_path");
     expect(facts).not.toContain("ex:");
-    expect(facts).not.toContain("(9)");
   });
 
   it("the verdict 'no common subject' is said under the summary, as his author's", () => {
@@ -469,5 +475,79 @@ describe("one card per topic, tinted with its colour (backlog 0014)", () => {
     expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] .gc_tp_card::before")).toContain("color-mix(in srgb, var(--gc-tp-color) 18%, transparent)");
     // No colour of its own: the tint is the topic's, in every theme.
     expect(CARD_CSS).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+  });
+});
+
+// ------------------------------------------------------------ the paths most travelled (backlog 0015)
+
+describe("the paths most travelled: one row each, lit and framed from the panel (backlog 0015)", () => {
+  if (READ_FACTS.kind !== "served") throw new Error("fixture");
+  const DATA = READ_FACTS.data;
+  const harbourRows = (fold: FoldState, communities = DATA.communities) => topicRows(communities, new Set(["harbour"]), membershipOf(fold, { ...DATA, communities }).rowsOf, fold, { nowMs: NOW });
+
+  it("after the facts: a static head, then one focusable row per pair — 'a ↔ b (count)', its two memories' graph node ids", () => {
+    const rows = harbourRows(FOLD);
+    const at = rows.findIndex((r) => r.data?.kind === "paths_head");
+    expect(rows[at - 1].data?.kind).toBe("facts");
+    expect(rows[at]).toMatchObject({ depth: 1, selectable: false, textValue: PATHS_HEAD });
+    const paths = rows.filter((r) => r.data?.kind === "path");
+    // The pair naming a memory the graph does not hold (ex:gone-9) is not said.
+    expect(paths.map((r) => r.textValue)).toEqual(["the harbour archive opens at nine ↔ tide tables for the week (4)"]);
+    expect(paths[0]).toMatchObject({ key: pathRowKey("harbour", { from: "ex:episode-1", to: "ex:episode-2" }), depth: 1, expandable: false, parentKey: "topic:harbour" });
+    expect(paths[0].selectable).not.toBe(false);
+    expect(paths[0].data?.kind === "path" && paths[0].data.ids).toEqual(["ex:episode-1", "ex:episode-2"]);
+    expect(pathText({ a: "a", b: "b", count: 3 })).toBe("a ↔ b (3)");
+  });
+
+  it("the ids are the canvas's node ids: a served record id is resolved through the fold's graph_to_row", () => {
+    const moved = FOLD.nodes.get("ex:episode-1")!;
+    const fold: FoldState = {
+      ...FOLD,
+      nodes: new Map([...FOLD.nodes].map(([k, v]) => (k === "ex:episode-1" ? ["row-1", { ...v, id: "row-1" }] : [k, v]))),
+      graph_to_row: new Map([...FOLD.graph_to_row, ["ex:episode-1", "row-1"]]),
+    };
+    expect(moved).toBeTruthy();
+    const path = harbourRows(fold).find((r) => r.data?.kind === "path");
+    expect(path?.data?.kind === "path" && path.data.ids).toEqual(["row-1", "ex:episode-2"]);
+    for (const id of path?.data?.kind === "path" ? path.data.ids : []) expect(fold.nodes.has(id), id).toBe(true);
+  });
+
+  it("at most PATHS_SHOWN (memory's own top), most travelled first as served", () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ from: "ex:episode-1", to: i % 2 ? "ex:episode-2" : "ex:diary-3", count: 20 - i }));
+    const harbour = DATA.communities.find((c) => c.key === "harbour")!;
+    const communities = DATA.communities.map((c) => (c === harbour ? { ...harbour, facts: { ...harbour.facts, paths: many } } : c));
+    const counts = harbourRows(FOLD, communities).flatMap((r) => (r.data?.kind === "path" ? [r.data.path.count] : []));
+    expect(PATHS_SHOWN).toBe(5);
+    expect(counts).toEqual([20, 19, 18, 17, 16]);
+  });
+
+  const MEMORY_INDEX_PY = path.resolve(__dirname, "../../abstractmemory/src/abstractmemory/community_index.py");
+  it.skipIf(!fs.existsSync(MEMORY_INDEX_PY))("PATHS_SHOWN is memory's FACTS_PATHS_TOP (drift pin)", () => {
+    const m = fs.readFileSync(MEMORY_INDEX_PY, "utf8").match(/^FACTS_PATHS_TOP = (\d+)$/m);
+    expect(Number(m?.[1])).toBe(PATHS_SHOWN);
+  });
+
+  it("the row: its two titles each cut on its own, the arrow, the count; it says its topic and its own row (the hovers)", () => {
+    const html = render(FACTS_VIEW, { focused: "harbour" });
+    const at = html.indexOf('class="gc_tp_path gc_tp_card"');
+    expect(at).toBeGreaterThan(0);
+    const row = html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at));
+    expect(row).not.toContain("aria-disabled");
+    expect(row).toContain('data-tkey="harbour"');
+    expect(row).toContain(`data-rows="${pathRowKey("harbour", { from: "ex:episode-1", to: "ex:episode-2" })}"`);
+    expect(text(row)).toContain("|the harbour archive opens at nine|↔|tide tables for the week|(4)|");
+    // Not lit until the pointer rests on it, the keyboard is on it, or it is clicked.
+    expect(row).not.toContain("gc_tp_path_lit");
+    const head = html.slice(html.lastIndexOf("<li", html.indexOf("gc_tp_paths_head")), html.indexOf("</li>", html.indexOf("gc_tp_paths_head")));
+    expect(head).toContain("af-disclosure__row--static");
+    expect(text(head)).toContain(`|${PATHS_HEAD}|`);
+    expect(html).not.toContain("(9)");
+  });
+
+  it("styled: one line with each title cut, the count never cut; lit, the whole pair", () => {
+    const css = fs.readFileSync(path.resolve(__dirname, "topics_panel.css"), "utf8");
+    expect(css).toMatch(/\.gc_topics \.gc_tp_path_end \{[^}]*overflow: hidden;[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
+    expect(css).toMatch(/\.gc_topics \.gc_tp_path_count \{[^}]*flex: none;/);
+    expect(css).toMatch(/\.gc_topics \.gc_tp_path_lit \.gc_tp_path_end \{[^}]*white-space: normal;/);
   });
 });

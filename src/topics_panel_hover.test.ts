@@ -9,7 +9,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { HOVER_INTENT_MS, type HoverIntentTimers } from "./hover_intent";
-import { topicHover } from "./topics_panel";
+import { pathClick, rowsHover, shownRowKey, topicHover } from "./topics_panel";
 
 const read = (f: string) => fs.readFileSync(path.resolve(__dirname, f), "utf8");
 const PANEL = read("topics_panel.tsx");
@@ -155,19 +155,27 @@ describe("topicHover", () => {
 });
 
 describe("the panel and the canvas are wired to it", () => {
-  it("the panel body feeds pointer and keyboard to the controller (keyboard focus only: :focus-visible)", () => {
-    expect(PANEL).toContain("onPointerOver={(e) => hover.pointerOver(rowTopicKey(e.target), e.pointerType)}");
-    expect(PANEL).toContain("onPointerLeave={(e) => hover.pointerLeave(e.pointerType)}");
-    expect(PANEL).toContain('e.target.matches(":focus-visible") ? rowTopicKey(e.target) : null');
-    expect(PANEL).toContain("onBlur={(e) => hover.blur(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))}");
+  it("the panel body feeds pointer and keyboard to the controllers (keyboard focus only: :focus-visible)", () => {
+    expect(PANEL).toMatch(/onPointerOver=\{\(e\) => \{\n\s+hover\.pointerOver\(rowTopicKey\(e\.target\), e\.pointerType\);\n\s+litHover\.pointerOver\(rowLitKey\(e\.target\), e\.pointerType\);/);
+    expect(PANEL).toMatch(/onPointerLeave=\{\(e\) => \{\n\s+hover\.pointerLeave\(e\.pointerType\);\n\s+litHover\.pointerLeave\(e\.pointerType\);/);
+    expect(PANEL).toContain('const keyboard = e.target instanceof Element && e.target.matches(":focus-visible");');
+    expect(PANEL).toContain("hover.focus(keyboard ? rowTopicKey(e.target) : null);");
+    expect(PANEL).toContain("if (keyboard) litHover.focus(rowLitKey(e.target));");
+    expect(PANEL).toContain("const stillInside = e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget);");
+    expect(PANEL).toMatch(/hover\.blur\(stillInside\);\n\s+litHover\.blur\(stillInside\);/);
     // Every row of a topic says which topic it is.
-    for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_unloaded", "gc_tp_member"]) {
+    for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_paths_head", "gc_tp_path", "gc_tp_unloaded", "gc_tp_member"]) {
       const line = PANEL.split("\n").find((l) => l.includes("<span") && l.includes(`"${cls}`) || (l.includes("<span") && l.includes(`\`${cls}`)));
       expect(line, cls).toBeTruthy();
       expect(line, cls).toContain("data-tkey={");
     }
     expect(PANEL).toContain("useEffect(() => () => hover.dispose(), [hover]);");
-    expect(PANEL).toContain("if (!open) hover.dispose();");
+    expect(PANEL).toContain("useEffect(() => () => litHover.dispose(), [litHover]);");
+    // Gone (topics off), nothing it lit stays lit; folded, neither the hover nor a clicked path.
+    expect(PANEL).toContain("useEffect(() => () => onHoverRowsRef.current(null), []);");
+    expect(PANEL).toMatch(/if \(open\) return;\n\s+hover\.dispose\(\);\n\s+litHover\.dispose\(\);\n\s+setPinnedRow\(null\);/);
+    // A row that lights memories of its own says which row it is.
+    expect(PANEL.split("\n").find((l) => l.includes('`gc_tp_path gc_tp_card'))).toContain("data-rows={row.key}");
   });
 
   it("the canvas lights the hovered topic before the focused one, its memories as the emphasis", () => {
@@ -178,5 +186,99 @@ describe("the panel and the canvas are wired to it", () => {
     expect(CANVAS).toContain("const topicHover = hoveredTopic !== null && litRows !== null;");
     expect(CANVAS).toMatch(/if \(topicHover\) \{\n\s+emphasis = litRows;/);
     expect(CANVAS).toMatch(/const driver = topicHover\n\s+\? "filter"/);
+  });
+});
+
+// ------------------------------------------------------------ the rows hover (backlog 0015/0016)
+
+function setupRows() {
+  const { timers, advance } = fakeTimers();
+  const emitted: Array<string | null> = [];
+  const h = rowsHover((k) => emitted.push(k), timers);
+  return { h, advance, emitted };
+}
+
+describe("rowsHover (a path, a memory type)", () => {
+  it("lights a row once the mouse has rested on it for the hover intent (150 ms); a sweep lights nothing", () => {
+    const { h, advance, emitted } = setupRows();
+    for (const k of ["p1", "p2", "p3"]) {
+      h.pointerOver(k, "mouse");
+      advance(40);
+    }
+    expect(emitted).toEqual([]);
+    advance(HOVER_INTENT_MS - 40 - 1);
+    expect(emitted).toEqual([]);
+    advance(1);
+    expect(emitted).toEqual(["p3"]);
+  });
+
+  it("moving to another such row keeps the lit one until the new one has rested; back on the lit one forgets the other", () => {
+    const { h, advance, emitted } = setupRows();
+    h.pointerOver("p1", "mouse");
+    advance(200);
+    h.pointerOver("p2", "mouse");
+    advance(100);
+    expect(emitted).toEqual(["p1"]);
+    h.pointerOver("p1", "pen");
+    advance(500);
+    expect(emitted).toEqual(["p1"]);
+    h.pointerOver("p2", "mouse");
+    advance(HOVER_INTENT_MS);
+    expect(emitted).toEqual(["p1", "p2"]);
+  });
+
+  it("onto any other row (its topic's own, a memory) or leaving the list: let go at once", () => {
+    const { h, advance, emitted } = setupRows();
+    h.pointerOver("p1", "mouse");
+    advance(200);
+    h.pointerOver(null, "mouse");
+    expect(emitted).toEqual(["p1", null]);
+    h.pointerOver("p2", "mouse");
+    h.pointerLeave("mouse");
+    advance(500);
+    expect(emitted).toEqual(["p1", null]);
+  });
+
+  it("a touch never hovers; the keyboard lights after the same rest and lets go leaving the list", () => {
+    const { h, advance, emitted } = setupRows();
+    h.pointerOver("p1", "touch");
+    h.pointerLeave("touch");
+    advance(500);
+    expect(emitted).toEqual([]);
+    h.focus("p1");
+    advance(HOVER_INTENT_MS);
+    h.focus(null);
+    expect(emitted).toEqual(["p1", null]);
+    h.focus("p2");
+    advance(HOVER_INTENT_MS);
+    h.blur(true);
+    expect(emitted).toEqual(["p1", null, "p2"]);
+    h.blur(false);
+    h.dispose();
+    expect(emitted).toEqual(["p1", null, "p2", null]);
+  });
+
+  it("the shown row: the rested one, else the clicked one, never one no longer listed", () => {
+    const ids = new Map([["p1", ["a", "b"]], ["p2", ["c", "d"]]]);
+    expect(shownRowKey("p2", "p1", ids)).toBe("p2");
+    expect(shownRowKey(null, "p1", ids)).toBe("p1");
+    expect(shownRowKey("gone", "p1", ids)).toBe("p1");
+    expect(shownRowKey(null, "gone", ids)).toBeNull();
+    expect(shownRowKey(null, null, ids)).toBeNull();
+  });
+
+  it("a click frames a path and keeps it lit; the same one again lets it go; another replaces it", () => {
+    expect(pathClick(null, "p1")).toEqual({ pinned: "p1", frame: true });
+    expect(pathClick("p1", "p1")).toEqual({ pinned: null, frame: false });
+    expect(pathClick("p1", "p2")).toEqual({ pinned: "p2", frame: true });
+  });
+
+  it("the panel: a path's click and Enter go through pathClick to onFrameRows; the shown row's memories to onHoverRows, once per change", () => {
+    expect(PANEL).toContain("onClick={() => clickPath(row.key, d.ids)}");
+    expect(PANEL).toContain('else if (d.kind === "path") clickPath(row.key, d.ids);');
+    expect(PANEL).toMatch(/const next = pathClick\(pinnedRow, rowKey\);\n\s+setPinnedRow\(next\.pinned\);\n\s+if \(next\.frame\) onFrameRows\(\[\.\.\.ids\]\);/);
+    expect(PANEL).toContain("const shownRow = shownRowKey(hoveredRow, pinnedRow, idsOf);");
+    expect(PANEL).toContain("onHoverRowsRef.current(shownIds ? [...shownIds] : null);");
+    expect(PANEL).toContain("const litHover = useMemo(() => rowsHover(setHoveredRow), []);");
   });
 });

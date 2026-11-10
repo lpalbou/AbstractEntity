@@ -113,3 +113,60 @@
     border-color: var(--gc-tp-color);
   }
 }
+
+/* THE PATHS MOST TRAVELLED (backlog 0015): a static head, then one row per
+ * pair — focusable, it lights and frames its two memories. One line: each
+ * title cut on its own, the arrow and the count always shown; lit (the
+ * pointer or the keyboard resting on it, or clicked) the line unfolds to
+ * say the whole pair. */
+.gc_topics .gc_tp_paths_head,
+.gc_topics .gc_tp_path {
+  flex: 1;
+  min-width: 0;
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.gc_topics .gc_tp_paths_head {
+  color: var(--text-dim);
+}
+
+.gc_topics .gc_tp_path {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding-left: 0;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.gc_topics .gc_tp_path_end {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gc_topics .gc_tp_path_sep,
+.gc_topics .gc_tp_path_count {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.gc_topics .gc_tp_path.gc_tp_path_lit {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.gc_topics .gc_tp_path_lit .gc_tp_path_end {
+  overflow: visible;
+  white-space: normal;
+}
+
+.gc_topics .gc_tp_path_lit .gc_tp_path_sep {
+  margin-inline: 5px;
+}
+
+.gc_topics .gc_tp_path_lit .gc_tp_path_count {
+  margin-left: 5px;
+}

@@ -33,6 +33,15 @@
  *   centroid is stale, that its placement may be. Memories and topics are
  *   named by their titles (the graph's nodes, the served topics) — a fact
  *   naming one the graph does not hold is not said, never an id.
+ * - THE PATHS MOST TRAVELLED (operator 2026-11-10, Entity backlog 0015):
+ *   memory's pairs of members most used together this week (at most
+ *   PATHS_SHOWN, its own top), one row each: "a ↔ b (count)" on one line,
+ *   each title cut on its own, the count always shown. The pointer resting
+ *   on one (HOVER_INTENT_MS), or the keyboard on it, says the whole pair
+ *   (the line unfolds) and LIGHTS its two memories on the graph
+ *   (onHoverRows); leaving it lets go (the topic's own light comes back). A
+ *   click (a tap, Enter) frames the two (onFrameRows) and keeps them lit
+ *   until it is clicked again, another is, or the topic changes.
  * - His author's verdict "no common subject" is said under the summary.
  * - Not served: ONE sentence instead of the list — his first sleep has not
  *   formed topics yet, or this gateway serves the old shape.
@@ -124,6 +133,9 @@ export const VERDICT_SENTENCE: Record<typeof NO_COMMON_SUBJECT, string> = {
 };
 export const CENTROID_STALE_NOTE = "placement may be stale until his next sleep";
 export const PATHS_HEAD = "paths most travelled";
+/** The most paths a topic lists: memory's own top (abstractmemory
+ * community_index.FACTS_PATHS_TOP; pinned by the test). */
+export const PATHS_SHOWN = 5;
 
 /** A memory type in words, singular and plural ("diary entry", "diary
  * entries"); a type this app does not name is its served name, spaced. */
@@ -187,7 +199,17 @@ export function agoWords(iso: string, nowMs: number, timeZone?: string): string 
 
 export type TopicFact =
   | { kind: "kinds" | "span" | "activity" | "hub" | "bridges" | "changed" | "stale"; text: string }
-  | { kind: "paths"; text: string; paths: { a: string; b: string; count: number }[] };
+  | { kind: "paths"; text: string; paths: TopicPath[] };
+
+/** A pair of memories most used together: their titles (a, b), how often,
+ * and their served record ids (from, to). */
+export interface TopicPath {
+  a: string;
+  b: string;
+  count: number;
+  from: string;
+  to: string;
+}
 
 /** What memory counts of a topic, in words: first what it holds by type
  * (`kinds`) and when its newest memory formed (`span.last`, relative to
@@ -226,20 +248,25 @@ export function topicFacts(c: ServedCommunity, titleOf: (graphId: string) => str
     }
     if (parts.length) out.push({ kind: "changed", text: `changed since his last sleep: ${parts.join(" · ")}` });
   }
-  const paths: { a: string; b: string; count: number }[] = [];
+  const paths: TopicPath[] = [];
   for (const p of f.paths ?? []) {
     const a = titleOf(p.from);
     const b = titleOf(p.to);
-    if (a && b) paths.push({ a, b, count: p.count });
+    if (a && b && paths.length < PATHS_SHOWN) paths.push({ a, b, count: p.count, from: p.from, to: p.to });
   }
   if (paths.length) out.push({ kind: "paths", text: PATHS_HEAD, paths });
   if (c.centroidStale) out.push({ kind: "stale", text: CENTROID_STALE_NOTE });
   return out;
 }
 
+/** A path in words: "a ↔ b (4)" (its row's text). */
+export function pathText(p: Pick<TopicPath, "a" | "b" | "count">): string {
+  return `${p.a} ↔ ${p.b} (${p.count})`;
+}
+
 /** The facts as one line of text (the row's accessible text). */
 export function factsText(facts: TopicFact[]): string {
-  return facts.map((f) => (f.kind === "paths" ? `${f.text}: ${f.paths.map((p) => `${p.a} ↔ ${p.b} (${p.count})`).join("; ")}` : f.text)).join(". ");
+  return facts.map((f) => (f.kind === "paths" ? `${f.text}: ${f.paths.map(pathText).join("; ")}` : f.text)).join(". ");
 }
 
 /** Topics biggest first (the count each row says; ties by key: stable). */
@@ -250,6 +277,9 @@ export function topicOrder(communities: ServedCommunity[]): ServedCommunity[] {
 type TopicRowData =
   | { kind: "topic"; c: ServedCommunity; loaded: number; lead: TopicFact[] }
   | { kind: "facts"; c: ServedCommunity; facts: TopicFact[] }
+  | { kind: "paths_head"; c: ServedCommunity }
+  /** `ids`: its two memories' graph node ids (the fold's rows). */
+  | { kind: "path"; c: ServedCommunity; path: TopicPath; ids: string[] }
   | { kind: "group"; c: ServedCommunity; memoryKind: string; count: number; sample: NodeState }
   | { kind: "unloaded"; c: ServedCommunity; text: string }
   | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
@@ -258,6 +288,8 @@ type TopicRow = DisclosureRow<TopicRowData>;
 export const topicRowKey = (key: string) => `topic:${key}`;
 export const memberRowKey = (key: string, row: string) => `member:${key}:${row}`;
 export const factsRowKey = (key: string) => `facts:${key}`;
+export const pathsHeadRowKey = (key: string) => `paths:${key}`;
+export const pathRowKey = (key: string, p: Pick<TopicPath, "from" | "to">) => `path:${key}:${p.from}:${p.to}`;
 export const unloadedRowKey = (key: string) => `unloaded:${key}`;
 export const groupRowKey = (key: string, memoryKind: string) => `group:${key}:${memoryKind}`;
 
@@ -293,14 +325,18 @@ export const LEAD_FACTS: ReadonlySet<TopicFact["kind"]> = new Set(["kinds", "spa
 
 /** The panel's visible rows: every topic (its count beside how many the
  * graph has loaded); an unfolded one's facts (a static row: never focused
- * or selected) then its members by type — a static line per type ("80
- * episodes"), then those memories of the fold, newest first — or, with
- * none loaded, the one sentence that says so (a static row). */
-export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState, nowMs: number = Date.now()): TopicRow[] {
+ * or selected), its paths most travelled (a static head, then one row per
+ * path: focusable, it lights and frames its two memories), then its
+ * members by type — a static line per type ("80 episodes"), then those
+ * memories of the fold, newest first — or, with none loaded, the one
+ * sentence that says so (a static row). */
+export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState, opts: { nowMs?: number } = {}): TopicRow[] {
+  const nowMs = opts.nowMs ?? Date.now();
   const out: TopicRow[] = [];
   const byKey = new Map(communities.map((c) => [c.key, c]));
+  const rowOf = (gid: string): string => fold.graph_to_row.get(gid) ?? gid;
   const titleOf = (gid: string): string | null => {
-    const node = fold.nodes.get(fold.graph_to_row.get(gid) ?? gid);
+    const node = fold.nodes.get(rowOf(gid));
     return node ? plainCardTitle(node) : null;
   };
   const topicTitleOf = (key: string): string | null => {
@@ -314,9 +350,17 @@ export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<
     const lead = all.filter((f) => LEAD_FACTS.has(f.kind));
     out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c, loaded: nodes.length, lead } });
     if (!open) continue;
-    const facts = all.filter((f) => !LEAD_FACTS.has(f.kind));
+    const facts = all.filter((f) => !LEAD_FACTS.has(f.kind) && f.kind !== "paths");
     if (facts.length) {
       out.push({ key: factsRowKey(c.key), entityId: factsRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: factsText(facts), data: { kind: "facts", c, facts } });
+    }
+    const paths = all.find((f): f is Extract<TopicFact, { kind: "paths" }> => f.kind === "paths");
+    if (paths) {
+      out.push({ key: pathsHeadRowKey(c.key), entityId: pathsHeadRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: paths.text, data: { kind: "paths_head", c } });
+      for (const p of paths.paths) {
+        const key = pathRowKey(c.key, p);
+        out.push({ key, entityId: key, parentKey: topicRowKey(c.key), depth: 1, expandable: false, textValue: pathText(p), data: { kind: "path", c, path: p, ids: [rowOf(p.from), rowOf(p.to)] } });
+      }
     }
     if (nodes.length === 0) {
       const text = heldCount(c) > 0 ? UNLOADED_SENTENCE : EMPTY_TOPIC_SENTENCE;
@@ -391,6 +435,70 @@ export function topicHover(emit: (key: string | null) => void, timers?: HoverInt
   };
 }
 
+/** THE ROWS HOVER (Entity backlog 0015/0016): which of the panel's rows
+ * that light memories of their own (a path, a memory type) the graph
+ * lights. A mouse or pen resting on one (HOVER_INTENT_MS: a sweep lights
+ * nothing), or the keyboard on one (:focus-visible), emits its row key;
+ * moving to another such row keeps the lit one until the new one has
+ * rested; moving onto any other row, or leaving the list, emits null at
+ * once (the topic's own light comes back). A touch never hovers. */
+export interface RowsHover {
+  pointerOver(key: string | null, pointerType: string): void;
+  pointerLeave(pointerType: string): void;
+  /** A keyboard focus (:focus-visible) on a row: its key, null for a row
+   * that lights nothing of its own. */
+  focus(key: string | null): void;
+  blur(stillInside: boolean): void;
+  dispose(): void;
+}
+
+export function rowsHover(emit: (key: string | null) => void, timers?: HoverIntentTimers): RowsHover {
+  let shown: string | null = null;
+  const show = (key: string | null) => {
+    if (key === shown) return;
+    shown = key;
+    emit(key);
+  };
+  const intent = hoverIntent((key) => show(key), HOVER_INTENT_MS, timers);
+  const letGo = () => {
+    intent.cancel();
+    show(null);
+  };
+  const over = (key: string | null) => {
+    if (key === null) letGo();
+    else if (key === shown) intent.cancel();
+    else intent.over(key);
+  };
+  return {
+    pointerOver(key, pointerType) {
+      if (pointerType !== "touch") over(key);
+    },
+    pointerLeave(pointerType) {
+      if (pointerType !== "touch") letGo();
+    },
+    focus: over,
+    blur(stillInside) {
+      if (!stillInside) letGo();
+    },
+    dispose: letGo,
+  };
+}
+
+/** The row whose memories the graph lights: the one the pointer (or the
+ * keyboard) rests on, else the clicked one; null when neither is listed
+ * (its topic folded, the version changed). */
+export function shownRowKey(hovered: string | null, pinned: string | null, idsOf: ReadonlyMap<string, readonly string[]>): string | null {
+  if (hovered !== null && idsOf.has(hovered)) return hovered;
+  if (pinned !== null && idsOf.has(pinned)) return pinned;
+  return null;
+}
+
+/** A click on a path: the clicked one again lets it go; another is kept lit
+ * and framed. */
+export function pathClick(pinned: string | null, clicked: string): { pinned: string | null; frame: boolean } {
+  return pinned === clicked ? { pinned: null, frame: false } : { pinned: clicked, frame: true };
+}
+
 /** The style that tints a row with its topic's card colour (topics_panel.css
  * .gc_tp_card): the topic's circle colour, as a custom property. */
 export function cardStyle(color: string): React.CSSProperties {
@@ -403,6 +511,14 @@ function rowTopicKey(target: EventTarget | null): string | null {
   if (!(target instanceof Element)) return null;
   const row = target.closest(".af-disclosure__row");
   return row?.querySelector("[data-tkey]")?.getAttribute("data-tkey") ?? null;
+}
+
+/** The row key of a row that lights memories of its own (its content's
+ * data-rows), from any element inside the row; null for any other row. */
+function rowLitKey(target: EventTarget | null): string | null {
+  if (!(target instanceof Element)) return null;
+  const row = target.closest(".af-disclosure__row");
+  return row?.querySelector("[data-rows]")?.getAttribute("data-rows") ?? null;
 }
 
 export interface TopicsPanelProps {
@@ -433,16 +549,29 @@ export interface TopicsPanelProps {
   colorOf(node: NodeState): string;
 }
 
-export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onToggle, onFocus, onOpenMember, onHoverTopic, onRetry, colorOf }: TopicsPanelProps): React.ReactElement {
+export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onToggle, onFocus, onOpenMember, onHoverTopic, onHoverRows, onFrameRows, onRetry, colorOf }: TopicsPanelProps): React.ReactElement {
   const bodyId = useId();
   const onHoverRef = useRef(onHoverTopic);
   onHoverRef.current = onHoverTopic;
+  const onHoverRowsRef = useRef(onHoverRows);
+  onHoverRowsRef.current = onHoverRows;
   const hover = useMemo(() => topicHover((key) => onHoverRef.current?.(key)), []);
+  // The row (a path) the pointer or the keyboard rests on, and the clicked one.
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [pinnedRow, setPinnedRow] = useState<string | null>(null);
+  const litHover = useMemo(() => rowsHover(setHoveredRow), []);
   // Unmounted (the panel goes, topics off) or folded: nothing stays lit.
   useEffect(() => () => hover.dispose(), [hover]);
+  useEffect(() => () => litHover.dispose(), [litHover]);
+  useEffect(() => () => onHoverRowsRef.current(null), []);
   useEffect(() => {
-    if (!open) hover.dispose();
-  }, [open, hover]);
+    if (open) return;
+    hover.dispose();
+    litHover.dispose();
+    setPinnedRow(null);
+  }, [open, hover, litHover]);
+  // Another topic focused (or none): the clicked path lets go.
+  useEffect(() => setPinnedRow(null), [focused]);
   const listRef = useRef<DisclosureListHandle | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(focused ? [focused] : []));
   const [selection, setSelection] = useState<DisclosureSelection | null>(null);
@@ -458,6 +587,25 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
   const rows = useMemo(() => (communities ? topicRows(communities, expanded, rowsOf, fold) : []), [communities, expanded, rowsOf, fold]);
   // One card style per topic, per payload version (never per row or render).
   const cardOf = useMemo(() => new Map((communities ?? []).map((c) => [c.key, cardStyle(topicColor(c.key))])), [communities]);
+  // The rows that light memories of their own -> those memories (built with the rows).
+  const idsOf = useMemo(() => {
+    const m = new Map<string, readonly string[]>();
+    for (const r of rows) if (r.data?.kind === "path") m.set(r.key, r.data.ids);
+    return m;
+  }, [rows]);
+  const shownRow = shownRowKey(hoveredRow, pinnedRow, idsOf);
+  const shownIds = shownRow === null ? null : idsOf.get(shownRow)!;
+  // The graph lights the shown row's memories; once per change, never per render.
+  const emitted = useRef<readonly string[] | null>(null);
+  useEffect(() => {
+    const last = emitted.current;
+    if (last === shownIds || (last && shownIds && last.length === shownIds.length && last.every((id, i) => id === shownIds[i]))) return;
+    emitted.current = shownIds;
+    onHoverRowsRef.current(shownIds ? [...shownIds] : null);
+  }, [shownIds]);
+  useEffect(() => {
+    if (pinnedRow !== null && !idsOf.has(pinnedRow)) setPinnedRow(null);
+  }, [pinnedRow, idsOf]);
 
   const note = topicsNote(view);
   if (note || !communities) {
@@ -482,6 +630,11 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
       return next;
     });
   const focus = (key: string) => onFocus(focused === key ? null : key);
+  const clickPath = (rowKey: string, ids: readonly string[]) => {
+    const next = pathClick(pinnedRow, rowKey);
+    setPinnedRow(next.pinned);
+    if (next.frame) onFrameRows([...ids]);
+  };
   const renderRow = (row: TopicRow): React.ReactNode => {
     const d = row.data!;
     if (d.kind === "topic") {
@@ -506,25 +659,30 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     if (d.kind === "facts") {
       return (
         <span className="gc_tp_facts gc_tp_card" style={cardOf.get(d.c.key)} data-facts={d.c.key} data-tkey={d.c.key}>
-          {d.facts.map((f) =>
-            f.kind === "paths" ? (
-              <span key={f.kind} className="gc_tp_fact gc_tp_fact_paths">
-                <span className="gc_tp_paths_head">{f.text}</span>
-                {f.paths.map((p, i) => (
-                  <span key={i} className="gc_tp_path">
-                    <span className="gc_tp_path_end">{p.a}</span>
-                    <span className="gc_tp_path_sep">↔</span>
-                    <span className="gc_tp_path_end">{p.b}</span>
-                    <span className="gc_tp_path_count">({p.count})</span>
-                  </span>
-                ))}
-              </span>
-            ) : (
-              <span key={f.kind} className={`gc_tp_fact gc_tp_fact_${f.kind}`}>
-                {f.text}
-              </span>
-            ),
-          )}
+          {d.facts.map((f) => (
+            <span key={f.kind} className={`gc_tp_fact gc_tp_fact_${f.kind}`}>
+              {f.text}
+            </span>
+          ))}
+        </span>
+      );
+    }
+    if (d.kind === "paths_head") {
+      return (
+        <span className="gc_tp_paths_head gc_tp_card" style={cardOf.get(d.c.key)} data-tkey={d.c.key}>
+          {row.textValue}
+        </span>
+      );
+    }
+    if (d.kind === "path") {
+      // One line, each title cut on its own; the whole pair once lit.
+      const lit = shownRow === row.key;
+      return (
+        <span className={`gc_tp_path gc_tp_card${lit ? " gc_tp_path_lit" : ""}`} style={cardOf.get(d.c.key)} data-path={row.key} data-rows={row.key} data-tkey={d.c.key} onClick={() => clickPath(row.key, d.ids)}>
+          <span className="gc_tp_path_end">{d.path.a}</span>
+          <span className="gc_tp_path_sep">↔</span>
+          <span className="gc_tp_path_end">{d.path.b}</span>
+          <span className="gc_tp_path_count">({d.path.count})</span>
         </span>
       );
     }
@@ -567,10 +725,24 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
         className="gc_tp_body"
         id={bodyId}
         hidden={!open}
-        onPointerOver={(e) => hover.pointerOver(rowTopicKey(e.target), e.pointerType)}
-        onPointerLeave={(e) => hover.pointerLeave(e.pointerType)}
-        onFocus={(e) => hover.focus(e.target instanceof Element && e.target.matches(":focus-visible") ? rowTopicKey(e.target) : null)}
-        onBlur={(e) => hover.blur(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))}
+        onPointerOver={(e) => {
+          hover.pointerOver(rowTopicKey(e.target), e.pointerType);
+          litHover.pointerOver(rowLitKey(e.target), e.pointerType);
+        }}
+        onPointerLeave={(e) => {
+          hover.pointerLeave(e.pointerType);
+          litHover.pointerLeave(e.pointerType);
+        }}
+        onFocus={(e) => {
+          const keyboard = e.target instanceof Element && e.target.matches(":focus-visible");
+          hover.focus(keyboard ? rowTopicKey(e.target) : null);
+          if (keyboard) litHover.focus(rowLitKey(e.target));
+        }}
+        onBlur={(e) => {
+          const stillInside = e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget);
+          hover.blur(stillInside);
+          litHover.blur(stillInside);
+        }}
       >
         <DisclosureList<TopicRowData>
           ref={listRef}
@@ -584,6 +756,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
             const d = row.data;
             if (!d) return;
             if (d.kind === "topic") focus(d.c.key);
+            else if (d.kind === "path") clickPath(row.key, d.ids);
             else if (d.kind === "member") onOpenMember(d.node);
           }}
           renderRow={(row) => renderRow(row as TopicRow)}
