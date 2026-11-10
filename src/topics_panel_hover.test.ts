@@ -290,7 +290,7 @@ describe("rowsHover (a path, a memory type)", () => {
   it("the panel: a path's click and Enter go to the lights (panelLights.clickPath: topics_panel_lights.test.tsx)", () => {
     expect(PANEL).toContain("onClick={() => ctx.clickPath(row.key)}");
     expect(PANEL).toContain('else if (d.kind === "path") lights.clickPath(row.key);');
-    expect(PANEL).toContain("const ctx: RowContext = { focused, shownRow, cardOf, colorOf, focus, clickPath: lights.clickPath, toggleOpen, openMember: onOpenMember };");
+    expect(PANEL).toContain("const ctx: RowContext = { focused, shownRow, cardOf, colorOf, clickTopic, clickPath: lights.clickPath, toggleOpen, openMember: onOpenMember };");
   });
 
   it("a type's memories: looked up on a hover, grouped once per answer and fold (never per render)", () => {

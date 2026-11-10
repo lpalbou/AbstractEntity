@@ -21,7 +21,7 @@ import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { HOVER_INTENT_MS, type HoverIntentTimers } from "./hover_intent";
 import { membershipOf } from "./topic_layout";
-import { groupRowKey, panelLights, PHONE_LAYOUT_QUERY, pathRowKey, renderTopicRow, revealScrollTop, topicRows, typesRowKey, type PanelLightsHost, type RowContext, type TopicRow } from "./topics_panel";
+import { groupRowKey, panelLights, PHONE_LAYOUT_QUERY, pathRowKey, renderTopicRow, revealScrollTop, topicClick, topicRowOf, topicRows, typesRowKey, type PanelLightsHost, type RowContext, type TopicRow } from "./topics_panel";
 
 // ------------------------------------------------------------ a minimal element tree from real markup
 
@@ -151,12 +151,12 @@ const EPISODES = groupRowKey("harbour", "episode");
 const rowsWith = (opened: string[]) => topicRows(DATA.communities, new Set(["harbour"]), ROWS_OF, FOLD, { opened: new Set(opened) });
 const ROWS = rowsWith([TYPES]);
 
-const CTX: RowContext = { focused: "harbour", shownRow: null, cardOf: new Map(), colorOf: () => "#fff", focus: () => {}, clickPath: () => {}, toggleOpen: () => {}, openMember: () => {} };
+const CTX: RowContext = { focused: "harbour", shownRow: null, cardOf: new Map(), colorOf: () => "#fff", clickTopic: () => {}, clickPath: () => {}, toggleOpen: () => {}, openMember: () => {} };
 /** The row as the panel renders it (the kit's <li> around its content), as an element tree: its <li>. */
-function rendered(key: string, rows: TopicRow[] = ROWS): FakeElement {
+function rendered(key: string, rows: TopicRow[] = ROWS, ctx: RowContext = CTX): FakeElement {
   const row = rows.find((r) => r.key === key);
   if (!row) throw new Error(`no row ${key}`);
-  const html = renderToStaticMarkup(<DisclosureList rows={[row]} selection={null} onSelect={() => {}} onToggleExpand={() => {}} renderRow={(r) => renderTopicRow(r as TopicRow, CTX)} />);
+  const html = renderToStaticMarkup(<DisclosureList rows={[row]} selection={null} onSelect={() => {}} onToggleExpand={() => {}} renderRow={(r) => renderTopicRow(r as TopicRow, ctx)} />);
   const li = tree(html).find((el) => el.closest(".af-disclosure__row") === el);
   if (!li) throw new Error(`no kit row in ${html.slice(0, 120)}`);
   return li;
@@ -373,5 +373,58 @@ describe("on the phone layout a path tapped frames and folds the panel", () => {
   it("the frame folds the panel there, keeping the pair lit (the fold that follows keeps the pin)", () => {
     expect(PANEL).toMatch(/host\.current\.onFrameRows\(ids\);\n\s+if \(phoneLayout\(\)\) \{\n\s+foldedToFrame\.current = true;\n\s+host\.current\.onToggle\(false\);/);
     expect(PANEL).toContain("lights.release(foldedToFrame.current);");
+  });
+});
+
+// ------------------------------------------------------------ a topic folds back to the card it was (backlog 0026)
+
+describe("a click on an unfolded topic folds it back to the card it was; the next unfolds it (backlog 0026)", () => {
+  const PANEL = fs.readFileSync(path.resolve(__dirname, "topics_panel.tsx"), "utf8");
+  it("what a click (Enter, Space) on a topic's row does: fold an unfolded card, keep the focus; unfold a folded one; focus one not focused", () => {
+    // Unfolded (by its click, or its chevron): folded back, focused or not.
+    expect(topicClick("harbour", new Set(["harbour"]), "harbour")).toBe("fold");
+    expect(topicClick("harbour", new Set(["harbour"]), null)).toBe("fold");
+    // Folded while focused: unfolded again, the focus untouched.
+    expect(topicClick("harbour", new Set(), "harbour")).toBe("unfold");
+    // Folded, not focused: focused (the graph frames it; it unfolds).
+    expect(topicClick("harbour", new Set(), "tides")).toBe("focus");
+    expect(topicClick("harbour", new Set(["tides"]), null)).toBe("focus");
+  });
+
+  it("folded, the focused topic is the card it was: no focused mark (its summary cut), no facts, paths or types under it", () => {
+    const expanded = topicRows(DATA.communities, new Set(["harbour"]), ROWS_OF, FOLD);
+    const folded = topicRows(DATA.communities, new Set(), ROWS_OF, FOLD);
+    expect(expanded.map((r) => r.data?.kind)).toEqual(["topic", "paths_head", "path", "types"]);
+    expect(folded.map((r) => r.data?.kind)).toEqual(["topic"]);
+    const focusedCtx = { ...CTX, focused: "harbour" };
+    expect(inside(rendered("topic:harbour", expanded, focusedCtx), "gc_tp_topic").getAttribute("class")).toBe("gc_tp_topic gc_tp_card gc_tp_focused");
+    expect(inside(rendered("topic:harbour", folded, focusedCtx), "gc_tp_topic").getAttribute("class")).toBe("gc_tp_topic gc_tp_card");
+    // …the same card as before its click.
+    expect(inside(rendered("topic:harbour", folded, { ...CTX, focused: null }), "gc_tp_topic").getAttribute("class")).toBe("gc_tp_topic gc_tp_card");
+    expect(rendered("topic:harbour", folded, focusedCtx).querySelector("[data-topic]")).toBeTruthy();
+  });
+
+  it("the row's click, Enter and Space all go through topicClick; only the not-focused case focuses", () => {
+    const clicked: string[] = [];
+    const ctx = { ...CTX, clickTopic: (k: string) => clicked.push(k) };
+    const row = topicRows(DATA.communities, new Set(["harbour"]), ROWS_OF, FOLD)[0];
+    const el = renderTopicRow(row, ctx) as React.ReactElement<{ onClick(): void }>;
+    el.props.onClick();
+    expect(clicked).toEqual(["harbour"]);
+    expect(PANEL).toMatch(/const clickTopic = \(key: string\) => \{\n\s+if \(topicClick\(key, expanded, focused\) === "focus"\) onFocus\(key\);\n\s+else toggleRow\(key\);/);
+    expect(PANEL).toContain('if (d.kind === "topic") clickTopic(d.c.key);');
+    expect(PANEL).toContain('const key = e.key === " " ? topicRowOf(e.target) : null;');
+    expect(PANEL).toContain("if (key !== null) clickTopic(key);");
+    // A click no longer lets the focused topic go (its filter chip does).
+    expect(PANEL).not.toContain("onFocus(focused === key ? null : key)");
+  });
+
+  it("Space folds only from the topic's own row (the keyboard's focus), never from another row or inside one", () => {
+    const li = rendered("topic:harbour", topicRows(DATA.communities, new Set(["harbour"]), ROWS_OF, FOLD));
+    expect(topicRowOf(li)).toBe("harbour");
+    expect(topicRowOf(inside(li, "gc_tp_title"))).toBeNull();
+    expect(topicRowOf(rendered(PATH))).toBeNull();
+    expect(topicRowOf(rendered(TYPES))).toBeNull();
+    expect(topicRowOf(null)).toBeNull();
   });
 });

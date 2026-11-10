@@ -217,7 +217,7 @@ describe("served: the list", () => {
     expect(rowsWith([groupRowKey("harbour", "episode")]).some((r) => r.data?.kind === "group" || r.data?.kind === "member")).toBe(false);
     // The member row says its badge (only the provisional one) and opens on a click.
     const opened: TopicRow[] = [];
-    const ctx: RowContext = { focused: "harbour", shownRow: null, cardOf: new Map(), colorOf: () => "#fff", focus: () => {}, clickPath: () => {}, toggleOpen: () => {}, openMember: (n) => opened.push(members.find((r) => r.data?.kind === "member" && r.data.node === n)!) };
+    const ctx: RowContext = { focused: "harbour", shownRow: null, cardOf: new Map(), colorOf: () => "#fff", clickTopic: () => {}, clickPath: () => {}, toggleOpen: () => {}, openMember: (n) => opened.push(members.find((r) => r.data?.kind === "member" && r.data.node === n)!) };
     const html = members.map((r) => renderToStaticMarkup(<>{renderTopicRow(r, ctx)}</>));
     const badges = html.map((h) => [...h.matchAll(/gc_tp_provisional[^>]*><span class="af-chip__label">([^<]+)</g)].map((m) => m[1]));
     expect(badges).toEqual([["placed until his next sleep"], [], []]);

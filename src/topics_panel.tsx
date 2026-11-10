@@ -16,8 +16,12 @@
  *   whose memories the graph has loaded says so in one sentence ("Its
  *   memories are outside the loaded window."), never an empty list.
  * - A click on a topic FOCUSES it: the graph frames its circle and lights
- *   its memories, and the topic unfolds. A click on the focused topic lets
- *   it go.
+ *   its memories, and the topic unfolds. A click on an unfolded topic (its
+ *   row, its chevron; Enter or Space on its row) FOLDS it back to the card
+ *   it was, nothing else changed (operator 2026-11-10 20:13, Entity backlog
+ *   0026: "we can't refold the topic as they were before clicking"): it
+ *   stays focused — the filter chip on the graph lets it go — and the next
+ *   click unfolds it again.
  * - ITS MEMORY TYPES (operator 2026-11-10, Entity backlog 0016): one
  *   sub-panel "Memory types" in its card, folded by default (a disclosure
  *   whose mark says its state). Unfolded, one row per type with how many of
@@ -740,6 +744,21 @@ function phoneLayout(): boolean {
   return typeof window.matchMedia === "function" && window.matchMedia(PHONE_LAYOUT_QUERY).matches;
 }
 
+/** What a click (Enter, Space) on a topic's own row does: an unfolded card
+ * folds back to the card it was (the focus kept); a folded one unfolds —
+ * focused (the graph frames it) when it is not yet. */
+export function topicClick(key: string, expanded: ReadonlySet<string>, focused: string | null): "fold" | "unfold" | "focus" {
+  if (expanded.has(key)) return "fold";
+  return focused === key ? "unfold" : "focus";
+}
+
+/** The topic whose own row `target` is (the row itself, as the keyboard
+ * focuses it), else null. */
+export function topicRowOf(target: EventTarget | null): string | null {
+  if (!(target instanceof Element) || target.closest(".af-disclosure__row") !== target) return null;
+  return target.querySelector("[data-topic]")?.getAttribute("data-topic") ?? null;
+}
+
 /** What a row's content needs from the panel. */
 export interface RowContext {
   focused: string | null;
@@ -747,7 +766,8 @@ export interface RowContext {
   shownRow: string | null;
   cardOf: ReadonlyMap<string, React.CSSProperties>;
   colorOf(node: NodeState): string;
-  focus(key: string): void;
+  /** A click on a topic's own row (topicClick). */
+  clickTopic(key: string): void;
   clickPath(rowKey: string): void;
   toggleOpen(rowKey: string): void;
   openMember(node: NodeState): void;
@@ -761,7 +781,8 @@ export function renderTopicRow(row: TopicRow, ctx: RowContext): React.ReactNode 
     const c = d.c;
     const summary = topicSummary(c);
     return (
-      <span className={`gc_tp_topic gc_tp_card${focused === c.key ? " gc_tp_focused" : ""}`} style={cardOf.get(c.key)} data-topic={c.key} data-tkey={c.key} onClick={() => ctx.focus(c.key)}>
+      // Folded, a focused topic is the card it was before its click (its summary cut).
+      <span className={`gc_tp_topic gc_tp_card${focused === c.key && row.expanded ? " gc_tp_focused" : ""}`} style={cardOf.get(c.key)} data-topic={c.key} data-tkey={c.key} onClick={() => ctx.clickTopic(c.key)}>
         <span className={`gc_tp_title${c.titlePending ? " gc_tp_pending" : ""}`}>{row.textValue}</span>
         <AfChip size="sm" tone="muted" className="gc_tp_count">
           {topicCountWords(heldCount(c), d.loaded)}
@@ -924,7 +945,10 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
       else next.add(key);
       return next;
     });
-  const focus = (key: string) => onFocus(focused === key ? null : key);
+  const clickTopic = (key: string) => {
+    if (topicClick(key, expanded, focused) === "focus") onFocus(key);
+    else toggleRow(key);
+  };
   const toggleOpen = (rowKey: string) => {
     if (!opened.has(rowKey)) lights.opening(rowKey);
     setOpened((prev) => {
@@ -934,7 +958,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
       return next;
     });
   };
-  const ctx: RowContext = { focused, shownRow, cardOf, colorOf, focus, clickPath: lights.clickPath, toggleOpen, openMember: onOpenMember };
+  const ctx: RowContext = { focused, shownRow, cardOf, colorOf, clickTopic, clickPath: lights.clickPath, toggleOpen, openMember: onOpenMember };
   const waitingWords = waitingLine(waiting);
   return (
     <section className={`gc_topics${open ? " gc_tp_open" : ""}`} aria-label="His topics">
@@ -966,6 +990,11 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
           hover.blur(stillInside);
           lights.blur(stillInside);
         }}
+        onKeyDown={(e) => {
+          // Space on a topic's row folds or unfolds it, as Enter does (the kit's Space only selects).
+          const key = e.key === " " ? topicRowOf(e.target) : null;
+          if (key !== null) clickTopic(key);
+        }}
       >
         <DisclosureList<TopicRowData>
           ref={listRef}
@@ -981,7 +1010,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
           onActivate={(_sel, row) => {
             const d = row.data;
             if (!d) return;
-            if (d.kind === "topic") focus(d.c.key);
+            if (d.kind === "topic") clickTopic(d.c.key);
             else if (d.kind === "path") lights.clickPath(row.key);
             else if (d.kind === "types" || d.kind === "group") toggleOpen(row.key);
             else if (d.kind === "member") onOpenMember(d.node);
