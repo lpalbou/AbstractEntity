@@ -12,12 +12,13 @@ create your first one. The pages below go deeper.
 - [API and configuration](api.md): the `abstractentity` command, environment
   variables, app URLs (`#new`, `?entity=`, `?page=blueprint`), server routes and
   the gateway routes the app calls, including the life cycle (phase bar and
-  sleep thresholds), `@` mentions and the optional Avatar conversation.
+  sleep thresholds), his topics, reply badges, `@` mentions and the optional
+  Avatar conversation.
 - [FAQ](faq.md): common questions about entities, names, what an entity does
   when nobody talks to it, privacy of the diary, gateway versions, the About
   dialog and using the app on a phone or tablet.
 - [Troubleshooting](troubleshooting.md): symptoms and fixes for gateway, sign-in,
-  creation, the phase bar, mentions, the Cognitive Monitor without embeddings,
+  creation, the phase bar, mentions, topics, the Cognitive Monitor without embeddings,
   About, port, copy over plain http and build problems.
 
 ## Topic pages

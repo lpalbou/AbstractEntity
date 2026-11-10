@@ -61,10 +61,12 @@ The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer. The optional Avatar
 conversation (public updates, corrections and question answers during a visit)
-needs AbstractGateway 0.19.0 or newer. The phase bar needs a gateway that
-serves the five-state life cycle, and `@` mentions a gateway that serves
-mentions; with an older one the app says "This gateway does not serve the
-phase bar yet." or "This gateway does not offer mentions yet" instead.
+needs AbstractGateway 0.19.0 or newer. The five-state phase bar, Settings →
+Mind (with its Sleep card), `@` mentions, reply badges and his topics need
+AbstractGateway 0.21.0 or newer; with an older one the app says "This gateway
+does not serve the phase bar yet.", "This gateway does not offer mentions
+yet" or "This gateway does not serve topics yet." instead, and replies show
+no badges.
 
 ## How do I see which versions I am running?
 

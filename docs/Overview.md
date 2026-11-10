@@ -42,8 +42,9 @@ silently, and a single malformed line that must never brick the view.
   that yields `FoldState` (nodes, edges, standings, beats, sessions,
   attention windows) at any scrub position.
 - **Memory graph** (`graph_canvas.tsx`, `graph_lenses.ts`,
-  `force_layout.ts`, `graph_usage.ts`) — the mind as a live force-directed
-  graph with lenses, a grey-to-green usage scale ranked within each life, the
+  `force_layout.ts`, `graph_usage.ts`, `topic_layout.ts`, `topics_panel.tsx`)
+  — the mind as a live graph laid out by the topics his memory forms in his
+  sleep (force-directed until they are served), with a Topics panel, lenses, a grey-to-green usage scale ranked within each life, the
   Context view (the memories of a recall and the paths travelled to reach
   them), and durable spatial memory.
 - **Reading surfaces** — **Book** (`book_reader.tsx`): the diary as a

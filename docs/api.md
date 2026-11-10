@@ -133,6 +133,46 @@ writes and the live stream. Every path is under `/api/gateway/entities/{name}`.
   without a `sleep` block shows "This gateway does not offer the sleep
   settings yet." and disables both fields.
 
+### His topics (the graph's layout)
+
+The graph reads his topics with `GET /api/gateway/entities/{name}/communities`.
+The app reads payload version 2 as memory serves it: `version`, `version_seq`,
+`first_sleep_pending`, `algorithm`, `communities` (each with `id`, `key`,
+`title`, `summary`, `pending`, `verdict`, `size`, `kinds`, `members`,
+`provisional_ids`, `cohesion`, `layout: {xy, radius, seats}`,
+`centroid_stale` and `facts`, whose fields may each be absent) and `links`.
+
+- **Layout.** Each topic is a circle at `layout.xy` with `layout.radius`, and
+  each member sits on its seat. A topic's `key` stays the same from one
+  version to the next, so your focus, its colour and where you dragged it
+  survive a new version; `id` names the current revision.
+- **Titles and summaries** are memory's own: "title being written…" while
+  `pending` says so, never a label the app makes up. A `verdict` of
+  `no_common_subject` reads "He found no common subject in these memories."
+- **Live.** A host event with `payload.kind == "communities_changed"` on
+  `GET /replay/stream` makes the graph read the new version once; a `placed`
+  event seats a new memory in its topic at once, with the badge "placed until
+  his next sleep".
+- **Before his first sleep** (`first_sleep_pending`) the graph uses its plain
+  layout and says "His topics form during his next sleep."
+- **Older gateways.** An answer without `version` 2, or one that leaves out a
+  required field, shows "This gateway does not serve topics yet." and the
+  plain layout; the app never works out topics itself.
+
+### Replies, badges and cut summaries
+
+- **Badges.** What a turn formed is served beside the reply, never inside its
+  words: `reply_notices` on a visit turn's answer, and `notices` on a
+  flow-brain answer in the replay view. Each notice is one badge under the
+  reply; a click opens its record.
+- **Cut summaries.** When the gateway marks a record `cut: true` (the record
+  read, the replay's record and recall blocks, and the statements of
+  `GET /card`), the app shows the record's title and "Older record: its
+  summary was cut when saved; he rewrites it in his sleep." instead of the
+  cut words. Without the flag, the words show as stored.
+- **A Stop during an open.** A visit open answered with 409
+  `stopped_use_resume` shows the gateway's sentence and **Resume and visit**.
+
 ### Mentions in a conversation
 
 In a visit, or a flow-brain conversation, `@` lists the entities that
@@ -172,6 +212,11 @@ POST /api/gateway/sessions/{session_id}/mentions
 - **404 or 405 without a code**: the gateway has no mentions route. The app
   says "This gateway does not offer mentions yet" and from then on `@` shows
   that sentence instead of names.
+
+In the flow-brain lane, the turn itself also names the chips:
+`POST /entities/{name}/summon` carries `mentions` (the picked entities'
+slugs, in pick order, each once), so the entity knows the mentioned entities
+answer for themselves. A message without chips sends no `mentions`.
 
 The app sets no time limit on a mention, as on any visit turn.
 

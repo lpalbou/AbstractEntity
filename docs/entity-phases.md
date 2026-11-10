@@ -195,7 +195,7 @@ serve the phase bar yet.", and the controls stay off.
 ### On a phone
 
 Below 480 px (checked at 400 px), the phase bar takes the full width of the
-screen: the four state words without their icons, then **Stop**, then the
+screen: the five state words without their icons, then **Stop**, then the
 sentence and any question on lines of their own. Nothing is cut off and the
 page never scrolls sideways; swipe the controls row to reach **Settings**.
 

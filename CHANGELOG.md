@@ -104,7 +104,7 @@ Highlights:
     topic during the day (its `placed` event) joins that circle at once. The ledger says "His
     topics changed" and "Placed in a topic until his next sleep".
   - **Before his first sleep, and on an older gateway.** Until his first sleep forms topics the
-    graph shows his memories without circles and one sentence: "His topics form at his next
+    graph shows his memories without circles and one sentence: "His topics form during his next
     sleep." A gateway that serves the old shape gets one sentence too: "This gateway does not
     serve topics yet." No topics are worked out in the app.
 - **@ mentions in the flow-brain lane: he answers only what is addressed to him.** A flow message

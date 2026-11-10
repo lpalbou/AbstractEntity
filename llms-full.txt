@@ -17,6 +17,16 @@ live memory graph, and read their diaries. It is published on npm as
 
 ## What's new
 
+0.12.0 follows the entity's five-state life cycle: the phase bar shows **idle**, **visit**,
+**work**, **personal** and **sleep**; own time is the one toggle you grant, work is the jobs
+queued for him, the red **Stop** halts everything and cancels his own time, and **Resume** brings
+him back idle. **Settings → Mind → Sleep** sets when an idle entity sleeps for maintenance. In a
+conversation, type `@` to bring other entities in; each answers once, under its own name. Under
+a reply, badges show what the turn kept (a diary entry, a lesson, an interest, a question, a
+realization). The memory graph is laid out by the topics his memory forms in his sleep, with a
+**Topics** panel, a grey-to-green usage scale and the paths he travelled to each recalled memory.
+All of this needs AbstractGateway 0.21.0. See the [changelog](CHANGELOG.md#0120---2026-11-10).
+
 0.11.2 shows every entity on the home page at once: each tile appears as soon as the
 list arrives and fills in on its own, and a slow entity no longer holds the others on
 "reading his card…". **Settings → identity** is now one clear page from the shared kit:
@@ -119,7 +129,7 @@ for every launch flag.
 | Surface | What it shows |
 | --- | --- |
 | Phase bar | Where the entity is in its life cycle (idle, own time, work, visit, sleep or stopped), with a sentence, since when and where it goes next ("then: own time"); the **personal** toggle that grants its own time, **sleep now**, and the red **Stop** (or **Resume**). See [The entity life cycle](docs/entity-phases.md) |
-| Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
+| Memory graph | The entity's memories as a live graph, laid out by his topics (the groups his memory forms and titles in his sleep; with **topics** on, their circles, titles and the **Topics** panel), or as a force-directed graph until his topics are served (before his first sleep, or on an older gateway). Memories and lines run from grey (rarely used) to green (most used). After a reply, the **Context** view lights what he held in mind and the paths he travelled to each recalled memory. With search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
 | Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), its identity (avatar design, colour and voice, with their history), files, tools and system prompt in **Settings**, and read its track record (what it has done, trust by task, whom it has met) — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and identity with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
 | Detail | One memory: its verbatim text, feelings and associations |
@@ -141,6 +151,10 @@ tag. An entity busy elsewhere is skipped with "Pollux is in another
 conversation."; one that cannot answer puts your words and its chip back in the
 message box. A gateway without mentions says "This gateway does not offer
 mentions yet". See [Mentions in a conversation](docs/api.md#mentions-in-a-conversation).
+
+Under a reply, a badge shows each thing the turn kept: a diary entry, a lesson, an
+interest, a question or a realization, with its title (a private diary entry shows
+no words). Click a badge to open its record.
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -196,7 +210,7 @@ monitor.
 - **Phones (below 768 px, or held sideways):** the tabs become a strip along the
   bottom of the view, dialogs open from the bottom of the screen, and the header
   and timeline wrap onto a second row. Below 480 px the controls row swipes
-  sideways, and the phase bar takes the first screen width: the four state
+  sideways, and the phase bar takes the first screen width: the five state
   words, **Stop**, then its sentence and any question on lines of their own.
 - **On-screen keyboard:** while the keyboard is open, an open panel fills the
   screen above it with the tab strip kept underneath, so the chat stays usable.
@@ -439,7 +453,8 @@ flowchart LR
     Host["GET /app/host<br/>LAN address for entity handles"]
   end
   subgraph Gateway["AbstractGateway (:8080)"]
-    Entities["/api/gateway/entities/*<br/>list · create · replay · state · chat · visits · voice/tts/stream<br/>visit/{run}: state · guidance · answer · decision (Avatar)"]
+    Entities["/api/gateway/entities/*<br/>list · create · replay · life_state · lifecycle · communities<br/>chat · visits · summon · voice/tts/stream<br/>visit/{run}: state · guidance · answer · decision (Avatar)"]
+    Sessions["/api/gateway/sessions/{id}/mentions<br/>@ mentions"]
     Meets["/api/gateway/entities/meets/*"]
     Embed["/api/gateway/embeddings"]
     Docs["/api/gateway/docs/corpus"]
@@ -454,6 +469,7 @@ flowchart LR
   SPA --> Host
   Proxy -- "session headers" --> Entities
   Proxy --> Meets
+  Proxy --> Sessions
   Proxy --> Embed
   Proxy --> Docs
   Proxy --> About
@@ -546,12 +562,12 @@ behind the blueprint page ([`spec/cognition_graph.json`](../spec/cognition_graph
 | Entry and shell | `main.tsx`, `entity_view.tsx`, `error_boundary.tsx`, `brand_mark.tsx`, `entity.css` (layout, including the responsive rules; see [Responsive layout](../README.md#responsive-layout)), `drawer.tsx` + `side_tabs_state.ts` (the side panel: docked at 1024 px and wider, a drawer below), `entity_assistant.ts` (top-bar assistant over the gateway docs corpus; the drawer is AbstractUIC's shared Docs assistant, vendored in `vendor/abstractdocs/` by `npm run sync:docs`), `app_about.ts` (About dialog: app version and gateway versions) |
 | Entities list | `entities_index.tsx`, `roster_tiles.ts` + `card_reads.ts` (tiles from the roster at once; live reads per tile; cards three at a time, kept 5 minutes or until the state changes), `roster_empty.ts` (empty state and `#new` deep link), `create_entity_form.tsx`, `fleet_view.tsx` (watch all), `entity_state.ts`, `index_page.ts` (`?page=blueprint` mapping) |
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
-| Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts`, `topic_map.tsx` (fetches the topic communities), `topic_layout.ts` (topics as the layout: stable homes, seats, halos, labels), `recall_emphasis.ts` (the recall highlight), `node_label.ts` |
+| Graph | `graph_canvas.tsx`, `graph_lenses.ts`, `force_layout.ts` (the plain layout, before topics are served), `communities.ts` (reads his topics, payload version 2), `communities_source.ts` (fetches them), `topic_map.tsx` (the live `communities_changed` marker and `placed` events), `topic_layout.ts` (topics as the layout: circles, seats, drags), `topic_labels.ts` (titles on the canvas), `topics_panel.tsx` (the Topics panel and each topic's facts), `recall_emphasis.ts` (the recall highlight and the travelled paths), `replay_clock.ts` (playback pacing), `hover_card.ts`, `node_label.ts` |
 | Life cycle | `phase_bar_source.ts` (the gateway seam: `life_state`, the `personal` toggle, `lifecycle`, sleep now), `phase_bar.ts` (what the bar shows for one answer, pure), `phase_bar_writes.ts` (writes in flight; Stop never waits), `phase_bar_controls.tsx` (the pills, Stop/Resume, Retry and the inline questions, on the entity page and the roster tiles), `mind_cognition_profile.tsx` (Settings → Mind, including the Sleep card) |
 | Panels | `inspector.tsx`, `identity_card.tsx`, `timeline.tsx`, `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts` |
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx`, `cognitive_monitor.tsx` |
 | Cognition wave | `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `cognition_wave_panel.tsx`, `cognition_wave_inline.tsx`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
-| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `visit_mentions.ts` (`@` mentions: the list, one call per mention in order, resend of the unanswered ones), `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: the kit's `IdentityPanel` wired to the gateway: design, colour, voice with a sample, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
+| Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `turn_notices.ts` (the badges of what a reply formed, read from the served notices), `visit_mentions.ts` (`@` mentions: the list, one call per mention in order, resend of the unanswered ones), `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `turn_pulse.ts`, `turn_pulse_bars.tsx`, `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: the kit's `IdentityPanel` wired to the gateway: design, colour, voice with a sample, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
 | Optional Avatar conversation | `avatar_visit.ts` (explicit public projection and privacy boundary), `use_avatar_visit.ts` (public visit state), `avatar_visit_view.tsx` (avatar, questions and permissions), `vendor/abstractchat/` (canonical AbstractUIC presenter). Shares the chat's composer and execution paths; does not read private life envelopes for public text. |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`; in a visit, an entity picked as an `@` chip offers a meet (`visit_mentions.ts` `meetOffers`; nothing is read out of the typed words) |
 | Blueprint | `blueprint_panel.tsx`, `blueprint_tunables.tsx`, `phase_map.tsx`, `phase_editor.tsx`, `edge_ops.ts`, `spec_sync.ts` |
@@ -759,6 +775,46 @@ writes and the live stream. Every path is under `/api/gateway/entities/{name}`.
   without a `sleep` block shows "This gateway does not offer the sleep
   settings yet." and disables both fields.
 
+### His topics (the graph's layout)
+
+The graph reads his topics with `GET /api/gateway/entities/{name}/communities`.
+The app reads payload version 2 as memory serves it: `version`, `version_seq`,
+`first_sleep_pending`, `algorithm`, `communities` (each with `id`, `key`,
+`title`, `summary`, `pending`, `verdict`, `size`, `kinds`, `members`,
+`provisional_ids`, `cohesion`, `layout: {xy, radius, seats}`,
+`centroid_stale` and `facts`, whose fields may each be absent) and `links`.
+
+- **Layout.** Each topic is a circle at `layout.xy` with `layout.radius`, and
+  each member sits on its seat. A topic's `key` stays the same from one
+  version to the next, so your focus, its colour and where you dragged it
+  survive a new version; `id` names the current revision.
+- **Titles and summaries** are memory's own: "title being written…" while
+  `pending` says so, never a label the app makes up. A `verdict` of
+  `no_common_subject` reads "He found no common subject in these memories."
+- **Live.** A host event with `payload.kind == "communities_changed"` on
+  `GET /replay/stream` makes the graph read the new version once; a `placed`
+  event seats a new memory in its topic at once, with the badge "placed until
+  his next sleep".
+- **Before his first sleep** (`first_sleep_pending`) the graph uses its plain
+  layout and says "His topics form during his next sleep."
+- **Older gateways.** An answer without `version` 2, or one that leaves out a
+  required field, shows "This gateway does not serve topics yet." and the
+  plain layout; the app never works out topics itself.
+
+### Replies, badges and cut summaries
+
+- **Badges.** What a turn formed is served beside the reply, never inside its
+  words: `reply_notices` on a visit turn's answer, and `notices` on a
+  flow-brain answer in the replay view. Each notice is one badge under the
+  reply; a click opens its record.
+- **Cut summaries.** When the gateway marks a record `cut: true` (the record
+  read, the replay's record and recall blocks, and the statements of
+  `GET /card`), the app shows the record's title and "Older record: its
+  summary was cut when saved; he rewrites it in his sleep." instead of the
+  cut words. Without the flag, the words show as stored.
+- **A Stop during an open.** A visit open answered with 409
+  `stopped_use_resume` shows the gateway's sentence and **Resume and visit**.
+
 ### Mentions in a conversation
 
 In a visit, or a flow-brain conversation, `@` lists the entities that
@@ -798,6 +854,11 @@ POST /api/gateway/sessions/{session_id}/mentions
 - **404 or 405 without a code**: the gateway has no mentions route. The app
   says "This gateway does not offer mentions yet" and from then on `@` shows
   that sentence instead of names.
+
+In the flow-brain lane, the turn itself also names the chips:
+`POST /entities/{name}/summon` carries `mentions` (the picked entities'
+slugs, in pick order, each once), so the entity knows the mentioned entities
+answer for themselves. A message without chips sends no `mentions`.
 
 The app sets no time limit on a mention, as on any visit turn.
 
@@ -971,10 +1032,12 @@ The app works with any AbstractGateway; surfaces whose route the gateway does
 not serve show a labelled gap. The gateway console's **Create your first
 entity** shortcut needs AbstractGateway 0.4.1 or newer. The optional Avatar
 conversation (public updates, corrections and question answers during a visit)
-needs AbstractGateway 0.19.0 or newer. The phase bar needs a gateway that
-serves the five-state life cycle, and `@` mentions a gateway that serves
-mentions; with an older one the app says "This gateway does not serve the
-phase bar yet." or "This gateway does not offer mentions yet" instead.
+needs AbstractGateway 0.19.0 or newer. The five-state phase bar, Settings →
+Mind (with its Sleep card), `@` mentions, reply badges and his topics need
+AbstractGateway 0.21.0 or newer; with an older one the app says "This gateway
+does not serve the phase bar yet.", "This gateway does not offer mentions
+yet" or "This gateway does not serve topics yet." instead, and replies show
+no badges.
 
 ## How do I see which versions I am running?
 
@@ -1079,7 +1142,7 @@ footprint in **Health**). The app labels the gap rather than estimating.
 time, work, visit, sleep, with the job queue). The bar's controls stay off
 rather than guessing.
 
-**Fix:** upgrade the gateway. See
+**Fix:** upgrade the gateway to AbstractGateway 0.21.0 or newer. See
 [Life cycle (the phase bar)](api.md#life-cycle-the-phase-bar).
 
 ## The phase bar shows "His own time stopped unexpectedly"
@@ -1093,8 +1156,20 @@ turn **personal** off; the entity stays awake.
 
 **Cause:** the gateway has no mentions route.
 
-**Fix:** upgrade the gateway. Until then, talk with each entity in its own
-visit, or convene a meet from the entities list.
+**Fix:** upgrade the gateway to AbstractGateway 0.21.0 or newer. Until then,
+talk with each entity in its own visit, or convene a meet from the entities
+list.
+
+## The graph shows no topics
+
+**Cause:** before his first sleep, his memory has not formed topics yet: the
+graph uses its plain layout and says "His topics form during his next sleep."
+With a gateway that does not serve topics, it says "This gateway does not
+serve topics yet."
+
+**Fix:** wait for his next sleep (or put him to sleep with **sleep now**), or
+upgrade the gateway to AbstractGateway 0.21.0 or newer. See
+[His topics](api.md#his-topics-the-graphs-layout).
 
 ## The Wave tab refuses to score
 
@@ -1210,8 +1285,9 @@ silently, and a single malformed line that must never brick the view.
   that yields `FoldState` (nodes, edges, standings, beats, sessions,
   attention windows) at any scrub position.
 - **Memory graph** (`graph_canvas.tsx`, `graph_lenses.ts`,
-  `force_layout.ts`, `graph_usage.ts`) — the mind as a live force-directed
-  graph with lenses, a grey-to-green usage scale ranked within each life, the
+  `force_layout.ts`, `graph_usage.ts`, `topic_layout.ts`, `topics_panel.tsx`)
+  — the mind as a live graph laid out by the topics his memory forms in his
+  sleep (force-directed until they are served), with a Topics panel, lenses, a grey-to-green usage scale ranked within each life, the
   Context view (the memories of a recall and the paths travelled to reach
   them), and durable spatial memory.
 - **Reading surfaces** — **Book** (`book_reader.tsx`): the diary as a
@@ -1555,7 +1631,7 @@ serve the phase bar yet.", and the controls stay off.
 ### On a phone
 
 Below 480 px (checked at 400 px), the phase bar takes the full width of the
-screen: the four state words without their icons, then **Stop**, then the
+screen: the five state words without their icons, then **Stop**, then the
 sentence and any question on lines of their own. Nothing is cut off and the
 page never scrolls sideways; swipe the controls row to reach **Settings**.
 

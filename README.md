@@ -8,6 +8,16 @@ live memory graph, and read their diaries. It is published on npm as
 
 ## What's new
 
+0.12.0 follows the entity's five-state life cycle: the phase bar shows **idle**, **visit**,
+**work**, **personal** and **sleep**; own time is the one toggle you grant, work is the jobs
+queued for him, the red **Stop** halts everything and cancels his own time, and **Resume** brings
+him back idle. **Settings → Mind → Sleep** sets when an idle entity sleeps for maintenance. In a
+conversation, type `@` to bring other entities in; each answers once, under its own name. Under
+a reply, badges show what the turn kept (a diary entry, a lesson, an interest, a question, a
+realization). The memory graph is laid out by the topics his memory forms in his sleep, with a
+**Topics** panel, a grey-to-green usage scale and the paths he travelled to each recalled memory.
+All of this needs AbstractGateway 0.21.0. See the [changelog](CHANGELOG.md#0120---2026-11-10).
+
 0.11.2 shows every entity on the home page at once: each tile appears as soon as the
 list arrives and fills in on its own, and a slow entity no longer holds the others on
 "reading his card…". **Settings → identity** is now one clear page from the shared kit:
@@ -110,7 +120,7 @@ for every launch flag.
 | Surface | What it shows |
 | --- | --- |
 | Phase bar | Where the entity is in its life cycle (idle, own time, work, visit, sleep or stopped), with a sentence, since when and where it goes next ("then: own time"); the **personal** toggle that grants its own time, **sleep now**, and the red **Stop** (or **Resume**). See [The entity life cycle](docs/entity-phases.md) |
-| Memory graph | The entity's memories as a live force-directed graph, with search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
+| Memory graph | The entity's memories as a live graph, laid out by his topics (the groups his memory forms and titles in his sleep; with **topics** on, their circles, titles and the **Topics** panel), or as a force-directed graph until his topics are served (before his first sleep, or on an older gateway). Memories and lines run from grey (rarely used) to green (most used). After a reply, the **Context** view lights what he held in mind and the paths he travelled to each recalled memory. With search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
 | Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), its identity (avatar design, colour and voice, with their history), files, tools and system prompt in **Settings**, and read its track record (what it has done, trust by task, whom it has met) — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and identity with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
 | Detail | One memory: its verbatim text, feelings and associations |
@@ -132,6 +142,10 @@ tag. An entity busy elsewhere is skipped with "Pollux is in another
 conversation."; one that cannot answer puts your words and its chip back in the
 message box. A gateway without mentions says "This gateway does not offer
 mentions yet". See [Mentions in a conversation](docs/api.md#mentions-in-a-conversation).
+
+Under a reply, a badge shows each thing the turn kept: a diary entry, a lesson, an
+interest, a question or a realization, with its title (a private diary entry shows
+no words). Click a badge to open its record.
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -187,7 +201,7 @@ monitor.
 - **Phones (below 768 px, or held sideways):** the tabs become a strip along the
   bottom of the view, dialogs open from the bottom of the screen, and the header
   and timeline wrap onto a second row. Below 480 px the controls row swipes
-  sideways, and the phase bar takes the first screen width: the four state
+  sideways, and the phase bar takes the first screen width: the five state
   words, **Stop**, then its sentence and any question on lines of their own.
 - **On-screen keyboard:** while the keyboard is open, an open panel fills the
   screen above it with the tab strip kept underneath, so the chat stays usable.

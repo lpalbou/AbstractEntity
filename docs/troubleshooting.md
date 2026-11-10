@@ -60,7 +60,7 @@ footprint in **Health**). The app labels the gap rather than estimating.
 time, work, visit, sleep, with the job queue). The bar's controls stay off
 rather than guessing.
 
-**Fix:** upgrade the gateway. See
+**Fix:** upgrade the gateway to AbstractGateway 0.21.0 or newer. See
 [Life cycle (the phase bar)](api.md#life-cycle-the-phase-bar).
 
 ## The phase bar shows "His own time stopped unexpectedly"
@@ -74,8 +74,20 @@ turn **personal** off; the entity stays awake.
 
 **Cause:** the gateway has no mentions route.
 
-**Fix:** upgrade the gateway. Until then, talk with each entity in its own
-visit, or convene a meet from the entities list.
+**Fix:** upgrade the gateway to AbstractGateway 0.21.0 or newer. Until then,
+talk with each entity in its own visit, or convene a meet from the entities
+list.
+
+## The graph shows no topics
+
+**Cause:** before his first sleep, his memory has not formed topics yet: the
+graph uses its plain layout and says "His topics form during his next sleep."
+With a gateway that does not serve topics, it says "This gateway does not
+serve topics yet."
+
+**Fix:** wait for his next sleep (or put him to sleep with **sleep now**), or
+upgrade the gateway to AbstractGateway 0.21.0 or newer. See
+[His topics](api.md#his-topics-the-graphs-layout).
 
 ## The Wave tab refuses to score
 
