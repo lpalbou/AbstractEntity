@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 29 |
+| Planned | 30 |
 | Proposed | 6 |
 | Completed | 9 |
 | Deprecated | 0 |
 
-`planned/` holds 33 files: the 29 planned items and four completed records (0002-0005) whose move
+`planned/` holds 34 files: the 30 planned items and four completed records (0002-0005) whose move
 to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -84,6 +84,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0034 | [P1: the graph draws only when something changed; at rest it idles](planned/0034_graph_draw_loop_idles.md) | M | | |
 | 0035 | [Each step's row: tools used, files read, files written](planned/0035_ledger_step_tools_and_files.md) (blocked: the stream carries no tool calls) | S | W2 | |
 | 0036 | [The monitor uses the timeline's space: a large bloom with its petal labels, named tone channels, the time and its buttons stacked above the transport](planned/0036_monitor_larger_names_tree_controls_stacked.md) | M | W1 | |
+| 0037 | [A world-model revision is one ledger row, by its title, that opens it](planned/0037_world_model_revision_one_row_by_title.md) (built) | S | W2 | |
 
 ## Proposed (legacy names)
 
@@ -119,7 +120,7 @@ None.
 
 ## Process
 
-- A new item takes the next unused `NNNN_` prefix (next: 0036) and the template's sections
+- A new item takes the next unused `NNNN_` prefix (next: 0038) and the template's sections
   (metadata, ADR status, context or the operator's words, current code reality, scope, expected
   outcomes, validation, size).
 - Completing an item: set `Status: Completed` and `Completed: <date>`, add what was done and its
