@@ -90,13 +90,13 @@ describe("Files, then Settings, at the right end of the strip (backlog 0013)", (
   it("the status line: the free space, one fixed line, never wrapped, cut with an ellipsis; on a phone after the buttons", () => {
     const css = strip(fs.readFileSync(path.join(__dirname, "entity.css"), "utf8"));
     const rule = css.match(/\.entity_controls > \.ec_status \{([^}]*)\}/)![1];
-    for (const decl of ["flex: 1 1 0;", "min-width: 0;", "height: 1.5em;", "line-height: 1.5em;", "overflow: hidden;", "white-space: nowrap;", "text-overflow: ellipsis;"]) {
+    for (const decl of ["flex: 1 1 0;", "min-width: min(200px, 20%);", "height: 1.5em;", "line-height: 1.5em;", "overflow: hidden;", "white-space: nowrap;", "text-overflow: ellipsis;"]) {
       expect(rule).toContain(decl);
     }
     // No button pushes itself with an auto margin any more (the line takes the free space).
     expect(css).not.toMatch(/\.ec_(settings|files)_btn \{[^}]*margin-left: auto/);
     const phone = css.slice(css.indexOf("@media (max-width: 479.98px)"));
-    expect(phone).toMatch(/\.entity_controls > \.ec_status \{[^}]*order: 1;[^}]*flex: none;[^}]*max-width: calc\(100vw - 28px\);/);
+    expect(phone).toMatch(/\.entity_controls > \.ec_status \{[^}]*order: 1;[^}]*flex: none;[^}]*min-width: 0;[^}]*max-width: calc\(100vw - 28px\);/);
   });
 
   it("opens the Files view for the open entity on a gateway, and its close closes it", () => {

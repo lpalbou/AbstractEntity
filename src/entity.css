@@ -1010,10 +1010,11 @@ body {
 /* THE STATUS LINE (backlog 0013): the strip's one reserved slot for its sentences (tick failures,
  * inbox warning, phase rules, sign-in notes, the day cause). It always takes the free space between
  * the phase bar and the buttons, at a fixed one-line height, never wrapped, cut with an ellipsis
- * (the title carries the whole sentence): a sentence that appears or goes moves nothing. */
+ * (the title carries the whole sentence): a sentence that appears or goes moves nothing. Its floor
+ * is held whether a sentence shows or not, so a long phase sentence never squeezes it to nothing. */
 .entity_controls > .ec_status {
   flex: 1 1 0;
-  min-width: 0;
+  min-width: min(200px, 20%);
   height: 1.5em;
   line-height: 1.5em;
   overflow: hidden;
@@ -1035,6 +1036,8 @@ body {
 }
 .ec_phase_bar.ec_pb_stopped .ec_pb_sentence::before {
   content: "⛔ " / "";
+  /* The emoji font's taller line would raise the line by a few pixels. */
+  line-height: 1;
 }
 .ec_phase_bar.ec_pb_stopped .ec_pb_since {
   font-weight: 400;
@@ -6523,6 +6526,7 @@ body {
   .entity_controls > .ec_status {
     order: 1;
     flex: none;
+    min-width: 0;
     max-width: calc(100vw - 28px);
     text-align: left;
   }
