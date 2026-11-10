@@ -4,9 +4,10 @@
 /* THE CONTEXT LEGEND (operator 2026-11-07, 2026-11-09): what the canvas
  * lights right now — the summary line "50 memories recalled for this turn:
  * 6 present by right · …" and, unfolded, what each ring colour means, the
- * lit lines and the grey-to-green fill. A quiet box under the lens row; only
- * its summary (the fold button, aria-expanded) takes the pointer — hover
- * and pan go through the rest to the canvas. */
+ * lit lines and the grey-to-green fill. A quiet box under the top row
+ * (search, topics, Context); only its summary (the fold button,
+ * aria-expanded) takes the pointer — hover and pan go through the rest to
+ * the canvas. */
 .gc_recall_legend {
   position: absolute;
   top: 48px;
@@ -237,9 +238,10 @@
  * top-right under the motion buttons and grows downward (58 % of the canvas
  * at most, as tall as its list); the grip on its head moves it anywhere in
  * the canvas, its bottom-right corner resizes it (240-560 px wide, as tall
- * as the canvas), a double-click on its head docks it again. The custom
- * properties come from panelVars on the overlay stack; the clamps here keep
- * it inside a canvas that shrank since. Nothing of it moves the graph. */
+ * as the canvas), and once moved its "put back" control docks it again.
+ * The custom properties come from panelVars on the overlay stack; the
+ * clamps here keep it inside a canvas that shrank since. Nothing of it
+ * moves the graph. */
 .gc_topics_float {
   position: absolute;
   top: var(--gc-tp-top, 48px);
@@ -643,13 +645,13 @@
   display: contents;
 }
 
-/* Phone-width canvas: the lens row is a single strip at the top; the
+/* Phone-width canvas: the top row is a single strip at the top; the
  * recall line sits under it, full width. */
 @container entity-canvas (max-width: 859.98px) {
   /* THE OVERLAY STACK (castor's second topics night, 2026-11-10: the open
    * Topics panel sat over the see-through Context legend, whose words
    * showed through it): the legend and the Topics panel are ONE column
-   * under the lens row — the legend on top, the panel's line (its head, or
+   * under the top row — the legend on top, the panel's line (its head, or
    * its one sentence) at the foot, just above the motion buttons' row — so
    * they never overlap, whatever either holds. Where the canvas is too
    * short for both, the column runs on down (over the motion buttons and
@@ -669,13 +671,13 @@
   }
   /* OPEN on its list, the panel is a SHEET in the legend's slot (the legend
    * steps aside: data-legend="aside", its fold state kept): from under the
-   * lens row down to 8 px from the canvas's edge, over the motion buttons
+   * top row down to 8 px from the canvas's edge, over the motion buttons
    * and the kinds strip; it grows up from its foot and scrolls inside. Its
    * FLOOR (--gc-topics-floor) is its head and two topic rows: a canvas too
-   * short to hold that under the lens row (400 × 700: 176 px) lifts the
-   * sheet over the lens row, 8 px from the top (z 6, above the lens row's
+   * short to hold that under the top row (400 × 700: 176 px) lifts the
+   * sheet over the top row, 8 px from the top (z 6, above the top row's
    * 5) — the clamp takes one place or the other, never a sliver of the
-   * lens row above the sheet. */
+   * top row above the sheet. */
   .gc_overlay_stack[data-topics="sheet"] {
     --gc-sheet-top: max(var(--gc-legend-top), calc(var(--tap-min, 32px) + 12px));
     top: clamp(8px, calc(var(--gc-sheet-top) + (100% - var(--gc-sheet-top) - var(--gc-topics-floor) - 8px) * 1000), var(--gc-sheet-top));
@@ -966,7 +968,7 @@
   white-space: pre-wrap;
 }
 
-/* The lit-topic chip on the lens row shows the whole topic label (it
+/* The lit-topic chip on the top row shows the whole topic label (it
  * wraps onto a second line instead of being cut). */
 .lens_chip.tm_filter_chip.gc_topic_chip_full {
   max-width: min(420px, 100%);
