@@ -104,10 +104,11 @@ try {
   await page.waitForTimeout(80);
   assert.deepEqual(await values(),neutralValues,"late B cannot replace the visible A reading");
   await page.screenshot({path:resolve(shots,"entity-cognition-neutral.png")});
-  const mood = () => page.locator(".cm_mood_dot").getAttribute("title");
+  // The bloom's hover names the closest register (the reading's one line has no mood dot any more).
+  const mood = () => page.locator(".cm_panel .cm_canvas_box").getAttribute("title");
   const neutralMood = await mood();
   await page.getByRole("button",{name:"Joy",exact:true}).click();
-  await page.waitForFunction((t) => document.querySelector(".cm_mood_dot")?.getAttribute("title") !== t, neutralMood);
+  await page.waitForFunction((t) => document.querySelector(".cm_panel .cm_canvas_box")?.getAttribute("title") !== t, neutralMood);
   await page.waitForTimeout(300);
   console.log(`  neutral: ${neutralMood} [${neutralValues.join(" ")}]; joy: ${await mood()} [${(await values()).join(" ")}]`);
   assert.match(await mood(),/^closest to .+ \([A-Z]{3} [−-]?\d\.\d\d\)$/,"the mood dot names the closest register and its similarity");

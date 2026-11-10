@@ -255,39 +255,10 @@ body {
   gap: 8px;
   min-width: 0;
 }
-.cm_mood_dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-  box-shadow: 0 0 6px color-mix(in srgb, currentColor 40%, transparent);
-}
-.cm_mood_neutral {
-  background: var(--text-dim);
-  opacity: 0.5;
-}
-.cm_info {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  padding: 0;
-  line-height: 1;
-}
-.cm_info:hover {
-  color: var(--ea-accent);
-}
 .cm_asof {
   margin-left: auto;
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: color-mix(in srgb, var(--bond) 75%, var(--text));
-  white-space: nowrap;
-}
-.cm_reading {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  font-style: italic;
   white-space: nowrap;
 }
 .cm_err {
@@ -297,11 +268,6 @@ body {
 /* A refusal sentence wraps on words; it is never cut at the panel edge. */
 .cm_err[data-monitor-note] {
   white-space: normal;
-}
-.cm_note_line {
-  display: block;
-  padding: 2px 4px 4px 26px;
-  line-height: 1.4;
 }
 /* COMPACT two-slot row (operator 2026-07-15 23:41: "terrible usage of
  * vertical space"; 23:50: "2 side-by-side") — interpretation sentence,
@@ -317,18 +283,6 @@ body {
 .cm_canvas_box {
   position: relative;
 }
-/* The bloom's honest quiet/faint caption (2026-08-01: a gate-quiet bloom
- * was pixel-identical to a broken one — the abstention is now SAID; hover
- * carries the live evidence numbers). */
-.cm_quiet {
-  margin-top: 2px;
-  text-align: center;
-  font-size: max(calc(9px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-style: italic;
-  color: var(--text-dim);
-  cursor: help;
-}
-
 /* Slot (b) is uic's AfConductGauge (kit-styled); the interim app widget
  * and its em_* styles are retired (swap contract, commons#2474). */
 
