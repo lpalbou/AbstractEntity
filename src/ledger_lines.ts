@@ -229,6 +229,12 @@ export interface LedgerLineFold {
   /** The graph ids of every topic version seen so far (formed or closed):
    * what tells a closed link between two versions of a topic (isTopicLink). */
   topicIds: TopicIds;
+  /** World-model cards seen formed (what a revision row counts from). */
+  cards: CardFacts;
+  /** The last closure's record and revision (its graph id, its replacement
+   * ids): the closures of that record's links, which follow it in the same
+   * revision, have no row of their own. Null after any other envelope. */
+  closing: { gid: string; replaced: string } | null;
 }
 
 /** Extend `prev` with the envelopes it has not covered yet, or rebuild
@@ -250,6 +256,8 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
   let rhythm = intact ? prev.rhythm : RHYTHM_START;
   let topicSizes: TopicSizes = intact ? prev.topicSizes : NO_TOPIC_SIZES;
   let topicIds: TopicIds = intact ? prev.topicIds : NO_TOPIC_IDS;
+  let cards: CardFacts = intact ? prev.cards : NO_CARDS;
+  let closing = intact ? prev.closing : null;
   for (let i = from; i < envelopes.length; i++) {
     const env = envelopes[i];
     const step = rhythmStep(rhythm, env);
@@ -258,7 +266,20 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
     // A topic version's link to the one before, closed with it, has no row:
     // the topic's own rows say it changed ("A topic changed: …", and the
     // audit line of its earlier version's closure, just before).
-    if (!isTopicLink(env, topicIds)) lines.push({ line: ledgerLine(env, topicSizes, topicIds), index: i, own: rhythm.ownTime });
+    // A closed record's links, closed with it in the same revision (the same
+    // graph id and replacements, right after it), have no row: the record's
+    // own row says the revision (castor's world-model revision 2: one row,
+    // not nine). Structural: the graph id and the replacement ids.
+    const closure = env.family === "closure" ? closureKey(env) : null;
+    const linkOfClosing = closure !== null && closing !== null && closure.gid === closing.gid && closure.replaced === closing.replaced;
+    closing = closure;
+    if (!isTopicLink(env, topicIds) && !linkOfClosing) lines.push({ line: ledgerLine(env, topicSizes, topicIds, cards), index: i, own: rhythm.ownTime });
+    const card = cardFormed(env);
+    if (card !== null) {
+      const next = new Map(cards);
+      next.set(card.id, { revision: card.revision, sources: card.sources });
+      cards = next;
+    }
     const versionId = topicVersionId(env);
     if (versionId !== null && !topicIds.has(versionId)) {
       // A new set: the previous fold keeps its own (no shared mutation).
@@ -272,7 +293,7 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
       topicSizes = next;
     }
   }
-  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes, topicIds };
+  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes, topicIds, cards, closing };
 }
 
 /** What a ledger line about a topic opens: "topic:<its stable key>" — the
@@ -292,6 +313,70 @@ export function topicKeyOfTarget(target: string | null | undefined): string | nu
 /** Topic versions by graph id -> how many memories each held. */
 export type TopicSizes = ReadonlyMap<string, number>;
 
+/** World-model cards seen formed on the stream, by graph id: their revision
+ * and how many memories they were drawn from (the display block's card
+ * fields). */
+export type CardFacts = ReadonlyMap<string, { revision: number | null; sources: number | null }>;
+
+const NO_CARDS: CardFacts = new Map();
+
+const finiteNumber = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** A world-model card's own envelope (its display carries the card fields). */
+function isCard(display: ReplayEnvelope["display"]): boolean {
+  return finiteNumber(display?.card_revision) !== null;
+}
+
+/** A card formed on the stream: its graph id and facts, or null. */
+function cardFormed(env: ReplayEnvelope): { id: string; revision: number | null; sources: number | null } | null {
+  if (env.family !== "binding" || !isCard(env.display)) return null;
+  const id = String(env.display?.graph_id || (env.payload as unknown as BindingPayload).record_id || "").trim();
+  return id ? { id, revision: finiteNumber(env.display?.card_revision), sources: finiteNumber(env.display?.source_count) } : null;
+}
+
+let untitledCardSaid = false;
+
+/** A world-model card revised (operator 2026-11-10 23:07, aletheia's ledger:
+ * ten rows "Belief revised — ex:world_model-… refines/derived_from —
+ * world-model revision 49 for topic:diary-entry (evidence changed)", one per
+ * link: "this is not really readable; can we have the name of the world model
+ * instead? and clicking on it would open it?"). ONE row, by its title (never
+ * its key, its links' relation names or its subject's key), from the card
+ * fields: the new version's revision and how many memories it is drawn from,
+ * and whether that evidence changed (the closed version's count before). A
+ * click opens the new version in Detail. Its links' closures, which follow
+ * it, have no row (foldLedgerLines). */
+function cardRevisedLine(env: ReplayEnvelope, base: Pick<LedgerLine, "seq" | "family" | "observed_at" | "trace_id" | "turn_id">, cards: CardFacts): LedgerLine {
+  const p = env.payload as unknown as ClosurePayload;
+  const d = env.display ?? {};
+  let name = tidy(cleanTitle(String(d.title || "")));
+  if (!name) {
+    name = "a world model";
+    if (!untitledCardSaid) {
+      untitledCardSaid = true;
+      console.error(`#SEAM a world model closed at seq ${env.seq} carries no title: its ledger row says "a world model"`);
+    }
+  }
+  const newerId = Array.isArray(p.replacement_ids) && p.replacement_ids.length > 0 ? String(p.replacement_ids[0]) : null;
+  const newer = newerId ? cards.get(newerId) : undefined;
+  const before = finiteNumber(d.source_count);
+  const parts: string[] = [];
+  if (newer) {
+    if (newer.revision !== null) parts.push(`revision ${newer.revision}`);
+    if (newer.sources !== null) parts.push(`from ${memoriesWord(newer.sources)}`);
+    if (newer.sources !== null && before !== null && newer.sources !== before) parts.push(`evidence changed (${before} before)`);
+  } else if (p.kind === "supersede") {
+    parts.push("a newer version replaced it");
+  }
+  return {
+    ...base,
+    title: `${p.kind === "supersede" ? "Belief revised" : "Belief retracted"} — ${name}`,
+    detail: parts.join(" · "),
+    subject_id: newerId ?? p.assertion_id,
+    tone: "revision",
+  };
+}
+
 const NO_TOPIC_SIZES: TopicSizes = new Map();
 
 /** The graph ids of the topic versions seen on the stream (their bindings
@@ -299,6 +384,15 @@ const NO_TOPIC_SIZES: TopicSizes = new Map();
 export type TopicIds = ReadonlySet<string>;
 
 const NO_TOPIC_IDS: TopicIds = new Set();
+
+/** A closure's record and revision: its graph id and its replacement ids
+ * (null when it names no graph id). */
+function closureKey(env: ReplayEnvelope): { gid: string; replaced: string } | null {
+  const gid = typeof env.display?.graph_id === "string" ? env.display.graph_id.trim() : "";
+  if (!gid) return null;
+  const ids = (env.payload as unknown as ClosurePayload).replacement_ids;
+  return { gid, replaced: Array.isArray(ids) ? ids.map(String).join("\u0000") : "" };
+}
 
 /** A topic version's own envelope (its formation or its closure): its graph
  * id, or null. */
@@ -438,7 +532,7 @@ export const LEDGER_PHASE_STAYS: Readonly<Record<string, string>> = {
  * ledger's fold passes them, so a changed topic says by how much);
  * `topicIds`: their graph ids (a closed link between two of them is an
  * audit line in words; the ledger's fold shows no row for it at all). */
-export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES, topicIds: TopicIds = NO_TOPIC_IDS): LedgerLine {
+export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES, topicIds: TopicIds = NO_TOPIC_IDS, cards: CardFacts = NO_CARDS): LedgerLine {
   const base = {
     seq: env.seq,
     family: env.family,
@@ -666,6 +760,7 @@ export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPI
     case "closure": {
       if (env.display?.kind === COMMUNITY_RECORD_KIND) return topicClosedLine(env, base);
       if (isTopicLink(env, topicIds)) return { ...base, title: "A topic's link to its earlier version was closed", detail: "a newer version replaced it", subject_id: null, tone: "quiet" };
+      if (isCard(env.display)) return cardRevisedLine(env, base, cards);
       const p = env.payload as unknown as ClosurePayload;
       const name = displayTitle(env, tidy(p.assertion_id));
       return {

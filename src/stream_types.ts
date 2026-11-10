@@ -87,6 +87,10 @@ export interface DisplayBlock {
   /** A card's subject ("person:ada"; memory's understanding_fields on
    * world-model cards, null elsewhere). */
   target?: string | null;
+  /** A card's revision and how many memories it was drawn from (memory's
+   * understanding_fields on world-model cards; absent elsewhere). */
+  card_revision?: number;
+  source_count?: number;
   /** What is still being written for this record (AbstractMemory
    * replay.py, records.PENDING_FIELDS): `{title, summary, since, attempts}`
    * — `title: true` while its title is pending (its `title` is then null).
