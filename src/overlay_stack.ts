@@ -100,7 +100,9 @@ export function movePanel(start: Box, dx: number, dy: number, view: { w: number;
  *   docked (only a drag of its head or grip undocks it), as far as the
  *   canvas's foot. */
 export function resizePanel(start: Box, dx: number, dy: number, view: { w: number; h: number }, docked: boolean, dockBottom: number): { w: number; h: number } {
-  const room = view.w - PANEL_GAP - start.x;
+  // The room on the right; a panel already past it (moved flush to the
+  // window's edge) keeps its width: a pull never makes its right edge retreat.
+  const room = Math.max(view.w - PANEL_GAP - start.x, Math.min(start.w, PANEL_W.max));
   const w = docked ? start.w : Math.max(Math.min(PANEL_W.min, start.w), Math.min(start.w + dx, PANEL_W.max, room));
   const foot = (docked ? dockBottom : view.h) - PANEL_GAP;
   const h = Math.max(PANEL_MIN_H, Math.min(start.h + dy, foot - start.y));

@@ -306,6 +306,9 @@ describe("the floating panel (backlog 0017, 0027)", () => {
     expect(after.at).toEqual({ x: 1070, y: 168 }); // the left edge did not move (it moved -38 px before)
     expect(1070 + (after.w ?? 0)).toBeLessThanOrEqual(view.w - PANEL_GAP); // the right edge stopped at the window's
     expect(after.w).toBe(view.w - PANEL_GAP - 1070);
+    // Moved flush to the window's edge (a move may reach it): +80 px leaves it as it is, never narrower.
+    const flush = resizeFloat({ at: { x: 1120, y: 168 }, w: 320, h: 512 }, { x: 1120, y: 168, w: 320, h: 512 }, 80, 0, view, 768);
+    expect(flush).toEqual({ at: { x: 1120, y: 168 }, w: 320, h: 512 });
     // Room on the right: the right edge follows the pointer, nothing else moves.
     const roomy = resizeFloat({ at: { x: 300, y: 100 }, w: 320, h: 300 }, { x: 300, y: 100, w: 320, h: 300 }, 80, 40, view, 768);
     expect(roomy).toEqual({ at: { x: 300, y: 100 }, w: 400, h: 340 });
