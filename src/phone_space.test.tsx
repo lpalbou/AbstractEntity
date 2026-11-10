@@ -1,9 +1,8 @@
 /**
  * Guards for the phone-space pass (DESIGN §12): the list-section disclosure
  * (open by default, remembered, 44 px on touch, only where the side panel is
- * a drawer), the chat monitor folded by default on phones, and the flat phone
- * layout rules. Each test fails when the behaviour or rule it guards is
- * removed.
+ * a drawer) and the flat phone layout rules. Each test fails when the
+ * behaviour or rule it guards is removed.
  */
 
 import { readFileSync } from "fs";
@@ -12,7 +11,6 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { initialMonitorFolded } from "./cognition_wave_inline";
 import { readSectionOpen, SectionDisclosure, writeSectionOpen } from "./section_disclosure";
 
 const store = new Map<string, string>();
@@ -84,14 +82,6 @@ describe("list-section disclosure", () => {
   });
 });
 
-describe("chat monitor on phones", () => {
-  it("starts folded on a phone and open elsewhere unless the viewer chose", () => {
-    expect(initialMonitorFolded(null, true)).toBe(true);
-    expect(initialMonitorFolded(null, false)).toBe(false);
-    expect(initialMonitorFolded("0", true)).toBe(false);
-    expect(initialMonitorFolded("1", false)).toBe(true);
-  });
-});
 
 const CSS = readFileSync(resolve(__dirname, "entity.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 

@@ -36,7 +36,7 @@ import { flowMentionSlugs, screenDiaryFences } from "./flow_lane";
 import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
-import { CognitionWaveInline, toolCallsOf } from "./cognition_wave_inline";
+import { toolCallsOf, type ReplyFeed } from "./cognition_wave_inline";
 import { NO_ACTIVITY as NO_TURN_ACTIVITY } from "./live_activity";
 import { TurnActivityPanel } from "./turn_pulse_bars";
 import { useLiveActivity } from "./use_live_activity";
@@ -165,6 +165,9 @@ export interface ChatDrawerProps {
    * formed: a diary entry, a lesson, …) opens the record it names. `false` = it opened nothing (the
    * record has not reached the view yet): the badge opens its own panel. */
   onOpenRecord(graphId: string): boolean;
+  /** The Cognitive Monitor's feed (docked above the timeline, backlog 0018): the drawer publishes
+   * the reply in view of the open conversation; only the open monitor reads it. */
+  replyFeed: ReplyFeed;
 }
 
 export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
@@ -1136,7 +1139,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const foreignVisit = status?.open && !runId;
 
   // The newest assistant reply feeds the Cognitive Monitor (scored once
-  // per distinct text). Derived, not stored — cheap.
+  // per distinct text, by the open monitor only). Derived, not stored — cheap.
   const latestReply = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant" && typeof messages[i].content === "string") return messages[i].content as string;
@@ -1217,6 +1220,27 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     return m && m.role === "assistant" && typeof m.content === "string" ? m : null;
   }, [focusMid, messages]);
 
+  // THE MONITOR'S FEED (backlog 0018: the monitor lives with the timeline, nothing of it at the top
+  // of the chat): the reply in view of the open conversation — the newest, or the one scrolled to —
+  // with the latest turn's conduct facts. A set equal to the last one notifies nobody; a closed
+  // monitor subscribes to nothing.
+  const { replyFeed } = props;
+  useEffect(() => {
+    replyFeed.set(
+      runId && !avatarMode
+        ? {
+            latestReply,
+            focusReply: focusMsg ? (focusMsg.content as string) : null,
+            focusAt: focusMsg?.ts ?? null,
+            effort: latestEffort?.facts ?? null,
+            effortKey: latestEffort?.key ?? null,
+            tools: latestTools,
+          }
+        : null,
+    );
+  }, [replyFeed, runId, avatarMode, latestReply, focusMsg, latestEffort, latestTools]);
+  useEffect(() => () => replyFeed.set(null), [replyFeed]);
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     // The drawer OWNS drops on itself (laurent c3083: without this, a
@@ -1258,25 +1282,6 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         <div role="status" className="cd_note">
           <WordsLine text={avatarPrefs.error} />
         </div>
-      ) : null}
-      {/* The Cognitive Monitor (operator 2026-07-15 pm): a proper foldable
-        * panel — title + (i) modal, 3-letter axis codes on the bloom and
-        * listed on the right, a human-readable interpretation line, and
-        * scroll-follow (the monitor retunes to the mood at the message the
-        * operator scrolled to). Cheap by construction: one embed per
-        * DISTINCT reply text, cached — never a harvest (flood lesson
-        * c2155). The full Wave tab stays for the corpus read. */}
-      {runId && !avatarMode ? (
-        <CognitionWaveInline
-          baseUrl={baseUrl}
-          entity={entity}
-          latestReply={latestReply}
-          focusReply={focusMsg ? (focusMsg.content as string) : null}
-          focusAt={focusMsg?.ts ?? null}
-          effort={latestEffort?.facts ?? null}
-          effortKey={latestEffort?.key ?? null}
-          tools={latestTools}
-        />
       ) : null}
       {!runId && !flowActive ? (
         <div className="cd_start">

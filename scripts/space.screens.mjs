@@ -14,7 +14,7 @@
 //   blueprint → the memory blueprint page (the wide cognition SVG)
 //   detail    → one entity: memory graph + side panel (Detail tab), replay at the end
 //   talk      → the Chat tab (conversation + composer)
-//   cognition → the Wave tab (cognition wave panel)
+//   cognition → the Cognitive Monitor docked above the timeline (its Monitor toggle)
 //   settings  → the entity Settings panel
 //   about     → the About dialog
 //
@@ -243,7 +243,17 @@ export default {
     tab("book", "Book"),
     tab("ledger", "Ledger"),
     tab("health", "Health"),
-    tab("wave", "Wave"),
+    {
+      name: "cognition",
+      async run(page) {
+        await closeOverlays(page);
+        // The Cognitive Monitor docked above the timeline, opened by its toggle (pressed = open).
+        const toggle = page.locator("button.et_monitor");
+        if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+        await page.locator(".entity_monitor_dock").waitFor({ state: "visible", timeout: 10000 });
+      },
+      settle: 1200,
+    },
     tab("card", "Card"),
     tab("talk", "Chat"),
     ...["tools", "skills", "prompt"].map((t) => ({

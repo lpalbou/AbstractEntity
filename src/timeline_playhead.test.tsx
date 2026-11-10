@@ -24,6 +24,8 @@ function render(over: Partial<TimelineProps>): string {
     onTogglePlay: () => undefined,
     onSpeed: () => undefined,
     onToggleLive: () => undefined,
+    monitorOpen: false,
+    onToggleMonitor: () => undefined,
     ...over,
   };
   return renderToStaticMarkup(<Timeline {...props} />);

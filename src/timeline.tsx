@@ -7,7 +7,7 @@
  * One grid so every lane lines up with the scrub bar beneath it:
  *   label | lane of marks       |
  *   …     | …                   |
- *   time  | scrub bar + ticks   | transport ⏮ ◀ ▶/❚❚ ▶ ⏭ · speed · Live · position
+ *   time  | scrub bar + ticks   | transport ⏮ ◀ ▶/❚❚ ▶ ⏭ · speed · Live · Monitor · position
  * Position = envelope index (even pacing across the life), display =
  * journal seq. A mark is a memory he formed — a lived moment, a diary
  * entry, a lesson, a world-model revision, a dream — at the place it
@@ -42,6 +42,9 @@ export interface TimelineProps {
   onTogglePlay(): void;
   onSpeed(speed: number): void;
   onToggleLive(): void;
+  /** The Cognitive Monitor docked above this panel (backlog 0018): open or not, and its toggle. */
+  monitorOpen: boolean;
+  onToggleMonitor(): void;
   /** A defining event was clicked: move time to it and open its memory. */
   onOpenEvent?(index: number, recordId: string): void;
   /** The play head while playing (the panel follows it every frame). */
@@ -245,7 +248,7 @@ export function Timeline(props: TimelineProps): React.ReactElement {
       </div>
       {/* Transport, all on the right (operator 2026-11-07): start · one
         * event back · play/pause · one event forward · end, then speed,
-        * Live and the position. Stepping or scrubbing while live leaves the
+        * Live, the Monitor toggle and the position. Stepping or scrubbing while live leaves the
         * tail (the parent's onScrub); ● Live snaps back to the head. */}
       <div className="et_right">
         <button className="et_btn" onClick={() => props.onScrub(-1)} title="Back to the beginning (leaves Live)" aria-label="Back to the beginning">
@@ -296,6 +299,16 @@ export function Timeline(props: TimelineProps): React.ReactElement {
           title={liveAvailable ? "Follow the live journal" : "Live tail needs a gateway source"}
         >
           ● Live
+        </button>
+        {/* THE COGNITIVE MONITOR's toggle (operator 2026-11-10, backlog 0018): pressed = the monitor
+          * is open above the timeline, following this replay and, live, each reply. */}
+        <button
+          className="et_btn et_monitor"
+          aria-pressed={props.monitorOpen}
+          onClick={props.onToggleMonitor}
+          title="Cognitive monitor: how his words read at this point of the replay and, live, at each reply"
+        >
+          🧠 Monitor
         </button>
         <span className="et_pos" title="the time at the scrub position · event position / total (hover the bar's marks for each event)">
           {scrubIndex >= 0 && current ? `${clockUtc(current.observed_at)} UTC` : "—"} · {scrubIndex + 1}/{envelopes.length}

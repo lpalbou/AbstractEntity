@@ -42,6 +42,7 @@ import { ENTITY_DOCS_SOURCE, ENTITY_DOCS_SUGGESTIONS, makeEntityDocsFetch } from
 
 import { BookReader } from "./book_reader";
 import { CognitionWavePanel } from "./cognition_wave_panel";
+import { createReplyFeed } from "./cognition_wave_inline";
 import { LessonsPanel, WorldPanel } from "./lessons_world_panels";
 import { BlueprintPanel } from "./blueprint_panel";
 import { BlueprintTunables } from "./blueprint_tunables";
@@ -1337,6 +1338,12 @@ export function EntityView(): React.ReactElement {
   // would set it one render later): one page render per commit, not two.
   // Speed is read live, so changing it never restarts the loop.
   const playhead = useMemo(createPlayhead, []);
+  // THE COGNITIVE MONITOR (operator 2026-11-10, backlog 0018): docked above
+  // the timeline, opened by the timeline's Monitor toggle and mounted only
+  // while open; the timeline drives it. The chat drawer publishes the reply
+  // in view into the feed; only the open monitor subscribes.
+  const [monitorOpen, setMonitorOpen] = useState(false);
+  const replyFeed = useMemo(createReplyFeed, []);
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const scrubIndexRef = useRef(scrubIndex);
@@ -2259,6 +2266,7 @@ export function EntityView(): React.ReactElement {
                         onAvatarModeChange={setAvatarChat}
                         visible={visible}
                         onOpenRecord={openInDetail}
+                        replyFeed={replyFeed}
                       />
                     ),
                   },
@@ -2338,22 +2346,6 @@ export function EntityView(): React.ReactElement {
               ),
             },
             {
-              id: "wave",
-              icon: "🌸",
-              title: "Wave",
-              content: (
-                <CognitionWavePanel
-                  fold={fold}
-                  source={
-                    sourceKind === "gateway" && entityName
-                      ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName }
-                      : null
-                  }
-                  scrubSeq={scrubSeq}
-                />
-              ),
-            },
-            {
               id: "ledger",
               icon: "📜",
               title: "Ledger",
@@ -2416,6 +2408,20 @@ export function EntityView(): React.ReactElement {
         />
       </div>
 
+      {/* THE COGNITIVE MONITOR, docked above the timeline (backlog 0018); never behind the content
+        * gate (a locked browser sees nothing of him). */}
+      {monitorOpen && !gatewayLocked && !(indexBase !== null && !entityName) ? (
+        <section className="entity_monitor_dock" aria-label="Cognitive monitor">
+          <CognitionWavePanel
+            fold={fold}
+            source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
+            scrubSeq={scrubSeq}
+            live={live}
+            replyFeed={replyFeed}
+          />
+        </section>
+      ) : null}
+
       {indexBase !== null && !entityName ? null : (
         <Timeline
           envelopes={envelopes}
@@ -2469,6 +2475,8 @@ export function EntityView(): React.ReactElement {
           }}
           onSpeed={setSpeed}
           onToggleLive={toggleLive}
+          monitorOpen={monitorOpen}
+          onToggleMonitor={() => setMonitorOpen((v) => !v)}
           playhead={playhead}
         />
       )}
