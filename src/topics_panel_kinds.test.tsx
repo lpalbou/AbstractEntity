@@ -16,9 +16,10 @@ import { readCommunities } from "./communities";
 import { foldEnvelopes, type NodeState } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { membershipOf } from "./topic_layout";
-import { agoWords, kindCountWords, kindsLine, LEAD_FACTS, memberGroups, memoryKindOf, topicKinds, TopicsPanel, type TopicsView } from "./topics_panel";
+import { agoWords, groupsCache, kindCountWords, kindsLine, LEAD_FACTS, memberGroups, memoryKindOf, topicKinds, topicRows, TopicsPanel, typesRowKey, type TopicsView } from "./topics_panel";
 
 const CSS = fs.readFileSync(path.resolve(__dirname, "graph_canvas.css"), "utf8");
+const CARD_CSS = fs.readFileSync(path.resolve(__dirname, "topics_panel.css"), "utf8");
 const NOW = Date.parse("2026-11-10T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const MIN = 60_000;
@@ -76,6 +77,17 @@ describe("the type words and counts", () => {
 const node = (id: string, kind: string, seq: number, diary = false) => ({ id, kind, first_seq: seq, diary }) as unknown as NodeState;
 
 describe("memberGroups", () => {
+  it("each type keeps its memories' graph node ids (what a hover on it lights), grouped once per answer and fold", () => {
+    const c = { key: "k", kinds: new Map([["episode", 2]]) } as unknown as Parameters<ReturnType<typeof groupsCache>>[0];
+    const nodes = [node("e1", "episode", 1), node("e2", "episode", 5), node("d1", "diary", 3, true)];
+    expect(memberGroups(c, nodes).map((g) => [g.memoryKind, g.ids])).toEqual([["episode", ["e2", "e1"]], ["diary", ["d1"]]]);
+    const groupsOf = groupsCache();
+    const first = groupsOf(c, nodes);
+    // The rows rebuilt for a disclosure reuse the groups (same answer, same fold): never regrouped.
+    expect(groupsOf(c, [])).toBe(first);
+    expect(groupsCache()(c, [])).toEqual([]);
+  });
+
   it("groups in memory's order of types, then the rest (most first, ties by name); newest first inside", () => {
     const c = { kinds: new Map([["episode", 5], ["dream", 2]]) };
     const groups = memberGroups(c, [
@@ -192,10 +204,11 @@ describe("the unfolded topic says its types and recency in its own row", () => {
     expect(LEAD_FACTS.has("kinds") && LEAD_FACTS.has("span")).toBe(true);
   });
 
-  it("then its memories by type, one line per type with how many are listed", () => {
-    const html = render({ focused: "bridges" });
-    const groups = [...html.matchAll(/class="gc_tp_group gc_tp_card" style="[^"]*" data-group="([^"]+)"[^>]*><i[^>]*><\/i>([^<]+)</g)].map((m) => m[2]);
-    expect(groups).toEqual(["2 episodes", "1 diary entry", "1 interest"]);
+  it("then its memory types (folded), one row per type with how many are listed", () => {
+    if (READ.kind !== "served") throw new Error(JSON.stringify(READ));
+    expect(render({ focused: "bridges" })).toContain('data-types="bridges"');
+    const rows = topicRows(READ.data.communities, new Set(["bridges"]), membershipOf(FOLD, READ.data).rowsOf, FOLD, { opened: new Set([typesRowKey("bridges")]) });
+    expect(rows.filter((r) => r.data?.kind === "group").map((r) => r.textValue)).toEqual(["2 episodes", "1 diary entry", "1 interest"]);
   });
 
   it("folded (not focused, not unfolded): no type line, no groups", () => {
@@ -204,11 +217,13 @@ describe("the unfolded topic says its types and recency in its own row", () => {
     expect(html).not.toContain("gc_tp_group");
   });
 
-  it("the lead lines are styled to show, and no phone rule hides them", () => {
+  it("the lead lines and the type rows are styled to show, and no phone rule hides them", () => {
     expect(CSS).toMatch(/\.gc_tp_lead \{[^}]*flex-basis: 100%;/);
-    expect(CSS).toMatch(/\.gc_tp_group \{[^}]*font-weight: 600;/);
-    for (const block of CSS.split("}")) {
-      if (block.includes("gc_tp_lead") || block.includes("gc_tp_group")) expect(block).not.toMatch(/display:\s*none/);
+    // A type row: its dot and its plain words ("80 episodes"), its head the sub-panel's bold line.
+    expect(CARD_CSS).toMatch(/\.gc_topics \.gc_tp_group \{[^}]*display: flex;[^}]*font-weight: 400;/);
+    expect(CARD_CSS).toMatch(/\.gc_topics \.gc_tp_types_head \{[^}]*font-weight: 600;/);
+    for (const block of [...CSS.split("}"), ...CARD_CSS.split("}")]) {
+      if (block.includes("gc_tp_lead") || block.includes("gc_tp_group") || block.includes("gc_tp_types_head")) expect(block).not.toMatch(/display:\s*none/);
     }
   });
 });

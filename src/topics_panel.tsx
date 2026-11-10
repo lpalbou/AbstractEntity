@@ -16,11 +16,17 @@
  *   whose memories the graph has loaded says so in one sentence ("Its
  *   memories are outside the loaded window."), never an empty list.
  * - A click on a topic FOCUSES it: the graph frames its circle and lights
- *   its memories, and the topic unfolds to list them by memory type: one
- *   line per type with how many of that type the graph has loaded ("80
- *   episodes"), then those memories (titles, newest first) — open by
- *   default, never behind a fold.
- *   A click on the focused topic lets it go.
+ *   its memories, and the topic unfolds. A click on the focused topic lets
+ *   it go.
+ * - ITS MEMORY TYPES (operator 2026-11-10, Entity backlog 0016): one
+ *   sub-panel "Memory types" in its card, folded by default (a disclosure
+ *   whose mark says its state). Unfolded, one row per type with how many of
+ *   that type the graph has loaded ("80 episodes"), its dot the graph's
+ *   colour for the type. The pointer resting on a type (HOVER_INTENT_MS),
+ *   or the keyboard on it, LIGHTS those memories on the graph — where they
+ *   sit in the circles (onHoverRows); leaving it lets go. A click on a type
+ *   unfolds its memories (titles, newest first) in the panel, which scrolls
+ *   to show them.
  * - A click on a member opens it (Detail; a diary entry shows in the Book —
  *   the graph's rule). A member placed since his last sleep carries the
  *   badge "placed until his next sleep".
@@ -175,6 +181,9 @@ export function topicKinds(c: Pick<ServedCommunity, "kinds">): Array<[string, nu
   return [...c.kinds.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 }
 
+/** The memory types sub-panel's head. */
+export const MEMORY_TYPES_HEAD = "Memory types";
+
 /** "118 episodes · 29 diary entries · 10 interests" (null: no counts served). */
 export function kindsLine(c: Pick<ServedCommunity, "kinds">): string | null {
   const kinds = topicKinds(c);
@@ -280,7 +289,9 @@ type TopicRowData =
   | { kind: "paths_head"; c: ServedCommunity }
   /** `ids`: its two memories' graph node ids (the fold's rows). */
   | { kind: "path"; c: ServedCommunity; path: TopicPath; ids: string[] }
-  | { kind: "group"; c: ServedCommunity; memoryKind: string; count: number; sample: NodeState }
+  | { kind: "types"; c: ServedCommunity }
+  /** A memory type of the topic: `ids`, its loaded memories' graph node ids. */
+  | { kind: "group"; c: ServedCommunity; memoryKind: string; count: number; sample: NodeState; ids: readonly string[] }
   | { kind: "unloaded"; c: ServedCommunity; text: string }
   | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
 type TopicRow = DisclosureRow<TopicRowData>;
@@ -292,11 +303,20 @@ export const pathsHeadRowKey = (key: string) => `paths:${key}`;
 export const pathRowKey = (key: string, p: Pick<TopicPath, "from" | "to">) => `path:${key}:${p.from}:${p.to}`;
 export const unloadedRowKey = (key: string) => `unloaded:${key}`;
 export const groupRowKey = (key: string, memoryKind: string) => `group:${key}:${memoryKind}`;
+export const typesRowKey = (key: string) => `types:${key}`;
+
+/** A topic's loaded memories of one type (memberGroups), with their graph
+ * node ids (what a hover on the type lights). */
+export interface MemberGroup {
+  memoryKind: string;
+  nodes: NodeState[];
+  ids: string[];
+}
 
 /** A topic's loaded memories by type: memory's order of its types (most
  * first), then any other type loaded (most first, ties by name); newest
  * first inside a type. */
-export function memberGroups(c: Pick<ServedCommunity, "kinds">, nodes: NodeState[]): Array<{ memoryKind: string; nodes: NodeState[] }> {
+export function memberGroups(c: Pick<ServedCommunity, "kinds">, nodes: NodeState[]): MemberGroup[] {
   const byKind = new Map<string, NodeState[]>();
   for (const node of nodes) {
     const k = memoryKindOf(node);
@@ -312,10 +332,25 @@ export function memberGroups(c: Pick<ServedCommunity, "kinds">, nodes: NodeState
     if (ra !== rb) return ra - rb;
     return byKind.get(b)!.length - byKind.get(a)!.length || (a < b ? -1 : a > b ? 1 : 0);
   });
-  return order.map((memoryKind) => ({
-    memoryKind,
-    nodes: byKind.get(memoryKind)!.sort((a, b) => b.first_seq - a.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
-  }));
+  return order.map((memoryKind) => {
+    const sorted = byKind.get(memoryKind)!.sort((a, b) => b.first_seq - a.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return { memoryKind, nodes: sorted, ids: sorted.map((n) => n.id) };
+  });
+}
+
+/** A topic's types, grouped once per answer and fold (the rows rebuilt for
+ * a fold or a disclosure reuse them; a hover only looks its ids up). */
+export type GroupsOf = (c: ServedCommunity, nodes: NodeState[]) => MemberGroup[];
+export function groupsCache(): GroupsOf {
+  const cache = new Map<string, MemberGroup[]>();
+  return (c, nodes) => {
+    let groups = cache.get(c.key);
+    if (!groups) {
+      groups = memberGroups(c, nodes);
+      cache.set(c.key, groups);
+    }
+    return groups;
+  };
 }
 
 /** The facts an unfolded topic says in its own row, under its title and
@@ -327,11 +362,20 @@ export const LEAD_FACTS: ReadonlySet<TopicFact["kind"]> = new Set(["kinds", "spa
  * graph has loaded); an unfolded one's facts (a static row: never focused
  * or selected), its paths most travelled (a static head, then one row per
  * path: focusable, it lights and frames its two memories), then its
- * members by type — a static line per type ("80 episodes"), then those
- * memories of the fold, newest first — or, with none loaded, the one
- * sentence that says so (a static row). */
-export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState, opts: { nowMs?: number } = {}): TopicRow[] {
+ * memory types: the sub-panel's head (a fold, `opened` holds the row keys
+ * of the unfolded heads and types), its types ("80 episodes"; each a fold
+ * too), an unfolded type's memories of the fold, newest first — or, with
+ * none loaded, the one sentence that says so (a static row). */
+export function topicRows(
+  communities: ServedCommunity[],
+  expanded: ReadonlySet<string>,
+  rowsOf: ReadonlyMap<string, string[]>,
+  fold: FoldState,
+  opts: { opened?: ReadonlySet<string>; groupsOf?: GroupsOf; nowMs?: number } = {},
+): TopicRow[] {
   const nowMs = opts.nowMs ?? Date.now();
+  const opened = opts.opened ?? new Set<string>();
+  const groupsOf = opts.groupsOf ?? groupsCache();
   const out: TopicRow[] = [];
   const byKey = new Map(communities.map((c) => [c.key, c]));
   const rowOf = (gid: string): string => fold.graph_to_row.get(gid) ?? gid;
@@ -367,15 +411,22 @@ export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<
       out.push({ key: unloadedRowKey(c.key), entityId: unloadedRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: text, data: { kind: "unloaded", c, text } });
       continue;
     }
-    for (const group of memberGroups(c, nodes)) {
+    const typesKey = typesRowKey(c.key);
+    const typesOpen = opened.has(typesKey);
+    out.push({ key: typesKey, entityId: typesKey, parentKey: topicRowKey(c.key), depth: 1, expandable: true, expanded: typesOpen, textValue: MEMORY_TYPES_HEAD, data: { kind: "types", c } });
+    if (!typesOpen) continue;
+    for (const group of groupsOf(c, nodes)) {
+      const groupKey = groupRowKey(c.key, group.memoryKind);
+      const groupOpen = opened.has(groupKey);
       const words = kindCountWords(group.memoryKind, group.nodes.length);
-      out.push({ key: groupRowKey(c.key, group.memoryKind), entityId: groupRowKey(c.key, group.memoryKind), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: words, data: { kind: "group", c, memoryKind: group.memoryKind, count: group.nodes.length, sample: group.nodes[0] } });
+      out.push({ key: groupKey, entityId: groupKey, parentKey: typesKey, depth: 2, expandable: true, expanded: groupOpen, textValue: words, data: { kind: "group", c, memoryKind: group.memoryKind, count: group.nodes.length, sample: group.nodes[0], ids: group.ids } });
+      if (!groupOpen) continue;
       for (const node of group.nodes) {
         out.push({
           key: memberRowKey(c.key, node.id),
           entityId: node.id,
-          parentKey: topicRowKey(c.key),
-          depth: 1,
+          parentKey: groupKey,
+          depth: 3,
           expandable: false,
           textValue: plainCardTitle(node),
           data: { kind: "member", c, node, provisional: c.provisional.has(node.graph_id ?? node.id) },
@@ -584,13 +635,29 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     return () => window.clearTimeout(t);
   }, [focused]);
   const communities = view.kind === "read" && view.read.kind === "served" ? view.read.data.communities : null;
-  const rows = useMemo(() => (communities ? topicRows(communities, expanded, rowsOf, fold) : []), [communities, expanded, rowsOf, fold]);
+  // The unfolded memory-types heads and types (row keys): folded by default.
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  const groupsOf = useMemo(() => groupsCache(), [communities, rowsOf, fold]);
+  const rows = useMemo(() => (communities ? topicRows(communities, expanded, rowsOf, fold, { opened, groupsOf }) : []), [communities, expanded, rowsOf, fold, opened, groupsOf]);
+  // A head or a type just unfolded: the panel scrolls to show what it lists
+  // (its last row, then itself: never scrolled out above).
+  const reveal = useRef<string | null>(null);
+  useEffect(() => {
+    const key = reveal.current;
+    reveal.current = null;
+    const at = key === null ? -1 : rows.findIndex((r) => r.key === key);
+    if (at < 0) return;
+    let last = at;
+    while (last + 1 < rows.length && rows[last + 1].depth > rows[at].depth) last += 1;
+    listRef.current?.scrollToRow(rows[last].key, "nearest");
+    listRef.current?.scrollToRow(rows[at].key, "nearest");
+  }, [rows]);
   // One card style per topic, per payload version (never per row or render).
   const cardOf = useMemo(() => new Map((communities ?? []).map((c) => [c.key, cardStyle(topicColor(c.key))])), [communities]);
   // The rows that light memories of their own -> those memories (built with the rows).
   const idsOf = useMemo(() => {
     const m = new Map<string, readonly string[]>();
-    for (const r of rows) if (r.data?.kind === "path") m.set(r.key, r.data.ids);
+    for (const r of rows) if (r.data?.kind === "path" || r.data?.kind === "group") m.set(r.key, r.data.ids);
     return m;
   }, [rows]);
   const shownRow = shownRowKey(hoveredRow, pinnedRow, idsOf);
@@ -630,6 +697,15 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
       return next;
     });
   const focus = (key: string) => onFocus(focused === key ? null : key);
+  const toggleOpen = (rowKey: string) => {
+    if (!opened.has(rowKey)) reveal.current = rowKey;
+    setOpened((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
+  };
   const clickPath = (rowKey: string, ids: readonly string[]) => {
     const next = pathClick(pinnedRow, rowKey);
     setPinnedRow(next.pinned);
@@ -686,9 +762,16 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
         </span>
       );
     }
+    if (d.kind === "types") {
+      return (
+        <span className="gc_tp_types_head gc_tp_card" style={cardOf.get(d.c.key)} data-types={d.c.key} data-tkey={d.c.key} onClick={() => toggleOpen(row.key)}>
+          {row.textValue}
+        </span>
+      );
+    }
     if (d.kind === "group") {
       return (
-        <span className="gc_tp_group gc_tp_card" style={cardOf.get(d.c.key)} data-group={d.memoryKind} data-tkey={d.c.key}>
+        <span className="gc_tp_group gc_tp_card" style={cardOf.get(d.c.key)} data-group={d.memoryKind} data-rows={row.key} data-tkey={d.c.key} onClick={() => toggleOpen(row.key)}>
           <i className="gc_tp_kdot" style={{ background: colorOf(d.sample) }} aria-hidden="true" />
           {row.textValue}
         </span>
@@ -751,12 +834,16 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
           rows={rows}
           selection={selection}
           onSelect={setSelection}
-          onToggleExpand={(_key, row) => row.data?.kind === "topic" && toggleRow(row.data.c.key)}
+          onToggleExpand={(_key, row) => {
+            if (row.data?.kind === "topic") toggleRow(row.data.c.key);
+            else if (row.data?.kind === "types" || row.data?.kind === "group") toggleOpen(row.key);
+          }}
           onActivate={(_sel, row) => {
             const d = row.data;
             if (!d) return;
             if (d.kind === "topic") focus(d.c.key);
             else if (d.kind === "path") clickPath(row.key, d.ids);
+            else if (d.kind === "types" || d.kind === "group") toggleOpen(row.key);
             else if (d.kind === "member") onOpenMember(d.node);
           }}
           renderRow={(row) => renderRow(row as TopicRow)}

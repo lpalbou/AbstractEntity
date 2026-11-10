@@ -164,7 +164,7 @@ describe("the panel and the canvas are wired to it", () => {
     expect(PANEL).toContain("const stillInside = e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget);");
     expect(PANEL).toMatch(/hover\.blur\(stillInside\);\n\s+litHover\.blur\(stillInside\);/);
     // Every row of a topic says which topic it is.
-    for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_paths_head", "gc_tp_path", "gc_tp_unloaded", "gc_tp_member"]) {
+    for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_paths_head", "gc_tp_path", "gc_tp_types_head", "gc_tp_group", "gc_tp_unloaded", "gc_tp_member"]) {
       const line = PANEL.split("\n").find((l) => l.includes("<span") && l.includes(`"${cls}`) || (l.includes("<span") && l.includes(`\`${cls}`)));
       expect(line, cls).toBeTruthy();
       expect(line, cls).toContain("data-tkey={");
@@ -176,6 +176,7 @@ describe("the panel and the canvas are wired to it", () => {
     expect(PANEL).toMatch(/if \(open\) return;\n\s+hover\.dispose\(\);\n\s+litHover\.dispose\(\);\n\s+setPinnedRow\(null\);/);
     // A row that lights memories of its own says which row it is.
     expect(PANEL.split("\n").find((l) => l.includes('`gc_tp_path gc_tp_card'))).toContain("data-rows={row.key}");
+    expect(PANEL.split("\n").find((l) => l.includes('"gc_tp_group gc_tp_card"'))).toContain("data-rows={row.key}");
   });
 
   it("the canvas lights the hovered topic before the focused one, its memories as the emphasis", () => {
@@ -280,5 +281,14 @@ describe("rowsHover (a path, a memory type)", () => {
     expect(PANEL).toContain("const shownRow = shownRowKey(hoveredRow, pinnedRow, idsOf);");
     expect(PANEL).toContain("onHoverRowsRef.current(shownIds ? [...shownIds] : null);");
     expect(PANEL).toContain("const litHover = useMemo(() => rowsHover(setHoveredRow), []);");
+  });
+
+  it("a type's memories: looked up on a hover, grouped once per answer and fold (never per render)", () => {
+    expect(PANEL).toContain('if (r.data?.kind === "path" || r.data?.kind === "group") m.set(r.key, r.data.ids);');
+    expect(PANEL).toContain("const groupsOf = useMemo(() => groupsCache(), [communities, rowsOf, fold]);");
+    expect(PANEL).toContain("topicRows(communities, expanded, rowsOf, fold, { opened, groupsOf })");
+    // A type's click unfolds its memories (and the panel scrolls to them); it does not frame.
+    expect(PANEL).toContain("onClick={() => toggleOpen(row.key)}>");
+    expect(PANEL).toContain('else if (d.kind === "types" || d.kind === "group") toggleOpen(row.key);');
   });
 });

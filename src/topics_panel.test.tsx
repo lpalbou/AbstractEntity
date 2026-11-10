@@ -35,6 +35,9 @@ import {
   topicFacts,
   topicRows,
   TopicsPanel,
+  typesRowKey,
+  groupRowKey,
+  MEMORY_TYPES_HEAD,
   topicCountWords,
   topicOrder,
   topicsNote,
@@ -168,25 +171,51 @@ describe("served: the list", () => {
     expect(render(SERVED)).not.toContain("gc_tp_member");
   });
 
-  it("the focused topic lists its memories by type (memory's order, then the rest; newest first) and marks the provisional one", () => {
+  it("the focused topic: ONE sub-panel 'Memory types', folded by default (backlog 0016)", () => {
     const html = render(SERVED, { focused: "harbour" });
-    const members = [...html.matchAll(/data-member="([^"]+)"/g)].map((m) => m[1]);
-    // harbour's served kinds: {episode: 3}; the diary entry is a type memory did not count there.
-    expect(members).toEqual(["ex:episode-4", "ex:episode-2", "ex:episode-1", "ex:diary-3"]);
-    // One static line per type, before its memories, with how many of it are listed.
-    const groups = [...html.matchAll(/class="gc_tp_group gc_tp_card" style="[^"]*" data-group="([^"]+)"[^>]*><i[^>]*><\/i>([^<]+)</g)].map((m) => [m[1], m[2]]);
-    expect(groups).toEqual([["episode", "3 episodes"], ["diary", "1 diary entry"]]);
-    expect(html.indexOf('data-group="episode"')).toBeLessThan(html.indexOf('data-member="ex:episode-4"'));
-    expect(html.indexOf('data-member="ex:episode-1"')).toBeLessThan(html.indexOf('data-group="diary"'));
-    expect(html.indexOf('data-group="diary"')).toBeLessThan(html.indexOf('data-member="ex:diary-3"'));
-    const groupRow = html.slice(html.lastIndexOf("<li", html.indexOf('data-group="episode"')), html.indexOf('data-group="episode"'));
-    expect(groupRow).toContain("af-disclosure__row--static");
-    expect(html).toContain("the harbour archive opens at nine");
     expect(html).toContain("gc_tp_focused");
-    const badges = [...html.matchAll(/gc_tp_provisional[^>]*><span class="af-chip__label">([^<]+)</g)].map((m) => m[1]);
-    expect(badges).toEqual(["placed until his next sleep"]);
-    const provisionalRow = html.slice(html.indexOf('data-member="ex:episode-4"'), html.indexOf('data-member="ex:diary-3"'));
-    expect(provisionalRow).toContain("placed until his next sleep");
+    const at = html.indexOf('data-types="harbour"');
+    expect(at).toBeGreaterThan(0);
+    const head = html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at));
+    // A real disclosure whose mark says its state: a tree row with aria-expanded, folded.
+    expect(head).toContain('role="treeitem"');
+    expect(head).toContain('aria-expanded="false"');
+    expect(head).not.toContain("aria-disabled");
+    expect(head).toContain('data-tkey="harbour"');
+    expect(head).toContain(`>${MEMORY_TYPES_HEAD}<`);
+    expect(html.match(/data-types=/g)?.length).toBe(1);
+    // Folded: no type, no memory listed.
+    expect(html).not.toContain("data-group=");
+    expect(html).not.toContain("data-member=");
+  });
+
+  it("unfolded, a row per type (memory's order, then the rest) with how many are loaded; a type unfolds its memories, newest first, the provisional one marked", () => {
+    if (READ.kind !== "served") throw new Error("fixture");
+    const { communities } = READ.data;
+    const rowsOf = membershipOf(FOLD, READ.data).rowsOf;
+    const rowsWith = (opened: string[]) => topicRows(communities, new Set(["harbour"]), rowsOf, FOLD, { opened: new Set(opened) });
+    const types = rowsWith([typesRowKey("harbour")]).filter((r) => r.data?.kind === "group");
+    // harbour's served kinds: {episode: 3}; the diary entry is a type memory did not count there.
+    expect(types.map((r) => r.textValue)).toEqual(["3 episodes", "1 diary entry"]);
+    for (const r of types) expect(r).toMatchObject({ depth: 2, expandable: true, expanded: false, parentKey: typesRowKey("harbour") });
+    expect(rowsWith([typesRowKey("harbour")]).some((r) => r.data?.kind === "member")).toBe(false);
+    // A type's memories (the ids a hover on it lights), newest first, under it.
+    const episodes = types[0].data?.kind === "group" ? types[0].data.ids : [];
+    expect(episodes).toEqual(["ex:episode-4", "ex:episode-2", "ex:episode-1"]);
+    const open = rowsWith([typesRowKey("harbour"), groupRowKey("harbour", "episode")]);
+    const members = open.filter((r) => r.data?.kind === "member");
+    expect(members.map((r) => r.entityId)).toEqual(episodes);
+    for (const r of members) expect(r).toMatchObject({ depth: 3, parentKey: groupRowKey("harbour", "episode") });
+    expect(open.findIndex((r) => r.key === groupRowKey("harbour", "episode"))).toBeLessThan(open.findIndex((r) => r.entityId === "ex:episode-4"));
+    expect(open.findIndex((r) => r.entityId === "ex:episode-1")).toBeLessThan(open.findIndex((r) => r.key === groupRowKey("harbour", "diary")));
+    expect(members.map((r) => r.data?.kind === "member" && r.data.provisional)).toEqual([true, false, false]);
+    expect(members[0].textValue).toBe("a placed newcomer");
+    // Without its head unfolded, an unfolded type lists nothing.
+    expect(rowsWith([groupRowKey("harbour", "episode")]).some((r) => r.data?.kind === "group" || r.data?.kind === "member")).toBe(false);
+    // The member renders its badge (PROVISIONAL_BADGE) and opens on a click.
+    const src = fs.readFileSync(path.resolve(__dirname, "topics_panel.tsx"), "utf8");
+    expect(src).toMatch(/\{d\.provisional \? \(\n\s+<AfChip size="sm" tone="warning" className="gc_tp_provisional">\n\s+\{PROVISIONAL_BADGE\}/);
+    expect(src).toContain("data-member={d.node.id} data-tkey={d.c.key} onClick={() => onOpenMember(d.node)}");
   });
 
   it("the head is a real disclosure: folded (a phone), the list is hidden", () => {
@@ -299,8 +328,8 @@ describe("the topic view: what memory counts of it, in words", () => {
     const html = render(FACTS_VIEW, { focused: "harbour" });
     const facts = factsSlice(html);
     expect(facts).not.toBe("");
-    // Before the members; one static row (not focusable, not selectable).
-    expect(html.indexOf("gc_tp_facts")).toBeLessThan(html.indexOf("gc_tp_member"));
+    // Before the memory types; one static row (not focusable, not selectable).
+    expect(html.indexOf("gc_tp_facts")).toBeLessThan(html.indexOf("gc_tp_types_head"));
     const row = html.slice(html.lastIndexOf("<li", html.indexOf("gc_tp_facts")), html.indexOf("gc_tp_facts"));
     expect(row).toContain('aria-disabled="true"');
     expect(row).toContain('tabindex="-1"');
@@ -406,12 +435,15 @@ describe("a topic's count says what it holds and what the graph has loaded — t
   it("unfolded, every topic lists exactly the number its count says is loaded; a memory listed by two topics is listed once", () => {
     if (ODD.kind !== "served") throw new Error("fixture");
     const rowsOf = membershipOf(FOLD, ODD.data).rowsOf;
+    // Every memory-types head and type unfolded.
+    const ALL_OPEN = { has: () => true } as unknown as ReadonlySet<string>;
+    const listed = (key: string) => topicRows(ODD.data.communities, new Set([key]), rowsOf, FOLD, { opened: ALL_OPEN }).flatMap((r) => (r.data?.kind === "member" && r.data.c.key === key ? [r.entityId] : []));
     for (const key of ["tides", "harbour"]) {
       const r = rows(render(ODD_VIEW, { focused: key })).get(key)!;
-      expect(r.members.length, key).toBe(rowsOf.get(key)!.length);
-      expect(r.count, key).toMatch(new RegExp(`^\\d+ memor(y|ies)( · ${r.members.length} loaded in this view)?$`));
+      expect(listed(key).length, key).toBe(rowsOf.get(key)!.length);
+      expect(r.count, key).toMatch(new RegExp(`^\\d+ memor(y|ies)( · ${listed(key).length} loaded in this view)?$`));
     }
-    const listedBy = (id: string) => ["tides", "harbour"].filter((k) => rows(render(ODD_VIEW, { focused: k })).get(k)!.members.includes(id));
+    const listedBy = (id: string) => ["tides", "harbour"].filter((k) => listed(k).includes(id));
     expect(listedBy("ex:episode-2")).toEqual(["tides"]);
   });
 
@@ -435,10 +467,10 @@ describe("one card per topic, tinted with its colour (backlog 0014)", () => {
   /** Every row's content in order: its class and the colour it carries. */
   const cards = (html: string) => [...html.matchAll(/<span (?:data-tkey="[^"]+" )?class="(gc_tp_\w+) gc_tp_card[^"]*" style="--gc-tp-color:([^"]+)"[^>]*data-tkey="([^"]+)"|<span data-tkey="([^"]+)" class="(gc_tp_\w+) gc_tp_card[^"]*" style="--gc-tp-color:([^"]+)"/g)].map((m) => (m[1] ? { cls: m[1], color: m[2], tkey: m[3] } : { cls: m[5], color: m[6], tkey: m[4] }));
 
-  it("every row of a topic — its own, its facts, its memories, its sentence — carries the topic's circle colour", () => {
+  it("every row of a topic — its own, its facts, its paths, its memory types, its sentence — carries the topic's circle colour", () => {
     const html = render(FACTS_VIEW, { focused: "harbour" });
     const rows = cards(html);
-    expect(rows.map((r) => r.cls)).toEqual(expect.arrayContaining(["gc_tp_topic", "gc_tp_facts", "gc_tp_member"]));
+    expect(rows.map((r) => r.cls)).toEqual(expect.arrayContaining(["gc_tp_topic", "gc_tp_facts", "gc_tp_paths_head", "gc_tp_path", "gc_tp_types_head"]));
     for (const r of rows) expect(r.color, r.cls).toBe(topicColor(r.tkey));
     expect(rows.filter((r) => r.tkey === "harbour").length).toBeGreaterThan(3);
     // The other topic's card is its own colour (a folded topic is a card of one row).
