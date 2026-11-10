@@ -4544,8 +4544,9 @@ body {
   .entity_main:has(~ .entity_monitor_dock) {
     display: none;
   }
+  /* Basis 0: it takes only the room the main area left (a content basis squeezed the controls). */
   .entity_monitor_dock {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     max-height: none;
   }

@@ -145,7 +145,7 @@ describe("layout", () => {
     expect(phone).toMatch(/@media \(max-width: 767\.98px\) \{\s*\.cw_panel\.cw_dock \{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
     expect(CSS).toContain(".entity_main:has(> .side_tabs_avatar) ~ .entity_monitor_dock { display: none; }");
     // A phone holds one pane at a time: the open monitor takes the main area's place.
-    expect(CSS).toMatch(/@media \(max-width: 767\.98px\), \(max-height: 500px\) \{\s*\.entity_main:has\(~ \.entity_monitor_dock\) \{\s*display: none;\s*\}\s*\.entity_monitor_dock \{\s*flex: 1 1 auto;/);
+    expect(CSS).toMatch(/@media \(max-width: 767\.98px\), \(max-height: 500px\) \{\s*\.entity_main:has\(~ \.entity_monitor_dock\) \{\s*display: none;\s*\}\s*\/\*[^*]*\*\/\s*\.entity_monitor_dock \{\s*flex: 1 1 0;/);
     expect(CSS).toMatch(/\.et_monitor\[aria-pressed="true"\] \{[^}]*border-color: var\(--ea-accent\);/);
   });
 });
