@@ -1,9 +1,9 @@
-# Planned: The legend: two lines at most at the bottom, and interactive
+# Completed: The legend: two lines at most at the bottom, and interactive
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned
-- Completed: N/A
+- Status: Completed
+- Completed: 2026-11-10
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
 
 ## ADR status
@@ -37,3 +37,19 @@ A test of the overflow rule and of the click-to-emphasis wiring; screenshots wid
 
 ## Size
 M (one day).
+
+## Completion
+- Done 2026-11-10 (operator's test round 2, topics lane): 4d2ee64 `src/graph_canvas_legend.tsx`
+  (moved out of `entity_view`): two rows (the memories; the lines and colours), each one line that
+  scrolls sideways when it holds more, one scrollable row at phone width; every memory item and
+  relation type a pressed toggle (second click or Escape lets go); `legendIds` lights a class's or
+  kind's memories (never an engine record) or both ends of a relation's edges; the legend pick is
+  one more emphasis source and the camera frames it.
+- Validation: `graph_canvas_legend.test.tsx` (the usage-key pin moved from
+  `context_legend.test.tsx`); `npm test` 1752 green, tsc clean, 14/14 mutants red with a green
+  control; harness E on castor's live data: 3 lines (87 px) before at 1440 x 900, 2 lines (58 px)
+  after, 1 line at 1024 and 400 px, "dream" pressed lights 11 and frames them. CHANGELOG
+  [Unreleased]: "The graph's legend is two lines and you can click it".
+- Follow-up: the legend replaces the filter chips row in 0019 (round 3).
+- Original path: `docs/backlog/planned/0004_legend_two_lines_and_interactive.md` (file still under
+  planned/, move pending).

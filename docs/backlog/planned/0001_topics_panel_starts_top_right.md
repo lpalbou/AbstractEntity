@@ -5,6 +5,7 @@
 - Status: Planned
 - Completed: N/A
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
+- Folded into: 0017 (2026-11-10, round 3); closes when 0017 closes
 
 ## ADR status
 - Governing ADRs: None
@@ -47,3 +48,10 @@ Screenshots at 1440 x 900, 860 x 700 and 400 x 700/860 with topics served, open 
 
 ## Size
 S-M (half a day: anchor + motion-button placement + legend rule + framing).
+
+## Status note
+2026-11-10 (round 3): folded into
+[0017 The Topics panel is floatable and resizable](0017_topics_panel_floatable_resizable.md).
+The operator's round-3 test asks for a panel he can move and resize; its default place is this
+item's top right, so the anchor, the motion-button and legend collisions and the framing are built
+there, once. This file stays as the record of the ask; nothing is built from it separately.

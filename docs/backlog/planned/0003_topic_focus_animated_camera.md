@@ -1,9 +1,9 @@
-# Planned: Topic focus moves the camera as an animated transition, never a teleport
+# Completed: Topic focus moves the camera as an animated transition, never a teleport
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned
-- Completed: N/A
+- Status: Completed
+- Completed: 2026-11-10
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
 
 ## ADR status
@@ -35,3 +35,17 @@ check on a dense life.
 
 ## Size
 S (2-3 hours).
+
+## Completion
+- Done 2026-11-10 (operator's test round 2, topics lane): 1af01a3 `src/graph_canvas_camera.ts`
+  (pure: `CAMERA_GLIDE_MS` 300, cubic `easeInOut`, `poseAt` with a geometric zoom, `startGlide`
+  one step under `prefers-reduced-motion`, `glideAt` frame-rate independent); `moveCamera` used
+  by `frameTopic`, Fit view and the lens/search fit; a wheel or pan drops the glide. 43be8a1
+  (review 2a): a member opened from the panel glides too, the glide lasts 300 ms + 1 ms per 8 px
+  travelled, capped at 600 ms, and reduced motion is followed live.
+- Validation: `graph_canvas_camera.test.ts` (tween + source pins: no direct camera assignment left
+  in `frameTopic`, Fit view or the lens fit); `npm test` 1707 green, 11/11 mutants red with a green
+  control; harness C on castor's live data: before 0 intermediate frames, after 7 over 305 ms,
+  reduced motion one step. CHANGELOG [Unreleased]: "The camera glides to a topic".
+- Original path: `docs/backlog/planned/0003_topic_focus_animated_camera.md` (file still under
+  planned/, move pending).

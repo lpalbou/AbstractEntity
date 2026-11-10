@@ -1,9 +1,9 @@
-# Planned: Hovering a topic highlights its community; communities are visible and explorable
+# Completed: Hovering a topic highlights its community; communities are visible and explorable
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned
-- Completed: N/A
+- Status: Completed
+- Completed: 2026-11-10
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
 
 ## ADR status
@@ -45,3 +45,21 @@ A test that a topic-row hover sets the emphasis to its members; screenshots dark
 
 ## Size
 M (one day).
+
+## Completion
+- Done 2026-11-10 (operator's test round 2, topics lane): 3adccc8 (a) a lit topic is a spotlight
+  (`src/graph_canvas_spotlight.ts`: stronger rest circle 0.065 fill / 0.42 x 1.3 px ring, lit
+  0.16 / 1.0 x 3 px plus a glow, the rest veiled, each member of the lit topic ringed in its
+  colour); f6c2b77 (b) hovering a topic row in the panel lights it on the graph and dims the rest
+  (`topicHover`, 150 ms hover intent, keyboard only on `:focus-visible`, touch never hovers,
+  `hoverTopicRef` read by the frame loop); 43be8a1 review 2a fixes (an off-screen topic's hover no
+  longer veils the whole graph, `circleMeetsCanvas`; the lit title always drawn).
+- Validation: `graph_canvas_spotlight.test.ts`, `topics_panel_hover.test.ts`,
+  `graph_canvas_review2a.test.ts`; `npm test` 1628 green (a), 1682 green + 1 red in another lane's
+  uncommitted `roster_tiles` (b), 1751 green (review); mutants 13/13, 14/14, 13/13 red with a green
+  control; harnesses A/B on castor's live data (scratch builds, never `dist/`), desktop and 400 px
+  shots. CHANGELOG [Unreleased]: "A focused topic is a spotlight on the graph", "Hovering a topic
+  in the Topics panel lights it on the graph".
+- Follow-up: hovering a memory TYPE inside a topic is 0016 (round 3).
+- Original path: `docs/backlog/planned/0002_topic_hover_highlights_its_community.md` (file still
+  under planned/, move pending).
