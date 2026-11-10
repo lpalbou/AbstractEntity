@@ -17,6 +17,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- **The closing notice is one line shorter.** While a visit closes, the notice says his reflection
+  runs and lists his acts as they land ("He wrote in his book", feelings moved); before any lands,
+  nothing more ("watching his stream for the reflection's acts… (the Ledger tab keeps the full
+  record)" is gone).
 - **A focused topic is a spotlight on the graph** (operator's test round 2, 2026-11-10: "today
   barely" visible). Its circle is tinted, ringed at full strength and glows; each of its memories
   carries a ring in the topic's colour; everything else sits under a veil, and the other circles

@@ -70,13 +70,14 @@ import { attachmentChips, attachmentRecords, turnRefusal, visitTurnPayload, type
 import type { ReplayEnvelope } from "./stream_types";
 import { TurnDetailModal } from "./turn_detail_modal";
 import { WordsLine } from "./words_line";
+import { ClosingNotice } from "./closing_notice";
 import { VisitVoiceButtons, useEntityVoice, useVoiceDefaults, useVoicePreferences } from "./entity_voice";
 
 /** The reflection's visible acts in the live stream: every envelope past
  * the close-start seq, rendered as ledger lines, filtered to the tones
  * that MEAN something during a close (feelings moved, records formed,
  * session markers, revisions) — recall/usage bookkeeping stays out. */
-function reflectionActivity(envelopes: ReplayEnvelope[], sinceSeq: number | null): LedgerLine[] {
+export function reflectionActivity(envelopes: ReplayEnvelope[], sinceSeq: number | null): LedgerLine[] {
   if (sinceSeq === null) return [];
   const MEANINGFUL = new Set(["formation", "feeling", "session", "revision", "boundary"]);
   const out: LedgerLine[] = [];
@@ -1519,37 +1520,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             * reflection's acts land in the live stream — every envelope
             * past the close-click seq renders here as it happens (feelings
             * moved, summary formed, interests kept, session sealed). */}
-          {busy === "closing" && !avatarMode ? (
-            <div className="cd_closing" aria-live="polite">
-              <div className="cd_closing_head">
-                <span className="cd_closing_spin" aria-hidden="true" />
-                <span>
-                  <WordsLine text="Closing — his reflection runs now (he looks back over the visit; feelings may move, a summary forms)…" inline />
-                </span>
-              </div>
-              {closingActivity.length > 0 ? (
-                <ul className="cd_closing_lines">
-                  {closingActivity.map((l) => (
-                    <li key={l.seq}>
-                      <strong>
-                        <WordsLine text={l.title} inline />
-                      </strong>
-                      {l.detail ? (
-                        <span className="cd_closing_detail">
-                          {" — "}
-                          <WordsLine text={l.detail} inline />
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="cd_closing_hint">
-                  <WordsLine text="watching his stream for the reflection's acts… (the Ledger tab keeps the full record)" inline />
-                </span>
-              )}
-            </div>
-          ) : null}
+          {busy === "closing" && !avatarMode ? <ClosingNotice activity={closingActivity} /> : null}
           {avatarMode && publicVisit.error ? (
             <div className="cd_note" role="status">
               <WordsLine text={publicVisit.error} inline /> <button type="button" onClick={publicVisit.refresh}>Retry</button>

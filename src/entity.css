@@ -688,11 +688,6 @@ body {
 .cd_closing_detail {
   color: var(--text-dim);
 }
-.cd_closing_hint {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  font-style: italic;
-}
 
 /* The settling window (gateway composite c1469): a transition is landing —
  * calm amber, never an alarm. */
