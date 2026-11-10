@@ -35,7 +35,7 @@ import { Words } from "./verbatim_view";
 import { readCard } from "./world_model_view";
 import { sourceWords } from "./world_model_sources";
 import { untitledWords } from "./untitled";
-import { cardProvenance, isMechanicalMethod, PLACEHOLDER_WORDS, servedDigest, type Understanding } from "./understanding";
+import { cardProvenance, CUT_SUMMARY_LINE, isMechanicalMethod, PLACEHOLDER_WORDS, servedDigest, type Understanding } from "./understanding";
 
 export interface CardText {
   /** Markdown, inline (one line of prose; headings/bold render, never
@@ -90,7 +90,8 @@ export function nodeCardText(node: NodeState): CardText {
   const dream = node.kind === "dream";
   // A dream is named the way Detail names it (record_detail.recordTitle).
   const title = dream ? recordTitle(node) : markdownTitle(node.title) || untitledHeader(node);
-  const digest = !isDiaryNode(node) && typeof node.digest === "string" ? node.digest.trim() : "";
+  // Words cut when saved (the served `cut`) are never a card's summary: the title says it.
+  const digest = !isDiaryNode(node) && node.digest_cut !== true && typeof node.digest === "string" ? node.digest.trim() : "";
   // A digest identical to the title would only say it twice.
   const summary = digest && digest !== title ? digest : null;
   return { title, summary, plain: dream };
@@ -194,7 +195,7 @@ export function needsWords(node: NodeState): boolean {
 
 /** The record's current understanding as its read served it
  * (understanding.ts) — the fields the card shows and compares. */
-export type ServedReading = Pick<Understanding, "digest" | "digest_version" | "digest_method" | "authored_by" | "reader" | "cause" | "understood_at">;
+export type ServedReading = Pick<Understanding, "digest" | "digest_version" | "digest_method" | "authored_by" | "reader" | "cause" | "understood_at"> & Partial<Pick<Understanding, "cut">>;
 
 /** What the card's read holds: reading; the words (`served`: the record's
  * current understanding, null when the gateway does not serve it); or
@@ -240,6 +241,7 @@ export type CardSummary =
   | { kind: "diary"; text: string }
   | { kind: "floor"; name: string; lines: string[]; threads: string[]; feeling: string | null; provenance: string | null }
   | { kind: "words"; text: string; plain: boolean; provenance: string | null }
+  | { kind: "cut"; text: string }
   | { kind: "reading" }
   | { kind: "none"; text: string };
 
@@ -253,6 +255,8 @@ function dayOf(stamp: string | null): string {
  * the parses Detail uses (a served summary is used as served, never
  * derived from the words):
  * - a diary record: DIARY_CARD_LINE, never its words;
+ * - a reading whose words were cut when saved (the served `cut`):
+ *   CUT_SUMMARY_LINE, never those words;
  * - a world model: its card (world_model_view.readCard) — the evidence
  *   floor's name, count, days, threads and standing feeling, or its lead;
  * - a lived moment: its summary, else his answer's lead
@@ -265,7 +269,12 @@ function dayOf(stamp: string | null): string {
  * Every summary carries its hint (`provenance`; null when unknown). */
 export function cardSummary(node: NodeState, words: HoverWords | null, entity: string, timeZone?: string): CardSummary | null {
   if (isDiaryNode(node)) return { kind: "diary", text: DIARY_CARD_LINE };
-  const reading = currentReading(node, words && words.phase === "ready" ? words.served : null, timeZone);
+  const served = words && words.phase === "ready" ? words.served : null;
+  const reading = currentReading(node, served, timeZone);
+  // The reading shown was cut when saved (the gateway's `cut`, from its
+  // writer — the read's for its current reading, else the fold's — never
+  // from the text): the title, then CUT_SUMMARY_LINE instead of its words.
+  if (reading && (reading.current ? served?.cut === true : node.digest_cut === true)) return { kind: "cut", text: CUT_SUMMARY_LINE };
   const read = words && words.phase === "ready" && words.text.trim() ? words.text.trim() : null;
   const text = reading?.text ?? read;
   const provenance = reading?.provenance ?? null;

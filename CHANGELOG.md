@@ -4,6 +4,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **An older record whose summary was cut says so instead of showing the cut text.** Some older
+  memories had their summary cut short when they were saved (the flow brain's moments, and session
+  reflections from before the whole summary was kept), and their hover card and Detail showed the
+  cut text with its "[#TRUNCATION…]" lines. Now the hover card and Detail show the memory's title
+  and one line: "Older record: its summary was cut when saved; he rewrites it in his sleep." The
+  whole stored text is still there in Detail ("The words as saved", or the moment's exchange). The
+  app reads this from the gateway's `cut` flag on the record read, the replay's record and recall
+  blocks (AbstractGateway main 5c2f5db7 or later), never from the words; a gateway without the flag
+  shows the words as stored.
 - **The lit lines of the Context view say where they lead.** Each lit line now reads in one
   direction: faint where it leaves the memory he held in mind, full where it reaches the memory he
   recalled through it, with an arrowhead at the recalled one. Resting the pointer on a lit line

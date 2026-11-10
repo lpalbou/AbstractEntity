@@ -9,7 +9,7 @@
 import React from "react";
 
 import { Disclosure } from "./detail_fold";
-import { earlierVersions, NOT_YET, provenanceLine, provenanceWords, UNSERVED_SENTENCE, versionHead, type Understanding } from "./understanding";
+import { CUT_SUMMARY_LINE, earlierVersions, NOT_YET, provenanceLine, provenanceWords, UNSERVED_SENTENCE, versionHead, type Understanding } from "./understanding";
 import { Words } from "./verbatim_view";
 import "./record_detail.css";
 
@@ -27,6 +27,16 @@ export function UnservedNote(): React.ReactElement {
   return (
     <p className="rd_note" data-understanding="unserved">
       {UNSERVED_SENTENCE}
+    </p>
+  );
+}
+
+/** A summary cut when it was saved (the gateway's `cut`): one line instead
+ * of its words, which stay readable below. */
+export function CutSummary(): React.ReactElement {
+  return (
+    <p className="rd_key_line rd_cut" data-cut="true">
+      {CUT_SUMMARY_LINE}
     </p>
   );
 }

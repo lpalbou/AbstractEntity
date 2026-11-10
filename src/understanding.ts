@@ -34,6 +34,15 @@ export const PLACEHOLDER_WORDS = "a placeholder until he understands it";
 /** Mechanical words (a `mechanical-*` digest): a placeholder. */
 export const MECHANICAL_WORDS = `mechanical — ${PLACEHOLDER_WORDS}`;
 
+/** What a reading whose words were cut when they were saved shows instead
+ * of them (the gateway's `cut`, abstractgateway entity_understanding
+ * cut_when_saved at 5c2f5db7: derived from the WRITER of the reading — a
+ * retired writer that cut its summary when it saved it — never from the
+ * text): the hover card and Detail show the record's title and this line.
+ * The whole stored text stays readable in Detail (the words as saved, the
+ * exchange). */
+export const CUT_SUMMARY_LINE = "Older record: its summary was cut when saved; he rewrites it in his sleep.";
+
 /** Who wrote a reading (abstractmemory understanding.AUTHOR_KINDS, plus
  * memory's "unrecorded" for an older reading it did not see written). */
 export interface ServedAuthor {
@@ -75,6 +84,10 @@ export interface Understanding {
   versions: UnderstandingVersion[] | null;
   /** A card's subject type (world models only; null elsewhere). */
   target_type: string | null;
+  /** The current reading's words were cut when saved (the gateway's `cut`;
+   * CUT_SUMMARY_LINE). null from a gateway that does not flag it (before
+   * abstractgateway 5c2f5db7): the words show as stored. */
+  cut: boolean | null;
 }
 
 export type UnderstandingRead = { served: true; understanding: Understanding } | { served: false; missing: string[] };
@@ -122,6 +135,14 @@ function numOrNull(body: Body, key: string, bad: string[], at = key): number | n
   if (v === null || v === undefined) return null;
   if (typeof v === "number" && Number.isFinite(v)) return v;
   bad.push(at);
+  return null;
+}
+
+function boolOrNull(body: Body, key: string, bad: string[]): boolean | null {
+  const v = body[key];
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v;
+  bad.push(key);
   return null;
 }
 
@@ -219,6 +240,8 @@ export function readUnderstanding(body: Body, kind: string | undefined): Underst
     cause: strOrNull(body, "cause", bad),
     versions: readVersions(body.versions, missing, bad),
     target_type: kind === "world_model" ? strOrNull(body, "target_type", bad) : null,
+    // Not one of the fifteen: a gateway before 5c2f5db7 serves no `cut`.
+    cut: boolOrNull(body, "cut", bad),
   };
   if (missing.length || bad.length) return { served: false, missing: [...missing, ...bad] };
   return { served: true, understanding };

@@ -19,7 +19,8 @@ import { CardUnderstanding, cardTypeWords, type CardRead } from "./world_model_v
 import { readCard } from "./world_model_view";
 import { EarlierUnderstandings } from "./understanding_view";
 import { readUnderstanding, UNSERVED_SENTENCE, type UnderstandingRead } from "./understanding";
-import { cardSummary } from "./hover_card";
+import { cardSummary, nodeCardText } from "./hover_card";
+import { CardSummaryBlock } from "./graph_hover_card";
 import type { RecordWords } from "./verbatim_view";
 
 type Read = Record<string, unknown>;
@@ -264,5 +265,115 @@ describe("the stream and the hover cards use the served summary as served", () =
     });
     // Not served (older gateway / not computed yet): the exchange's lead, as before.
     expect(cardSummary(ep, { phase: "ready", text, served: null }, "castor")).toEqual({ kind: "words", text: "I found the **UNHCR** portal and its 2026 tables.", plain: false, provenance: null });
+  });
+});
+
+describe("a record whose summary was cut when saved (the gateway's `cut`, abstractgateway 5c2f5db7)", () => {
+  // A retired writer cut these words when it saved them; the gateway says so from the writer of the
+  // reading, never from the text. The app never looks for the marker either: the flag decides.
+  const CUT_WORDS = "person:admin: so why did you stop exploring the wor [#TRUNCATION: 140 kept]\ncastor: You are right to chall [#TRUNCATION: 140 kept]";
+  const flowEpisode = { ...R.SERVED_EPISODE, digest: CUT_WORDS, digest_method: "mechanical-flow-v1", digest_version: 0, cut: true } as Read;
+  const oldReflection = { ...R.SERVED, text: CUT_WORDS, digest: CUT_WORDS, cut: true } as Read;
+  const line = "Older record: its summary was cut when saved; he rewrites it in his sleep.";
+
+  it("the record read carries it; absent (an older gateway) is unknown, never a guess; a wrong shape is named", () => {
+    const u = readUnderstanding(flowEpisode, "episode");
+    expect(u.served && u.understanding.cut).toBe(true);
+    const whole = readUnderstanding({ ...flowEpisode, cut: false }, "episode");
+    expect(whole.served && whole.understanding.cut).toBe(false);
+    const before = readUnderstanding(R.SERVED_EPISODE, "episode");
+    expect(before.served && before.understanding.cut).toBeNull();
+    expect(readUnderstanding({ ...flowEpisode, cut: "yes" }, "episode")).toEqual({ served: false, missing: ["cut"] });
+  });
+
+  it("Detail shows a summary's title and the one line, never the cut words; the words as saved stay one click away", () => {
+    const html = body(node(), words(oldReflection, "summary"));
+    inOrder(html, ["session reflection: owntime", "A summary he formed", line, "<dt>born</dt>", "The words as saved"]);
+    // The cut words are only inside the folded words as saved (closed: not drawn until opened).
+    expect(html).not.toContain("#TRUNCATION");
+    expect(html).toMatch(/aria-expanded="false"[^>]*>.*The words as saved/s);
+    // The same read without the flag shows its words as stored (control).
+    const plain = body(node(), words({ ...oldReflection, cut: false }, "summary"));
+    expect(plain).not.toContain(line);
+    expect(plain).toContain("#TRUNCATION");
+    // Before the read lands: the digest a recall served, by its block's flag.
+    const recalled = node({ digest: CUT_WORDS, digest_cut: true });
+    const loading = renderToStaticMarkup(<RecordBody fold={createFoldState()} node={recalled} source={SOURCE} state={{ phase: "loading" }} renderFacts={facts} onSelect={() => {}} />);
+    expect(loading).toContain(line);
+    expect(loading).not.toContain("#TRUNCATION");
+    expect(loading).not.toContain("The summary saved with the record");
+  });
+
+  it("Detail shows a lived moment's title and the one line; the exchange is still all there", () => {
+    const ep = node({ kind: "episode", graph_id: "ex:episode-3d", title: "exchange: what did you find?" });
+    const html = renderToStaticMarkup(<EpisodeBody node={ep} entity="castor" state={{ phase: "ready", words: words(flowEpisode, "episode") }} renderFacts={facts} />);
+    inOrder(html, ["what did you find?", "Summary", line, "The exchange", "the <strong>UNHCR</strong> portal"]);
+    expect(html).not.toContain("#TRUNCATION");
+    const plain = renderToStaticMarkup(<EpisodeBody node={ep} entity="castor" state={{ phase: "ready", words: words({ ...flowEpisode, cut: false }, "episode") }} renderFacts={facts} />);
+    expect(plain).toContain("#TRUNCATION");
+    expect(plain).not.toContain(line);
+    // Before the read lands: the digest a recall served, by its block's flag.
+    const recalled = node({ kind: "episode", graph_id: "ex:episode-3d", digest: CUT_WORDS, digest_cut: true });
+    const loading = renderToStaticMarkup(<EpisodeBody node={recalled} entity="castor" state={{ phase: "loading" }} renderFacts={facts} />);
+    expect(loading).toContain(line);
+    expect(loading).not.toContain("#TRUNCATION");
+  });
+
+  const env = (seq: number, family: "binding" | "snapshot", display: Record<string, unknown>, payload: Record<string, unknown> = {}): ReplayEnvelope =>
+    ({
+      stream: "abstractmemory.replay",
+      stream_version: 1,
+      seq,
+      observed_at: "2026-11-09T12:00:00+00:00",
+      scope: "life",
+      owner_id: "entity:castor",
+      trace_id: family === "snapshot" ? "t-1" : null,
+      turn_id: null,
+      run_id: null,
+      family,
+      payload: family === "binding" ? { record_id: "ex:episode-3d", scope: "life", owner_id: "entity:castor", search_state: "indexed", prompt_state: "inactive", lifecycle: "active", source: "remember", seq } : { trace_id: "t-1", snapshot_id: "s-1", ...payload, seq },
+      display,
+    }) as unknown as ReplayEnvelope;
+  const block = (extra: Record<string, unknown>) => ({ record_id: "ex:episode-3d", graph_id: "ex:episode-3d", kind: "episode", title: "exchange: what did you find?", digest: CUT_WORDS, ...extra });
+
+  it("the fold keeps the flag with the digest it came with: a record block, a recall block, a rewrite", () => {
+    const at = (envs: ReplayEnvelope[]) => foldEnvelopes(envs).nodes.get("ex:episode-3d")!;
+    expect(at([env(1, "binding", block({ cut: true }))]).digest_cut).toBe(true);
+    const recalled = at([env(1, "binding", block({})), env(2, "snapshot", { recalled: [block({ cut: true })] }, { used_record_ids: ["ex:episode-3d"], display: [{ record_id: "ex:episode-3d", digest: CUT_WORDS }] })]);
+    expect(recalled.digest_cut).toBe(true);
+    // His rewrite in his sleep: a later block serves whole words.
+    const rewritten = at([env(1, "binding", block({ cut: true })), env(2, "binding", block({ digest: "He asked why I stopped; I said I had not.", cut: false }))]);
+    expect([rewritten.digest, rewritten.digest_cut]).toEqual(["He asked why I stopped; I said I had not.", false]);
+    // A block that does not say (an older gateway): unknown.
+    expect(at([env(1, "binding", block({ cut: true })), env(2, "binding", block({ digest: "other" }))]).digest_cut).toBeNull();
+    // A recall's payload row (a stream without blocks) names no reading: unknown too.
+    const row = at([env(1, "binding", block({ cut: true })), env(2, "snapshot", {}, { used_record_ids: ["ex:episode-3d"], display: [{ record_id: "ex:episode-3d", digest: CUT_WORDS }] })]);
+    expect([row.digest, row.digest_cut]).toEqual([CUT_WORDS, null]);
+    // A row first seen without its graph id, revealed later: the binding's digest comes with its flag.
+    const usage = (seq: number, title: string) => env(seq, "snapshot", {}, { used_record_ids: ["row-7"], display: [{ record_id: "row-7", title }] });
+    const revealed = foldEnvelopes([env(1, "binding", block({ cut: true })), usage(2, "what did you find?"), usage(3, "ex:episode-3d dcterms:abstract what did you find?")]);
+    const merged = revealed.nodes.get(revealed.graph_to_row.get("ex:episode-3d") ?? "")!;
+    expect([merged.id, merged.digest, merged.digest_cut]).toEqual(["row-7", CUT_WORDS, true]);
+  });
+
+  it("the hover card: the title, then the one line, from the read's flag (current) or the fold's (until the read lands)", () => {
+    const ep = node({ kind: "episode", graph_id: "ex:episode-3d", title: "exchange: what did you find?", digest: null });
+    const read = readUnderstanding(flowEpisode, "episode");
+    if (!read.served) throw new Error("the fixture is a served read");
+    const ready = (served: typeof read.understanding) => ({ phase: "ready" as const, text: String(flowEpisode.text), served });
+    expect(cardSummary(ep, ready(read.understanding), "castor", "UTC")).toEqual({ kind: "cut", text: line });
+    expect(cardSummary(ep, ready({ ...read.understanding, cut: false }), "castor", "UTC")).toMatchObject({ kind: "words", text: CUT_WORDS });
+    expect(cardSummary(ep, ready({ ...read.understanding, cut: null }), "castor", "UTC")).toMatchObject({ kind: "words", text: CUT_WORDS });
+    const recalled = { ...ep, digest: CUT_WORDS, digest_version: 0, digest_cut: true };
+    expect(cardSummary(recalled, { phase: "reading" }, "castor")).toEqual({ kind: "cut", text: line });
+    // A rewrite the fold holds that is newer than the read's cut reading: its whole words.
+    const newer = { ...ep, digest: "He asked why I stopped.", digest_version: 2, digest_cut: false };
+    expect(cardSummary(newer, ready(read.understanding), "castor")).toMatchObject({ kind: "words", text: "He asked why I stopped." });
+    const card = renderToStaticMarkup(<CardSummaryBlock summary={{ kind: "cut", text: line }} />);
+    expect(card).toContain(line);
+    expect(card).toContain("gc_hc_cut");
+    // A topic card's exemplar falls back to the title.
+    expect(nodeCardText(recalled).summary).toBeNull();
+    expect(nodeCardText({ ...recalled, digest_cut: false }).summary).toBe(CUT_WORDS);
   });
 });

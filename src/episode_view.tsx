@@ -35,7 +35,7 @@ import { markdownTitle, untitledHeader } from "./hover_card";
 import { WordsLine } from "./words_line";
 import { restBlocksAsText } from "./verbatim_parse";
 import { servedDigest, UNSERVED_SENTENCE } from "./understanding";
-import { DigestNotYet, EarlierUnderstandings, ProvenanceLine } from "./understanding_view";
+import { CutSummary, DigestNotYet, EarlierUnderstandings, ProvenanceLine } from "./understanding_view";
 import {
   askFromResult,
   howSentence,
@@ -291,14 +291,14 @@ export function EpisodeBody({ node, entity, state, renderFacts, defaultOpen = fa
         <h4 className="ep_h">Summary</h4>
         {understanding ? (
           <>
-            {stored ? <Words text={stored} className="ev_markdown ep_summary_text" /> : <DigestNotYet />}
+            {stored ? understanding.cut === true ? <CutSummary /> : <Words text={stored} className="ev_markdown ep_summary_text" /> : <DigestNotYet />}
             <ProvenanceLine understanding={understanding} />
             <EarlierUnderstandings understanding={understanding} />
           </>
         ) : digest ? (
           <>
-            <Words text={digest} className="ev_markdown ep_summary_text" />
-            <p className="ep_summary_note">{unserved ? UNSERVED_SENTENCE : "The summary saved with the record, as it was saved."}</p>
+            {node.digest_cut === true ? <CutSummary /> : <Words text={digest} className="ev_markdown ep_summary_text" />}
+            {unserved ? <p className="ep_summary_note">{UNSERVED_SENTENCE}</p> : node.digest_cut === true ? null : <p className="ep_summary_note">The summary saved with the record, as it was saved.</p>}
           </>
         ) : (
           <>

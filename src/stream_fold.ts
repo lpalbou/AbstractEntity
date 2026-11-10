@@ -81,6 +81,11 @@ export interface NodeState {
    * rows). The hover card's read compares it with the record's current
    * reading (hover_card.currentReading). */
   digest_version?: number | null;
+  /** That reading's words were cut when saved (the served `cut` of the
+   * block that served the digest — abstractgateway 5c2f5db7, from the
+   * writer, never the text), set with it; null when that block does not
+   * say (an older gateway, a snapshot payload row). */
+  digest_cut?: boolean | null;
   /** Belief lifecycle: set once a closure names this record. */
   closed: { kind: string; reason: string; seq: number; replacement_ids: string[] } | null;
   /** The BOOK entry id (diary projections; from binding provenance) — the
@@ -480,6 +485,8 @@ function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
     node.digest = dg;
     const dv = display.digest_version;
     node.digest_version = typeof dv === "number" && Number.isFinite(dv) ? dv : null;
+    const cut = (display as { cut?: unknown }).cut;
+    node.digest_cut = typeof cut === "boolean" ? cut : null;
   }
   detectBookkeeping(node, display);
 }
@@ -703,6 +710,7 @@ function resolveUsageNode(state: FoldState, rowId: string, display: DisplayBlock
       if (!node.digest && graphNode.digest) {
         node.digest = graphNode.digest;
         node.digest_version = graphNode.digest_version ?? null;
+        node.digest_cut = graphNode.digest_cut ?? null;
       }
       if (!node.digest_method && graphNode.digest_method) node.digest_method = graphNode.digest_method;
       if (!node.authored_kind && graphNode.authored_kind) node.authored_kind = graphNode.authored_kind;
@@ -918,8 +926,10 @@ function applySnapshot(state: FoldState, env: ReplayEnvelope): void {
     // (an edge row resolves onto its source), never on a diary record.
     if (!blocks && node.id === rid && node.kind !== "relation" && !node.diary && !node.redacted && !isDiaryGraphId(rid) && typeof row.digest === "string" && row.digest.trim()) {
       node.digest = row.digest;
-      // A payload row names no reading: which one it is, is unknown.
+      // A payload row names no reading: which one it is, is unknown (and
+      // whether it was cut).
       if (node.digest_version != null) node.digest_version = null;
+      if (node.digest_cut != null) node.digest_cut = null;
     }
   }
   // Each block names its record by row and graph id (the pairing, first

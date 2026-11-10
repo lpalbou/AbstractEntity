@@ -125,6 +125,7 @@ function CardProvenance({ text }: { text: string | null }): React.ReactElement |
 export function CardSummaryBlock({ summary }: { summary: CardSummary | null }): React.ReactElement | null {
   if (!summary) return null;
   if (summary.kind === "diary") return <WordsLine text={summary.text} className="gc_hc_quiet" />;
+  if (summary.kind === "cut") return <WordsLine text={summary.text} className="gc_hc_quiet gc_hc_cut" />;
   if (summary.kind === "reading") return <WordsLine text="reading his words…" className="gc_hc_quiet" />;
   if (summary.kind === "none") return <WordsLine text={summary.text} className="gc_hc_quiet" />;
   if (summary.kind === "floor") {

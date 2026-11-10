@@ -37,6 +37,7 @@ import { dreamLine, kindWords, standingLine, wordsReadOnOpen } from "./record_de
 import { WordsLine as SharedWordsLine } from "./words_line";
 import { Disclosure } from "./detail_fold";
 import { servedDigest } from "./understanding";
+import { CutSummary } from "./understanding_view";
 import { DigestNotYet, EarlierUnderstandings, ProvenanceLine, UnservedNote } from "./understanding_view";
 import "./record_detail.css";
 
@@ -224,6 +225,10 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
   const understanding = read && read.served ? read.understanding : null;
   const unserved = Boolean(read && !read.served);
   const stored = understanding ? servedDigest(understanding) : null;
+  // Its words were cut when saved (the gateway's `cut`: the read's, else
+  // the fold's for the digest a recall served): one line instead of them;
+  // the words as saved stay below.
+  const cut = understanding ? understanding.cut === true : node.digest_cut === true;
   // The summary: the stored understanding when served (a summary's, a
   // card's or a dream's words ARE it); else words born as the whole record;
   // else the digest a recall served; a dream is also told by what it moved.
@@ -231,14 +236,14 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
   if (understanding) {
     summary = (
       <>
-        {stored ? <Words text={stored} className="ev_markdown rd_summary" /> : <DigestNotYet />}
+        {stored ? cut ? <CutSummary /> : <Words text={stored} className="ev_markdown rd_summary" /> : <DigestNotYet />}
         <ProvenanceLine understanding={understanding} />
         {dream ? <p className="rd_key_line">{dreamLine(node.signals)}</p> : null}
       </>
     );
   } else if (dream) summary = <p className="rd_key_line">{dreamLine(node.signals)}</p>;
   else if (born && words?.text) summary = <Words text={words.text} className="ev_markdown rd_summary" />;
-  else if (digest && !diary) summary = <Words text={digest} className="ev_markdown rd_summary" />;
+  else if (digest && !diary) summary = cut ? <CutSummary /> : <Words text={digest} className="ev_markdown rd_summary" />;
   const summaryNote: React.ReactNode = understanding
     ? null
     : unserved
@@ -248,7 +253,9 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
         : born
           ? "These words are the whole record: it was born as words."
           : digest && !diary
-            ? "The summary saved with the record, as it was saved."
+            ? cut
+              ? null
+              : "The summary saved with the record, as it was saved."
             : diary
               ? "The runtime keeps only the first 120 characters of an entry as its summary (a runtime fix is planned); the whole entry is in his Book, below."
               : node.bookkeeping || node.kind === "relation"
@@ -261,7 +268,8 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
   // The words as saved, folded — unless they are the summary shown above
   // (a summary, card or dream without a verbatim serves its digest as its
   // words), the read served none, or it found none (said above).
-  const wordsAreTheSummary = Boolean(stored && words && words.text.trim() === stored);
+  // A cut summary is not shown: its words are, in the fold.
+  const wordsAreTheSummary = Boolean(stored && !cut && words && words.text.trim() === stored);
   const noWords = Boolean(words && !words.text.trim());
   const wordsFold = !diary && wordsReadOnOpen(node) && (!born || dream) && !wordsAreTheSummary && !noWords && state.phase !== "none";
   return (
