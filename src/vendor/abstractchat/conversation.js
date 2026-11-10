@@ -2636,6 +2636,8 @@ var CHAT_NOTICE_WORDS = {
   group: "Kept from this reply",
   private: "private diary entry",
   staged: "forming\u2026",
+  /** The staged word in a badge's accessible name (no ellipsis glyph for a screen reader to say). */
+  stagedSpoken: "forming",
   privateNote: "A private diary entry: its words are not shown in the conversation.",
   stagedNote: "Forming: it is kept when the visit closes.",
   close: "Close"
@@ -2674,6 +2676,7 @@ function chatNoticeView(notice, index = 0) {
   const label = isPrivate ? kind === "diary" ? CHAT_NOTICE_WORDS.private : `private ${word}` : title || text6;
   const fromText = !isPrivate && !title && Boolean(text6);
   const Word = word.charAt(0).toUpperCase() + word.slice(1);
+  const spoken = label.split(/\s+/).filter(Boolean).join(" ");
   return {
     key: `${index}:${kind}:${notice.record_id || ""}`,
     kind,
@@ -2683,7 +2686,7 @@ function chatNoticeView(notice, index = 0) {
     fromText,
     private: isPrivate,
     staged,
-    ariaLabel: `${Word}${label ? `: ${label}` : ""}${staged ? ` (${CHAT_NOTICE_WORDS.staged})` : ""}`
+    ariaLabel: `${Word}${spoken ? `: ${spoken}` : ""}${staged ? ` (${CHAT_NOTICE_WORDS.stagedSpoken})` : ""}`
   };
 }
 
@@ -2702,8 +2705,23 @@ function revealInScroller(el) {
     }
   }
 }
+function shownNotices(raw) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const notice of chatNoticesOf(raw)) {
+    const view = chatNoticeView(notice);
+    if (!notice.record_id && !view.label && !view.staged)
+      continue;
+    const same = notice.record_id ? `record:${notice.record_id}` : JSON.stringify([view.kind, view.label, view.private, view.staged]);
+    if (seen.has(same))
+      continue;
+    seen.add(same);
+    out.push(notice);
+  }
+  return out;
+}
 function ChatNoticeBadges(props) {
-  const notices = useMemo5(() => chatNoticesOf(props.notices), [props.notices]);
+  const notices = useMemo5(() => shownNotices(props.notices), [props.notices]);
   const views = useMemo5(() => notices.map((n, i) => chatNoticeView(n, i)), [notices]);
   const [openKey, setOpenKey] = useState12(null);
   const buttons = useRef7(/* @__PURE__ */ new Map());

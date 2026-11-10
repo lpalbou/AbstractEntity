@@ -38,6 +38,8 @@ export declare const CHAT_NOTICE_WORDS: {
     readonly group: "Kept from this reply";
     readonly private: "private diary entry";
     readonly staged: "forming…";
+    /** The staged word in a badge's accessible name (no ellipsis glyph for a screen reader to say). */
+    readonly stagedSpoken: "forming";
     readonly privateNote: "A private diary entry: its words are not shown in the conversation.";
     readonly stagedNote: "Forming: it is kept when the visit closes.";
     readonly close: "Close";
@@ -64,7 +66,7 @@ export type ChatNoticeView = {
     private: boolean;
     /** Forms at the visit's close (no record yet). */
     staged: boolean;
-    /** The badge's accessible name. */
+    /** The badge's accessible name: words only (his line breaks read as spaces, no glyph). */
     ariaLabel: string;
 };
 export declare function chatNoticeView(notice: ChatNotice, index?: number): ChatNoticeView;

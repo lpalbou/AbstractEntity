@@ -4,6 +4,37 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-10
+
+On `@abstractframework/ui-kit` ^0.9.27 and `@abstractframework/panel-chat` ^0.9.11, both installed
+from npm (the app no longer bundles a package file of the chat kit). Needs AbstractGateway 0.21.0:
+the five-state phase bar, Stop and Resume, Settings → Mind (with Sleep), `@` mentions, reply
+badges, his topics and the cut-summary lines all read routes and fields that gateway serves. With
+an older gateway, the phase bar, Settings → Mind, mentions and topics each say in one sentence that
+the gateway does not serve them yet, reply badges and cut-summary lines do not appear, and the rest
+of the app works as before.
+
+Highlights:
+
+- **The five-state life cycle.** The phase bar shows idle, visit, work, personal and sleep; own
+  time is the one toggle, work is his job queue, the red **Stop** halts everything and cancels his
+  own time, and **Resume** brings him back idle. **Settings → Mind → Sleep** sets when an idle
+  entity sleeps for maintenance (24 hours or 500 new memories by default).
+- **`@` mentions.** Bring other entities into a visit or a flow-brain conversation; each answers
+  once, under its own name and avatar, even when you send the same words again.
+- **What a reply kept, as badges** under his words (diary, lesson, interest, question,
+  realization), each opening its record.
+- **The memory graph.** One grey-to-green usage scale, the paths he travelled to each recalled
+  memory (with their direction and meaning on hover), a Context legend, and hover that waits for
+  the pointer to rest.
+- **His topics.** The topics his memory forms in his sleep, with their authored titles, are the
+  graph's layout, and a Topics panel lists them with what his memory knows of each.
+- **Fixes** from live use: playback no longer freezes the graph, the ledger names phase changes,
+  older records whose summary was cut say so, and the Context box and Topics panel keep
+  their room on short phone screens.
+
+### Details
+
 - **A topic's count matches its list, and a topic whose memories are not in the graph says so.**
   Each topic in the Topics panel shows how many memories it holds (his memory's count, plus those
   placed in it since his last sleep) and, when the graph has loaded a different number of them
@@ -33,15 +64,10 @@ All notable changes to `@abstractframework/entity` are recorded here.
   is no longer read out by screen readers; before his first sleep the panel says "His topics
   form during his next sleep."
 - **Playing his history back no longer freezes the graph.** On a big life at a high speed (or on a
-  120 Hz screen), the graph stopped changing a moment after Play while the position at the bottom
-  right kept counting, and only a pause brought it up to date. The playback paces page updates so
-  they take about half the main thread, and it counted every frame the graph takes to draw as the
-  cost of the last update; once each frame took two screen frames or more, the next update was
-  never due. It now measures an update against the page's own steady frame, learned from the frames
-  no update lands in, so the graph keeps following the play head at every speed, and after a pause
-  and a resume. Coming back to a tab left hidden while it played holds the graph back two seconds
-  at most, not twice the time away (`replay_clock.ts`; the tests reproduce the freeze for a graph
-  that takes two and three screen frames to draw and for a 120 Hz screen that drops to 60 Hz).
+  120 Hz screen), the graph could stop changing a moment after Play while the position at the
+  bottom right kept counting, until a pause brought it up to date. The graph now keeps following
+  the play head at every speed, and after a pause and a resume. Coming back to a tab left hidden
+  while it played holds the graph back two seconds at most.
 - **A topic tells what his memory knows of it.** Unfold a topic in the Topics panel and, above its
   memories, it says when they were formed ("since 7 Jul 2026 · last 13 Jul 2026"), how often they
   were used in the last 7 days, the one used most, how many of its memories bridge to other
@@ -83,14 +109,14 @@ All notable changes to `@abstractframework/entity` are recorded here.
     serve topics yet." No topics are worked out in the app.
 - **@ mentions in the flow-brain lane: he answers only what is addressed to him.** A flow message
   with @ chips now sends them with the turn (`mentions` on `POST /entities/{name}/summon`: the
-  chips' slugs in pick order, each once, never read from the text; AbstractGateway 20e77103), so
+  chips' slugs in pick order, each once, never read from the text), so
   the gateway tells him the mentioned entities answer for themselves. If he then says nothing, no
   bubble and no line show, and the mentioned entities still answer. A message without chips sends
   no `mentions`.
 - **Identity card statements cut when saved.** A value or a purpose whose record was cut when it
   was saved shows its title and "Older record: its summary was cut when saved; he rewrites it in
   his sleep." (the hover card's line) instead of the cut words. Read from the gateway's `cut` on
-  the card's statements (`GET /entities/{name}/card`, AbstractGateway 32c9cc05), never from the
+  the card's statements (`GET /entities/{name}/card`), never from the
   text.
 - **A Stop during a visit's opening.** When the door answers that he is stopped (409
   `stopped_use_resume`, a Stop that landed while the visit opened), the Chat tab shows the
@@ -98,7 +124,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   bar's own act, he resumes, then the visit opens. It no longer says his seat is taken. The
   flow-brain lane shows the gateway's sentence too and offers no wait in line.
 - **A visit cancelled by a hand-over says so in the ledger.** A visit parked on an approval or a
-  question ends when you continue in another conversation (AbstractGateway 486d4dbe); its line
+  question ends when you continue in another conversation; its line
   reads "Session cancelled" with the marker's own words ("the visitor continued in another
   conversation").
 - **Every row of a Stop's answer.** The bar shows each row of the Stop's receipt by its sentence,
@@ -112,7 +138,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   and one line: "Older record: its summary was cut when saved; he rewrites it in his sleep." The
   whole stored text is still there in Detail ("The words as saved", or the moment's exchange). The
   app reads this from the gateway's `cut` flag on the record read, the replay's record and recall
-  blocks (AbstractGateway main 5c2f5db7 or later), never from the words; a gateway without the flag
+  blocks), never from the words; a gateway without the flag
   shows the words as stored.
 - **The lit lines of the Context view say where they lead.** Each lit line now reads in one
   direction: faint where it leaves the memory he held in mind, full where it reaches the memory he
@@ -155,10 +181,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   shows its words and when it is kept, and, once that visit has closed, brings the close summary
   into view. The badges appear in the chat (visit lane: the turn's `reply_notices`; flow lane: the
   replay view's answer `notices`) and on the answer in the Avatar view. The app reads no marker out
-  of his words. The shared chat kit is re-vendored from AbstractUIC 4bee00d (panel-chat 0.9.10 local
-  build: vendor tgz, conversation bundle, lock; node_modules panel-chat 0.9.10 + ui-kit 0.9.27
-  installed together). The previous `vendor/abstractframework-panel-chat-0.9.9.tgz` is no longer
-  referenced.
+  of his words. The badges are the shared chat kit's (`@abstractframework/panel-chat` 0.9.11).
 
 - **An idle pill.** The phase bar now shows all five states: idle, visit, work, personal, sleep.
   Idle lights while he is awake and reachable with nothing running; it has nothing to click, and
@@ -186,7 +209,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   does; moving away brings back what was lit. On a touch screen a tap still selects it.
 
 - **Five states: visit, idle, work, own time, sleep — and no work switch.** The phase bar follows
-  the gateway's v3 phases (operator ruling 2026-11-09). Work is no longer a toggle: the work pill
+  the gateway's v3 phases. Work is no longer a toggle: the work pill
   lights while he works on a job someone queued for him (you, or an entity allowed to ask him) and
   has nothing to click; its tooltip names the current job and since when, and the line
   beside the pills says how many jobs are queued ("2 jobs queued"). Personal (his own time) is the
@@ -205,13 +228,13 @@ All notable changes to `@abstractframework/entity` are recorded here.
   that does not offer them yet says so in the card.
 - **Needs a gateway that serves the v3 phases.** An older gateway (with the work switch) gets "This
   gateway does not serve the phase bar yet." The phase graph is spec v25 (the five-state life
-  cycle); the gateway and the runtime must re-vendor it.
+  cycle).
 
 - **A mention is answered once, even when you send it again.** Each mention now carries its own
   id (the message, the entity and its place in the message). When an answer was lost on the way
   back (a timeout, a dropped connection) and you send the same words again, the gateway gives back
   the answer the entity already wrote instead of asking it a second time; a new message is asked
-  as new. Needs an AbstractGateway that keeps mention ids (main f0f23bb0 or later).
+  as new.
 - **Phase bar, checked against the gateway's final notes.** "Sleep now" is refused only while he
   is asleep; once a sleep has ended, it is offered again. "His own time is not running" gets the
   same Retry button as a crash. A newborn's sleep stays lit until you wake him, with nothing saying
@@ -246,8 +269,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   you pick with `@` (the button sits above the message box, beside the chips), and typed text is
   never read for it. An address of another gateway, which could only ever say "not supported
   yet", is no longer looked for.
-- The shared chat parts are re-vendored from the AbstractUIC build with the same fixes in the kit
-  (panel-chat 0.9.9 repacked at aca0b07, still unpublished): a name already picked is not offered
+- The shared chat kit carries the same fixes: a name already picked is not offered
   again ("Already mentioned."), Enter waits while the `@` list is still loading, chips are not
   sent while the gateway has no mentions, and the `@` list spans a phone-width message box.
 - **The phase bar follows the gateway's second phase contract.** What each pill may do now comes
@@ -264,7 +286,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   that was sent before a Stop can never repaint the bar after it. A gateway that only knows the
   first contract now gets the same one sentence as an older one: "This gateway does not serve the
   phase bar yet".
-- **The phase graph matches the operator's phases.** The canonical phase graph the gateway and the
+- **The phase graph matches the life-cycle rules.** The canonical phase graph the gateway and the
   runtime check themselves against (`spec/entity_phases.json`) now has the four phases with the
   ruled moves between them, a phase may follow itself for work and personal time, a sleep never
   follows a sleep, he falls asleep only when you ask or when he decides to, and turning personal
@@ -287,7 +309,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   seconds when the entity was busy with his own time, and showed an error. Opening a visit, sending
   a message, answering his question, approving, guiding, closing, the recovery step, an @mention
   and opening a meeting now wait for the gateway as long as it takes: the entity finishes the step
-  he is in, then the visit opens (operator 2026-11-09). The knock line says so instead of "up to a
+  he is in, then the visit opens. The knock line says so instead of "up to a
   minute".
 - **The phase bar: what he is doing, what he may do, and one Stop button.** The four pills at the
   top of an entity's page now say two different things. `personal` is the one toggle: pressed (a
@@ -334,10 +356,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   are labelled while the turn is still running; the Avatar view keeps the author on its answer
   cards. With a gateway that names no author, messages look exactly as
   before.
-- The shared chat parts come from the AbstractUIC build that adds mentions (panel-chat 0.9.9,
-  not yet published), vendored as a package file until it is and bundled inside the app's own
-  package, so the packed app installs on its own; the lockfile check reports this until the app
-  is relocked to the published version (then the bundle entry goes too).
+- The shared chat parts (mentions, turn authors, notice badges) come from the published kit:
+  `@abstractframework/panel-chat` ^0.9.11 with `@abstractframework/ui-kit` ^0.9.27, installed from
+  npm like any dependency.
 - **The Book folds by day.** Each day is now one row: its date, how many entries he wrote that
   day and, while it is folded, the first entry's opening words on one line. Every day is folded
   except the newest, so the Book opens on what he wrote last. A click on a day (or the arrow
@@ -361,11 +382,9 @@ All notable changes to `@abstractframework/entity` are recorded here.
   score sits at the right of the row and his words about it below the name. Likes and dislikes
   stack in the side panel and on a phone instead of squeezing into two narrow columns. The
   scores and feelings are the same as before.
-- **A memory's hover card shows what he understands it as now.** On a moment the overnight
-  backfill had rewritten (Nerin's "so why did you stop exploring the world…"), the graph's card
-  still showed the old one-line mechanical summary, with the answer's "###" and "-" run into the
-  sentence. The card took its summary from the moment the memory was last recalled and only read
-  the record when it had none. Now it always reads the record when the pointer rests on a memory
+- **A memory's hover card shows what he understands it as now.** On a memory whose
+  summary was rewritten since it was last recalled, the graph's card showed the older summary. Now
+  it always reads the record when the pointer rests on a memory
   (a quarter of a second, as before) and shows the summary the gateway stores today, in place of
   the older one as soon as it arrives; a newer reading that reached the graph after the read
   still wins. Under the summary, a small line says who wrote it and why, in the words Detail
@@ -389,15 +408,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
   into it. This needs the gateway and runtime that read attachments (a gateway without them
   ignores the field, so he would not hear about the file); ship them together.
 - **The recall highlight lights only what this turn used.** While a recall was lit, the graph
-  still drew the green "warm together" lines of earlier turns at full strength (954 on Nerin's
-  turn trace 57c187ee before he answered), and memories an earlier recall had picked, including
+  still drew the green "warm together" lines of earlier turns at full strength, and memories an earlier recall had picked, including
   ones dropped this turn, kept a faint glow. Now each turn records the pairs it used together.
-  While the highlight is on, only those pairs are green (561 on that turn, every pair among its
-  34 matched memories). Every other line dims like the memories that were not recalled, and only
-  the memories recalled for this turn glow (55 on that turn). The resting view is unchanged. Its
+  While the highlight is on, only those pairs are green. Every other line dims like the memories that were not recalled, and only
+  the memories recalled for this turn glow. The resting view is unchanged. Its
   legend now says what "recent" means: hovering "warm together" or "warm now" says it covers
-  about the last N turns (14 on Nerin's life today), with older turns fainter (operator
-  2026-11-08: "it selects more nodes & edges on the graph than have been visited").
+  about the last N turns, with older turns fainter.
 - **Detail shows a memory's summary, who wrote it, and how it was understood before.** Opening a
   session summary showed an empty shell ("The fuller summary arrives once this memory is
   recalled", and "The words as saved: none kept"). Now Detail leads with the summary the gateway
@@ -412,8 +428,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
   stream takes each recalled memory's words from the gateway's recall blocks, the reading that
   entered that context. A record's words are now read anew each time (its summary can be
   rewritten in place); a diary entry is still read only on your click, and only once per browser.
-  Needs abstractgateway's stored understanding (1b3832b7); the app's tests pin that gateway's own
-  answers (operator 2026-11-08).
+  Needs the gateway's stored understanding (AbstractGateway 0.21.0).
 - **The ledger follows the newest events only while you are at the bottom, and each landing flashes.**
   The live follow now watches the list's content, not only its box: a row that renders its words a beat
   after it landed, or a line that grows in place, moved the list without moving the follow, so the view
@@ -421,16 +436,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
   wash that fades over ~1.8 s (none under reduced motion, where only the left edge marks them); nothing
   flashes while his life is still streaming in. Rows are keyed by their place in the fold, so a window
   slide no longer remounts (or re-flashes) them. Scrolled up, the list stays where you left it and the
-  "N new lines below" pill counts what landed, as before (operator 2026-11-08).
+  "N new lines below" pill counts what landed, as before.
 - **The ledger keeps following even if the live connection stalls.** While live, the page checks
   every 20 seconds that it holds the gateway's latest events; if the connection went quiet while
   newer events exist, it fetches what it missed and reconnects.
 - **The Card shows his lessons.** A "Lessons" section after Interests lists what he learned and
   chose to keep, newest first, each with its date; a lesson he wrote in his book carries a small
   "from his book" tag, and when he has more than the card shows, a line says how many ("the 20
-  newest of 52 lessons"). With none it says so in one sentence. Needs abstractmemory's card with
-  book lessons (`lessons[].source: "diary"`) for those to appear; before, an entity whose lessons
-  were all in his book (nerin: 16) showed none anywhere (operator 2026-11-08).
+  newest of 52 lessons"). With none it says so in one sentence. Lessons from his book need
+  AbstractMemory's card with book lessons (`lessons[].source: "diary"`).
 - **Feelings among the key moments read as sentences.** A strong feeling, a bond, a scar, its
   healing, a broken bond and a feeling he chose to let weigh less now say who they are about and
   why, e.g. "A bond with admin formed — trusted me with my own time" or "A scar from web search
@@ -473,8 +487,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **When he recalls, the graph shows it, and keeps showing it.** The memories he brought to mind
   light up and the rest of the graph slowly dims; a ring says why each one came (present by right,
   from continuity, matched) and a line says how many. The highlight stays on after he answers, so
-  the graph shows the context behind his answer, until his next recall replaces it (operator
-  2026-11-08). A "Context" toggle in the graph toolbar shows or hides it: on by default, off shows
+  the graph shows the context behind his answer, until his next recall replaces it. A "Context" toggle in the graph toolbar shows or hides it: on by default, off shows
   the plain graph with its usual warmth so you can explore the rest; it is greyed out, with a
   hint, until he has recalled something, and the browser remembers your choice for the session.
   Escape or a click on empty space never clears it; clicking a lit memory still opens its card

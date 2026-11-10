@@ -16,6 +16,7 @@ export type ChatNoticeBadgesProps = {
     onOpen?: (notice: ChatNotice) => void | boolean;
     className?: string;
 };
-/** One row of badges, one per notice, in the served order. Nothing when there is no notice. */
+/** One row of badges, one per notice, in the served order (a duplicate once, an empty notice none).
+ * Nothing when there is no notice to show. */
 export declare function ChatNoticeBadges(props: ChatNoticeBadgesProps): React.ReactElement | null;
 //# sourceMappingURL=chat_notice_badges.d.ts.map
