@@ -4248,6 +4248,7 @@ body {
 .cw_compact .cm_panel.cm_compact .cm_body {
   display: flex;
   flex-direction: row;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -4266,7 +4267,8 @@ body {
   width: 128px;
   flex: none;
 }
-.cw_compact .cm_gauge_codes {
+/* The conduct codes span the gauge's box (the tone row carries cm_gauge_codes too: not it). */
+.cw_compact .cm_gauge_box .cm_gauge_codes {
   width: 100%;
 }
 .cw_compact .cm_reading_state {

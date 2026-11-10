@@ -226,6 +226,10 @@ describe("layout", () => {
   it("in the timeline's third column over the lanes' rows, about 110 px tall at most; the main area is never a grid for it", () => {
     expect(CSS).toMatch(/\.et_monitor_slot \{\s*grid-column: 3;\s*min-width: 0;/);
     expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 110px;[^}]*overflow: hidden;/);
+    // The tone row keeps its own width (it carries cm_gauge_codes too; only the gauge's codes span their box).
+    expect(CSS).toMatch(/\.cw_compact \.cm_tone_codes \{\s*width: 168px;/);
+    expect(CSS).not.toMatch(/\.cw_compact \.cm_gauge_codes \{/);
+    expect(CSS).toMatch(/\.cw_compact \.cm_gauge_box \.cm_gauge_codes \{\s*width: 100%;/);
     expect(CSS).not.toMatch(/entity_monitor_dock|cw_dock|\.entity_main:has\(> \.entity/);
   });
 
