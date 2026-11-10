@@ -408,44 +408,6 @@ body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.cm_overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-}
-.cm_overlay_code {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  pointer-events: auto;
-  background: none;
-  border: none;
-  /* pointer on BOTH widgets' codes (operator dm#26: "the mouse must be
-   * consistent on the names") — both open the axis modal on click. */
-  cursor: pointer;
-  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  opacity: 0.85;
-  padding: 1px 2px;
-}
-.cm_overlay_num {
-  display: block;
-  margin-top: 1px;
-  padding: 0 2px;
-  border-radius: 3px;
-  /* readable even where a petal at the outer edge reaches its label */
-  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
-  font-size: max(calc(9px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.1;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-.cm_overlay_code:hover {
-  opacity: 1;
-  text-shadow: 0 0 8px currentColor;
-}
 
 /* One message group in the thread (context fold + card + badge). */
 .cd_msg {
@@ -3435,8 +3397,6 @@ body {
 .entities_index {
   flex: 1;
   overflow-y: auto;
-  padding: 28px clamp(20px, 6vw, 80px);
-  max-width: 900px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
@@ -3470,54 +3430,8 @@ body {
 .eix_refresh:hover {
   border-color: var(--ea-accent);
 }
-.eix_list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.eix_row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--panel, #131a26);
-  border: 1px solid var(--line, #24304a);
-  border-radius: 8px;
-  padding: 12px 16px;
-  cursor: pointer;
-  color: var(--text, #d7e0ee);
-  text-align: left;
-  font-family: inherit;
-  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.eix_row:hover {
-  border-color: var(--ea-accent);
-}
-.eix_name {
-  font-weight: 600;
-  font-size: max(calc(14px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  min-width: 110px;
-  text-transform: capitalize;
-}
-
-.eix_handle {
-  color: var(--text-dim);
-  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  max-width: 190px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 /* ---- fleet wall (item 13, O-C): one live tile per life ---- */
-
-.eix_fleet_bar {
-  max-width: 1180px;
-  margin: 10px auto 0;
-  padding: 0 18px;
-  display: flex;
-  justify-content: flex-end;
-}
 
 .fleet_view {
   max-width: 1380px;
@@ -4493,29 +4407,6 @@ body {
   padding-left: 26px;
   opacity: 0.85;
 }
-.eix_badge {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  padding: 2px 8px;
-  border-radius: 9px;
-  border: 1px solid var(--line, #24304a);
-  color: var(--text-dim, #8b98ad);
-  white-space: nowrap;
-}
-.eix_loop_stopping { color: color-mix(in srgb, var(--bond) 75%, var(--text)); border-color: #6b5c2c; }
-.eix_loop_warning { color: color-mix(in srgb, var(--scar) 65%, var(--text)); border-color: #6b2c2c; }
-.eix_id {
-  flex: 1;
-  color: var(--text-dim, #8b98ad);
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.eix_open {
-  color: var(--ea-accent);
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  white-space: nowrap;
-}
 .eix_note,
 .eix_error,
 .eix_footer {
@@ -4753,104 +4644,9 @@ body {
 }
 
 /* ------------------------------------------------ roster card grid (L1) */
+/* The grid; its columns are entities_index.css's, its gap roster_cards.css's (the kit's cards). */
 .eix_grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
-  gap: 12px;
-}
-.eix_card {
-  background: var(--panel, #131a26);
-  border: 1px solid var(--line, #24304a);
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.eix_card:hover {
-  border-color: var(--ea-accent);
-}
-.eix_card_head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 12px 14px 8px;
-  background: none;
-  border: none;
-  color: var(--text, #d7e0ee);
-  cursor: pointer;
-  text-align: left;
-  font-family: inherit;
-  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.eix_card_body {
-  padding: 0 14px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-.eix_meta {
-  display: flex;
-  gap: 12px;
-  color: var(--text-dim, #8b98ad);
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.eix_upto {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  align-items: center;
-}
-.eix_upto_label {
-  color: var(--text-dim, #8b98ad);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.eix_interest {
-  background: var(--bg, #0b0f16);
-  border: 1px solid var(--line, #24304a);
-  border-radius: 9px;
-  padding: 2px 8px;
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text, #d7e0ee);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* A drawn tile whose card has not answered yet (roster_tiles.ts): three quiet lines hold the
- * loaded lines' place (the meta line at 11 px, the interest chips at 11 px + padding + border),
- * so nothing moves when the card lands. Still under reduced motion. */
-.eix_sk {
-  display: block;
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--line, #24304a) 0%, color-mix(in srgb, var(--line, #24304a) 45%, transparent) 50%, var(--line, #24304a) 100%);
-  background-size: 200% 100%;
-  opacity: 0.55;
-  animation: cd_shimmer_slide 1.6s ease-in-out infinite;
-}
-.eix_sk_meta {
-  width: 46%;
-  height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4);
-}
-.eix_sk_last {
-  width: 34%;
-}
-.eix_sk_upto {
-  width: 78%;
-  height: calc(max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px)) * 1.4 + 6px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .eix_sk { animation: none; }
-}
-.eix_card_actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 14px 12px;
-  border-top: 1px solid var(--line, #24304a);
 }
 /* The roster tile's phase bar (no power button): the pills, then the sentence wrapping under them. */
 .eix_phase_bar {
@@ -4867,9 +4663,6 @@ body {
   flex: 1 1 100%;
   white-space: normal;
   max-width: 100%;
-}
-.eix_card_actions .eix_id {
-  text-align: right;
 }
 .ic_rep_channels {
   color: var(--text-dim, #8b98ad);
@@ -5129,20 +4922,20 @@ body {
 /* ------------------------------------------- one derived life-state chip */
 /* Visiting rides the memory token mixed toward text so it stays legible on
  * BOTH theme groups (the raw #7cc4ff washed out on light themes). */
-.eh_life_visiting, .eix_life_visiting { color: color-mix(in srgb, var(--memory) 70%, var(--text)); border-color: color-mix(in srgb, var(--memory) 50%, transparent); }
-.eh_life_working, .eix_life_working { color: var(--ea-accent); border-color: color-mix(in srgb, var(--ea-accent) 50%, transparent); }
-.eh_life_own_time, .eix_life_own_time { color: var(--ea-accent); border-color: color-mix(in srgb, var(--ea-accent) 50%, transparent); }
-.eh_life_sleeping, .eix_life_sleeping,
-.eh_life_dreaming, .eix_life_dreaming { color: var(--standing); border-color: color-mix(in srgb, var(--standing) 50%, transparent); }
+.eh_life_visiting { color: color-mix(in srgb, var(--memory) 70%, var(--text)); border-color: color-mix(in srgb, var(--memory) 50%, transparent); }
+.eh_life_working { color: var(--ea-accent); border-color: color-mix(in srgb, var(--ea-accent) 50%, transparent); }
+.eh_life_own_time { color: var(--ea-accent); border-color: color-mix(in srgb, var(--ea-accent) 50%, transparent); }
+.eh_life_sleeping,
+.eh_life_dreaming { color: var(--standing); border-color: color-mix(in srgb, var(--standing) 50%, transparent); }
 /* Resting = own time ON, between days: GOLD family (it belongs to the
  * own-time axis), dimmed — the violet it wore before read as "some kind
  * of asleep" at a glance (adversary find: violet-vs-violet). */
-.eh_life_resting, .eix_life_resting { color: color-mix(in srgb, var(--ea-accent) 80%, transparent); border-color: color-mix(in srgb, var(--ea-accent) 40%, transparent); }
-.eh_life_paused, .eix_life_paused { color: color-mix(in srgb, var(--bond) 75%, var(--text)); border-color: rgba(216,192,122,0.5); }
+.eh_life_resting { color: color-mix(in srgb, var(--ea-accent) 80%, transparent); border-color: color-mix(in srgb, var(--ea-accent) 40%, transparent); }
+.eh_life_paused { color: color-mix(in srgb, var(--bond) 75%, var(--text)); border-color: rgba(216,192,122,0.5); }
 /* eh_life_awake retired (spec v6, laurent c203: awake is never a chip —
  * the settling render wears the sleeping accent toward its destination). */
 /* Unknown = no read answered — visibly a non-claim, never a phase. */
-.eh_life_unknown, .eix_life_unknown { color: var(--text-dim); border-color: rgba(139, 152, 173, 0.4); border-style: dashed; }
+.eh_life_unknown { color: var(--text-dim); border-color: rgba(139, 152, 173, 0.4); border-style: dashed; }
 
 /* Sleep column: standing config, not yet consumed by the sleep pass. */
 .wsp_phase_note {
@@ -5565,13 +5358,6 @@ body {
 /* Hover card never wider than the screen. */
 .gc_hovercard {
   width: min(420px, calc(100vw - 16px));
-}
-
-/* Wide screens: the roster uses the room on a 2560 px window (3 card
- * columns) while 1280-1600 px windows keep today's 900 px column exactly
- * (the clamp floor). */
-.entities_index {
-  max-width: clamp(900px, 60vw - 100px, 1320px);
 }
 
 /* The graph canvas is a container: its overlays adapt to the CANVAS width
@@ -6014,9 +5800,6 @@ body {
     margin-left: auto;
   }
 
-  .entities_index {
-    padding: 16px var(--gutter, 12px) calc(24px + var(--safe-bottom, 0px));
-  }
   .eix_head {
     flex-wrap: wrap;
     gap: 10px;
@@ -6284,28 +6067,6 @@ body {
     padding: 12px;
   }
 
-  /* Roster: each entity is a flat section with a hairline, not a card. */
-  .eix_grid {
-    gap: 0;
-  }
-  .eix_card,
-  .eix_card:hover {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    border-bottom: 1px solid var(--line, #24304a);
-  }
-  .eix_card_head {
-    padding: 12px 0 6px;
-  }
-  .eix_card_body {
-    padding: 0 0 8px;
-  }
-  .eix_card_actions {
-    flex-wrap: wrap;
-    padding: 6px 0 12px;
-    border-top: none;
-  }
 }
 
 @media (max-width: 767.98px) {
@@ -6325,10 +6086,6 @@ body {
   .ev_panel,
   .fleet_view {
     --font-scale: calc(var(--ent-user-scale, 1) * 1.3);
-  }
-  /* The roster's phase bar matches the panes. */
-  .eix_card_actions .ec_pb_pill.af-chip {
-    font-size: calc(14px * var(--ent-user-scale, 1));
   }
 }
 

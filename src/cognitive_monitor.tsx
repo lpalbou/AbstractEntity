@@ -256,19 +256,6 @@ export function ToneRow({ scores }: { scores: Record<string, number> | undefined
   );
 }
 
-/** A register's hover card: what it measures and this reply's similarity. */
-export function registerExplainer(a: AxisInfo, similarity: number | undefined): ExplainerContent {
-  const read = typeof similarity === "number" && Number.isFinite(similarity);
-  return {
-    code: a.code,
-    name: a.name,
-    color: a.color,
-    summary: a.summary,
-    facts: [{ label: "This reply", value: read ? simText(similarity) : "—" }],
-    note: read ? `Similarity, on one scale for every reply: ${simText(RADAR_MIN)} at the inner ring, +${simText(RADAR_MAX)} at the outer edge.` : "No similarity was read for this reply.",
-  };
-}
-
 /** A tone channel's hover card: what it measures, this reply's score and its pole word. */
 export function toneExplainer(a: AxisInfo, value: number | undefined): ExplainerContent {
   const tier = toneTier(a.id, value);
@@ -318,54 +305,4 @@ export function conductExplainer(a: AxisInfo, cell: ConductCell | null | undefin
     facts: [{ label: "This turn", value: cell?.value ?? "—" }],
     ...(cell ? (cell.reason ? { note: cell.reason } : {}) : { note: "Not read yet." }),
   };
-}
-
-/** How far a petal label keeps from the bloom's vertical centre line (px). */
-const LABEL_AXIS_GAP = 3;
-
-/** The CSS transform that centres a petal label on its anchor (x, y) in a box `width` wide, with
- * two bounds. (1) It never crosses the bloom's vertical centre line (width / 2): the two bottom
- * petals sit only ±20° off that line, so two centred signed numbers ("−0.08 −0.04") touched at the
- * 13–14 px type floor and overlapped on a phone; a label left of the line keeps its right edge
- * LABEL_AXIS_GAP short of it, one on the right its left edge. (2) It never leaves the box: the side
- * labels' numbers ran past the panel's edge. A label on the line (the top petal) stays centred; a
- * label far from both bounds is unaffected (the centred position wins). */
-export function petalLabelTransform(x: number, width: number): string {
-  const cx = width / 2;
-  const dx = x - cx;
-  if (Math.abs(dx) < 0.5) return "translate(-50%, -50%)";
-  const px = (v: number) => `${v.toFixed(1)}px`;
-  return dx < 0
-    ? `translate(max(${px(-x)}, min(-50%, calc(${px(cx - LABEL_AXIS_GAP - x)} - 100%))), -50%)`
-    : `translate(min(calc(${px(width - x)} - 100%), max(-50%, ${px(cx + LABEL_AXIS_GAP - x)})), -50%)`;
-}
-
-/** Petal-anchor overlay: the 3-letter codes AT their petal positions over
- * the canvas (DOM, not canvas — each code's hover card explains it). The
- * anchors mirror the vendored Bloom renderer's label anchors; no label
- * crosses the vertical centre line (petalLabelTransform). */
-export function BloomAxisOverlay({ width, height, emotions }: { width: number; height: number; /** The shown reply's similarities: each code carries its number. */ emotions?: Record<string, number> }): React.ReactElement | null {
-  if (width < 40 || height < 40) return null;
-  const cx = width / 2;
-  const cy = height / 2;
-  const R = Math.min(width, height) * 0.4;
-  const lr = R * 0.92 + 10;
-  const m = EMOTION_AXES.length;
-  return (
-    <div className="cm_overlay" aria-hidden="false" style={{ width, height }}>
-      {EMOTION_AXES.map((a, i) => {
-        const ang = (i / m) * Math.PI * 2 - Math.PI / 2;
-        const x = cx + Math.cos(ang) * lr;
-        const y = cy + Math.sin(ang) * lr;
-        const sim = emotions?.[a.id];
-        const num = typeof sim === "number" && Number.isFinite(sim) ? simText(sim) : "—";
-        return (
-          <ExplainedCode key={a.id} className="cm_overlay_code" style={{ left: x, top: y, color: a.color, transform: petalLabelTransform(x, width) }} explain={registerExplainer(a, sim)}>
-            {a.code}
-            {emotions ? <span className="cm_overlay_num">{num}</span> : null}
-          </ExplainedCode>
-        );
-      })}
-    </div>
-  );
 }

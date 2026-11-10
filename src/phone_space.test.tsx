@@ -131,12 +131,6 @@ describe("phone layout rules (< 768 px)", () => {
     expect(rule(sm, ".hp_sub")).toMatch(/flex:\s*1 1 100%/);
   });
 
-  it("roster entities are flat sections, not cards", () => {
-    const card = rule(sm, ".eix_card");
-    expect(card).toMatch(/border:\s*none/);
-    expect(card).toMatch(/border-bottom:\s*1px solid/);
-  });
-
   it("the open phone drawer hides the covered graph overlays", () => {
     expect(sm).toMatch(/\.entity_main:has\(> \.side_tabs_drawer:not\(\.side_tabs_collapsed\)\) > \.entity_canvas_wrap\s*\{\s*visibility:\s*hidden/);
   });
