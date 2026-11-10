@@ -48,15 +48,18 @@
   outline-offset: -1px;
 }
 
-/* The selected row keeps its card's hue: its topic's colour, stronger,
- * instead of the kit's accent wash (a focused topic's card was two colours:
- * the accent on its row, its tint below). */
+/* The selected row keeps its card's hue: its topic's colour, a little
+ * stronger, instead of the kit's accent wash (a focused topic's card was
+ * two colours: the accent on its row, its tint below). At most 11 %: the
+ * dim text (the focused topic's whole summary) keeps 4.5:1 on every topic
+ * colour in the dark theme (18 % fell to 3.8:1; topics_panel_contrast
+ * .test.ts computes all twelve, dark and light). */
 .gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] {
   background: none;
 }
 
 .gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] .gc_tp_card::before {
-  background: color-mix(in srgb, var(--gc-tp-color) 18%, transparent);
+  background: color-mix(in srgb, var(--gc-tp-color) 11%, transparent);
 }
 
 /* A card starts at its topic's row: a gap above it, its top corners. */

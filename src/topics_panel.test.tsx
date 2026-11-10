@@ -504,7 +504,7 @@ describe("one card per topic, tinted with its colour (backlog 0014)", () => {
     expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth]")).toContain("outline: 1px solid var(--accent-border);");
     // …and keeps its card's hue (its topic's colour, stronger), never the kit's accent wash.
     expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth]")).toContain("background: none;");
-    expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] .gc_tp_card::before")).toContain("color-mix(in srgb, var(--gc-tp-color) 18%, transparent)");
+    expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] .gc_tp_card::before")).toContain("color-mix(in srgb, var(--gc-tp-color) 11%, transparent)");
     // Each level's text starts under its parent's (a 16 px chevron and its 6 px gap); on a touch screen
     // the chevron keeps that size and the kit's invisible 44 px hit area, not the app's 44 px button floor.
     expect(row).toContain("padding-left: calc(8px + var(--af-disclosure-depth, 0) * 22px);");
