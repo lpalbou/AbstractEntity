@@ -1544,9 +1544,12 @@ export function GraphCanvas({
         const a = toScreen(la.x, la.y);
         const b = toScreen(lb.x, lb.y);
         const dim = edgeDim(se.a, se.b, null);
-        // The hovered or selected memory's own born-linked lines show; every
-        // other one is the one dark grey (graph_usage EDGE_QUIET_ALPHA; was
-        // 0.16, Castor's 3 999 lines made a haze: backlog 0025).
+        // The hovered or selected memory's own born-linked lines show (the
+        // topology grey, FOCUS_EDGE_FLOOR); every other one is the one dark
+        // grey, the scale's dark end at EDGE_QUIET_ALPHA (was the light
+        // topology grey at 0.16: Castor's 3 999 lines, packed in his topics'
+        // circles, summed to a pale haze; a dark colour stays dark however
+        // many lines cross: backlog 0025).
         const seLit = driver === "focus" && emphasis !== null && emphasis.has(se.a) && emphasis.has(se.b);
         ctx.globalAlpha = dim;
         ctx.beginPath();
@@ -1555,7 +1558,7 @@ export function GraphCanvas({
         // Uniform faint SOLID line — the type no longer rides a dash
         // pattern (indistinguishable at this alpha); it rides the glyph.
         ctx.setLineDash([]);
-        ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, seLit ? FOCUS_EDGE_FLOOR : EDGE_QUIET_ALPHA);
+        ctx.strokeStyle = seLit ? rgbaOf(CANVAS_THEME.dim, FOCUS_EDGE_FLOOR) : rgbaOf(CANVAS_THEME.cold, EDGE_QUIET_ALPHA);
         ctx.lineWidth = 1;
         ctx.stroke();
 
@@ -1592,8 +1595,10 @@ export function GraphCanvas({
       // wider. Under the recall a TRAVELLED path takes its ring's colour at
       // full strength and every other line dims (edgeDim). The amber flash
       // stays the "just traveled" overlay.
-      const usageStroke = (mix: number, alpha: number) => {
-        const c = usageRgb(mix, CANVAS_THEME.dim, CANVAS_THEME.warm);
+      // A lit line (a hovered memory's) ramps from the topology grey, every
+      // other from the scale's dark grey (it stays dark when thousands cross).
+      const usageStroke = (mix: number, alpha: number, lit: boolean) => {
+        const c = usageRgb(mix, lit ? CANVAS_THEME.dim : CANVAS_THEME.cold, CANVAS_THEME.warm);
         return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`;
       };
       for (const e of fold.edges.values()) {
@@ -1649,7 +1654,7 @@ export function GraphCanvas({
           ctx.beginPath();
         } else {
           const focusLit = driver === "focus" && emphasis !== null && emphasis.has(e.a) && emphasis.has(e.b);
-          ctx.strokeStyle = usageStroke(look.mix, focusLit ? Math.min(1, Math.max(FOCUS_EDGE_FLOOR, look.alpha * FOCUS_LIT_GAIN)) : look.alpha);
+          ctx.strokeStyle = usageStroke(look.mix, focusLit ? Math.min(1, Math.max(FOCUS_EDGE_FLOOR, look.alpha * FOCUS_LIT_GAIN)) : look.alpha, focusLit);
           ctx.lineWidth = look.width;
         }
         ctx.stroke();

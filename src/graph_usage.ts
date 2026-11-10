@@ -130,8 +130,10 @@ export function usageRgb(mix: number, cold: Rgb, warm: Rgb): Rgb {
  * life draws 3 999 born-linked lines and 2 368 co-use trails; at 0.16 and up
  * to 0.11 they summed to a pale grey-green haze. Now:
  * - every line he has not walked much is ONE dark grey near the background
- *   (EDGE_QUIET_ALPHA of the topology grey): the born-linked lines and the
- *   trails up to the upper third of the ranks;
+ *   (EDGE_QUIET_ALPHA of the scale's dark end, coldOf: a dark colour stays
+ *   dark however many lines cross, where the light topology grey at a low
+ *   alpha summed to a haze in his topics' packed circles): the born-linked
+ *   lines and the trails up to the upper third of the ranks;
  * - the upper third turns green on a steep curve (the square of the way
  *   through it), still faint;
  * - the top tenth is bright and wider, its very top the strongest, never

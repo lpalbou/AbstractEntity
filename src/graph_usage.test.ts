@@ -217,10 +217,11 @@ describe("the ramp: dark grey -> green, the top decile pops", () => {
 
   it("the canvas draws both line kinds with it: born-linked lines and quiet trails the same dark grey, a hovered memory's lines lit to a floor", () => {
     const canvas = fs.readFileSync(path.resolve(__dirname, "graph_canvas.tsx"), "utf8");
-    expect(canvas).toContain("ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, seLit ? FOCUS_EDGE_FLOOR : EDGE_QUIET_ALPHA);");
-    expect(canvas).toContain("const c = usageRgb(mix, CANVAS_THEME.dim, CANVAS_THEME.warm);");
+    // The quiet lines are the scale's DARK end (they stay dark however many cross); a lit one ramps from the topology grey.
+    expect(canvas).toContain("ctx.strokeStyle = seLit ? rgbaOf(CANVAS_THEME.dim, FOCUS_EDGE_FLOOR) : rgbaOf(CANVAS_THEME.cold, EDGE_QUIET_ALPHA);");
+    expect(canvas).toContain("const c = usageRgb(mix, lit ? CANVAS_THEME.dim : CANVAS_THEME.cold, CANVAS_THEME.warm);");
     expect(canvas).toContain("const look = usageEdgeStyle(place, usage.edgeTiers);");
-    expect(canvas).toContain("ctx.strokeStyle = usageStroke(look.mix, focusLit ? Math.min(1, Math.max(FOCUS_EDGE_FLOOR, look.alpha * FOCUS_LIT_GAIN)) : look.alpha);");
+    expect(canvas).toContain("ctx.strokeStyle = usageStroke(look.mix, focusLit ? Math.min(1, Math.max(FOCUS_EDGE_FLOOR, look.alpha * FOCUS_LIT_GAIN)) : look.alpha, focusLit);");
     expect(canvas).toContain("ctx.lineWidth = look.width;");
     expect(canvas).not.toContain("rgbaOf(CANVAS_THEME.dim, 0.16)");
     expect(FOCUS_EDGE_FLOOR).toBeGreaterThan(EDGE_QUIET_ALPHA * 4);
