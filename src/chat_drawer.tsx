@@ -1079,7 +1079,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           if (typeof out["turns"] === "number") parts.push(`${out["turns"]} turn${out["turns"] === 1 ? "" : "s"}`);
           const notices = Array.isArray(out["reflection_notices"]) ? (out["reflection_notices"] as unknown[]) : [];
           if (notices.length > 0) parts.push(`reflection: ${notices.map(String).join(" · ")}`);
-          if (out["reflection_pending"]) parts.push("his look-back is pending (runs at the next open)");
+          if (out["reflection_pending"]) parts.push("the look-back is pending (runs at the next open)");
           // Fold what the STREAM showed during the close into the recap —
           // the reflection's visible acts, not just the door's summary.
           const observed = reflectionActivity(envelopesRef.current, closeSeqRef.current);

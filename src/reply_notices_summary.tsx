@@ -18,34 +18,78 @@ export interface TurnDiaryEntry {
   recordId: string | null;
   /** Its title as formed; "" for a private entry or one whose title is still being written. */
   title: string;
+  /** An item neither lane serves (not a key, not an entry object): listed as unreadable, never as a
+   * healthy entry (review N2, 2026-11-10). */
+  unreadable: boolean;
+}
+
+/** Each served value reported once (a list re-reads on every render of the thread). */
+const reportedSeams = new WeakSet<object>();
+function seam(field: string, value: unknown, what: string): void {
+  if (value !== null && typeof value === "object") {
+    if (reportedSeams.has(value)) return;
+    reportedSeams.add(value);
+  }
+  console.error(`#SEAM turn detail \`${field}\`: ${what} (the gateway serves a list; entity_visits.py visit_turn_result)`, value);
+}
+
+/** A turn's served list field (`records_formed`, `diary_entries`): the list as served; absent = none.
+ * Anything else is not what either lane serves: reported loudly (#SEAM) and read as no list, never
+ * counted as one item (review N1: "1 diary" over a panel that lists nothing). */
+export function servedList(field: string, served: unknown): unknown[] {
+  if (served === undefined) return [];
+  if (Array.isArray(served)) return served;
+  seam(field, served, "not a list");
+  return [];
+}
+
+/** The records a turn formed (`records_formed`, their graph ids, both lanes): an item that is not an
+ * id string is reported and reads null (listed as unreadable, never shown as an id). */
+export function turnFormedIds(served: unknown): Array<string | null> {
+  const list = servedList("records_formed", served);
+  if (list.some((id) => typeof id !== "string" || !id)) seam("records_formed", list, "an item is not a record id");
+  return list.map((id) => (typeof id === "string" && id ? id : null));
 }
 
 /** The diary entries of a turn's `diary_entries`, as each lane serves it:
  *  - the visit lane (AbstractGateway entity_visits.py `visit_turn_result`, the runtime's
  *    `_turn.diary_meta`, act_only.capture_diary_elections): one object per entry,
  *    `{entry_id, kind, visibility, projected_record_id, title?}` (a private one has no title);
- *  - the hosted chat (entity_chat.py, `TurnReport.diary`): the entries' keys, strings. */
+ *  - the hosted chat (entity_chat.py, `TurnReport.diary`): the entries' keys, strings.
+ * An item that is neither (no `entry_id` and `kind` strings) is listed as unreadable and reported. */
 export function turnDiaryEntries(served: unknown): TurnDiaryEntry[] {
-  if (!Array.isArray(served)) return [];
-  return served.map((item): TurnDiaryEntry => {
-    if (typeof item === "string") return { entryId: item, kind: "", private: false, recordId: null, title: "" };
-    const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+  const list = servedList("diary_entries", served);
+  if (list.some((item) => !readableDiaryItem(item))) seam("diary_entries", list, "an item is neither an entry key nor an entry");
+  return list.map((item): TurnDiaryEntry => {
+    if (typeof item === "string") return { entryId: item, kind: "", private: false, recordId: null, title: "", unreadable: false };
+    if (!readableDiaryItem(item)) return { entryId: "", kind: "", private: false, recordId: null, title: "", unreadable: true };
+    const o = item as Record<string, unknown>;
     const isPrivate = o.visibility === "private";
     return {
-      entryId: typeof o.entry_id === "string" ? o.entry_id : "",
-      kind: typeof o.kind === "string" ? o.kind : "",
+      entryId: o.entry_id as string,
+      kind: o.kind as string,
       private: isPrivate,
       recordId: typeof o.projected_record_id === "string" && o.projected_record_id ? o.projected_record_id : null,
       title: !isPrivate && typeof o.title === "string" ? o.title.trim() : "",
+      unreadable: false,
     };
   });
 }
 
-/** How a diary entry reads in a list: its title; a private entry or one still being titled says so. */
+function readableDiaryItem(item: unknown): boolean {
+  if (typeof item === "string") return true;
+  if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+  const o = item as Record<string, unknown>;
+  return typeof o.entry_id === "string" && typeof o.kind === "string";
+}
+
+/** How a diary entry reads in a list: its title; a private entry, one still being titled, a bare key
+ * and an unreadable item each say so. */
 export function diaryEntryWords(entry: TurnDiaryEntry): string {
+  if (entry.unreadable) return "an entry this page cannot read";
   if (entry.private) return "a private entry";
   if (entry.title) return entry.title;
-  return entry.kind ? "its title is still being written" : "an entry in his book";
+  return entry.kind ? "its title is still being written" : "a diary entry";
 }
 
 // ---- the summary under his words (operator 2026-11-10: in the message's own footer, left-aligned,
@@ -80,8 +124,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * files, the operator's notices. */
 export function turnFactChips(detail: {
   memories_in_context?: number;
-  records_formed?: unknown;
-  diary_entries?: unknown;
+  records_formed?: readonly unknown[];
+  diary_entries?: readonly unknown[];
   tools_ran?: string[];
   tool_details?: unknown;
   files?: unknown[];
@@ -90,18 +134,16 @@ export function turnFactChips(detail: {
   const chips: TurnFactChip[] = [];
   if (typeof detail.memories_in_context === "number") {
     const n = detail.memories_in_context;
-    chips.push({ key: "memories", label: plural(n, "memory", "memories"), title: n === 1 ? "The memory he recalled this turn" : `The ${n} memories he recalled this turn`, tab: "context", record: null });
+    chips.push({ key: "memories", label: plural(n, "memory", "memories"), title: n === 1 ? "The memory recalled this turn" : `The ${n} memories recalled this turn`, tab: "context", record: null });
   }
-  const formed = Array.isArray(detail.records_formed) ? detail.records_formed.filter((r): r is string => typeof r === "string" && r !== "") : [];
-  const formedCount = Array.isArray(detail.records_formed) ? detail.records_formed.length : detail.records_formed ? 1 : 0;
-  if (formedCount) chips.push({ key: "formed", label: `${formedCount} formed`, title: formedCount === 1 ? "The memory this turn formed" : "What this turn formed", tab: "context", record: formedCount === 1 ? formed[0] ?? null : null });
+  const formed = turnFormedIds(detail.records_formed);
+  if (formed.length) chips.push({ key: "formed", label: `${formed.length} formed`, title: formed.length === 1 ? "The memory this turn formed" : "What this turn formed", tab: "context", record: formed.length === 1 ? formed[0] : null });
   const diary = turnDiaryEntries(detail.diary_entries);
-  const diaryCount = Array.isArray(detail.diary_entries) ? diary.length : detail.diary_entries ? 1 : 0;
-  if (diaryCount) chips.push({ key: "diary", label: `${diaryCount} diary`, title: diaryCount === 1 ? "The entry he wrote in his book" : "The entries he wrote in his book", tab: "context", record: diary.length === 1 ? diary[0].recordId : null });
+  if (diary.length) chips.push({ key: "diary", label: `${diary.length} diary`, title: diary.length === 1 ? "The diary entry written this turn" : "The diary entries written this turn", tab: "context", record: diary.length === 1 ? diary[0].recordId : null });
   const toolCount = (detail.tools_ran ?? []).length;
   chips.push(
     toolCount > 0 || toolGaugeTrustworthy(detail)
-      ? { key: "tools", label: plural(toolCount, "tool", "tools"), title: toolCount ? "The tools he used this turn" : "He used no tool this turn", tab: "tools", record: null }
+      ? { key: "tools", label: plural(toolCount, "tool", "tools"), title: toolCount ? "The tools used this turn" : "No tool was used this turn", tab: "tools", record: null }
       : { key: "tools", label: "tools unverified", title: "Which tools ran is not served for this turn", tab: "tools", record: null },
   );
   const files = detail.files?.length ?? 0;

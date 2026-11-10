@@ -6,14 +6,16 @@
  * entries `{entry_id, kind, visibility, projected_record_id, title}`; the panel rendered each as a
  * React child (React error #31). Rendered with react-dom/server (no DOM in the tests).
  */
+import fs from "fs";
+import path from "path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { visitReplyMessage } from "./chat_drawer";
 import { ChatMessageList, type DrawerMessage } from "./chat_message_list";
 import { DIARY_ENTRY, DIARY_RECORD, DIARY_TITLE, FORMED_RECORD, VISIT_TURN_WITH_DIARY } from "./fixtures/visit_turn_reply";
-import { openTurnFact, TurnFactsRow, turnDiaryEntries, turnFactChips, type TurnFactChip, type TurnPanelTab } from "./reply_notices_summary";
+import { diaryEntryWords, openTurnFact, TurnFactsRow, turnDiaryEntries, turnFactChips, turnFormedIds, type TurnFactChip, type TurnPanelTab } from "./reply_notices_summary";
 import { TurnDetailModal, type ProbeTab } from "./turn_detail_modal";
 import type { ChatTurnResult } from "./stream_source";
 
@@ -25,13 +27,50 @@ const probe = (turn: ChatTurnResult, tab?: ProbeTab) =>
 describe("the diary entries a visit turn serves", () => {
   it("reads the visit lane's entries (objects) and the hosted lane's (entry ids)", () => {
     expect(turnDiaryEntries(VISIT_TURN_WITH_DIARY.diary_entries)).toEqual([
-      { entryId: DIARY_ENTRY, kind: "note", private: false, recordId: DIARY_RECORD, title: DIARY_TITLE },
+      { entryId: DIARY_ENTRY, kind: "note", private: false, recordId: DIARY_RECORD, title: DIARY_TITLE, unreadable: false },
     ]);
-    expect(turnDiaryEntries([DIARY_ENTRY])).toEqual([{ entryId: DIARY_ENTRY, kind: "", private: false, recordId: null, title: "" }]);
+    expect(turnDiaryEntries([DIARY_ENTRY])).toEqual([{ entryId: DIARY_ENTRY, kind: "", private: false, recordId: null, title: "", unreadable: false }]);
     expect(turnDiaryEntries([{ entry_id: "diary_p", kind: "note", visibility: "private", projected_record_id: "ex:diary-p" }])).toEqual([
-      { entryId: "diary_p", kind: "note", private: true, recordId: "ex:diary-p", title: "" },
+      { entryId: "diary_p", kind: "note", private: true, recordId: "ex:diary-p", title: "", unreadable: false },
     ]);
     expect(turnDiaryEntries(undefined)).toEqual([]);
+  });
+});
+
+describe("a served shape neither lane sends is said loudly, never read as healthy (review N1, N2)", () => {
+  const errors = () => vi.spyOn(console, "error").mockImplementation(() => undefined);
+  afterEach(() => vi.restoreAllMocks());
+  const seams = (spy: ReturnType<typeof errors>) => spy.mock.calls.filter((c) => String(c[0]).startsWith("#SEAM"));
+
+  it("a count instead of a list: no chip, nothing listed, a #SEAM error (never '1 diary' / '1 formed')", () => {
+    const spy = errors();
+    const turn = { ...message().detail!, diary_entries: 2, records_formed: 3 } as unknown as ChatTurnResult;
+    expect(turnFactChips(turn).map((c) => c.key)).toEqual(["memories", "tools"]);
+    expect(seams(spy).map((c) => String(c[0]))).toEqual([
+      expect.stringContaining("`records_formed`: not a list"),
+      expect.stringContaining("`diary_entries`: not a list"),
+    ]);
+    const out = probe(turn);
+    expect(out).toMatch(/Formed this turn <span class="tdm_count">0<\/span>/);
+  });
+
+  it("items that are neither a key nor an entry: listed as unreadable, reported once per list", () => {
+    const spy = errors();
+    const served = [{}, null, 7];
+    const entries = turnDiaryEntries(served);
+    expect(entries.map((e) => [e.unreadable, diaryEntryWords(e)])).toEqual([
+      [true, "an entry this page cannot read"],
+      [true, "an entry this page cannot read"],
+      [true, "an entry this page cannot read"],
+    ]);
+    turnDiaryEntries(served); // the thread re-reads it on every render
+    expect(seams(spy)).toHaveLength(1);
+    expect(diaryEntryWords(turnDiaryEntries(["diary_k"])[0])).toBe("a diary entry"); // a healthy hosted key
+    expect(turnFormedIds(["ex:episode-1", 5])).toEqual(["ex:episode-1", null]);
+    const out = probe({ ...message().detail!, records_formed: ["ex:episode-1", 5], diary_entries: served } as unknown as ChatTurnResult);
+    expect(out).toContain("a record this page cannot read");
+    expect(out.match(/an entry this page cannot read/g)).toHaveLength(3);
+    expect(seams(spy).length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -77,7 +116,6 @@ describe("the summary in his message's footer (operator design 2026-11-10)", () 
 
   it("one chip per fact: memories recalled, formed, diary, tools (zero included)", () => {
     expect(chips.map((c) => c.label)).toEqual(["44 memories", "1 formed", "1 diary", "0 tools"]);
-    expect(chips[0].title).toBe("The 44 memories he recalled this turn");
     expect(chips.map((c) => [c.key, c.record, c.tab])).toEqual([
       ["memories", null, "context"],
       ["formed", FORMED_RECORD, "context"],
@@ -106,6 +144,36 @@ describe("the summary in his message's footer (operator design 2026-11-10)", () 
     // Another author's reply (an agent) keeps the word.
     const agent = renderToStaticMarkup(<>{TurnFactsRow({ chips, onOpen: () => undefined, authorKind: "agent" })}</>);
     expect(agent).toContain('<span class="pc-chat-notice__kind cd_turnfacts_lead">system</span>');
+  });
+
+  it("no pronoun in any chip's words or tooltip (none is served for an entity)", () => {
+    const wide = turnFactChips({ memories_in_context: 3, records_formed: ["a", "b"], diary_entries: ["d1", "d2"], tools_ran: ["web_search"], tool_details: [], files: [{}], notices: ["n"] });
+    const none = turnFactChips({ memories_in_context: 1, records_formed: ["a"], diary_entries: ["d1"], tools_ran: [], tool_details: [] });
+    for (const c of [...chips, ...wide, ...none, ...turnFactChips({})]) {
+      expect(`${c.label} ${c.title}`, c.key).not.toMatch(/\b(he|his|him|she|her|hers)\b/i);
+    }
+    expect(chips[0].title).toBe("The 44 memories recalled this turn");
+    expect(chips[3].title).toBe("No tool was used this turn");
+  });
+
+  it("one line in the side panel's default width: the row's gap and padding against the measured chips (review N4)", () => {
+    // Measured in Chrome on the fixture page (review-final fixture_results.json default_1440_row,
+    // 2026-11-10): each chip's width at 7 px side padding, less that padding, at the kit chip's 12 px
+    // type; the row is the bubble's content width in the 380 px side panel (thread 319 px).
+    const TEXT_AND_BORDER_PX = { "44 memories": 76, "1 formed": 52, "1 diary": 39, "0 tools": 41 };
+    const ROW_PX = 285;
+    const DIGIT_PX = 7; // "12 tools", "69 memories": one more digit than the fixture's widest
+    const css = fs.readFileSync(path.join(__dirname, "chat_notices.css"), "utf8");
+    const gap = Number(css.match(/\.cd_turnfacts \{[^}]*gap: (\d+)px;/)?.[1]);
+    const chipRule = css.match(/\.cd_turnfacts \.cd_turnfact \{([^}]*)\}/)?.[1] ?? "";
+    const padX = Number(chipRule.match(/padding: \d+px (\d+)px;/)?.[1]);
+    expect(Number.isFinite(gap) && Number.isFinite(padX)).toBe(true);
+    expect(chipRule).not.toContain("font-size"); // the kit chip's size, the one measured
+    expect(chips.map((c) => c.label)).toEqual(Object.keys(TEXT_AND_BORDER_PX));
+    const widths = Object.values(TEXT_AND_BORDER_PX);
+    const row = widths.reduce((a, w) => a + w + 2 * padX, 0) + gap * (widths.length - 1);
+    expect(row).toBe(276); // what the browser drew at gap 4, padding 7 (1126 → 1402)
+    expect(row + DIGIT_PX).toBeLessThanOrEqual(ROW_PX);
   });
 
   it("each chip opens what it names: memories and tools the panel on their tab, formed and diary their record", () => {
