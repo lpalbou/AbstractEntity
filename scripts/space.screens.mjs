@@ -154,7 +154,7 @@ async function signIn(page) {
 async function gotoRoster(page, baseUrl) {
   await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await signIn(page);
-  await page.locator(".eix_card_head").first().waitFor({ state: "visible", timeout: 15000 });
+  await page.locator(".eix_entity_card").first().waitFor({ state: "visible", timeout: 15000 });
 }
 
 /** Opens a side-panel tab by its title (the rail is the vertical tab strip). */
