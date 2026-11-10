@@ -6,7 +6,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [0.12.0] - 2026-11-10
 
-On `@abstractframework/ui-kit` ^0.9.28 and `@abstractframework/panel-chat` ^0.9.12, both installed
+On `@abstractframework/ui-kit` ^0.9.28 and `@abstractframework/panel-chat` ^0.9.13, both installed
 from npm (the app no longer bundles a package file of the chat kit; a mention picked with `@` now
 sits as a chip inside your sentence). Needs AbstractGateway 0.21.0: the five-state phase bar, Stop
 and Resume, Settings → Mind (with Sleep), `@` mentions, reply badges, his topics, his brief on the
