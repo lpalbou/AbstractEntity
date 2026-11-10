@@ -1,4 +1,6 @@
+/// <reference types="vitest/config" />
 import { defineConfig, type Plugin } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 import { readFileSync } from "fs";
@@ -99,5 +101,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+  },
+  // The tests are the checkout's own: scratch copies under untracked/ (review
+  // mutants, probes, each with a src/ of its own) are never collected.
+  test: {
+    exclude: [...configDefaults.exclude, "untracked/**"],
   },
 });
