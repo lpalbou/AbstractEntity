@@ -1,9 +1,9 @@
-# Planned: The most used green: a little more contrast
+# Completed: The most used green: a little more contrast
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned
-- Completed: N/A
+- Status: Completed
+- Completed: 2026-11-10
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
 
 ## ADR status
@@ -31,3 +31,8 @@ The green memories and lines stand out a little more; the grey whisper is unchan
 
 ## Size
 XS (one constant).
+
+## Completion
+- Done 2026-11-10 (trivial fix, operator ruling 10:40): Top-decile step 0.75 -> 0.85 in `src/graph_usage.ts` `usageMix`; `graph_usage.test.ts` pins 0.85.
+- Validation: `npm test` 1609 green, `tsc` clean. Not screenshot-checked (credits); the operator sees it on the next local redeploy.
+- Original path: `docs/backlog/planned/0007_most_used_green_contrast.md`.

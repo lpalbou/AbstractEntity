@@ -127,7 +127,8 @@ describe("wiring", () => {
     expect(canvas).toContain("if (place > TOP_DECILE) {");
     expect(canvas).toContain("ctx.fillStyle = rgbaOf(fill, 1);");
     expect(canvas).toContain("const place = usage.edges.get(e.key) ?? 0;");
-    expect(canvas).toContain("usageStroke(mix, usageEdgeAlpha(place))");
+    expect(canvas).toContain("usageStroke(mix, Math.min(1, usageEdgeAlpha(place) * (focusLit ? FOCUS_LIT_GAIN : 1)))");
+    expect(canvas).toContain('const focusLit = driver === "focus" && emphasis !== null && emphasis.has(e.a) && emphasis.has(e.b);');
     expect(canvas).toContain("const travelled = driver === \"recall\" && recall ? recall.travelled : null;");
     expect(canvas).toContain("edgeDimTarget(emphasis, travelled, a, b, pairKey)");
     expect(canvas).toContain("ADMISSION_COLORS[RECALL_RING_ADMISSION[path]]");

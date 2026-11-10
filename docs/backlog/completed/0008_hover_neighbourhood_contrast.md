@@ -1,9 +1,9 @@
-# Planned: A hovered node's reachable edges and memories: about 20 % more contrast
+# Completed: A hovered node's reachable edges and memories: about 20 % more contrast
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned
-- Completed: N/A
+- Status: Completed
+- Completed: 2026-11-10
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
 
 ## ADR status
@@ -33,3 +33,8 @@ rules (they share the dim target, so their dimmed rest is 20 % darker too).
 
 ## Size
 XS (two constants).
+
+## Completion
+- Done 2026-11-10 (trivial fix, operator ruling 10:40): `DIMMED_NODE` 0.12 -> 0.10 and `FOCUS_LIT_GAIN = 1.2` in `src/recall_emphasis.ts`; `src/graph_canvas.tsx` multiplies a lit co-use line's usage alpha by it under the focus driver; `context_legend.test.tsx` pins the expression.
+- Validation: `npm test` 1609 green, `tsc` clean. Not screenshot-checked (credits); the operator sees it on the next local redeploy.
+- Original path: `docs/backlog/planned/0008_hover_neighbourhood_contrast.md`.

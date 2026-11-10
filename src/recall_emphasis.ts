@@ -485,9 +485,16 @@ export function emphasisDriver(args: {
   return null;
 }
 
-/** Emphasis targets the canvas eases toward (1 = full). */
-export const DIMMED_NODE = 0.12;
+/** Emphasis targets the canvas eases toward (1 = full). DIMMED_NODE was
+ * 0.12 until the operator's 2026-11-10 test ("the memories reachable from a
+ * hovered node are not visible enough"): 0.10 is a 20 % stronger
+ * lit-to-dimmed contrast. */
+export const DIMMED_NODE = 0.1;
 export const DIMMED_EDGE = 0.08;
+/** A lit co-use line under hover or selection (the "focus" driver) draws at
+ * this multiple of its usage alpha (operator 2026-11-10: ~20 % more
+ * contrast on the hovered node's reachable lines). */
+export const FOCUS_LIT_GAIN = 1.2;
 
 /** The dim target of one edge this frame. `travelled` is the recall's
  * travelled paths when the RECALL drives the canvas (else null): then an

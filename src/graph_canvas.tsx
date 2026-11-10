@@ -29,6 +29,7 @@ import {
   canvasRecall,
   DIMMED_NODE,
   dimRampSec,
+  FOCUS_LIT_GAIN,
   edgeDimTarget,
   emphasisDriver,
   lineAt,
@@ -1412,7 +1413,8 @@ export function GraphCanvas({
           }
           ctx.beginPath();
         } else {
-          ctx.strokeStyle = usageStroke(mix, usageEdgeAlpha(place));
+          const focusLit = driver === "focus" && emphasis !== null && emphasis.has(e.a) && emphasis.has(e.b);
+          ctx.strokeStyle = usageStroke(mix, Math.min(1, usageEdgeAlpha(place) * (focusLit ? FOCUS_LIT_GAIN : 1)));
           ctx.lineWidth = 0.8 + Math.log1p(e.count) * 0.4;
         }
         ctx.stroke();

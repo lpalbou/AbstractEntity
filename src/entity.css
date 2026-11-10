@@ -2757,19 +2757,6 @@ body {
 .el_key_item.el_tone_session .el_key_dot { color: var(--text); }
 .el_key_item.el_tone_quiet .el_key_dot { color: var(--text-dim); }
 
-.el_key_note {
-  font-style: italic;
-}
-
-.el_key summary {
-  cursor: pointer;
-  color: var(--text-dim);
-}
-
-.el_key[open] summary {
-  margin-bottom: 2px;
-}
-
 .el_key_items {
   display: flex;
   flex-wrap: wrap;

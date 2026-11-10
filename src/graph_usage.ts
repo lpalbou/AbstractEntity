@@ -100,12 +100,13 @@ export const TOP_DECILE = 0.9;
 
 /** Place on the scale -> position on the grey->green ramp (0 grey, 1
  * green). Below the top decile the ramp climbs gently, staying grey (at
- * most 0.3 of the way to green); the top decile STEPS to 0.75 and climbs
+ * most 0.3 of the way to green); the top decile STEPS to 0.85 (0.75 until the operator's 2026-11-10 test:
+ * "a bit more contrast, not too much") and climbs
  * to full green, so his most used tenth pops instead of sharing one
  * gradual wash. */
 export function usageMix(t: number): number {
   if (!(t > 0)) return 0;
-  if (t > TOP_DECILE) return 0.75 + 0.25 * Math.min(1, (t - TOP_DECILE) / (1 - TOP_DECILE));
+  if (t > TOP_DECILE) return 0.85 + 0.15 * Math.min(1, (t - TOP_DECILE) / (1 - TOP_DECILE));
   return 0.3 * Math.pow(t / TOP_DECILE, 2);
 }
 

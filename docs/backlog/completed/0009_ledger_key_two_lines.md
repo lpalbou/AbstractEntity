@@ -1,9 +1,9 @@
-# Planned: Ledger key: drop the two help lines so the panel is 2-3 lines
+# Completed: Ledger key: drop the two help lines so the panel is 2-3 lines
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned
-- Completed: N/A
+- Status: Completed
+- Completed: 2026-11-10
 - Source: the operator's live test of 0.12.0 (2026-11-10, ruling 10:40: every finding logged in his words)
 
 ## ADR status
@@ -32,3 +32,8 @@ The key is two lines wide, three at 400 px.
 
 ## Size
 XS.
+
+## Completion
+- Done 2026-11-10 (trivial fix, operator ruling 10:40): `LedgerKey` in `src/ledger_panel.tsx` is a plain key (no `<details>`, no stored fold, no note); the summary and note CSS removed from `src/entity.css`.
+- Validation: `npm test` 1609 green, `tsc` clean. Not screenshot-checked (credits); the operator sees it on the next local redeploy.
+- Original path: `docs/backlog/planned/0009_ledger_key_two_lines.md`.

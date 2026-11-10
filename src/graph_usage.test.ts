@@ -152,7 +152,7 @@ describe("the ramp: dark grey -> green, the top decile pops", () => {
     expect(usageMix(0)).toBe(0);
     expect(usageMix(0.5)).toBeLessThan(0.15);
     expect(usageMix(TOP_DECILE)).toBeLessThanOrEqual(0.3);
-    expect(usageMix(TOP_DECILE + 1e-9)).toBeCloseTo(0.75, 6);
+    expect(usageMix(TOP_DECILE + 1e-9)).toBeCloseTo(0.85, 6);
     expect(usageMix(1)).toBe(1);
     let prev = -1;
     for (let t = 0; t <= 1.0001; t += 0.01) {

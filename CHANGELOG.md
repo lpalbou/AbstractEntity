@@ -598,6 +598,13 @@ Highlights:
 
 ### Fixed
 
+- **The ledger's colour key is two lines** (operator 2026-11-10): the "Colour key · times are
+  UTC" fold and the "hover a time: its date, tick and event number" note are gone; the colours
+  and the day/tick mark are always shown (backlog 0009).
+- **His most used memories and lines are a little greener**: the top tenth of the usage scale
+  starts at 0.85 of the way to green (was 0.75) (backlog 0007).
+- **A hovered memory's neighbourhood stands out more**: the rest dims to 0.10 (was 0.12) and the
+  lit lines draw 1.2x stronger under hover or selection (backlog 0008).
 - **The "what moved in his mind" window under a reply is readable.** Each lookup now says in
   plain words what he asked (the web search, the page, the memory search) and what came back:
   web results as titles, snippets and links, a page with its title and text, memory search hits

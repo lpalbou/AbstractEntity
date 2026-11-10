@@ -9,7 +9,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { AF_MEDIA, AfMemoryHintChip, useAfMedia } from "@abstractframework/ui-kit";
+import { AfMemoryHintChip } from "@abstractframework/ui-kit";
 
 import { isDiaryGraphId } from "./stream_fold";
 
@@ -170,38 +170,13 @@ const LEDGER_KEY: Array<{ tone: string; label: string }> = [
   { tone: "session", label: "visits, phases, actions" },
 ];
 
-const KEY_OPEN_STORAGE = "entity.ledger.keyOpen";
-
+/** The key is the colours and the day/tick mark only, always shown: two
+ * lines wide, three on a phone (operator 2026-11-10: the "Colour key ·
+ * times are UTC" fold and the "hover a time" note made it too tall). */
 function LedgerKey(props: { showQuiet: boolean }): React.ReactElement {
-  const narrow = useAfMedia(AF_MEDIA.md);
   const items = props.showQuiet ? [...LEDGER_KEY, { tone: "quiet", label: "audit detail" }] : LEDGER_KEY;
-  // Your last choice wins; until you make one it is open on a wide screen
-  // and folded on a phone.
-  const [stored, setStored] = useState<boolean | null>(() => {
-    try {
-      const v = localStorage.getItem(KEY_OPEN_STORAGE);
-      return v === null ? null : v === "1";
-    } catch {
-      return null;
-    }
-  });
-  const open = stored ?? !narrow;
   return (
-    <details
-      className="el_key"
-      open={open}
-      onToggle={(e) => {
-        const next = (e.currentTarget as HTMLDetailsElement).open;
-        if (next === open) return;
-        setStored(next);
-        try {
-          localStorage.setItem(KEY_OPEN_STORAGE, next ? "1" : "0");
-        } catch {
-          // a remembered fold is a convenience only
-        }
-      }}
-    >
-      <summary>Colour key · times are UTC</summary>
+    <div className="el_key">
       <div className="el_key_items" aria-label="What the colours mean">
         {items.map((k) => (
           <span key={k.tone} className={`el_key_item el_tone_${k.tone}`}>
@@ -210,9 +185,8 @@ function LedgerKey(props: { showQuiet: boolean }): React.ReactElement {
           </span>
         ))}
         <span className="el_key_item el_key_mark">— day · tick —</span>
-        <span className="el_key_item el_key_note">hover a time: its date, tick and event number</span>
       </div>
-    </details>
+    </div>
   );
 }
 
