@@ -741,6 +741,60 @@ describe("bookkeeping markers (plan item 3, observer half)", () => {
   });
 });
 
+describe("a link between two versions of a topic is never a node (backlog 0021)", () => {
+  // The shapes memory's replay serves (castor 2026-11-10, seqs 105711-105713): a
+  // topic version's closure, then the closure of its `refines` link to the
+  // version before — labelled kind "memory", its graph id the community's.
+  const closureEnv = (seq: number, assertionId: string, display: Record<string, unknown>, kind = "supersede"): ReplayEnvelope =>
+    env({
+      family: "closure",
+      seq,
+      payload: { assertion_id: assertionId, kind, reason: "community ex:community-k1: version 9", replacement_ids: ["ex:community-new"], closure_id: `c-${seq}`, seq },
+      display: display as ReplayEnvelope["display"],
+    });
+  const version = (seq: number, gid: string, row: string) => [
+    bindingEnv(gid, seq, {}, { record_id: gid, kind: "community", title: "Harbour work", graph_id: gid, community_key: "ex:community-k1", version_seq: seq, size: 12 }),
+    // The version replaced later: its own closure, then its link's.
+    closureEnv(seq + 100, row, { record_id: row, kind: "community", title: "Harbour work", graph_id: gid, community_key: "ex:community-k1", size: 12 }),
+    closureEnv(seq + 101, `${row}-link`, { record_id: `${row}-link`, kind: "memory", title: `${gid} refines`, token_estimate: 22, graph_id: gid }),
+  ];
+
+  it("the topic's versions, their closures and their links mint no node; a memory's link still lands on the memory", () => {
+    const fold = foldEnvelopes(
+      [
+        bindingEnv("ex:episode-1", 1, {}, { record_id: "ex:episode-1", kind: "episode", title: "The north bed", graph_id: "ex:episode-1" }),
+        ...version(2, "ex:community-0a1", "row-v1"),
+        ...version(3, "ex:community-0a2", "row-v2"),
+      ].sort((a, b) => a.seq - b.seq),
+    );
+    expect([...fold.nodes.keys()]).toEqual(["ex:episode-1"]);
+    expect(fold.community_graph_ids).toEqual(new Set(["ex:community-0a1", "ex:community-0a2"]));
+  });
+
+  it("a version whose binding is before the loaded part: its own closure names it, and its link is still no node", () => {
+    const fold = foldEnvelopes(version(5, "ex:community-0a5", "row-v5").slice(1));
+    expect(fold.nodes.size).toBe(0);
+  });
+
+  it("without the version's binding or closure the link row is a node (the rule reads the graph id the topic named, never the words)", () => {
+    // The same link, alone: nothing on the stream says its source is a topic version.
+    const fold = foldEnvelopes(version(7, "ex:community-0a7", "row-v7").slice(2));
+    expect([...fold.nodes.keys()]).toEqual(["row-v7-link"]);
+    expect(fold.nodes.get("row-v7-link")?.kind).toBe("relation");
+  });
+
+  it("a memory's own refines link closed after it never becomes a node either way (it merges onto the memory)", () => {
+    const fold = foldEnvelopes([
+      bindingEnv("ex:world_model-1", 1, {}, { record_id: "ex:world_model-1", kind: "world_model", title: "Castor's garden", graph_id: "ex:world_model-1" }),
+      selectedEnv("row-w1", 2, { record_id: "row-w1", kind: "world_model", title: "Castor's garden", graph_id: "ex:world_model-1" }),
+      closureEnv(3, "row-w1", { record_id: "row-w1", kind: "world_model", title: "Castor's garden", graph_id: "ex:world_model-1" }),
+      closureEnv(4, "row-w1-link", { record_id: "row-w1-link", kind: "memory", title: "ex:world_model-1 refines", graph_id: "ex:world_model-1" }),
+    ]);
+    expect([...fold.nodes.keys()]).toEqual(["row-w1"]);
+    expect(fold.nodes.get("row-w1")?.closed?.kind).toBe("supersede");
+  });
+});
+
 describe("ndjson parsing", () => {
   it("parses valid lines and surfaces bad ones", () => {
     const text = `${JSON.stringify(selectedEnv("a", 1))}\nnot json\n${JSON.stringify(selectedEnv("b", 2))}\n`;

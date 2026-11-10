@@ -83,7 +83,7 @@ import { overlayStack } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
-import { drawnOutside, OUTSIDE_WORD, outsideTitle, outsideTopics, neverJoins, type OutsideTopics } from "./graph_canvas_outside";
+import { closedTitle, closedWord, drawnOutside, hiddenOutside, outsideTopics, neverJoins, type OutsideTopics } from "./graph_canvas_outside";
 import { glideAt, startGlide, type CameraPose, type Glide } from "./graph_canvas_camera";
 import { circleMeetsCanvas, litPlateFallback, litRowsCache, litTopicKey, MEMBER_RING, plateInDisc, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
 
@@ -664,9 +664,10 @@ export function GraphCanvas({
     return n;
   }, [fold, membership]);
   const topicsPending = topicsView?.kind === "loading";
-  // THE RING OUTSIDE HIS TOPICS (graph_canvas_outside.ts): the records that
-  // never join a topic (closed, engine, link rows), once per fold; hidden
-  // until the "N outside topics" toggle shows them.
+  // THE CLOSED MEMORIES (graph_canvas_outside.ts): the records outside every
+  // circle that never join a topic (closed memories, engine records, link
+  // rows), once per fold; all hidden, the closed memories shown on their
+  // ring by the "N closed memories" toggle.
   const outside = useMemo<OutsideTopics | null>(() => (membership ? outsideTopics(fold, membership.circleOfRow) : null), [fold, membership]);
   const [showOutside, setShowOutside] = useState(false);
   // Where the viewer dragged circles (world px from the served position, by
@@ -984,9 +985,10 @@ export function GraphCanvas({
       }
       const placement = pc.placement;
       const seated = placement ? pc.seated : null;
-      // The ring outside his topics, hidden unless the toggle shows it
-      // (served only: unserved, there is no ring).
-      const hiddenRows = seated && outsideNow && !outsideShown && outsideNow.hidden.size > 0 ? outsideNow.hidden : null;
+      // The ring outside every circle: its closed memories hidden unless the
+      // toggle shows them, its engine records and link rows always (served
+      // only: unserved, there is no ring).
+      const hiddenRows = seated ? hiddenOutside(outsideNow, outsideShown) : null;
       hiddenRowsRef.current = hiddenRows;
       // A NEW VERSION (or the first answer): every memory glides from where
       // it is to its new seat (RESEAT_MS; at once under reduced motion). The
@@ -1607,7 +1609,7 @@ export function GraphCanvas({
         ctx.globalAlpha = 1;
       }
 
-      // Memory nodes (the hidden ring outside his topics left out).
+      // Memory nodes (the hidden records left out).
       for (const node of fold.nodes.values()) {
         const ln = layout.get(node.id);
         if (!ln) continue;
@@ -2506,7 +2508,7 @@ export function GraphCanvas({
           className="gc_btn"
           title="Fit view — recenter the camera on the whole graph"
           onClick={() => {
-            // The records drawn (the hidden ring outside his topics left out).
+            // The records drawn (the hidden records left out).
             const nodes = Array.from(layoutRef.current.values()).filter((n) => drawnOutside(hiddenRowsRef.current, n.id, selectedRow));
             if (nodes.length === 0) return;
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -2524,17 +2526,17 @@ export function GraphCanvas({
         >
           ⛶ <span className="gc_btn_word">fit</span>
         </button>
-        {served && outside && outside.hidden.size > 0 ? (
-          // THE RING OUTSIDE HIS TOPICS: hidden by default; this pressed
-          // toggle shows it (graph_canvas_outside.ts).
+        {served && outside && outside.closed > 0 ? (
+          // THE CLOSED MEMORIES: hidden by default; this pressed toggle
+          // shows them on their ring (graph_canvas_outside.ts).
           <button
             className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}
             aria-pressed={showOutside}
-            title={outsideTitle(outside, showOutside)}
+            title={closedTitle(outside)}
             onClick={() => setShowOutside((v) => !v)}
           >
-            ◌ <span className="gc_btn_count">{outside.hidden.size}</span>
-            <span className="gc_btn_word">{OUTSIDE_WORD}</span>
+            ◌ <span className="gc_btn_count">{outside.closed}</span>
+            <span className="gc_btn_word">{closedWord(outside.closed)}</span>
           </button>
         ) : null}
       </div>

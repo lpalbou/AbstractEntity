@@ -257,6 +257,12 @@ export interface FoldState {
   applied_count: number;
   /** graph_id -> digest row id (bindings carry graph ids; usage carries row ids). */
   graph_to_row: Map<string, string>;
+  /** The graph ids of his topics' version records (memory's `community`
+   * records: the graph's circles, never nodes), as their bindings and
+   * closures name them: a row whose display names one of them as its source
+   * is a link of the version chain (`refines`, one version to the next),
+   * never a node either. */
+  community_graph_ids: Set<string>;
   /** Recent pulse sources for animation: node id -> seq of last use. */
   last_event_seq: number;
   /** Bounded per-(scope|owner) attention-event windows — the input to the
@@ -286,6 +292,7 @@ export function createFoldState(): FoldState {
     seq: 0,
     applied_count: 0,
     graph_to_row: new Map(),
+    community_graph_ids: new Set(),
     last_event_seq: 0,
     attention: new Map(),
     last_attention_at: "",
@@ -568,10 +575,29 @@ function getBeat(state: FoldState, trace_id: string, seq: number): BeatState {
  * (the ghost guard: a community binding on the replay forms no memory). */
 export const COMMUNITY_RECORD_KIND = "community";
 
+/** A topic version record seen on the replay (its binding or its closure):
+ * its graph id is remembered, so the links it starts are known as its own. */
+function rememberCommunity(state: FoldState, graphId: unknown): void {
+  if (typeof graphId === "string" && graphId.trim()) state.community_graph_ids.add(graphId.trim());
+}
+
+/** A row whose display names a topic version record as its source: a link of
+ * the version chain (memory forms a community record with one edge only,
+ * `refines` to the version before; the replay labels that link row kind
+ * "memory" with the community's graph id). Structural: the graph id, as the
+ * community's own binding or closure named it, never its words. */
+function isTopicChainRow(state: FoldState, display: DisplayBlock): boolean {
+  const gid = typeof display.graph_id === "string" ? display.graph_id.trim() : "";
+  return gid !== "" && display.kind !== COMMUNITY_RECORD_KIND && state.community_graph_ids.has(gid);
+}
+
 function applyBinding(state: FoldState, env: ReplayEnvelope): void {
   const p = env.payload as unknown as BindingPayload;
   const display = displayOf(env);
-  if (display.kind === COMMUNITY_RECORD_KIND) return;
+  if (display.kind === COMMUNITY_RECORD_KIND) {
+    rememberCommunity(state, display.graph_id ?? p.record_id);
+    return;
+  }
   const graphId = String(p.record_id || "");
   // Bindings key nodes by graph id; if a usage row id was already seen for
   // the same record we cannot know the pairing until enrichment reveals it,
@@ -996,7 +1022,14 @@ function applyClosure(state: FoldState, env: ReplayEnvelope): void {
   const display = displayOf(env);
   // A topic version closed (replaced by a newer one, or dissolved): never a
   // node either (the binding's ghost guard; a closure would mint one).
-  if (display.kind === COMMUNITY_RECORD_KIND) return;
+  if (display.kind === COMMUNITY_RECORD_KIND) {
+    rememberCommunity(state, display.graph_id);
+    return;
+  }
+  // Its link to the version before (`refines`), closed right after it: a
+  // link between two topic versions, never a node (castor 2026-11-10: 17 of
+  // them, each its own closed "memory" outside every circle; aletheia: 247).
+  if (isTopicChainRow(state, display)) return;
   const rid = String(p.assertion_id || "");
   if (!rid) return;
   const node = resolveUsageNode(state, rid, display, env.seq);

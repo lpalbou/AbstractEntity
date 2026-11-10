@@ -444,7 +444,7 @@
   color: var(--text-dim);
 }
 
-/* The "N outside topics" toggle (graph_canvas_outside.ts): its count stays
+/* The "N closed memories" toggle (graph_canvas_outside.ts): its count stays
  * visible on a phone, where the motion buttons show their glyph only. */
 .gc_outside_toggle .gc_btn_count {
   font-variant-numeric: tabular-nums;
