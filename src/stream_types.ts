@@ -222,6 +222,12 @@ export interface HostPayload {
   [key: string]: unknown;
 }
 
+/** The gateway's per-step tool marker (root backlog 1204, Entity 0035): one
+ * host marker per finished step that called tools, in the replay and the
+ * live stream: the step (`run_id` + `turn_id`), how many tool calls, how many
+ * files it read and wrote. */
+export const STEP_TOOLS_KIND = "step_tools";
+
 /** Admission labels and what they mean to a human (the WHY badges). */
 export const ADMISSION_LABELS: Record<string, string> = {
   self: "identity — present by right",

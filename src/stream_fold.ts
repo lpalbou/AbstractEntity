@@ -24,6 +24,7 @@ import type {
   TracePayload,
   ValencePayload,
 } from "./stream_types";
+import { STEP_TOOLS_KIND } from "./stream_types";
 import {
   ATTENTION_KINDS,
   DECAY_MARKER_KINDS,
@@ -257,6 +258,9 @@ export interface FoldState {
   applied_count: number;
   /** graph_id -> digest row id (bindings carry graph ids; usage carries row ids). */
   graph_to_row: Map<string, string>;
+  /** Each step that called tools (the gateway's step_tools markers), by
+   * stepKey(run_id, turn_id): its tool calls and the files it read and wrote. */
+  step_tools: Map<string, StepTools>;
   /** The graph ids of his topics' version records (memory's `community`
    * records: the graph's circles, never nodes), as their bindings and
    * closures name them: a row whose display names one of them as its source
@@ -292,6 +296,7 @@ export function createFoldState(): FoldState {
     seq: 0,
     applied_count: 0,
     graph_to_row: new Map(),
+    step_tools: new Map(),
     community_graph_ids: new Set(),
     last_event_seq: 0,
     attention: new Map(),
@@ -1056,7 +1061,47 @@ function applyClosure(state: FoldState, env: ReplayEnvelope): void {
   }
 }
 
+/** A step's tool use (the gateway's step_tools marker). */
+export interface StepTools {
+  runId: string;
+  turnId: string;
+  tools: number;
+  filesRead: number;
+  filesWritten: number;
+}
+
+/** The key a step is known by: its run and its turn. */
+export function stepKey(runId: string, turnId: string): string {
+  return `${runId}\u0000${turnId}`;
+}
+
+const count = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null);
+let malformedStepSaid = false;
+
+/** A step_tools marker's step and counts; null for any other envelope. A
+ * marker without its step or its counts says so loudly (once) and is null. */
+export function stepToolsOf(env: ReplayEnvelope): StepTools | null {
+  if (env.family !== "host") return null;
+  const p = env.payload as unknown as Record<string, unknown>;
+  if (p.kind !== STEP_TOOLS_KIND) return null;
+  const runId = typeof p.run_id === "string" ? p.run_id.trim() : "";
+  const turnId = typeof p.turn_id === "string" ? p.turn_id.trim() : "";
+  const tools = count(p.tool_count);
+  const filesRead = count(p.files_read);
+  const filesWritten = count(p.files_written);
+  if (!runId || !turnId || tools === null || filesRead === null || filesWritten === null) {
+    if (!malformedStepSaid && typeof console !== "undefined") {
+      malformedStepSaid = true;
+      console.error(`#SEAM a step_tools marker at seq ${env.seq} lacks its step (run_id, turn_id) or its counts (tool_count, files_read, files_written)`);
+    }
+    return null;
+  }
+  return { runId, turnId, tools, filesRead, filesWritten };
+}
+
 function applyHost(state: FoldState, env: ReplayEnvelope): void {
+  const step = stepToolsOf(env);
+  if (step) state.step_tools.set(stepKey(step.runId, step.turnId), step);
   const p = env.payload as unknown as HostPayload;
   const { kind, session_id, ...details } = p;
   state.sessions.push({

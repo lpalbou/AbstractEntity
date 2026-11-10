@@ -8,7 +8,7 @@
  * codex-fork monitor reads, but with the WHY visible.
  */
 
-import { classifyBookkeeping, cleanTitle, COMMUNITY_RECORD_KIND, consideredCount, relationPredicate } from "./stream_fold";
+import { classifyBookkeeping, cleanTitle, COMMUNITY_RECORD_KIND, consideredCount, relationPredicate, stepToolsOf } from "./stream_fold";
 import { displaySaysTitlePending, TITLE_BEING_WRITTEN, untitledWords } from "./untitled";
 import type {
   BindingPayload,
@@ -20,6 +20,7 @@ import type {
   TracePayload,
   ValencePayload,
 } from "./stream_types";
+import { STEP_TOOLS_KIND } from "./stream_types";
 
 export interface LedgerLine {
   seq: number;
@@ -55,6 +56,21 @@ export interface LedgerLine {
    * renders it as uic's AfMemoryHintChip — click-to-open, never
    * resolve-on-display (rule zero). */
   hint?: { entry_id: string; kind: string };
+  /** The run this line's envelope belongs to (the step's join key with its turn). */
+  run_id?: string | null;
+  /** The step's tool use (the gateway's step_tools marker), on the one row
+   * that stands for the step (foldLedgerLines). Absent: no marker came. */
+  tools?: { tools: number; filesRead: number; filesWritten: number };
+}
+
+/** A step's tool use in words, the parts above 0 only ("12 tools used · 3
+ * files read · 1 file written"); "" when all are 0. */
+export function stepToolsWords(t: { tools: number; filesRead: number; filesWritten: number }): string {
+  const parts: string[] = [];
+  if (t.tools > 0) parts.push(`${t.tools} ${t.tools === 1 ? "tool" : "tools"} used`);
+  if (t.filesRead > 0) parts.push(`${t.filesRead} ${t.filesRead === 1 ? "file" : "files"} read`);
+  if (t.filesWritten > 0) parts.push(`${t.filesWritten} ${t.filesWritten === 1 ? "file" : "files"} written`);
+  return parts.join(" · ");
 }
 
 /** Whitespace-folded record text, whole (operator 2026-11-07: never truncate; the ledger row
@@ -133,6 +149,7 @@ export function rhythmStep(state: RhythmState, env: ReplayEnvelope): { lines: Le
     observed_at: env.observed_at,
     trace_id: null,
     turn_id: turn,
+    run_id: env.run_id ?? null,
     subject_id: null,
     tone: "boundary",
   };
@@ -263,6 +280,17 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
     const step = rhythmStep(rhythm, env);
     rhythm = step.state;
     for (const b of step.lines) lines.push({ line: b, index: i, own: rhythm.ownTime });
+    // THE STEP'S TOOLS (Entity 0035, root 1204): the gateway's step_tools
+    // marker lands after the step; its counts go on the one row that stands
+    // for that step (its tick, or its first shown row), never a row of its own.
+    const used = stepToolsOf(env);
+    if (used) {
+      const at = stepRowIndex(lines, used.runId, used.turnId);
+      if (at === null) sayUnknownStep(env.seq, used.runId, used.turnId);
+      else lines[at] = { ...lines[at], line: { ...lines[at].line, tools: { tools: used.tools, filesRead: used.filesRead, filesWritten: used.filesWritten } } };
+      closing = null;
+      continue;
+    }
     // A topic version's link to the one before, closed with it, has no row:
     // the topic's own rows say it changed ("A topic changed: …", and the
     // audit line of its earlier version's closure, just before).
@@ -384,6 +412,36 @@ const NO_TOPIC_SIZES: TopicSizes = new Map();
 export type TopicIds = ReadonlySet<string>;
 
 const NO_TOPIC_IDS: TopicIds = new Set();
+
+/** How far back a step's marker looks for the step's rows (a step's rows are
+ * a few dozen at most; the marker lands right after them). */
+const STEP_LOOKBACK = 600;
+
+/** The row that stands for a step: of the step's rows (its turn, its run or
+ * no run stamp), contiguous at the end of the ledger, the first one shown by
+ * default (not an audit line): its tick when it has one. Null when none. */
+export function stepRowIndex(lines: ReadonlyArray<IndexedLine>, runId: string, turnId: string): number | null {
+  let found: number | null = null;
+  const stop = Math.max(0, lines.length - STEP_LOOKBACK);
+  for (let i = lines.length - 1; i >= stop; i--) {
+    const l = lines[i].line;
+    const inStep = l.turn_id === turnId && (l.run_id == null || l.run_id === runId);
+    if (inStep) {
+      if (l.tone !== "quiet") found = i;
+      continue;
+    }
+    // Past the step's rows (another turn's row): the step is behind us.
+    if (found !== null && l.turn_id && l.turn_id !== turnId) break;
+  }
+  return found;
+}
+
+let unknownStepSaid = false;
+function sayUnknownStep(seq: number, runId: string, turnId: string): void {
+  if (unknownStepSaid || typeof console === "undefined") return;
+  unknownStepSaid = true;
+  console.error(`#SEAM a step_tools marker at seq ${seq} names a step the ledger has no row for (run ${runId}, turn ${turnId})`);
+}
 
 /** A closure's record and revision: its graph id and its replacement ids
  * (null when it names no graph id). */
@@ -539,6 +597,7 @@ export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPI
     observed_at: env.observed_at,
     trace_id: env.trace_id,
     turn_id: env.turn_id,
+    run_id: env.run_id,
   };
 
   switch (env.family) {
@@ -773,6 +832,9 @@ export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPI
     }
     case "host": {
       const p = env.payload as unknown as HostPayload;
+      // A step's tool use decorates the step's own row (foldLedgerLines);
+      // read alone it is an audit line.
+      if (p.kind === STEP_TOOLS_KIND) return { ...base, title: "Tools used in a step", detail: "", subject_id: null, tone: "quiet" };
       const session = p.session_id ? ` (${p.session_id})` : "";
       const reason = typeof p["reason"] === "string" && p["reason"] ? tidy(String(p["reason"])) : "";
       if (p.kind === "summon") {

@@ -9,11 +9,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { AfMemoryHintChip } from "@abstractframework/ui-kit";
+import { AfMemoryHintChip, Icon } from "@abstractframework/ui-kit";
 
 import { isDiaryGraphId } from "./stream_fold";
 
-import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, topicKeyOfTarget, type IndexedLine, type LedgerLine, type LedgerLineFold } from "./ledger_lines";
+import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, stepToolsWords, topicKeyOfTarget, type IndexedLine, type LedgerLine, type LedgerLineFold } from "./ledger_lines";
 import { recallHoverHandlers } from "./recall_emphasis";
 import type { ReplayEnvelope } from "./stream_types";
 import { fromLink, WordsLine } from "./words_line";
@@ -361,6 +361,32 @@ export interface LedgerLineRowProps {
 /** One ledger line: a click scrubs to it and opens what it is about (a
  * memory in Detail, a diary entry in the Book, a recall's shelf); the mouse
  * resting on a line that opens a recall previews it in the graph. */
+/** THE STEP'S TOOLS (operator 2026-11-10 22:02, Entity 0035: "how many
+ * [tools] did it use at a step, how many files did it read or write … with
+ * button icons … those icons only appear if there was > 0"): a quiet line in
+ * the row's meta colour (an indicator, never a button): ⚙ N · 📄 N · ✎ N,
+ * each part only above 0, the words on hover and for a screen reader. Nothing
+ * when every part is 0. */
+export function StepToolsGroup({ tools }: { tools: { tools: number; filesRead: number; filesWritten: number } }): React.ReactElement | null {
+  const words = stepToolsWords(tools);
+  if (!words) return null;
+  const parts: Array<{ icon: "wrench" | "file" | "edit"; n: number }> = [
+    { icon: "wrench", n: tools.tools },
+    { icon: "file", n: tools.filesRead },
+    { icon: "edit", n: tools.filesWritten },
+  ].filter((p): p is { icon: "wrench" | "file" | "edit"; n: number } => p.n > 0);
+  return (
+    <div className="el_detail el_tools" role="img" aria-label={words} title={words} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      {parts.map((p) => (
+        <span key={p.icon} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <Icon name={p.icon} size={12} aria-hidden="true" />
+          {p.n}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function LedgerLineRow(props: LedgerLineRowProps): React.ReactElement {
   const { line, index } = props;
   const target = lineTarget(line);
@@ -396,6 +422,7 @@ export function LedgerLineRow(props: LedgerLineRowProps): React.ReactElement {
             <WordsLine text={line.detail} />
           </div>
         ) : null}
+        {line.tools ? <StepToolsGroup tools={line.tools} /> : null}
         {line.hint && line.subject_id ? (
           // G1's render half on the biography itself (plan c2596:
           // "the hint of writing must carry the direct link").
