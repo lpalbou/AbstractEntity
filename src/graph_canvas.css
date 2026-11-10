@@ -444,6 +444,12 @@
   color: var(--text-dim);
 }
 
+/* The "N outside topics" toggle (graph_canvas_outside.ts): its count stays
+ * visible on a phone, where the motion buttons show their glyph only. */
+.gc_outside_toggle .gc_btn_count {
+  font-variant-numeric: tabular-nums;
+}
+
 /* A type's line over its memories ("80 episodes"): a static row, open by
  * default (never a fold), its kind dot the graph's colour. */
 .gc_tp_group {

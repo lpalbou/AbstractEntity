@@ -117,7 +117,7 @@ describe("the canvas draws the spotlight", () => {
 
   it("veils everything but the lit circles after the memories, then draws their ring and glow over it", () => {
     const veil = CANVAS.indexOf("// THE SPOTLIGHT'S VEIL");
-    const nodes = CANVAS.indexOf("// Memory nodes.");
+    const nodes = CANVAS.indexOf("// Memory nodes (");
     const labels = CANVAS.indexOf("// Topic LABELS go last, on top");
     expect(nodes).toBeGreaterThan(0);
     expect(veil).toBeGreaterThan(nodes);

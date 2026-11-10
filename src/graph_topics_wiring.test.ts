@@ -155,7 +155,7 @@ describe("no per-frame DOM layout reads in the title pass (review S3)", () => {
     expect(branch).toContain("placeTopicLabel({");
     expect(branch).toContain("ctx.measureText(");
     // The key: the camera, the canvas, the overlays, the seated placement, the glide.
-    expect(frame).toContain("const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}|${litKey}`;");
+    expect(frame).toContain("const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}|${hiddenRows ? hiddenRows.size : \"all\"}|${litKey}`;");
   });
 
   it("OverlayRects reads the DOM once, then again only after a resize or a change around the canvas", async () => {

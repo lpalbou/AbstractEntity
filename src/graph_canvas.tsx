@@ -83,6 +83,7 @@ import { overlayStack } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
+import { drawnOutside, OUTSIDE_WORD, outsideTitle, outsideTopics, neverJoins, type OutsideTopics } from "./graph_canvas_outside";
 import { glideAt, startGlide, type CameraPose, type Glide } from "./graph_canvas_camera";
 import { litRowsCache, litTopicKey, MEMBER_RING, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
 
@@ -645,10 +646,16 @@ export function GraphCanvas({
   const waitingCount = useMemo(() => {
     if (!membership) return 0;
     let n = 0;
-    for (const node of fold.nodes.values()) if (!membership.circleOfRow.has(node.id) && node.closed === null && node.kind !== "relation") n += 1;
+    // Closed records, engine records and link rows never join one (graph_canvas_outside.neverJoins).
+    for (const node of fold.nodes.values()) if (!membership.circleOfRow.has(node.id) && neverJoins(node) === null) n += 1;
     return n;
   }, [fold, membership]);
   const topicsPending = topicsView?.kind === "loading";
+  // THE RING OUTSIDE HIS TOPICS (graph_canvas_outside.ts): the records that
+  // never join a topic (closed, engine, link rows), once per fold; hidden
+  // until the "N outside topics" toggle shows them.
+  const outside = useMemo<OutsideTopics | null>(() => (membership ? outsideTopics(fold, membership.circleOfRow) : null), [fold, membership]);
+  const [showOutside, setShowOutside] = useState(false);
   // Where the viewer dragged circles (world px from the served position, by
   // community key); bumped per drag step so the frame re-places.
   const offsetsRef = useRef<Map<string, { dx: number; dy: number }>>(new Map());
@@ -656,7 +663,10 @@ export function GraphCanvas({
   /** The frame's placement and seating, recomputed only when the served
    * topics, the viewer's offsets or the fold change. */
   const placementCacheRef = useRef<{ data: ServedCommunities | null; rev: number; placement: CommunityPlacement | null; fold: FoldState | null; seated: SeatedFold | null; gen: number }>({ data: null, rev: -1, placement: null, fold: null, seated: null, gen: 0 });
-  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic });
+  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic, outside, showOutside });
+  /** The records the last frame left undrawn (the hidden ring), for the
+   * pointer and Fit view; null = every record drawn. */
+  const hiddenRowsRef = useRef<ReadonlySet<string> | null>(null);
   /** Topic title rects drawn last frame (screen px) — click and drag targets. */
   const topicLabelsRef = useRef<Array<{ rect: Rect; topic: string; label: string }>>([]);
   const onPickTopicRef = useRef(onPickTopic);
@@ -770,7 +780,7 @@ export function GraphCanvas({
    * for the node's lifetime (and persisted): permanent spatial memory. */
   const seatRef = useRef<{ seats: Map<string, number>; next: number }>({ seats: new Map(), next: 0 });
 
-  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic };
+  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic, outside, showOutside };
   onSelectRef.current = onSelect;
 
   // FIT-TO-EMPHASIS (graph-access wave, 2026-07-12): when the OPERATOR's
@@ -934,7 +944,7 @@ export function GraphCanvas({
 
     const frame = () => {
       if (disposed) return;
-      const { fold, usage, scrubSeq, selectedId, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics: topicsOn, topicsPending: pending, pickedTopic: picked } = stateRef.current;
+      const { fold, usage, scrubSeq, selectedId, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics: topicsOn, topicsPending: pending, pickedTopic: picked, outside: outsideNow, showOutside: outsideShown } = stateRef.current;
       const layout = layoutRef.current;
       const sim = simRef.current;
 
@@ -955,6 +965,10 @@ export function GraphCanvas({
       }
       const placement = pc.placement;
       const seated = placement ? pc.seated : null;
+      // The ring outside his topics, hidden unless the toggle shows it
+      // (served only: unserved, there is no ring).
+      const hiddenRows = seated && outsideNow && !outsideShown && outsideNow.hidden.size > 0 ? outsideNow.hidden : null;
+      hiddenRowsRef.current = hiddenRows;
       // A NEW VERSION (or the first answer): every memory glides from where
       // it is to its new seat (RESEAT_MS; at once under reduced motion). The
       // viewer's drags and a memory placed since the version (born on its
@@ -1144,6 +1158,7 @@ export function GraphCanvas({
         sim.autoFitDone = true;
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         for (const n of nodes) {
+          if (!drawnOutside(hiddenRows, n.id, selectedId)) continue;
           minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
           minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
         }
@@ -1369,6 +1384,7 @@ export function GraphCanvas({
         const la = layout.get(se.a);
         const lb = layout.get(se.b);
         if (!la || !lb) continue;
+        if (!drawnOutside(hiddenRows, se.a, selectedId) || !drawnOutside(hiddenRows, se.b, selectedId)) continue;
         const a = toScreen(la.x, la.y);
         const b = toScreen(lb.x, lb.y);
         const dim = edgeDim(se.a, se.b, null);
@@ -1423,6 +1439,7 @@ export function GraphCanvas({
         const la = layout.get(e.a);
         const lb = layout.get(e.b);
         if (!la || !lb) continue;
+        if (!drawnOutside(hiddenRows, e.a, selectedId) || !drawnOutside(hiddenRows, e.b, selectedId)) continue;
         const a = toScreen(la.x, la.y);
         const b = toScreen(lb.x, lb.y);
         const age = scrubSeq - e.last_seq;
@@ -1567,10 +1584,11 @@ export function GraphCanvas({
         ctx.globalAlpha = 1;
       }
 
-      // Memory nodes.
+      // Memory nodes (the hidden ring outside his topics left out).
       for (const node of fold.nodes.values()) {
         const ln = layout.get(node.id);
         if (!ln) continue;
+        if (!drawnOutside(hiddenRows, node.id, selectedId)) continue;
         const p = toScreen(ln.x, ln.y);
         const r = Math.max(2.5, ln.r * cam.zoom * 0.75);
         const cls = nodeClass(node);
@@ -1744,12 +1762,13 @@ export function GraphCanvas({
         // legend, the kinds legend, the motion buttons): a title never
         // hides under one. Their rects are cached (OverlayRects).
         const overlayRects = overlays.current();
-        const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}|${litKey}`;
+        const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}|${hiddenRows ? hiddenRows.size : "all"}|${litKey}`;
         if (titlesCache.key !== titlesKey) {
           titlesCache.key = titlesKey;
           titlesCache.placed = [];
           const screenNodes: Array<{ x: number; y: number; r: number }> = [];
           for (const ln of layout.values()) {
+            if (!drawnOutside(hiddenRows, ln.id, selectedId)) continue;
             const p = toScreen(ln.x, ln.y);
             screenNodes.push({ x: p.x, y: p.y, r: Math.max(2.5, ln.r * cam.zoom * 0.75) + 3 });
           }
@@ -1823,7 +1842,10 @@ export function GraphCanvas({
       const { x, y } = toWorld(clientX, clientY);
       let best: string | null = null;
       let bestD = Infinity;
+      const hidden = hiddenRowsRef.current;
+      const sel = stateRef.current.selectedId;
       for (const ln of layoutRef.current.values()) {
+        if (!drawnOutside(hidden, ln.id, sel)) continue; // not drawn: not under the pointer
         const dx = ln.x - x;
         const dy = ln.y - y;
         const d = Math.sqrt(dx * dx + dy * dy);
@@ -2485,7 +2507,8 @@ export function GraphCanvas({
           className="gc_btn"
           title="Fit view — recenter the camera on the whole graph"
           onClick={() => {
-            const nodes = Array.from(layoutRef.current.values());
+            // The records drawn (the hidden ring outside his topics left out).
+            const nodes = Array.from(layoutRef.current.values()).filter((n) => drawnOutside(hiddenRowsRef.current, n.id, selectedRow));
             if (nodes.length === 0) return;
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             for (const n of nodes) {
@@ -2502,6 +2525,19 @@ export function GraphCanvas({
         >
           ⛶ <span className="gc_btn_word">fit</span>
         </button>
+        {served && outside && outside.hidden.size > 0 ? (
+          // THE RING OUTSIDE HIS TOPICS: hidden by default; this pressed
+          // toggle shows it (graph_canvas_outside.ts).
+          <button
+            className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}
+            aria-pressed={showOutside}
+            title={outsideTitle(outside, showOutside)}
+            onClick={() => setShowOutside((v) => !v)}
+          >
+            ◌ <span className="gc_btn_count">{outside.hidden.size}</span>
+            <span className="gc_btn_word">{OUTSIDE_WORD}</span>
+          </button>
+        ) : null}
       </div>
     </>
   );
