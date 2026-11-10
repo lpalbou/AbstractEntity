@@ -11,7 +11,7 @@
 import { ReplayViewFold, chatAuthorOf, type ChatAuthor, type ChatMentionSent, type ChatNotice, type ReplayView, type ReplayViewInteraction, type ReplayViewTransport } from "@abstractframework/panel-chat";
 import type { summonEntity } from "./stream_source";
 import { viewReplyNotices } from "./turn_notices";
-import { orderedMentions } from "./visit_mentions";
+import { AGENT_MENTION_SLUG, orderedMentions } from "./visit_mentions";
 
 export type PollOutcome =
   | { kind: "aborted"; lastStatus: string }
@@ -22,14 +22,31 @@ export type PollOutcome =
   /** `author`: who answered (the gateway's turn author on `GET /runs/{id}`, or the view's final
    * message), null when the gateway names nobody (an older gateway): today's rendering.
    * `notices`: what the turn formed, from its replay view's answer messages (turn notices,
-   * 2026-11-09); absent when it formed nothing or the turn was followed without the view. */
-  | { kind: "terminal"; status: "completed" | "failed" | "cancelled"; output: unknown; error: string | null; author: ChatAuthor | null; notices?: ChatNotice[] };
+   * 2026-11-09); absent when it formed nothing or the turn was followed without the view.
+   * `agentAddressed: false`: the turn's row says the gateway did not run the agent for it (a
+   * message for the mentioned entities only, `agent_addressed: false`); absent otherwise. */
+  | { kind: "terminal"; status: "completed" | "failed" | "cancelled"; output: unknown; error: string | null; author: ChatAuthor | null; notices?: ChatNotice[]; agentAddressed?: false };
 
 export interface RunSummaryShape {
   status?: string;
   output?: unknown;
   error?: string | null;
   author?: unknown;
+  /** The turn row's marker (operator 2026-11-10): false when the agent was not addressed. */
+  agent_addressed?: unknown;
+}
+
+/** Whether a turn row (`GET /runs/{id}`, the history bloc, the replay view) says the agent was
+ * addressed: false only when it carries `agent_addressed: false`; true or absent = addressed. */
+export function turnAgentAddressed(row: { agent_addressed?: unknown } | null | undefined): boolean {
+  return row?.agent_addressed !== false;
+}
+
+/** Whether a summon's answer says the gateway skipped the agent's run (`agent: "not_addressed"`:
+ * the message mentions entities and not the agent; the person's turn is recorded, no run
+ * follows). `agent: "started"` (or an older gateway's answer without the key) = a run to follow. */
+export function summonSkippedAgent(answer: object | null | undefined): boolean {
+  return (answer as { agent?: unknown } | null | undefined)?.agent === "not_addressed";
 }
 
 /**
@@ -78,7 +95,7 @@ export async function pollRunToTerminal(
     }
     const st = String(run.status || "");
     if (st === "completed" || st === "failed" || st === "cancelled") {
-      return { kind: "terminal", status: st, output: run.output, error: run.error == null ? null : String(run.error), author: chatAuthorOf(run.author) };
+      return { kind: "terminal", status: st, output: run.output, error: run.error == null ? null : String(run.error), author: chatAuthorOf(run.author), ...(turnAgentAddressed(run) ? {} : { agentAddressed: false as const }) };
     }
   }
 }
@@ -307,10 +324,18 @@ export function foldFlowAnswer(output: unknown): FlowAnswerFold {
 }
 
 /** The `mentions` a flow turn's summon carries (AbstractGateway 20e77103, the /runs/start
- * semantics): the message's entity chips as picked (their slugs, the ids the mention door is then
- * sent), in pick order, each once. Never read from the typed text. */
+ * semantics): the message's chips as picked, in pick order, each once: an entity as its slug (the
+ * id the mention door is then sent), the session agent as the reserved slug "agent" (operator
+ * 2026-11-10: without it, a message with entity chips does not reach the agent). Never read from
+ * the typed text. */
 export function flowMentionSlugs(sent: readonly ChatMentionSent[]): string[] {
-  return orderedMentions(sent.filter((m) => m.kind === "entity")).map((m) => m.id);
+  return orderedMentions(sent.filter((m) => m.kind === "entity" || m.kind === "agent")).map((m) => (m.kind === "agent" ? AGENT_MENTION_SLUG : m.id));
+}
+
+/** Whether a summon's `mentions` name an entity (so the entities answer this message and his
+ * silence is no failure): any slug but the agent's own. */
+export function mentionsAddressEntities(slugs: readonly string[] | null | undefined): boolean {
+  return (slugs ?? []).some((slug) => slug !== AGENT_MENTION_SLUG);
 }
 
 /** One flow turn's summon body (entity-chat in the entity-life bundle). */

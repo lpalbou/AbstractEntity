@@ -31,6 +31,13 @@
  * gateway gives back the first answer instead of asking the entity again; a new message names a
  * new one.
  *
+ * THE SESSION AGENT (operator 2026-11-10, flow lane only; the visit lane has no session agent): a
+ * message that carries entity mentions does not reach the session agent at all (the gateway skips
+ * its run unless `mentions` holds the reserved slug "agent"); the `@` list also offers the agent
+ * itself (kind "agent", labelled with its display name, sent as "agent" in pick order) to address
+ * it explicitly beside the entities. With entity chips only, one line says the agent stays out of
+ * this message. The mentions door is for entities: an agent chip is never posted to it.
+ *
  * DOM-free; pinned by visit_mentions.test.ts.
  */
 import {
@@ -42,6 +49,7 @@ import {
   type ChatAvatarLook,
   type ChatMention,
   type ChatMentionCandidate,
+  type ChatMentionKind,
   type ChatMentionSent,
   type MentionResend,
 } from "@abstractframework/panel-chat";
@@ -83,9 +91,41 @@ export function mentionBody(text: string, mention: ChatMentionSent, repeatOf: st
 /** The `GET /entities` row slice a mention list reads. */
 export type MentionableEntity = { name: string; slug: string; entity_id?: string; avatar?: ChatAvatarLook | null };
 
-/** The sentence under a chip the first time its name is picked in this conversation. */
-export function mentionNotice(candidate: Pick<ChatMentionCandidate, "name">): string {
+/** The sentence under a chip the first time its name is picked in this conversation; none for the
+ * session agent (it is already in this conversation). */
+export function mentionNotice(candidate: Pick<ChatMentionCandidate, "name"> & { kind?: ChatMentionKind }): string | null {
+  if (candidate.kind === "agent") return null;
   return `${candidate.name} will read this conversation's history`;
+}
+
+/** The reserved slug that addresses the session agent in `mentions` (no entity can be named so). */
+export const AGENT_MENTION_SLUG = "agent";
+
+/** The session agent's chip: its display name (else "Agent"), kind "agent", id the reserved slug. */
+export function agentMentionCandidate(name: string | null | undefined): ChatMentionCandidate {
+  return { id: AGENT_MENTION_SLUG, name: String(name ?? "").trim() || "Agent", kind: "agent" };
+}
+
+/** The `@` list of a lane with a session agent (the flow lane): the agent first when its name or
+ * the reserved slug starts with the query (any case; an empty query offers it), then the entities. */
+export function withSessionAgent(entities: readonly ChatMentionCandidate[], agentName: string | null | undefined, query: string): ChatMentionCandidate[] {
+  const agent = agentMentionCandidate(agentName);
+  const q = String(query || "").trim().toLowerCase();
+  const offered = !q || agent.name.toLowerCase().startsWith(q) || AGENT_MENTION_SLUG.startsWith(q);
+  return offered ? [agent, ...entities] : [...entities];
+}
+
+/** The mentions the mentions door asks (`POST /sessions/{id}/mentions`): the entity chips only. */
+export function entityMentions<M extends Pick<ChatMentionSent, "kind">>(mentions: readonly M[]): M[] {
+  return mentions.filter((m) => m.kind === "entity");
+}
+
+/** The one line while the chips name entities and not the session agent: it stays out of this
+ * message (the gateway does not run it). Null with no chips, or with the agent's chip. */
+export function agentStaysOutLine(chips: readonly Pick<ChatMention, "kind">[], agentName: string | null | undefined): string | null {
+  if (!chips.some((c) => c.kind === "entity") || chips.some((c) => c.kind === "agent")) return null;
+  const name = String(agentName ?? "").trim();
+  return name ? `${name} stays out of this message.` : "The agent stays out of this message.";
 }
 
 /**
@@ -215,12 +255,13 @@ export function orderedMentions(mentions: readonly ChatMentionSent[]): ChatMenti
 
 /**
  * Send the mentions of one message in pick order (`index`, the gateway's `mention_index`), each
- * after the previous answered, each entity once. `deps.post` carries the message as typed: every
- * mentioned entity receives the same words.
+ * after the previous answered, each entity once (an agent chip is not sent: it rode the summon).
+ * `deps.post` carries the message as typed: every mentioned entity receives the same words.
  */
 export async function runMentions(mentions: readonly ChatMentionSent[], deps: MentionRunDeps): Promise<MentionRunResult> {
   const result: MentionRunResult = { sentences: [], answered: [], keepDraft: false, unsent: [], unavailable: false, refused: [] };
-  const ordered = orderedMentions(mentions);
+  // The session agent's chip rides the summon (`mentions`), never the mentions door.
+  const ordered = orderedMentions(entityMentions(mentions));
   for (let i = 0; i < ordered.length; i++) {
     const mention = ordered[i];
     let wire: MentionWire;
@@ -306,7 +347,8 @@ export function mentionResendPlan(
   mentions: readonly ChatMentionSent[],
 ): MentionResendPlan | null {
   if (!held || !sessionId || held.sessionId !== sessionId) return null;
-  const again = mentionResend(held.resend, text, mentions);
+  // A resend asks entities only: the agent's chip does not make one (with it alone, a new message).
+  const again = mentionResend(held.resend, text, entityMentions(mentions));
   if (!again) return null;
   const done = new Set(held.answered);
   return { ask: again.filter((m) => !done.has(mentionKey(m))), alreadyAnswered: again.filter((m) => done.has(mentionKey(m))) };
@@ -350,10 +392,13 @@ export type VisitMentionState = {
   unavailable: string | null;
   /** The sentences about the last send. */
   status: string | null;
+  /** The flow lane's one line while the chips name entities only (agentStaysOutLine). */
+  agentOut?: string | null;
 };
 
 /** The composer's mention props: the kit's `@` list with controlled chips, the first-use notice,
- * the outcome line and the older-gateway sentence. Without a session: none (today's composer). */
+ * the outcome line (with, after it, the agent's stays-out line) and the older-gateway sentence.
+ * Without a session: none (today's composer). */
 export function visitMentionProps(s: VisitMentionState): Pick<ChatComposerProps, "mentionCandidates" | "mentions" | "onMentionsChange" | "mentionNotice" | "mentionSessionKey" | "mentionsUnavailable" | "mentionStatus"> {
   if (!s.sessionKey) return {};
   return {
@@ -363,6 +408,6 @@ export function visitMentionProps(s: VisitMentionState): Pick<ChatComposerProps,
     mentionNotice,
     mentionSessionKey: s.sessionKey,
     mentionsUnavailable: s.unavailable,
-    mentionStatus: s.status,
+    mentionStatus: [s.status, s.agentOut].filter((line) => line && line.trim()).join(" ") || null,
   };
 }

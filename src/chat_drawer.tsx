@@ -27,7 +27,7 @@ import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatNotice } from "./vendor/abstractchat/conversation";
 import { VISIT_CLOSE_KIND, noticesField, openNotice as openNoticeIn } from "./turn_notices";
-import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, type HeldMentions, type MentionableEntity } from "./visit_mentions";
+import { MENTIONS_UNAVAILABLE, agentStaysOutLine, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -786,7 +786,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   }, [brain, baseUrl, entity, runId, token, publicVisit.refresh]);
 
   /** The `@` list: `GET /entities` (read once per drawer) minus the entity being visited and the
-   * ones the gateway refused to mention, with each one's look. */
+   * ones the gateway refused to mention, with each one's look. The flow lane also offers its
+   * session agent, him (kind "agent", sent as "agent"): with entity chips and without his, the
+   * gateway does not run his turn (operator 2026-11-10). The visit lane has no session agent. */
   const mentionCandidates = useCallback(
     async (query: string) => {
       if (!mentionRowsRef.current) {
@@ -796,9 +798,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           if (mentionRowsRef.current === rows) mentionRowsRef.current = null;
         });
       }
-      return mentionCandidatesFor(await mentionRowsRef.current, entity, query, mentionRefusedRef.current);
+      const entities = mentionCandidatesFor(await mentionRowsRef.current, entity, query, mentionRefusedRef.current);
+      return brain === "flow" ? withSessionAgent(entities, entityName, query) : entities;
     },
-    [baseUrl, entity],
+    [baseUrl, entity, brain, entityName],
   );
   /** After the person's turn landed: each mention, in pick order, one call after the other; each
    * reply is a turn with its author (and, in a visit, one small line: who else heard it). A 503 or
@@ -943,6 +946,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         if (!mentionsSent.length) return;
         // His turn did not land (failed, queued, stopped): the mentions were not sent.
         if (!landed || !sessionId) { chipsBack(); return; }
+        // Only his own chip: his answer was the whole message (no entity to ask).
+        if (!entityMentions(mentionsSent).length) return;
         setBusy("turn");
         return sendMentions(sessionId, mentionMessageKey(turnRunId), flowText, mentionsSent, sentChips, turnRunId).finally(() => setBusy("idle"));
       });
@@ -1606,7 +1611,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             value={draft}
             onChange={(text) => { if (avatarMode) stopTtsRef.current(); setDraft(text); }}
             onSend={(s) => send(s.mentions)}
-            {...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus })}
+            {...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus, agentOut: brain === "flow" ? agentStaysOutLine(mentionChips, entityName) : null })}
             placeholder={`talk with ${entityName}…  (drop or attach files)`}
             busy={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy === "turn"}
             disabled={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy !== "idle"}

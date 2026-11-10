@@ -79,7 +79,7 @@ describe("the visit chat's wiring (source pins)", () => {
 
   it("the composer sends with its picked mentions and takes the mention props", () => {
     expect(src).toContain("onSend={(s) => send(s.mentions)}");
-    expect(src).toContain("{...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus })}");
+    expect(src).toContain('{...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus, agentOut: brain === "flow" ? agentStaysOutLine(mentionChips, entityName) : null })}');
     expect(src).not.toContain("onSubmit={send}");
   });
 

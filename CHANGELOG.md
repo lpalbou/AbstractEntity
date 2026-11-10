@@ -37,6 +37,20 @@ Highlights:
 
 ### Details
 
+- **A flow message for other entities no longer reaches him; his own `@` chip brings him in**
+  (operator 2026-11-10). When a flow-brain message carries @ chips for other entities only, the
+  gateway does not run his turn (the summon answers `agent: "not_addressed"`; your words are still
+  kept in the conversation): only the mentioned entities answer, and nothing waits for him: no
+  thinking bars for his turn, no bubble, no "served no readable answer" line. While the chips name
+  only other entities, one small line above the message box says "<his name> stays out of this
+  message." The `@` list now offers him first, under his name: picked beside other entities, he
+  answers too, then they do (`mentions` carries the reserved slug `agent` in pick order). A
+  followed turn whose row says `agent_addressed: false` shows the same way. His chip gets no "will
+  read this conversation's history" notice and is never sent to the mentions route, and sending
+  the same words again after a mention stopped partway asks only the entities. The visit lane is
+  unchanged (it has no session agent). Needs the gateway's half of the rule (`agent` on the summon
+  answer, `agent_addressed` on the turn row, `agent` reserved); before it, the gateway refuses his
+  chip like an unknown name.
 - **Settings → Mind → Sleep has a third threshold: "Sleep after (share of memories not yet
   settled)".** An idle entity also goes to sleep once more than this share of its memories are
   not yet settled: placed only provisionally, without an embedding, or still waiting for their

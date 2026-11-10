@@ -9,7 +9,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { emptyAnswerLine, flowSession, flowTurnBody, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, queueCardLine, screenDiaryFences, waitingLine, type PollOutcome } from "./flow_lane";
+import { emptyAnswerLine, flowSession, flowTurnBody, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, mentionsAddressEntities, queueCardLine, screenDiaryFences, summonSkippedAgent, waitingLine, type PollOutcome } from "./flow_lane";
 import { gatewayReplayView, getRunSummary, leaveQueue, pollQueueEntry, refusalText, stoppedSentence, summonEntity } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import type { ReplayEnvelope } from "./stream_types";
@@ -117,6 +117,9 @@ export function useFlowConversation(io: {
         throw new Error(`the summoned turn did not finish within 10 minutes (run ${runId.slice(0, 8)}, last seen ${outcome.lastStatus}) — it may still be ticking; his memory keeps whatever it lived`);
       if (outcome.kind === "lost_view")
         throw new Error("the drawer lost its view of the run (the gateway stopped answering) — the turn may have completed; his memory keeps whatever it lived");
+      // A turn whose row says he was not addressed (`agent_addressed: false`: a message for the
+      // mentioned entities only) has no answer of his to render: no bubble, no line, as live.
+      if (outcome.agentAddressed === false) return true;
       if (outcome.status !== "completed") throw new Error(String(outcome.error || `run ${outcome.status}`));
       // Tolerant answer fold + the DEGRADED CONTRACT (flow 0.0.2+):
       // structured degraded/moment_error distinguish "he said nothing"
@@ -306,7 +309,8 @@ export function useFlowConversation(io: {
       // resolves the entity's stored mind — one source.
       // The body (flow_lane.flowTurnBody): the session's history seeds the turn server-side, the
       // queue only from the human's buttons, the message's @ chips as `mentions` (none, no key).
-      const entitiesAnswer = Boolean(opts.mentions?.length);
+      // The entities answer when a chip names one (the agent's own chip, "agent", is not one).
+      const entitiesAnswer = mentionsAddressEntities(opts.mentions);
       return summonEntity(baseUrl, entity, flowTurnBody(text, { sessionId, conversation: Boolean(conversationRef.current), queue: opts.queue, park: opts.park, mentions: opts.mentions }), token)
         .then(async (r): Promise<boolean> => {
           const newWarnings = Array.isArray(r.warnings) ? r.warnings.filter((w) => typeof w === "string" && !flowWarnedRef.current.has(w)) : [];
@@ -334,6 +338,14 @@ export function useFlowConversation(io: {
             });
             setBusy("idle");
             return false;
+          }
+          // NOT ADDRESSED (operator 2026-11-10): the message mentions entities and not him, so the
+          // gateway ran no turn of his (`agent: "not_addressed"`); the person's turn is recorded.
+          // Nothing to wait for: no follow, no line; it landed and the mentions follow. The
+          // recorded turn's id, when served, is the person's turn the mentions repeat.
+          if (summonSkippedAgent(r)) {
+            turnRunId = typeof r.run_id === "string" && r.run_id.trim() ? r.run_id : null;
+            return true;
           }
           // The summoned run executes async in the runner — poll to
           turnRunId = r.run_id;
