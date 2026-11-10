@@ -47,8 +47,9 @@ It does not measure inner state, and sealed diary entries are never read. Open
 it with **Monitor**, after **Live** in the timeline's controls: it shows inside
 the timeline, right of the lanes, and opening it is what reads his words (once
 per entity while the page is open). It follows his words at the timeline's
-position or, live with the chat open, the reply in view. Its ⓘ says what it
-reads and with which basis.
+position or, live with the chat open, the reply in view. Its ⓘ card says what
+it reads, its five tone channels (warmth, tension, reflection, structure,
+certainty, each from −1 to +1) and its basis.
 
 ## How do I read the graph's colours?
 

@@ -273,7 +273,8 @@ Highlights:
   Context view, the line he travelled to reach each recalled memory is lit in the colour of its
   ring, and the rest is dimmed. The Context box now explains the rings: present by right (memories
   he always keeps in mind), continuity (memories that followed from the last ones) and matched
-  (memories found for this message), plus the lit lines and the grey-to-green scale. It is open on
+  (memories found for this message) and the lit lines; the grey-to-green scale is said once, in
+  the legend under the graph. It is open on
   a wide screen and folded on a phone; opened on a phone, it ends above the graph's layout
   buttons and scrolls inside, so it never hides them.
 - **Hover a recall in the ledger to see it in the graph.** Resting the mouse on "He holds these in
@@ -530,8 +531,10 @@ Highlights:
   opens docked at the top right, under the layout buttons, and grows downward. Drag it by its head
   (past a few pixels; a plain click still folds it) or by its grip, and it follows the pointer
   smoothly anywhere on the page, over the toolbar, the timeline and the side panel too, its head
-  always inside the window. Drag its bottom-right corner to grow it toward the bottom right, its
-  top-left corner staying put (240 to 560 px wide, as tall as the window allows). A moved panel
+  always inside the window, keeping its height. Drag its bottom-right corner to resize it: the
+  edge under the pointer moves and nothing else, so a moved panel grows toward the bottom right
+  and a docked one grows downward only and stays docked (240 to 560 px wide, as tall as the window
+  allows). A moved panel
   shows **put back** on its head, which docks it at the top right again with its size kept. Your
   browser remembers where you left it. A topic you click is framed in the part of the graph the
   panel leaves free, wherever the panel is, and the legend under the graph ends before the docked
@@ -550,15 +553,21 @@ Highlights:
   show them.
 - **The Cognitive Monitor opens in the timeline** (backlog 0018 and 0032). **🧠 Monitor**, after
   **Live** in the timeline's controls, opens the monitor in the timeline's free space, right of the
-  lanes and above the controls, and closes it again; the graph and the side panel keep their size.
-  It is compact: a small bloom (rest on it for the register his words are closest to) and the tone
-  row. Opening it is what reads his words, once per entity, kept while the page is open, so
-  reopening it shows the reading at once; another entity's page opens with it closed. It follows
-  the timeline: while you replay, his words at the timeline's position; live with his conversation
-  open, the reply in view, with its conduct gauge. A short word says when it is reading or has
-  nothing to show, and its ⓘ says on hover what it reads (his words, not his inner state) and with
-  which basis. On a phone it takes the place of the timeline's lanes until you close it. Beside
-  the Avatar view it is not shown, and its toggle says why. A closed monitor reads nothing.
+  lanes and above the controls, and closes it again. It is never taller than the lanes, so
+  opening it moves neither the graph, the timeline nor the side panel: a small bloom (rest on it
+  for the register his words are closest to) and the tone row. Opening it is what reads his words,
+  once per entity, kept while the page is open, so reopening it shows the reading at once; another
+  entity's page opens with it closed. Before reading, it checks that his home has an embedding
+  model and that the embedding route answers in his memory's space; when not, it reads nothing (his
+  book is never opened) and says "no embeddings · set up" or "could not read", the whole reason on
+  hover, and the next opening tries again. It follows the timeline: while you replay, his words at
+  the timeline's position; live with his conversation open, the reply in view, with its conduct
+  gauge. A short line says when it is reading or has nothing to show. Its ⓘ (hover, focus or a long
+  press) opens a small card: what it reads (his words, not his inner state), the five tone
+  channels (warmth, tension, reflection, structure, certainty) with their poles on one −1 to +1
+  scale, and the basis. On a phone it takes exactly the place of the timeline's lanes until you
+  close it. Beside the Avatar view it is not shown, and its toggle says why. A closed monitor reads
+  nothing.
 - **"just travelled" in the legend.** The legend's second line names the amber line: two memories
   he used together a moment ago. It fades as he goes on.
 - **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
@@ -630,7 +639,8 @@ Highlights:
   to let the topic go.
 - **Topic cards fold back** (backlog 0026). A click (or Enter, Space) on an unfolded topic folds it
   back to the card it was; the next click unfolds it again. The topic stays focused on the graph
-  until you let it go.
+  until you let it go. Focusing another topic, in the panel or by its title on the graph, folds the
+  one unfolded before: one topic is unfolded at a time.
 - **The side tabs in a new order** (backlog 0029): Chat, Card, Health, Book, World, Lessons, Detail
   and Ledger (Health first until you are signed in), on the phone's strip too.
 - **The World tab says what it is** (backlog 0031), in two lines: "His world model: how he
@@ -638,6 +648,14 @@ Highlights:
 - **Three entities per row on a desktop** (backlog 0024). The home page's cards use the page's
   width: one per row on a phone, two up to 1199 px, three from 1200 px, four from 1700 px; the
   creation form keeps its reading width.
+- **A reply's facts sit inside his message** (backlog 0033). Under his words and the badges, a
+  left-aligned row of small chips sums up the turn: "44 memories" opens the turn's Context tab,
+  "1 formed" and "1 diary" open that record in Detail (or the Context tab, where it is listed,
+  while Detail does not hold it yet), and "0 tools" opens the Tools tab; files and notices show
+  when the turn has them. The centred summary pill under the message is gone, and "system" marks
+  only a message whose author is not an entity.
+- **For contributors:** `npm test` runs the project's tests under `src/`; scratch copies under
+  `untracked/` are ignored.
 - **One card per topic, in its colour** (backlog 0014). In the Topics panel each topic, with what it
   unfolds, sits in one rounded card tinted with its circle's colour on the graph; the selected card
   is tinted a little more. The text keeps a contrast of at least 4.5:1 on all twelve topic
@@ -653,10 +671,12 @@ Highlights:
   gateway's words under the button). The phase bar stays at the bottom of each card and no longer
   repeats what the card says. Needs ui-kit 0.9.28.
 
-- **The closing notice is one line shorter.** While a visit closes, the notice says his reflection
-  runs and lists his acts as they land ("He wrote in his book", feelings moved); before any lands,
-  nothing more ("watching his stream for the reflection's acts… (the Ledger tab keeps the full
-  record)" is gone).
+- **The closing notice sits in the chat, in two lines.** While a visit closes, the conversation's
+  last row says "Closing — reflection runs now" and, under it in italics, "looking back over the
+  visit; feelings may move, a summary forms…", then lists the reflection's acts as they land ("He
+  wrote in his book", feelings moved). It follows the end of the conversation as acts arrive and
+  never floats over earlier messages; the "watching his stream for the reflection's acts…" line is
+  gone.
 - **A focused topic is a spotlight on the graph** (operator's test round 2, 2026-11-10: "today
   barely" visible). Its circle is tinted, ringed at full strength and glows; each of its memories
   carries a ring in the topic's colour; everything else sits under a veil, and the other circles
@@ -773,13 +793,17 @@ Highlights:
   beside the phase bar say "phase rules modulated" or "phase rules drift". The phase graph and the
   cognition map stay in `spec/`, and AbstractGateway serves both.
 - **The Wave tab, the monitor at the top of the chat and the monitor's ⓘ window** (backlog 0018
-  and 0032). The Cognitive Monitor opens in the timeline instead (see Added); its ⓘ's hover says
-  what it reads and with which basis.
+  and 0032). The Cognitive Monitor opens in the timeline instead (see Added); its ⓘ card says what
+  it reads, its five tone channels and its basis.
 - **The graph's reset button** (backlog 0020). **fit** stays, and where you dragged a topic's circle
   is kept.
 
 ### Fixed
 
+- **Opening a reply's details no longer breaks the chat panel** (backlog 0033). After a turn that
+  kept a diary entry, opening its details stopped the chat panel; the details now list each entry
+  by its title ("a private entry" for a private one, "its title is still being written" while it
+  is).
 - **The ledger's colour key is two lines** (operator 2026-11-10): the "Colour key · times are
   UTC" fold and the "hover a time: its date, tick and event number" note are gone; the colours
   and the day/tick mark are always shown (backlog 0009).
@@ -787,7 +811,7 @@ Highlights:
   starts at 0.85 of the way to green (was 0.75) (backlog 0007).
 - **A hovered memory's neighbourhood stands out more**: the rest dims to 0.10 (was 0.12) and the
   lit lines draw 1.2x stronger under hover or selection (backlog 0008).
-- **The "what moved in his mind" window under a reply is readable.** Each lookup now says in
+- **The "what moved in his mind" window of a reply is readable.** Each lookup now says in
   plain words what he asked (the web search, the page, the memory search) and what came back:
   web results as titles, snippets and links, a page with its title and text, memory search hits
   as rows, failures marked clearly, with long results folded and the exact text one click away.

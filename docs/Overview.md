@@ -77,8 +77,8 @@ These are load-bearing and test-pinned:
 
 - Diary redaction is honored in the pixel path and never reconstructed; a
   sealed entry's words never enter any feed (Book, Cognitive Monitor).
-- The Cognitive Monitor always carries, in its ⓘ (hover and accessible
-  name), "This reads the expressive character of his WORDS, not his inner
+- The Cognitive Monitor always carries, in its ⓘ card (hover, focus or a
+  long press), "This reads the expressive character of his WORDS, not his inner
   state," and never crosses embedding spaces (the home's
   embedder pin drives scoring; a mismatch refuses loudly).
 - Tool claims render from `tools_used` attributes and host events only,

@@ -148,7 +148,7 @@ for every launch flag.
 | Detail | One memory: its verbatim text, feelings and associations |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
-| Cognitive Monitor | Opened with **🧠 Monitor**, after **Live** in the timeline's controls, in the timeline's free space right of the lanes: a small bloom and the tone row for the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Opening it is what reads his words (once per entity while the page is open); its ⓘ says what it reads and with which basis |
+| Cognitive Monitor | Opened with **🧠 Monitor**, after **Live** in the timeline's controls, in the timeline's free space right of the lanes and never taller than them: a small bloom and the tone row for the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Opening it is what reads his words (once per entity while the page is open), after checking that the gateway has embeddings for him; without them it reads nothing and says "no embeddings · set up". Its ⓘ card says what it reads, its five tone channels and its basis |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
 of entities your account can see, and it becomes a chip inside your sentence (the
@@ -161,9 +161,13 @@ conversation."; one that cannot answer puts your words and its chip back in the
 message box. A gateway without mentions says "This gateway does not offer
 mentions yet". See [Mentions in a conversation](docs/api.md#mentions-in-a-conversation).
 
-Under a reply, a badge shows each thing the turn kept: a diary entry, a lesson, an
-interest, a question or a realization, with its title (a private diary entry shows
-no words). Click a badge to open its record.
+Inside his reply, under his words, a badge shows each thing the turn kept: a diary
+entry, a lesson, an interest, a question or a realization, with its title (a private
+diary entry shows no words). Click a badge to open its record. Under the badges, a
+left-aligned row of small chips sums up the turn: "44 memories" opens the turn's
+Context tab, "1 formed" and "1 diary" open that record in Detail, and "0 tools" opens
+the turn's Tools tab. While a visit closes, its last row says "Closing — reflection
+runs now", with an italic line under it, and lists the reflection's acts as they land.
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -234,8 +238,10 @@ With **topics** on, each topic is a circle with its title, and the **Topics** pa
 each a card in its circle's colour. On a wide graph the panel opens docked at the top right, under
 the layout buttons. Drag it by its head (or its grip) to move it anywhere on the page, over the
 toolbar, the timeline and the side panel too; drag its bottom-right corner to grow it toward the
-bottom right; **put back** docks it again. Your browser remembers where you left it. Click a topic
-to focus and unfold it; click it again (or press Enter or Space) to fold it back to its card.
+bottom right (only the edge under the pointer moves; a docked panel grows downward and stays
+docked); **put back** docks it again. Your browser remembers where you left it. Click a topic to
+focus and unfold it; click it again (or press Enter or Space) to fold it back to its card.
+Focusing another topic folds the one unfolded before, so one topic is unfolded at a time.
 Unfold a topic for what his memory knows of it: its **Memory types** fold (rest on a type to light
 those memories, click it to list them) and its paths most travelled (rest on a pair to light the two
 memories, click it to frame them). A focused topic also shows as a one-line chip in the toolbar;
@@ -649,11 +655,12 @@ The test suite pins these:
   only with the entity's own embedder; a mismatch is refused with a message.
 - **A refusal is a sentence, never a JSON body.** Every gateway refusal shows
   its `detail` (`refusalDetail`), never the raw `{"detail": …}` text. A gateway
-  with no embedding route (503 on `POST /embeddings`) gives the Cognitive
-  Monitor one line — "Embeddings are not configured on this gateway, so the
-  cognitive monitor cannot run." — and a **Set up embeddings** link to the
-  gateway console's Multimodal page (`/console#defaults`, on the proxied
-  gateway when the app runs behind its proxy).
+  with no embedding route (503 on `POST /embeddings`), or no embedding model
+  for the entity, gives the Cognitive Monitor one short line, "no embeddings ·
+  set up", with the sentence "Embeddings are not configured on this gateway, so
+  the cognitive monitor cannot run." on hover, before anything is read, and a
+  **set up** link to the gateway console's Multimodal page (`/console#defaults`,
+  on the proxied gateway when the app runs behind its proxy).
 
 ## Serving
 
@@ -865,8 +872,10 @@ The app reads payload version 2 as memory serves it: `version`, `version_seq`,
 
 - **Badges.** What a turn formed is served beside the reply, never inside its
   words: `reply_notices` on a visit turn's answer, and `notices` on a
-  flow-brain answer in the replay view. Each notice is one badge under the
-  reply; a click opens its record.
+  flow-brain answer in the replay view. Each notice is one badge inside the
+  reply, under his words; a click opens its record. Under the badges, a row of
+  small chips sums up the turn (memories recalled, records formed, diary
+  entries, tools used); each opens the turn's details or the record in Detail.
 - **Cut summaries.** When the gateway marks a record `cut: true` (the record
   read, the replay's record and recall blocks, and the statements of
   `GET /card`), the app shows the record's title and "Older record: its
@@ -1079,8 +1088,9 @@ It does not measure inner state, and sealed diary entries are never read. Open
 it with **Monitor**, after **Live** in the timeline's controls: it shows inside
 the timeline, right of the lanes, and opening it is what reads his words (once
 per entity while the page is open). It follows his words at the timeline's
-position or, live with the chat open, the reply in view. Its ⓘ says what it
-reads and with which basis.
+position or, live with the chat open, the reply in view. Its ⓘ card says what
+it reads, its five tone channels (warmth, tension, reflection, structure,
+certainty, each from −1 to +1) and its basis.
 
 ## How do I read the graph's colours?
 
@@ -1255,17 +1265,18 @@ for the reason) rather than showing invented scores.
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
 
-## The Cognitive Monitor says "Embeddings are not configured on this gateway"
+## The Cognitive Monitor says "no embeddings"
 
-**Cause:** the gateway has no embedding route, so `POST /api/gateway/embeddings`
-answers 503 and the monitor cannot score. The monitor shows "Embeddings are not
-configured on this gateway, so the cognitive monitor cannot run." and a
-**Set up embeddings** link.
+**Cause:** the gateway has no embedding model for the entity, or its embedding
+route answers 503, so the monitor cannot score. Before reading anything it
+checks this, and stops there: it shows "no embeddings · set up", with the
+sentence "Embeddings are not configured on this gateway, so the cognitive
+monitor cannot run." on hover, and never opens his book.
 
-**Fix:** follow **Set up embeddings**; it opens the gateway console's
-Multimodal page (`/console#defaults`), where an administrator sets the
-embedding route. Reopen the entity page afterwards; the monitor scores again.
-The rest of the app works without embeddings.
+**Fix:** follow **set up**; it opens the gateway console's Multimodal page
+(`/console#defaults`), where an administrator sets the embedding route. Then
+close and open the monitor again: a failed read is not kept, so the next opening
+reads his words. The rest of the app works without embeddings.
 
 ## About shows "AbstractGateway: unavailable (…)"
 
@@ -1394,8 +1405,8 @@ These are load-bearing and test-pinned:
 
 - Diary redaction is honored in the pixel path and never reconstructed; a
   sealed entry's words never enter any feed (Book, Cognitive Monitor).
-- The Cognitive Monitor always carries, in its ⓘ (hover and accessible
-  name), "This reads the expressive character of his WORDS, not his inner
+- The Cognitive Monitor always carries, in its ⓘ card (hover, focus or a
+  long press), "This reads the expressive character of his WORDS, not his inner
   state," and never crosses embedding spaces (the home's
   embedder pin drives scoring; a mismatch refuses loudly).
 - Tool claims render from `tools_used` attributes and host events only,

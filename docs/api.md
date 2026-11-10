@@ -171,8 +171,10 @@ The app reads payload version 2 as memory serves it: `version`, `version_seq`,
 
 - **Badges.** What a turn formed is served beside the reply, never inside its
   words: `reply_notices` on a visit turn's answer, and `notices` on a
-  flow-brain answer in the replay view. Each notice is one badge under the
-  reply; a click opens its record.
+  flow-brain answer in the replay view. Each notice is one badge inside the
+  reply, under his words; a click opens its record. Under the badges, a row of
+  small chips sums up the turn (memories recalled, records formed, diary
+  entries, tools used); each opens the turn's details or the record in Detail.
 - **Cut summaries.** When the gateway marks a record `cut: true` (the record
   read, the replay's record and recall blocks, and the statements of
   `GET /card`), the app shows the record's title and "Older record: its

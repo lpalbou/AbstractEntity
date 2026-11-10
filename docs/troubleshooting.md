@@ -99,17 +99,18 @@ for the reason) rather than showing invented scores.
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.
 
-## The Cognitive Monitor says "Embeddings are not configured on this gateway"
+## The Cognitive Monitor says "no embeddings"
 
-**Cause:** the gateway has no embedding route, so `POST /api/gateway/embeddings`
-answers 503 and the monitor cannot score. The monitor shows "Embeddings are not
-configured on this gateway, so the cognitive monitor cannot run." and a
-**Set up embeddings** link.
+**Cause:** the gateway has no embedding model for the entity, or its embedding
+route answers 503, so the monitor cannot score. Before reading anything it
+checks this, and stops there: it shows "no embeddings · set up", with the
+sentence "Embeddings are not configured on this gateway, so the cognitive
+monitor cannot run." on hover, and never opens his book.
 
-**Fix:** follow **Set up embeddings**; it opens the gateway console's
-Multimodal page (`/console#defaults`), where an administrator sets the
-embedding route. Reopen the entity page afterwards; the monitor scores again.
-The rest of the app works without embeddings.
+**Fix:** follow **set up**; it opens the gateway console's Multimodal page
+(`/console#defaults`), where an administrator sets the embedding route. Then
+close and open the monitor again: a failed read is not kept, so the next opening
+reads his words. The rest of the app works without embeddings.
 
 ## About shows "AbstractGateway: unavailable (…)"
 

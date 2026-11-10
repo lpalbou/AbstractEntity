@@ -139,7 +139,7 @@ for every launch flag.
 | Detail | One memory: its verbatim text, feelings and associations |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
-| Cognitive Monitor | Opened with **🧠 Monitor**, after **Live** in the timeline's controls, in the timeline's free space right of the lanes: a small bloom and the tone row for the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Opening it is what reads his words (once per entity while the page is open); its ⓘ says what it reads and with which basis |
+| Cognitive Monitor | Opened with **🧠 Monitor**, after **Live** in the timeline's controls, in the timeline's free space right of the lanes and never taller than them: a small bloom and the tone row for the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Opening it is what reads his words (once per entity while the page is open), after checking that the gateway has embeddings for him; without them it reads nothing and says "no embeddings · set up". Its ⓘ card says what it reads, its five tone channels and its basis |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
 of entities your account can see, and it becomes a chip inside your sentence (the
@@ -152,9 +152,13 @@ conversation."; one that cannot answer puts your words and its chip back in the
 message box. A gateway without mentions says "This gateway does not offer
 mentions yet". See [Mentions in a conversation](docs/api.md#mentions-in-a-conversation).
 
-Under a reply, a badge shows each thing the turn kept: a diary entry, a lesson, an
-interest, a question or a realization, with its title (a private diary entry shows
-no words). Click a badge to open its record.
+Inside his reply, under his words, a badge shows each thing the turn kept: a diary
+entry, a lesson, an interest, a question or a realization, with its title (a private
+diary entry shows no words). Click a badge to open its record. Under the badges, a
+left-aligned row of small chips sums up the turn: "44 memories" opens the turn's
+Context tab, "1 formed" and "1 diary" open that record in Detail, and "0 tools" opens
+the turn's Tools tab. While a visit closes, its last row says "Closing — reflection
+runs now", with an italic line under it, and lists the reflection's acts as they land.
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -225,8 +229,10 @@ With **topics** on, each topic is a circle with its title, and the **Topics** pa
 each a card in its circle's colour. On a wide graph the panel opens docked at the top right, under
 the layout buttons. Drag it by its head (or its grip) to move it anywhere on the page, over the
 toolbar, the timeline and the side panel too; drag its bottom-right corner to grow it toward the
-bottom right; **put back** docks it again. Your browser remembers where you left it. Click a topic
-to focus and unfold it; click it again (or press Enter or Space) to fold it back to its card.
+bottom right (only the edge under the pointer moves; a docked panel grows downward and stays
+docked); **put back** docks it again. Your browser remembers where you left it. Click a topic to
+focus and unfold it; click it again (or press Enter or Space) to fold it back to its card.
+Focusing another topic folds the one unfolded before, so one topic is unfolded at a time.
 Unfold a topic for what his memory knows of it: its **Memory types** fold (rest on a type to light
 those memories, click it to list them) and its paths most travelled (rest on a pair to light the two
 memories, click it to frame them). A focused topic also shows as a one-line chip in the toolbar;

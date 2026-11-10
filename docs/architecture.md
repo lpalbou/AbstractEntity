@@ -172,11 +172,12 @@ The test suite pins these:
   only with the entity's own embedder; a mismatch is refused with a message.
 - **A refusal is a sentence, never a JSON body.** Every gateway refusal shows
   its `detail` (`refusalDetail`), never the raw `{"detail": …}` text. A gateway
-  with no embedding route (503 on `POST /embeddings`) gives the Cognitive
-  Monitor one line — "Embeddings are not configured on this gateway, so the
-  cognitive monitor cannot run." — and a **Set up embeddings** link to the
-  gateway console's Multimodal page (`/console#defaults`, on the proxied
-  gateway when the app runs behind its proxy).
+  with no embedding route (503 on `POST /embeddings`), or no embedding model
+  for the entity, gives the Cognitive Monitor one short line, "no embeddings ·
+  set up", with the sentence "Embeddings are not configured on this gateway, so
+  the cognitive monitor cannot run." on hover, before anything is read, and a
+  **set up** link to the gateway console's Multimodal page (`/console#defaults`,
+  on the proxied gateway when the app runs behind its proxy).
 
 ## Serving
 
