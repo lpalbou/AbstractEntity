@@ -27,12 +27,6 @@
 .cm_gauge_codes .cm_gauge_val {
   white-space: nowrap;
 }
-/* The replay reading's column (the docked monitor): the bloom, then the same tone row under it. */
-.cw_bloom_col {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 /* The codes are labels, not buttons (operator 2026-11-07): no pointer cursor, no underline; the
  * help cursor says a card is behind them; focusable for keyboard users (the card opens on focus).
  * A long-press opens the card on touch, so the page must not select text or open a callout. */
@@ -90,17 +84,4 @@
 }
 .cm_gauge_box .cm_gauge_code.cm_explained {
   padding: 0 1px;
-}
-/* The replay reading's request and answer, through the shared renderer (WordsLine, a <div>, which
- * cannot sit in the old <p>): the old paragraph's type, colour and height, on its wrapper. */
-.cw_turn_block .cw_turn_text {
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.55;
-  color: var(--text);
-  overflow-wrap: anywhere;
-  max-height: 180px;
-  overflow-y: auto;
-}
-.cw_turn_request .cw_turn_text {
-  color: var(--text-dim);
 }

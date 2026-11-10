@@ -5,11 +5,9 @@
  * arc + anchor texts + 74 real replies). The copy must never claim the basis is tuned to one
  * entity (neither "his own corpus" nor "calibrated on <someone>'s words").
  */
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { basisProvenanceNote, MonitorInfoModal } from "./cognitive_monitor";
+import { basisProvenanceNote } from "./cognitive_monitor";
 import basisV1 from "./vendor/cognition/data/basis_v1.json";
 
 const V1 = (basisV1 as unknown as { calibrated_on: Record<string, unknown> }).calibrated_on;
@@ -35,22 +33,5 @@ describe("basisProvenanceNote (generic design, mixed-corpus normalization)", () 
     expect(basisProvenanceNote({})).toBe("The registers and tone channels are generic: their prototypes come from generic anchor texts, the same for every entity.");
     expect(basisProvenanceNote(null)).not.toMatch(/fitted/);
     expect(basisProvenanceNote({ castor_utterances: 3 })).toContain("mixed corpus: 3 utterances.");
-  });
-});
-
-describe("the (i) modal carries the generic provenance", () => {
-  it("the (i) modal states the generic provenance, explains the signed tone channels, and drops the stale sentences", () => {
-    const html = renderToStaticMarkup(React.createElement(MonitorInfoModal, { onClose: () => undefined, calibration: basisProvenanceNote(V1) }));
-    expect(html).toContain("the same for every entity");
-    expect(html).toContain("print their signed score in [−1, 1], so both poles show");
-    // no sentence comments on the values any more (operator 2026-11-07)
-    expect(html).not.toMatch(/The sentence|are closest to calm/);
-    // no "n/a" any more, and the codes are hovered (long-pressed on touch), never tapped or clicked
-    expect(html).not.toContain("n/a");
-    expect(html).toContain("Hover a code (long-press on a touch screen)");
-    expect(html).not.toMatch(/\btap\b|click/i);
-    expect(html).not.toMatch(NO_ONE_ENTITY);
-    expect(html).not.toContain("calibrated on his real utterances");
-    expect(html).not.toContain("curated-only v0 basis");
   });
 });

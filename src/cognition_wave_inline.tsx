@@ -32,7 +32,7 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { isUsableVector, readingFromScore } from "./cognition_adapter";
-import { BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, conductCell, conductExplainer, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
+import { bloomScoresOf, CONDUCT_AXES, conductCell, conductExplainer, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
 import { ExplainedCode } from "./code_explainer";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
@@ -94,11 +94,10 @@ export function createReplyFeed(): ReplyFeed {
     },
   };
 }
-/** Preferred square size; the pair SHRINKS to fit the rail side by side
- * (two fixed 190px squares overflowed the ~360px drawer and clipped the
- * bloom's letter codes). */
-const BLOOM_SIZE = 190;
-const MIN_SIZE = 132;
+/** The squares inside the timeline (backlog 0032: the monitor stays about 110 px tall): the bloom,
+ * and the conduct gauge with its code row under it. */
+const BLOOM = 84;
+const GAUGE = 64;
 
 interface ScoredText {
   scores: Record<string, number>;
@@ -239,23 +238,6 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
     }
     return baselineRef.current;
   }, [effort, effortKey]);
-  /** Fit the PAIR into the rail: both squares shrink together (min 132px)
-   * so the side-by-side ruling holds at any drawer width. */
-  const bodyRef = useRef<HTMLDivElement | null>(null);
-  const [pairSize, setPairSize] = useState(BLOOM_SIZE);
-  useEffect(() => {
-    // Re-arm whenever the body can have (re)appeared: the whole component
-    // returns null until the first score lands, so an effect armed once
-    // against nothing never shrank the pair (live miss).
-    const el = bodyRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      if (w > 0) setPairSize(Math.max(MIN_SIZE, Math.min(BLOOM_SIZE, Math.floor((w - 14) / 2))));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [status]);
 
   const ensureSetup = () => {
     if (setupRef.current) return setupRef.current;
@@ -341,52 +323,31 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   if (status === "idle") return null;
 
   return (
-    <div className="cm_panel" data-reading-state={status}>
-      {/* The reading's own line (the monitor's title, ⓘ and framing are the dock's head). */}
-      <div className="cm_head">
-        {mood ? <span className="cm_mood_dot" style={{ background: mood.axis.color }} title={`closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})`} /> : <span className="cm_mood_dot cm_mood_neutral" title="not read" />}
-        {!isLatest ? (
-          <span className="cm_asof" title="The monitor is showing the mood at the message you scrolled to — scroll to the bottom for the latest.">
-            as of {focusAt ? new Date(focusAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "an earlier message"}
-          </span>
-        ) : null}
-        {status === "scoring" ? <span className="cm_reading">reading…</span> : null}
-        {status === "error" || status === "unavailable" ? <span className="cm_err">{note || "unavailable"}</span> : null}
-      </div>
-      {/* Its own full-width line under the header (never squeezed into the title row). */}
-      {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err cm_note_line" /> : null}
-
-      {/* TWO WIDGETS SIDE BY SIDE (operator 2026-07-15 23:41/23:50):
-        * (a) the mood/state bloom; (b) FOCUS & EFFORT — the mechanical
-        * facts of the latest turn. No sentence, no right-hand legend, no
-        * fact-card: every code carries its value; a 300 ms hover (a
-        * long-press on touch) opens its card. */}
-      <div className="cm_body" ref={bodyRef}>
-        <div className="cm_canvas_box" style={{ width: pairSize }}>
-          {status === "live" && current ? <>
-            {/* Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
-              * similarity scale is not. The breathing stays. */}
-            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={pairSize} />
-            <BloomAxisOverlay width={pairSize} height={pairSize} emotions={current.emotions} />
-          </> : <div role="status" className="cm_reading_state" style={{ width: pairSize, height: pairSize, display: "grid", placeItems: "center", textAlign: "center", padding: "1rem", boxSizing: "border-box" }}>
-            {status === "scoring" ? "Reading this reply…" : "This reply has not been scored."}
-          </div>}
-          {/* The five tone channels, each with its signed score (both poles show). */}
-          {status === "live" && current ? <ToneRow scores={current.scores} /> : null}
+    <div className="cm_panel cm_compact" data-reading-state={status}>
+      {/* THE READING, compact (backlog 0032): the bloom (its closest register in the hover), the tone
+        * channels with their signed scores, and FOCUS & EFFORT, the mechanical facts of the latest
+        * turn (uic's AfConductGauge; every code carries its value, a 300 ms hover or a long-press opens
+        * its card). No sentence comments on the values. */}
+      <div className="cm_body">
+        <div
+          className="cm_canvas_box"
+          style={{ width: BLOOM }}
+          title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}
+        >
+          {status === "live" && current ? (
+            // Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
+            // similarity scale is not. The breathing stays.
+            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={BLOOM} />
+          ) : (
+            <div role="status" className="cm_reading_state" style={{ width: BLOOM, height: BLOOM, display: "grid", placeItems: "center", textAlign: "center", boxSizing: "border-box" }}>
+              {status === "scoring" ? "reading…" : "not read"}
+            </div>
+          )}
         </div>
-        {/* Slot (b): uic's AfConductGauge v2.1 "THE STANCE" (posture
-          * figure — breath+head size=effort, strokes=tools with violet
-          * verify rings, root filaments=memories recalled, spine
-          * alignment=rigor; idle breath keeps quiet turns alive). The
-          * code row is OURS (operator dm#22 (a)-(c)): interactive
-          * EFF/ACT/ATT/RIG spread across the full width, a 300 ms hover
-          * opens each code's card; the canvas draws no labels (labels:false — bloom
-          * parity). Since 2026-08-01 each code carries its LIVE compact
-          * value (the kit's `short`) — the operator's finding: EFF/RIG
-          * encoded as motion/alignment alone were never perceived, so
-          * every read now has a static numeric channel too. */}
-        <div className="cm_gauge_box" style={{ width: pairSize }}>
-          <AfConductGauge facts={effort ?? null} tools={tools ?? null} baseline={baseline} size={pairSize} labels={false} onAxes={setGaugeAxes} />
+        {/* The five tone channels, each with its signed score (both poles show). */}
+        {status === "live" && current ? <ToneRow scores={current.scores} /> : null}
+        <div className="cm_gauge_box">
+          <AfConductGauge facts={effort ?? null} tools={tools ?? null} baseline={baseline} size={GAUGE} labels={false} onAxes={setGaugeAxes} />
           <div className="cm_gauge_codes">
             {CONDUCT_AXES.map((a) => {
               const cell = conduct[a.id];
@@ -399,6 +360,19 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             })}
           </div>
         </div>
+      </div>
+      <div className="cm_head">
+        {!isLatest ? (
+          <span className="cm_asof" title="The monitor is showing the mood at the message you scrolled to — scroll to the bottom for the latest.">
+            as of {focusAt ? new Date(focusAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "an earlier message"}
+          </span>
+        ) : null}
+        {status === "error" || status === "unavailable" ? (
+          <span className="cm_err" title={note || undefined}>
+            not read
+          </span>
+        ) : null}
+        {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err" /> : null}
       </div>
     </div>
   );

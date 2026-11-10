@@ -41,7 +41,7 @@ import { bearerAccountStatus } from "./entity_account";
 import { ENTITY_DOCS_SOURCE, ENTITY_DOCS_SUGGESTIONS, makeEntityDocsFetch } from "./entity_assistant";
 
 import { BookReader } from "./book_reader";
-import { MonitorDock, monitorShown } from "./cognition_wave_panel";
+import { CognitionWavePanel, monitorShown } from "./cognition_wave_panel";
 import { createReplyFeed } from "./cognition_wave_inline";
 import { LessonsPanel, WorldPanel } from "./lessons_world_panels";
 import { HealthPanel } from "./health_panel";
@@ -1624,9 +1624,12 @@ export function EntityView(): React.ReactElement {
 
   // The search query is per-life state: a stale query would invisibly dim
   // the next entity's graph (func review P1) — switching entities resets it.
+  // The monitor too: its press is the act that reads an entity's words
+  // (backlog 0032), so another entity's page opens with it closed.
   useEffect(() => {
     setSearchText("");
     setSearchOpen(false);
+    setMonitorOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityName, sourceLabel]);
 
@@ -2122,7 +2125,12 @@ export function EntityView(): React.ReactElement {
                       ? "Hide his topics' circles, titles and list. His memories stay grouped by topic with this off."
                       : "Show his topics — a circle and a title around each group of memories, formed and named in his sleep, and the list of them. Click a title to focus a topic; drag a title to move its circle."
                   }
-                  onClick={() => setShowTopics((v) => !v)}
+                  onClick={() => {
+                    // Unpressing topics lets a focused topic go too (operator 2026-11-10, backlog 0030).
+                    const next = !showTopics;
+                    setShowTopics(next);
+                    if (!next) setTopicFilter(null);
+                  }}
                 >
                   🗺<span className="lens_search_label">topics</span>
                 </button>
@@ -2137,16 +2145,17 @@ export function EntityView(): React.ReactElement {
               />
               {topicFilter !== null ? (
                 <button
-                  className="lens_chip active tm_filter_chip gc_topic_chip_full"
+                  className="lens_chip active tm_filter_chip"
                   title={
                     topicFilter.ids.size > 0
-                      ? `The graph is lit to the "${topicFilter.label}" topic (${topicFilter.ids.size} memories) — click to clear`
-                      : `The "${topicFilter.label}" topic: its memories are outside the loaded window — click to clear`
+                      ? `${topicFilter.label}\nThe graph is lit to this topic (${topicFilter.ids.size} memories) — click to clear`
+                      : `${topicFilter.label}\nThis topic's memories are outside the loaded window — click to clear`
                   }
                   onClick={() => setTopicFilter(null)}
                 >
-                  {/* The whole label (it wraps; graph_canvas.css), never cut. */}
-                  🗺 {topicFilter.label} ✕
+                  {/* One line (operator 2026-11-10, backlog 0030): the title is cut with an ellipsis, the
+                    * whole title on hover; the ✕ always shows. */}
+                  🗺 <span className="tm_filter_label">{topicFilter.label}</span> ✕
                 </button>
               ) : null}
             </div>
@@ -2187,17 +2196,6 @@ export function EntityView(): React.ReactElement {
             * pressed toggle that shows where those memories or links are. */}
           <GraphLegend extraKinds={extraKinds} relationTypes={relationTypes} warmthAge={warmthAge} picked={legendPick} onPick={setLegendPick} />
         </div>
-        {/* THE COGNITIVE MONITOR, docked above the timeline under the graph (backlog 0018): the side
-          * panel keeps its whole height beside it. Mounted only on screen (monitorShown): never behind
-          * the content gate, never beside the avatar view. */}
-        <MonitorDock
-          shown={monitorOnScreen}
-          fold={fold}
-          source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
-          scrubSeq={scrubSeq}
-          live={live}
-          replyFeed={replyFeed}
-        />
         <SideTabs
           defaultTab="ledger"
           emphasizedTab={avatarChat ? "chat" : undefined}
@@ -2252,28 +2250,6 @@ export function EntityView(): React.ReactElement {
                 ] as SideTab[])
               : []),
             {
-              id: "detail",
-              icon: "🔍",
-              title: "Detail",
-              content: (
-                <Inspector
-                  fold={fold}
-                  temporal={temporal}
-                  scrubSeq={scrubSeq}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  verbatimSource={verbatimSource}
-                  onOpenMeet={sourceKind === "gateway" ? (visitId) => setMeetVisitId(visitId) : undefined}
-                />
-              ),
-            },
-            {
-              id: "book",
-              icon: "📔",
-              title: "Book",
-              content: <BookReader fold={fold} verbatimSource={verbatimSource} focus={bookFocus} />,
-            },
-            {
               id: "health",
               icon: "🩺",
               title: "Health",
@@ -2287,6 +2263,26 @@ export function EntityView(): React.ReactElement {
                   cognitionMeter={cognitionMeter}
                   cardSource={verbatimSource}
                   authVerified={authVerified}
+                />
+              ),
+            },
+            {
+              id: "book",
+              icon: "📔",
+              title: "Book",
+              content: <BookReader fold={fold} verbatimSource={verbatimSource} focus={bookFocus} />,
+            },
+            {
+              id: "world",
+              icon: "🌍",
+              title: "World",
+              content: (
+                <WorldPanel
+                  fold={fold}
+                  onSelect={(id) => {
+                    setSelectedId(id);
+                    setRequestedTab({ tab: "detail", nonce: Date.now() });
+                  }}
                 />
               ),
             },
@@ -2305,16 +2301,18 @@ export function EntityView(): React.ReactElement {
               ),
             },
             {
-              id: "world",
-              icon: "🌍",
-              title: "World",
+              id: "detail",
+              icon: "🔍",
+              title: "Detail",
               content: (
-                <WorldPanel
+                <Inspector
                   fold={fold}
-                  onSelect={(id) => {
-                    setSelectedId(id);
-                    setRequestedTab({ tab: "detail", nonce: Date.now() });
-                  }}
+                  temporal={temporal}
+                  scrubSeq={scrubSeq}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  verbatimSource={verbatimSource}
+                  onOpenMeet={sourceKind === "gateway" ? (visitId) => setMeetVisitId(visitId) : undefined}
                 />
               ),
             },
@@ -2436,6 +2434,19 @@ export function EntityView(): React.ReactElement {
           onToggleLive={toggleLive}
           monitorOpen={monitorOnScreen}
           onToggleMonitor={avatarChat ? null : () => setMonitorOpen((v) => !v)}
+          // THE COGNITIVE MONITOR, inside the timeline (backlog 0032): mounted only on screen
+          // (monitorShown: open, his page, past the content gate, not beside the avatar view).
+          monitor={
+            monitorOnScreen ? (
+              <CognitionWavePanel
+                fold={fold}
+                source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
+                scrubSeq={scrubSeq}
+                live={live}
+                replyFeed={replyFeed}
+              />
+            ) : null
+          }
           playhead={playhead}
         />
       )}

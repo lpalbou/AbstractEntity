@@ -492,93 +492,6 @@ body {
   opacity: 1;
   text-shadow: 0 0 8px currentColor;
 }
-.cm_axis_code {
-  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  width: 30px;
-}
-.cm_axis_name {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-}
-.cm_axis_desc {
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  line-height: 1.45;
-}
-
-/* ---- the (i) modal: what the monitor is + per-axis detail. */
-.cm_modal {
-  background: var(--bg-panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  width: min(560px, 92vw);
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-}
-.cm_modal_head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.cm_modal_title {
-  font-weight: 600;
-  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.cm_modal_close {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.cm_modal_close:hover {
-  color: var(--text);
-}
-.cm_modal_body {
-  padding: 12px 16px 16px;
-  overflow-y: auto;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.55;
-  color: var(--text);
-}
-.cm_modal_body p {
-  margin: 0 0 10px;
-}
-.cm_modal_axes {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 10px 0;
-}
-.cm_modal_axes_head {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  margin-top: 6px;
-}
-.cm_modal_axis {
-  display: grid;
-  grid-template-columns: 34px 82px 1fr;
-  gap: 8px;
-  align-items: baseline;
-}
-.cm_modal_note {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  font-style: italic;
-}
 
 /* One message group in the thread (context fold + card + badge). */
 .cd_msg {
@@ -4357,180 +4270,88 @@ body {
 }
 
 /* ----------------------------------------------------- cognition wave
- * uic's mood instrument, mounted (vendored pending the kit package). */
-.cw_panel {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 10px 14px 16px;
+ * uic's mood instrument, mounted (vendored pending the kit package): THE COGNITIVE MONITOR, inside
+ * the timeline (backlog 0032). Its place is the free space right of the lanes, above the transport
+ * (the lanes' rows of the third column); compact, about 110 px tall at most, so the timeline grows by
+ * about 40 px while it is open and the graph keeps its height. On a phone it takes the lanes' place. */
+.et_monitor_slot {
+  grid-column: 3;
+  min-width: 0;
+  align-self: center;
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
 }
-.cw_head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.cw_title {
-  font-weight: 600;
-  color: var(--text);
-}
-.cw_prov {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  text-align: right;
-}
-.cw_framing {
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  font-style: italic;
-  color: var(--text-dim);
-  line-height: 1.5;
-  margin: 6px 0 10px;
-  padding-left: 8px;
-  border-left: 2px solid color-mix(in srgb, var(--standing) 40%, transparent);
-}
-.cw_pullbar {
+.cw_panel.cw_compact {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 4px 0 10px;
-  flex-wrap: wrap;
+  min-width: 0;
+  max-height: 110px;
+  overflow: hidden;
 }
-.cw_pull_btn {
-  background: color-mix(in srgb, var(--standing) 16%, transparent);
-  color: color-mix(in srgb, var(--standing) 55%, var(--text));
-  border: 1px solid color-mix(in srgb, var(--standing) 50%, transparent);
-  border-radius: 8px;
-  padding: 7px 14px;
-  font: inherit;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.cw_pull_btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--standing) 26%, transparent);
-}
-.cw_pull_btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.cw_pull_hint {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  line-height: 1.4;
-}
-.cw_current {
+.cw_compact .cm_body,
+.cw_compact .cm_panel.cm_compact,
+.cw_compact .cm_panel.cm_compact .cm_body {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-top: 8px;
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.cw_current_label {
-  font-weight: 600;
-  color: var(--standing);
-}
-.cw_wander {
-  color: var(--text-dim);
-}
-/* The per-utterance quiet/faint chip (2026-08-01): the abstention gate's
- * verdict on THIS sample, hover for the live evidence numbers. */
-.cw_quiet {
-  color: var(--text-dim);
-  font-style: italic;
-  cursor: help;
-}
-
-/* ---- THE COGNITIVE MONITOR, DOCKED above the timeline (backlog 0018): a strip under the graph,
- * a bounded height with its own scroll; the head (title, ⓘ, what it follows, the framing, the read
- * button) in a column on the left, the reading beside it: the bloom and the turn at the timeline's
- * position, or the reply in view of his conversation (bloom + conduct gauge). One column on a
- * phone.
- * The side panel keeps its whole height beside graph + monitor (its tab strip never gives the
- * monitor any room): the main area becomes a grid while the monitor is open, the graph and the
- * monitor in the first column, the side panel down the second. */
-.entity_main:has(> .entity_monitor_dock) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: minmax(0, 1fr) auto;
-}
-.entity_main:has(> .entity_monitor_dock) > .entity_canvas_wrap {
-  grid-column: 1;
-  grid-row: 1;
-  min-height: 0;
-}
-.entity_main:has(> .entity_monitor_dock) > .side_tabs {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-.entity_monitor_dock {
-  grid-column: 1;
-  grid-row: 2;
-  min-width: 0;
-  max-height: calc(var(--vh-full, 100vh) * 0.38);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-top: 1px solid var(--line);
-  background: var(--bg-panel);
-}
-.cw_panel.cw_dock {
-  flex: none;
-  overflow: visible;
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  grid-auto-flow: row dense;
-  align-content: start;
-  column-gap: 18px;
-  padding: 8px 14px 10px;
-}
-.cw_dock > * {
-  grid-column: 1;
-  min-width: 0;
-}
-.cw_dock > .cw_ready,
-.cw_dock > .cm_panel {
-  grid-column: 2;
-  grid-row: 1 / span 6;
-}
-.cw_dock .cw_head {
-  justify-content: flex-start;
-  flex-wrap: wrap;
+  flex-direction: row;
   align-items: center;
-}
-.cw_follow {
-  color: var(--text-dim);
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.cw_dock .cw_prov {
-  flex-basis: 100%;
-  text-align: left;
-}
-.cw_dock .cw_framing {
-  margin: 4px 0 8px;
-}
-.cw_ready {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  gap: 10px;
   min-width: 0;
-}
-.cw_bloom_col {
-  flex: none;
-}
-.cw_ready_text {
-  flex: 1 1 0;
-  min-width: 0;
-}
-.cw_ready_text .cw_turn {
-  margin-top: 0;
-}
-.cw_dock .cm_panel {
+  padding: 0;
   border: none;
   background: none;
-  padding: 0;
 }
-.cw_dock .cm_body {
-  justify-content: flex-start;
+.cw_compact .cm_tone_codes {
+  width: 168px;
+  flex: none;
+}
+.cw_compact .cm_gauge_box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 128px;
+  flex: none;
+}
+.cw_compact .cm_gauge_codes {
+  width: 100%;
+}
+.cw_compact .cm_reading_state {
+  color: var(--text-dim);
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  border: 1px dashed color-mix(in srgb, var(--text-dim) 35%, transparent);
+  border-radius: 50%;
+}
+.cw_compact .cm_head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.cw_compact .cm_head:empty {
+  display: none;
+}
+/* The monitor's own one-word state (reading…, nothing said yet here…) and its ⓘ, whose hover says what
+ * it reads (his words, never his inner state) and the basis it reads with. */
+.cw_state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: none;
+  max-width: 120px;
+}
+.cw_about {
+  color: var(--text-dim);
+  cursor: help;
+  font-size: max(calc(13px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1;
+}
+.cw_note {
+  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+.cw_note_error {
+  color: color-mix(in srgb, var(--scar) 55%, var(--text));
 }
 /* The Monitor toggle in the timeline's transport: pressed = the monitor is open. */
 .et_monitor {
@@ -4542,117 +4363,24 @@ body {
   border-color: var(--ea-accent);
   background: color-mix(in srgb, var(--ea-accent) 14%, var(--bg-raise));
 }
-/* One pane at a time (the phone's rule, like an open side panel over the graph): the open monitor
- * takes the graph's place above the tab strip (an open panel covers it like it covers the graph);
- * its toggle in the timeline gives the graph back. */
-@media (max-width: 767.98px), (max-height: 500px) {
-  .entity_main:has(> .entity_monitor_dock) {
-    display: flex;
+/* Phone (the lanes fill the width): the open monitor takes the lanes' place, above the bar. */
+@media (max-width: 767.98px) {
+  .et_monitor_slot {
+    grid-column: 1 / -1;
+    grid-row: auto !important;
+    justify-content: flex-start;
   }
-  .entity_main:has(> .entity_monitor_dock) > .entity_canvas_wrap {
+  .et_monitor_slot:empty {
     display: none;
   }
-  /* Basis 0: it takes only the room the main area leaves (a content basis squeezes the rest). */
-  .entity_monitor_dock {
-    flex: 1 1 0;
-    min-height: 0;
+  .entity_timeline.et_monitor_open .et_lane_label:not(.et_time_label),
+  .entity_timeline.et_monitor_open .et_lane {
+    display: none;
+  }
+  .cw_panel.cw_compact {
+    flex-wrap: wrap;
     max-height: none;
   }
-}
-@media (max-width: 767.98px) {
-  .cw_panel.cw_dock {
-    grid-template-columns: minmax(0, 1fr);
-    padding-left: max(12px, var(--safe-left, 0px));
-    padding-right: max(12px, var(--safe-right, 0px));
-  }
-  .cw_dock > .cw_ready,
-  .cw_dock > .cm_panel {
-    grid-column: 1;
-    grid-row: auto;
-  }
-  /* Stacked: the bloom, then the turn under it. */
-  .cw_ready {
-    flex-direction: column;
-    align-items: center;
-  }
-  .cw_ready_text {
-    align-self: stretch;
-  }
-  .cw_dock .cm_body {
-    justify-content: center;
-  }
-}
-
-/* ---- the turn under the wave: request (their words, context) + answer
- * (his words — what was scored). */
-.cw_turn {
-  margin-top: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg-panel);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.cw_turn_head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-}
-.cw_src {
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.cw_src_visit { color: var(--memory); }
-.cw_src_episode { color: var(--memory); }
-.cw_src_diary { color: var(--diary); }
-.cw_src_summary { color: var(--standing); }
-.cw_turn_when,
-.cw_turn_seq {
-  font-variant-numeric: tabular-nums;
-}
-.cw_turn_block {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.cw_turn_role {
-  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-}
-.cw_turn_block p {
-  margin: 0;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  line-height: 1.55;
-  color: var(--text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 180px;
-  overflow-y: auto;
-}
-.cw_turn_request p {
-  color: var(--text-dim);
-}
-.cw_note {
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  line-height: 1.5;
-  margin: 10px 0;
-}
-.cw_note_error {
-  color: color-mix(in srgb, var(--scar) 55%, var(--text));
-}
-.cw_warn {
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--ea-accent);
-  margin-top: 6px;
 }
 /* --------------------------------------------- lessons + world panels */
 .lw_panel {
@@ -5610,7 +5338,9 @@ body {
 .entity_search_close:hover { color: var(--text); }
 
 /* The lit-topic chip on the lens row (a topic label clicked on the graph). */
-.tm_filter_chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm_filter_chip { display: inline-flex; align-items: center; gap: 4px; max-width: 260px; white-space: nowrap; }
+/* One line (backlog 0030): the title cut with an ellipsis (the whole title on hover), the ✕ kept. */
+.tm_filter_label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* Detail card: speaker-labeled verbatim turns + metadata chips (dm#54). */
 .ei_turns { display: flex; flex-direction: column; gap: 8px; }
@@ -6319,9 +6049,6 @@ body {
   }
   .entity_timeline.et_grid {
     grid-template-columns: max-content minmax(0, 1fr);
-  }
-  .entity_timeline.et_grid > span:empty {
-    display: none;
   }
   .entity_timeline.et_grid .et_right {
     grid-column: 1 / -1;

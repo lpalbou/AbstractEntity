@@ -17,7 +17,7 @@
  * vendored axis has a code + description here.
  */
 
-import React, { useEffect } from "react";
+import React from "react";
 import { EMOTION_REGISTERS, type ConductAxis, type ConductFacts, type ConductToolCall } from "@abstractframework/ui-kit";
 
 import { CHANNELS } from "./vendor/cognition/core";
@@ -318,104 +318,6 @@ export function conductExplainer(a: AxisInfo, cell: ConductCell | null | undefin
     facts: [{ label: "This turn", value: cell?.value ?? "—" }],
     ...(cell ? (cell.reason ? { note: cell.reason } : {}) : { note: "Not read yet." }),
   };
-}
-
-/** What the monitor IS — the (i) window of the monitor docked above the timeline. (The codes
- * explain themselves on hover; there is no per-axis window.) */
-export function MonitorInfoModal({ onClose, calibration }: { onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      className="ev_backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="cm_modal" role="dialog" aria-label="About the Cognitive Monitor">
-            <div className="cm_modal_head">
-              <span className="cm_modal_title">🧠 Cognitive Monitor</span>
-              <button className="cm_modal_close" onClick={onClose} title="Close">✕</button>
-            </div>
-            <div className="cm_modal_body">
-              <p>
-                <strong>Two instruments, side by side.</strong> LEFT — the mood bloom — reads the{" "}
-                <strong>expressive character of his words</strong>, never his inner state (a text performing calm scores
-                calm). Each reply is embedded with the home's own pinned embedder and compared with a frozen basis of
-                expressive registers; each petal's reach is the <strong>similarity</strong> of his words to that register,
-                with its number printed beside it, on one fixed scale for every reply — the inner ring is −0.25, the
-                outer edge +0.75, zero a quarter of the way out. Nothing is centred or rescaled per reply, so an
-                ordinary reply draws a small bloom near the inner ring and threat language reaches out toward FEA.
-              </p>
-              <p>
-                <strong>Every value is shown, however small.</strong> Each petal prints its similarity; nothing is
-                summarised in words. The tone reads too: the five channels under the bloom (WAR warmth, TSN tension,
-                REF reflection, STR structure, CER certainty) print their signed score in [−1, 1], so both poles show
-                (warm or discouraged, urgent or unhurried, reflective or matter-of-fact, structured or loosely
-                associative, assured or hedging). Hover a code (long-press on a touch screen) for what it measures
-                and its value; a channel's card gives its pole word only when the
-                reply sits in the outer 3% of a reference set on that side (the strong word for the outer 1%);
-                otherwise the channel is typical. The reference set is {TONE_CUTOFFS.reference.label}: what this home
-                embedded, not a general corpus.
-              </p>
-              <p>
-                RIGHT — the conduct gauge — reads the <strong>mechanical facts of the same turn</strong> as a standing
-                figure: effort is the breath and the head's size, action is one stroke per tool call (red tip = failed
-                call, violet ring = verify-shaped call — the RIG count made visible), attention is one root filament
-                per memory recalled (green buds = memories formed), rigor is the spine's alignment. Reads are relative
-                to this visit's own median turn, never an invented absolute; a dashed stub means the fact is absent
-                (never zero-faked), and the code row under the figure always carries the live numbers; "—" means
-                there is no value for this turn (a fact not served, or rigor on a turn without tool calls), and the
-                code's card says why.
-              </p>
-              <p>
-                <strong>How they help together:</strong> the bloom shows how the words FEEL; the gauge shows what the
-                turn COST and how carefully it was built. A bright, calm bloom over a zero-effort gauge reads
-                differently than the same bloom over deep recall and verification-shaped calls.
-              </p>
-              <div className="cm_modal_axes">
-                <span className="cm_modal_axes_head">The bloom's registers (left)</span>
-                {EMOTION_AXES.map((a) => (
-                  <div key={a.id} className="cm_modal_axis">
-                    <span className="cm_axis_code" style={{ color: a.color }}>{a.code}</span>
-                    <span className="cm_axis_name">{a.name}</span>
-                    <span className="cm_axis_desc">{a.description}</span>
-                  </div>
-                ))}
-                <span className="cm_modal_axes_head">The conduct gauge's reads (right)</span>
-                {CONDUCT_AXES.map((a) => (
-                  <div key={a.id} className="cm_modal_axis">
-                    <span className="cm_axis_code" style={{ color: a.color }}>{a.code}</span>
-                    <span className="cm_axis_name">{a.name}</span>
-                    <span className="cm_axis_desc">{a.description}</span>
-                  </div>
-                ))}
-                <span className="cm_modal_axes_head">The tone channels (the five under the bloom; CUR, the conversation's own main direction, is not drawn)</span>
-                {CHANNEL_AXES.map((a) => (
-                  <div key={a.id} className="cm_modal_axis">
-                    <span className="cm_axis_code" style={{ color: a.color }}>{a.code}</span>
-                    <span className="cm_axis_name">{a.name}</span>
-                    <span className="cm_axis_desc">{a.description}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="cm_modal_note">
-                {calibration ? `${calibration} ` : ""}The nine registers include GRV. Scoring is an explicit read of his
-                words through the gateway; nothing here writes to his memory.
-              </p>
-            </div>
-      </div>
-    </div>
-  );
 }
 
 /** How far a petal label keeps from the bloom's vertical centre line (px). */

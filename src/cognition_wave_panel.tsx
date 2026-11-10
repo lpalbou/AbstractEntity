@@ -1,15 +1,16 @@
 /**
- * THE COGNITIVE MONITOR, docked above the timeline (operator 2026-11-10,
- * backlog 0018: "the cognitive monitor lives at the bottom with the temporal
- * replay, evolving with the replay and per message, so nothing of it at the
- * top"). The timeline's Monitor toggle opens it; it is mounted only while
- * open, so a closed monitor renders and reads nothing. The timeline drives
- * it (no transport of its own):
- * - LIVE with his conversation open in the chat: the reply in view, read per
- *   message (cognition_wave_inline.tsx, fed by the chat drawer's ReplyFeed).
- * - Otherwise: his words at the replay position, from the corpus read on
- *   demand with its button (the scoring below), the utterance formed at or
- *   before the timeline's seq.
+ * THE COGNITIVE MONITOR, inside the timeline (operator 2026-11-10, backlog 0032: "the monitor should
+ * open in the empty space above" the timeline's controls, beside the lanes; never a strip that takes
+ * the graph's height). The timeline's Monitor toggle opens it; it is mounted only while open, so a
+ * closed monitor renders and reads nothing. Compact (about 110 px tall): a small bloom and the five
+ * tone channels; live with his conversation open, the reply in view with its conduct gauge. No title,
+ * no framing block, no button: the press on Monitor is the act that starts the one read of his words
+ * (kept per entity for the page's life); the basis and the framing are the ⓘ's hover. The timeline
+ * drives it:
+ * - LIVE with his conversation open in the chat: the reply in view, read per message
+ *   (cognition_wave_inline.tsx, fed by the chat drawer's ReplyFeed).
+ * - Otherwise: his words at the replay position, the utterance formed at or before the timeline's
+ *   seq, from that one read.
  *
  * The entity app's mount of uic's cognition-wave monitor (the split ruled on
  * the hub: uic owns the scorer + basis + renderer, this owns the feed +
@@ -37,11 +38,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, MonitorInfoModal, ToneRow } from "./cognitive_monitor";
+import { basisProvenanceNote, bloomScoresOf, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { isEmbeddingsUnconfigured } from "./stream_source";
 import { CognitionWaveInline, EmbeddingsUnconfiguredNote, type ReplyFeed } from "./cognition_wave_inline";
-import { WordsLine } from "./words_line";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
 // The frozen basis is ~190 KB of numbers; lazy-load it so opening the
@@ -79,8 +79,8 @@ type Phase =
   | { name: "error"; message: string; warnings: string[] }
   | { name: "unconfigured"; message: string };
 
-/** The bloom's side in the dock (it shares the strip's height with the turn beside it). */
-const BLOOM = 200;
+/** The bloom's side in the timeline (the monitor stays about 110 px tall). */
+export const MONITOR_BLOOM = 84;
 
 const FRAMING = "This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm.";
 
@@ -128,21 +128,10 @@ export function monitorShown(state: { open: boolean; locked: boolean; roster: bo
   return state.open && !state.locked && !state.roster && !state.avatar;
 }
 
-/** The dock under the graph (backlog 0018): nothing at all unless shown. */
-export function MonitorDock({ shown, ...panel }: CognitionWavePanelProps & { shown: boolean }): React.ReactElement | null {
-  if (!shown) return null;
-  return (
-    <section className="entity_monitor_dock" aria-label="Cognitive monitor">
-      <CognitionWavePanel {...panel} />
-    </section>
-  );
-}
-
 export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: CognitionWavePanelProps): React.ReactElement {
   const key = corpusKey(source);
   const [phase, setPhase] = useState<Phase>(() => keptCorpus(key));
   const [basis, setBasis] = useState<FrozenBasis | null>(null);
-  const [aboutOpen, setAboutOpen] = useState(false);
   const feed = useSyncExternalStore(replyFeed.subscribe, replyFeed.get, replyFeed.get);
 
   // The fold is read AT PULL TIME from a ref — NEVER a scoring-effect
@@ -193,7 +182,14 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
     };
   }, [key]);
 
-  // THE ONE PULL (explicit operator act only). Reads a snapshot of the
+  // THE PRESS IS THE ACT (backlog 0032): opening the monitor (it mounts only then) starts the one
+  // read of his words when this home has none kept; a position change never reads.
+  useEffect(() => {
+    if (keptCorpus(key).name === "idle") runScore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // THE ONE PULL (explicit operator act only: the press that opened the monitor). Reads a snapshot of the
   // current fold, harvests the entity's own words, embeds + scores once,
   // and caches the samples. A live/scrub fold change does NOT re-run this;
   // the operator re-reads on demand with the same button.
@@ -231,21 +227,12 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   const conversation = live && source && feed && (feed.focusReply ?? feed.latestReply) ? feed : null;
 
   const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
-  const scoring = phase.name === "scoring";
+  const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
+  // The ⓘ's hover: what this reads (never his inner state), and the basis it reads with.
+  const about = [FRAMING, provenance, calibration].filter(Boolean).join("\n");
 
   return (
-    <div className="cw_panel cw_dock">
-      <div className="cw_head">
-        <span className="cw_title">🧠 Cognitive Monitor</span>
-        <button className="cm_info" onClick={() => setAboutOpen(true)} title="What is this? How to read it">
-          ⓘ
-        </button>
-        <span className="cw_follow">{conversation ? "the reply in view in his conversation" : "his words at the timeline's position"}</span>
-        {provenance ? <span className="cw_prov">{provenance}</span> : null}
-      </div>
-      <div className="cw_framing">{FRAMING}</div>
-      {aboutOpen ? <MonitorInfoModal onClose={() => setAboutOpen(false)} calibration={calibration} /> : null}
-
+    <div className="cw_panel cw_compact" data-reading-state={conversation ? "conversation" : phase.name}>
       {conversation && source ? (
         // Per message: each distinct reply is read once (cached), the reply scrolled to retunes it.
         <CognitionWaveInline
@@ -259,97 +246,26 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
           tools={conversation.tools}
         />
       ) : (
-        <>
-          {/* THE ONE-PULL CONTROL (c1824 ruling, flood fix c2155): scoring is an
-            * EXPLICIT operator act, never automatic — reading his words costs
-            * door reads (diary/episode verbatim) + embeddings and lands visible
-            * diary_read markers in his stream, so it fires only on this click,
-            * over a snapshot of the current graph. Re-read on demand. */}
-          {!source ? (
-            <p className="cw_note">Reading his words needs a connection to his home (this is an exported view).</p>
-          ) : (
-            <div className="cw_pullbar">
-              <button className="cw_pull_btn" onClick={runScore} disabled={scoring}>
-                {scoring ? "reading his words…" : phase.name === "idle" ? "read his words" : "re-read"}
-              </button>
-              <span className="cw_pull_hint">reads his diary and conversations once, for the replay; the read shows in his stream</span>
-            </div>
-          )}
-
-          {phase.name === "empty" ? (
-            <p className="cw_note">
-              No readable words yet — the monitor fills as he speaks (visit replies, diary entries, reflections).
-              {phase.warnings.length ? <span className="cw_warn"> {phase.warnings[0]}</span> : null}
-            </p>
-          ) : null}
-          {phase.name === "unconfigured" ? (
-            <p className="cw_note cw_note_error">
-              <EmbeddingsUnconfiguredNote baseUrl={source?.baseUrl ?? ""} message={phase.message} className="" />
-            </p>
-          ) : null}
-          {phase.name === "error" ? (
-            <p className="cw_note cw_note_error">
-              Could not score: {phase.message}
-              {phase.warnings.length ? <span className="cw_warn"> · {phase.warnings.join(" · ")}</span> : null}
-            </p>
-          ) : null}
-
-          {phase.name === "ready" ? (
-            <div className="cw_ready">
-              {/* Same input and labels as the conversation's reading: every register, its number
-                * beside it; no edge tint (operator 2026-11-07). Before his first utterance every
-                * petal sits on the inner ring and every number reads "—". Under it, the same tone
-                * row: each channel's signed score (no sentence comments on the values). */}
-              <div className="cw_bloom_col" style={{ width: BLOOM }}>
-                <div style={{ position: "relative", width: BLOOM, height: BLOOM }}>
-                  <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={BLOOM} />
-                  <BloomAxisOverlay width={BLOOM} height={BLOOM} emotions={current?.emotions ?? {}} />
-                </div>
-                {current ? <ToneRow scores={current.scores} /> : null}
-              </div>
-
-              {/* THE TURN (operator 2026-07-15: show request + answer at each
-                * turn, like the uic widget): the other party's words are
-                * display-only context; the ANSWER is what was scored. */}
-              <div className="cw_ready_text">
-                {!current ? <p className="cw_note">Nothing spoken yet at this point of his life — move the timeline forward to his first utterance.</p> : null}
-                {current ? (
-                  <div className="cw_turn">
-                    <div className="cw_turn_head">
-                      <span className={`cw_src cw_src_${current.source}`}>{current.source}</span>
-                      {current.at ? <span className="cw_turn_when">{new Date(current.at).toLocaleString()}</span> : null}
-                      {typeof current.novelty === "number" ? (
-                        <span className="cw_wander" title="Session-relative drift from the conversation's own center — not an absolute scale">
-                          wandering {current.novelty.toFixed(2)}
-                        </span>
-                      ) : null}
-                    </div>
-                    {current.request ? (
-                      <div className="cw_turn_block cw_turn_request">
-                        <span className="cw_turn_role">request</span>
-                        <div className="cw_turn_text">
-                          <WordsLine text={current.request} />
-                        </div>
-                      </div>
-                    ) : null}
-                    {current.text ? (
-                      <div className="cw_turn_block cw_turn_answer">
-                        <span className="cw_turn_role">{current.source === "diary" ? "his entry" : current.source === "summary" ? "his reflection" : "his answer"}</span>
-                        {/* The shared renderer (Markdown, images never load), block mode: a reply's
-                          * paragraphs stay paragraphs. */}
-                        <div className="cw_turn_text">
-                          <WordsLine text={current.text} />
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {phase.warnings.length ? <div className="cw_warn">{phase.warnings.join(" · ")}</div> : null}
-              </div>
-            </div>
-          ) : null}
-        </>
+        <div className="cm_body cw_reading">
+          {/* Same input and labels as the conversation's reading: every register on the bloom (its
+            * closest one in the hover), each tone channel with its signed score beside it. */}
+          <div className="cm_canvas_box" style={{ width: MONITOR_BLOOM }} title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}>
+            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={MONITOR_BLOOM} />
+          </div>
+          <ToneRow scores={current?.scores} />
+        </div>
       )}
+      <div className="cw_state">
+        <span className="cw_about" title={about} aria-label={about}>
+          ⓘ
+        </span>
+        {!source ? <span className="cw_note">needs his home</span> : null}
+        {!conversation && phase.name === "scoring" ? <span className="cw_note">reading…</span> : null}
+        {!conversation && phase.name === "ready" && !current ? <span className="cw_note">nothing said yet here</span> : null}
+        {!conversation && phase.name === "empty" ? <span className="cw_note" title={phase.warnings.join(" · ") || undefined}>nothing readable yet</span> : null}
+        {!conversation && phase.name === "error" ? <span className="cw_note cw_note_error" title={[phase.message, ...phase.warnings].join(" · ")}>could not read</span> : null}
+        {!conversation && phase.name === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={source?.baseUrl ?? ""} message={phase.message} className="cw_note cw_note_error" /> : null}
+      </div>
     </div>
   );
 }

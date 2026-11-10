@@ -8,7 +8,7 @@
  * - BOTH POLES: every channel has a plain and a strong word on each side, in the meaning of the
  *   generic anchor texts (WAR- = discouraged, not "cool").
  * - UI: the row (role=group, five focusable codes, each PRINTING its signed score; the pole word
- *   on the code's hover card) is what the chat monitor and the Wave tab mount; no sentence
+ *   on the code's hover card) is what both readings of the monitor mount; no sentence
  *   comments on the values and no clickable codes (operator 2026-11-07).
  */
 import React from "react";
@@ -195,16 +195,16 @@ describe("the tone row (what both mounts show under the bloom)", () => {
     const inline = readFileSync(new URL("./cognition_wave_inline.tsx", import.meta.url), "utf8");
     const wave = readFileSync(new URL("./cognition_wave_panel.tsx", import.meta.url), "utf8");
     expect(inline).toMatch(/<ToneRow scores=\{current\.scores\}/);
-    expect(wave).toMatch(/<ToneRow scores=\{current\.scores\}/);
+    // The replay reading: the row at every position ("—" before his first words there).
+    expect(wave).toMatch(/<ToneRow scores=\{current\?\.scores\}/);
     for (const src of [inline, wave]) {
       expect(src).not.toMatch(/ReadingLine|interpretWave|readingTitle/);
       expect(src).not.toContain("cm_reading_line");
       // no per-axis window: the codes explain themselves on hover
       expect(src).not.toMatch(/onAxis|setModalAxis|MonitorInfoModal axis=/);
     }
-    // the Wave tab's request and answer go through the shared renderer, never raw
-    expect(wave).toMatch(/<WordsLine text=\{current\.request\} \/>/);
-    expect(wave).toMatch(/<WordsLine text=\{current\.text\} \/>/);
+    // The monitor in the timeline shows no words (backlog 0032: only the reading), never raw text.
     expect(wave).not.toMatch(/>\{current\.(request|text)\}</);
+    expect(wave).not.toContain("WordsLine");
   });
 });

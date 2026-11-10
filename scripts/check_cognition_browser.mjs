@@ -1,6 +1,6 @@
-// The Cognitive Monitor docked above the timeline (backlog 0018), mounted for real (CognitionWavePanel
-// over a ReplyFeed, as the page mounts it) with bounded deterministic embedding replies; no gateway,
-// no live writes (every /api call is answered here).
+// The Cognitive Monitor in the timeline (backlog 0032), mounted for real (CognitionWavePanel over a
+// ReplyFeed, in the timeline's monitor slot as the page mounts it) with bounded deterministic
+// embedding replies; no gateway, no live writes (every /api call is answered here).
 // Run: node scripts/check_cognition_browser.mjs --playwright ../abstractcode/web [--shots <directory>]
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -43,9 +43,9 @@ return <main style={{margin:"30px auto",boxSizing:"border-box"}}>
 <button onClick={()=>setEntity("mismatch")}>Other entity</button>
 <button onClick={()=>setLive(v=>!v)}>Replay</button>
 </div>
-<section className="entity_monitor_dock" aria-label="Cognitive monitor">
+<div className="entity_timeline et_grid et_monitor_open"><div className="et_monitor_slot" style={{gridRow:"1 / span 5"}}>
 <CognitionWavePanel fold={fold} source={{baseUrl:"",entity}} scrubSeq={0} live={live} replyFeed={feed}/>
-</section>
+</div></div>
 </main>}
 document.documentElement.classList.add("theme-catppuccin-mocha");
 createRoot(document.getElementById("root")).render(<Test/>);
@@ -78,11 +78,12 @@ try {
   });
   await page.goto(`http://127.0.0.1:4189/${relative(root,temp)}/index.html`);
   const waitFor = async pred => { for(let i=0;i<100;i++){if(pred())return;await new Promise(r=>setTimeout(r,20));}throw new Error("harness request did not arrive"); };
-  const dock = page.locator(".entity_monitor_dock");
-  // Live with a conversation: the reply in view, per message (never the replay's read button).
-  await dock.getByText("the reply in view in his conversation", {exact:true}).waitFor();
-  assert.equal(await dock.locator(".cw_pull_btn").count(),0,"live with a conversation: no replay read button");
-  await page.getByText("Reading this reply…", {exact:true}).waitFor();
+  const dock = page.locator(".et_monitor_slot");
+  // Live with a conversation: the reply in view, per message; no title, no button, no framing block.
+  await dock.locator('[data-reading-state="conversation"]').waitFor();
+  assert.equal(await dock.locator("button").count(),0,"no button in the monitor");
+  assert.equal(await dock.getByText("Cognitive Monitor").count(),0,"no title in the monitor");
+  await page.getByText("reading…", {exact:true}).waitFor();
   await waitFor(()=>pending.length===1);
   await page.screenshot({path:resolve(shots,"entity-cognition-reading.png")});
   await page.getByRole("button",{name:"Joy",exact:true}).click();
@@ -112,10 +113,10 @@ try {
   assert.match(await mood(),/^closest to .+ \([A-Z]{3} [−-]?\d\.\d\d\)$/,"the mood dot names the closest register and its similarity");
   assert.notDeepEqual(await values(),neutralValues,"the joy control reads differently on the row");
   await page.screenshot({path:resolve(shots,"entity-cognition-joy.png")});
-  // The replay: his words at the timeline's position, read on demand; the conversation's reading goes.
+  // The replay: his words at the timeline's position, read by itself on opening (here: nothing
+  // readable, the harness's life is empty); the conversation's reading goes.
   await page.getByRole("button",{name:"Replay",exact:true}).click();
-  await dock.getByText("his words at the timeline's position", {exact:true}).waitFor();
-  await dock.getByRole("button",{name:"read his words",exact:true}).waitFor();
+  await dock.getByText("nothing readable yet", {exact:true}).waitFor();
   assert.equal(await dock.locator(".cm_panel").count(),0,"on the replay the conversation's reading is not shown");
   await page.screenshot({path:resolve(shots,"entity-cognition-replay.png")});
   // Back to live: the reading mounts again and shows the reply already read, without a second embed.
@@ -131,7 +132,7 @@ try {
   pinRelease(); await page.waitForTimeout(80);
   await page.getByRole("button",{name:"Neutral",exact:true}).click();
   await page.locator('.cm_panel[data-reading-state="unavailable"]').waitFor();
-  await page.getByText("This reply has not been scored.",{exact:true}).waitFor();
+  await page.getByText("not read",{exact:true}).first().waitFor();
   assert.equal(await page.getByRole("group",{name:"Tone of the phrasing"}).count(),0,"mismatched model shows no tone row");
   // Desktop and phone with touch (coarse pointer, 44 px targets): the row is a 3 + 2 grid inside the
   // bloom column (never a lone code), the page does not scroll sideways, the values keep a 4.5:1
@@ -159,25 +160,26 @@ try {
       const lum = ([r,g,b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b); };
       const bg = el => { for (let e = el; e; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c.length < 4 || c[3] > 0.9) { if (c.length >= 3 && !(c.length === 4 && c[3] === 0)) return c.slice(0,3); } } return [255,255,255]; };
       const contrast = el => { const a = lum(rgb(getComputedStyle(el).color).slice(0,3)), b = lum(bg(el)); return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05); };
-      const dockEl = document.querySelector(".entity_monitor_dock");
+      const dockEl = document.querySelector(".et_monitor_slot");
+      const monitorEl = document.querySelector(".cw_panel.cw_compact");
       return { perLine, inside: [...rowEl.children].every(c => { const r = c.getBoundingClientRect(); return r.left >= box.left - 1 && r.right <= box.right + 1; }),
         scroll: document.documentElement.scrollWidth, inner: innerWidth, dockScroll: dockEl.scrollWidth, dockWidth: dockEl.clientWidth,
-        columns: getComputedStyle(document.querySelector(".cw_panel.cw_dock")).gridTemplateColumns.split(" ").length,
+        monitorHeight: Math.round(monitorEl.getBoundingClientRect().height),
         valContrast: Math.min(...[...rowEl.querySelectorAll(".cm_tone_val")].map(contrast)) };
     });
-    console.log(`  ${width}${touch ? " touch" : ""}: codes per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, dock columns ${layout.columns}, scrollWidth ${layout.scroll}/${layout.inner}, dock ${layout.dockScroll}/${layout.dockWidth}`);
+    console.log(`  ${width}${touch ? " touch" : ""}: codes per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
     assert.ok(layout.inside, `the tone row stays inside the bloom column at ${width}`);
     assert.ok(!layout.perLine.includes(1) || layout.perLine.length === 1, `no lone tone code at ${width}: ${layout.perLine}`);
     if (touch) assert.deepEqual(layout.perLine,[3,2],"touch: a 3 + 2 grid");
-    assert.equal(layout.columns, width < 768 ? 1 : 2, `the dock's columns at ${width}`);
+    if (width >= 768) assert.ok(layout.monitorHeight <= 110, `the monitor fits the timeline (${layout.monitorHeight} px) at ${width}`);
     assert.ok(layout.scroll <= layout.inner, `no sideways scroll at ${width}`);
-    assert.ok(layout.dockScroll <= layout.dockWidth, `the dock never scrolls sideways at ${width}`);
+    assert.ok(layout.dockScroll <= layout.dockWidth, `the monitor never scrolls sideways at ${width}`);
     assert.ok(layout.valContrast >= 4.5, `value contrast ${layout.valContrast.toFixed(2)} at ${width}`);
     await phone.screenshot({path:resolve(shots,`entity-cognition-joy-${width}${touch?"-touch":""}.png`),fullPage:true});
     await ctx.close();
   }
   assert.deepEqual(errors,[]);
-  console.log("cognition browser (the docked monitor): live reply reading, focus race, signed tone row, joy, replay mode, detached mismatch, 1440 + 400 touch layout and contrast passed");
+  console.log("cognition browser (the monitor in the timeline): live reply reading, focus race, signed tone row, joy, replay mode, detached mismatch, 1440 + 400 touch layout (<= 110 px) and contrast passed");
 } finally {
   await browser?.close(); await server.close(); rmSync(temp,{recursive:true,force:true});
 }

@@ -1,8 +1,8 @@
 /**
- * The Cognitive Monitor docked above the timeline (operator 2026-11-10, backlog 0018: "remove the
- * 'wave' side panel; put it as a button next to the timeline controls … the cognitive monitor lives
- * at the bottom with the temporal replay, evolving with the replay and per message, so nothing of
- * it at the top"). Rendered with react-dom/server; the wiring is pinned on the sources.
+ * The Cognitive Monitor in the timeline (operator 2026-11-10, backlog 0018: "put it as a button next to
+ * the timeline controls … nothing of it at the top"; backlog 0032: "the monitor should open in the
+ * empty space above", and of its title block, basis line, framing note, button and footnote:
+ * "completely remove that"). Rendered with react-dom/server; the wiring is pinned on the sources.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ScoredSample } from "./cognition_adapter";
 import { createReplyFeed, type ReplyFeedValue } from "./cognition_wave_inline";
-import { CognitionWavePanel, MonitorDock, keptCorpus, monitorShown, sampleAt, startCorpusRead, corpusKey } from "./cognition_wave_panel";
+import { CognitionWavePanel, keptCorpus, monitorShown, sampleAt, startCorpusRead, corpusKey } from "./cognition_wave_panel";
 import { createFoldState } from "./stream_fold";
 import { Timeline, type TimelineProps } from "./timeline";
 import type { ReplayEnvelope } from "./stream_types";
@@ -31,7 +31,7 @@ describe("the timeline's Monitor toggle", () => {
   const envelopes = [{ seq: 1, family: "event", observed_at: "2026-11-10T16:08:00+00:00", payload: {}, display: {} } as unknown as ReplayEnvelope];
   const render = (over: Partial<TimelineProps>) =>
     renderToStaticMarkup(
-      <Timeline envelopes={envelopes} scrubIndex={0} playing={false} speed={5} live={false} liveAvailable inferredSessionSeqs={[]} onScrub={() => {}} onTogglePlay={() => {}} onSpeed={() => {}} onToggleLive={() => {}} monitorOpen={false} onToggleMonitor={() => {}} {...over} />,
+      <Timeline envelopes={envelopes} scrubIndex={0} playing={false} speed={5} live={false} liveAvailable inferredSessionSeqs={[]} onScrub={() => {}} onTogglePlay={() => {}} onSpeed={() => {}} onToggleLive={() => {}} monitorOpen={false} onToggleMonitor={() => {}} monitor={null} {...over} />,
     );
   const toggle = (html: string) => html.match(/<button[^>]*class="et_btn et_monitor"[^>]*>[^<]*<\/button>/)?.[0] ?? "";
 
@@ -47,18 +47,20 @@ describe("the timeline's Monitor toggle", () => {
     expect(toggle(on).replace('aria-pressed="true"', "")).toBe(toggle(off).replace('aria-pressed="false"', ""));
   });
 
-  it("the page mounts the dock under the graph, beside the side panel, exactly when it is on screen; the toggle shows that state", () => {
-    const at = VIEW.indexOf("<MonitorDock");
-    // Inside the main area: after the graph's wrapper, before the side panel (a child of .entity_main).
-    expect(at).toBeGreaterThan(VIEW.indexOf("<GraphLegend "));
-    expect(at).toBeLessThan(VIEW.indexOf("<SideTabs"));
-    const dock = VIEW.slice(at, VIEW.indexOf("/>", at));
-    expect(dock).toContain("shown={monitorOnScreen}");
-    for (const prop of ["scrubSeq={scrubSeq}", "live={live}", "replyFeed={replyFeed}"]) expect(dock).toContain(prop);
+  it("the page hands the timeline the monitor exactly when it is on screen; the toggle shows that state", () => {
+    const at = VIEW.indexOf("<Timeline");
+    const timeline = VIEW.slice(at, VIEW.indexOf("playhead={playhead}", at));
+    expect(timeline).toContain("monitorOpen={monitorOnScreen}");
+    expect(timeline).toContain("onToggleMonitor={avatarChat ? null : () => setMonitorOpen((v) => !v)}");
+    expect(timeline).toMatch(/monitor=\{\s*monitorOnScreen \? \(\s*<CognitionWavePanel/);
+    const panel = timeline.slice(timeline.indexOf("<CognitionWavePanel"));
+    for (const prop of ["scrubSeq={scrubSeq}", "live={live}", "replyFeed={replyFeed}"]) expect(panel).toContain(prop);
     expect(VIEW).toContain("const monitorOnScreen = monitorShown({ open: monitorOpen, locked: gatewayLocked, roster: indexBase !== null && !entityName, avatar: avatarChat });");
-    expect(VIEW).toContain("monitorOpen={monitorOnScreen}");
-    expect(VIEW).toContain("onToggleMonitor={avatarChat ? null : () => setMonitorOpen((v) => !v)}");
-    expect(VIEW).not.toMatch(/<section className="entity_monitor_dock"/);
+    // Nothing of it in the main area, above the graph or under it.
+    const main = VIEW.slice(VIEW.indexOf('<div className="entity_main"'), VIEW.indexOf("<Timeline"));
+    expect(main).not.toMatch(/CognitionWavePanel|entity_monitor_dock/);
+    // Another entity's page opens with it closed (its press is the act that reads).
+    expect(VIEW).toMatch(/setSearchOpen\(false\);\s*setMonitorOpen\(false\);/);
   });
 
   it("on screen only when open, on his page, past the content gate, and not beside the avatar view", () => {
@@ -70,11 +72,15 @@ describe("the timeline's Monitor toggle", () => {
     expect(monitorShown({ ...base, avatar: true })).toBe(false);
   });
 
-  it("the dock is in the rendered tree when shown and absent when not", () => {
-    const props = { fold: createFoldState(), source: null, scrubSeq: 0, live: false, replyFeed: createReplyFeed() };
-    expect(renderToStaticMarkup(<MonitorDock shown={false} {...props} />)).toBe("");
-    const open = renderToStaticMarkup(<MonitorDock shown {...props} />);
-    expect(open).toMatch(/^<section class="entity_monitor_dock" aria-label="Cognitive monitor"><div class="cw_panel cw_dock">/);
+  it("the open monitor is in the timeline's free space (right of the lanes, over their rows) and absent when closed", () => {
+    const closed = render({});
+    expect(closed).toContain('<div class="et_monitor_slot" style="grid-row:1 / span 5"></div>');
+    expect(closed).not.toContain("et_monitor_open");
+    const open = render({ monitorOpen: true, monitor: <span className="probe">the monitor</span> });
+    expect(open).toContain('class="entity_timeline et_grid et_monitor_open"');
+    expect(open).toContain('<div class="et_monitor_slot" style="grid-row:1 / span 5"><span class="probe">the monitor</span></div>');
+    // It is the grid's first item, so the lanes flow round it.
+    expect(open.indexOf("et_monitor_slot")).toBeLessThan(open.indexOf("et_lane_label"));
   });
 
   it("beside the avatar view the toggle waits, disabled, unpressed, and says why", () => {
@@ -110,11 +116,11 @@ describe("his words read once per home, on demand (the corpus read)", () => {
     // Opened again after it: the kept read, rendered at once, no click.
     expect(keptCorpus(key)).toMatchObject({ name: "ready" });
     const html = renderToStaticMarkup(<CognitionWavePanel fold={createFoldState()} source={{ baseUrl: "http://gw.test", entity: "reopen-castor" }} scrubSeq={10} live={false} replyFeed={createReplyFeed()} />);
-    expect(html).toContain('class="cw_ready"');
-    expect(html).toContain(">re-read</button>");
+    expect(html).toContain('data-reading-state="ready"');
+    expect(html).toContain('aria-label="Tone of the phrasing"');
     expect(reads).toHaveBeenCalledTimes(1);
-    // Only the operator's re-read reads again.
-    expect(startCorpusRead(key, () => (reads(), Promise.resolve(ready("again"))))).not.toBeNull();
+    // A read for another home is its own.
+    expect(startCorpusRead(corpusKey({ baseUrl: "http://gw.test", entity: "another" }), () => (reads(), Promise.resolve(ready("again"))))).not.toBeNull();
     expect(reads).toHaveBeenCalledTimes(2);
   });
 
@@ -124,10 +130,11 @@ describe("his words read once per home, on demand (the corpus read)", () => {
       renderToStaticMarkup(<CognitionWavePanel fold={createFoldState()} source={{ baseUrl: "http://gw.test", entity: "scrub-castor" }} scrubSeq={seq} live={false} replyFeed={createReplyFeed()} />);
     }
     expect(keptCorpus(key)).toEqual({ name: "idle" });
-    // The read starts from the button only: runScore is defined once and used once (onClick), and
-    // no effect of the panel depends on the position (an effect cannot run in a server render).
+    // The read starts from the press only: the monitor mounts when opened and its one open effect
+    // (keyed by the home, never by the position) starts the read when none is kept; runScore is
+    // defined once and called from that effect only (an effect cannot run in a server render).
     expect(PANEL.match(/\brunScore\b/g)).toHaveLength(2);
-    expect(PANEL).toContain("onClick={runScore}");
+    expect(PANEL).toMatch(/useEffect\(\(\) => \{\s*if \(keptCorpus\(key\)\.name === "idle"\) runScore\(\);\s*\/\/ eslint-disable-next-line react-hooks\/exhaustive-deps\s*\}, \[key\]\);/);
     const effects = [...PANEL.matchAll(/useEffect\(\(\) => \{[\s\S]*?\}, \[([^\]]*)\]\);/g)].map((m) => m[1]);
     expect(effects.length).toBeGreaterThan(0);
     for (const deps of effects) expect(deps).not.toMatch(/scrubSeq|runScore|fold/);
@@ -136,10 +143,9 @@ describe("his words read once per home, on demand (the corpus read)", () => {
 });
 
 describe("nothing of it at the top: no Wave tab, no monitor over the chat", () => {
-  it("the side panel has no Wave tab", () => {
+  it("the side panel has no Wave tab; the monitor is mounted once, in the timeline", () => {
     expect(VIEW).not.toMatch(/id: "wave"|title: "Wave"/);
-    expect(VIEW).not.toContain("<CognitionWavePanel");
-    expect(VIEW.match(/<MonitorDock\b/g)).toHaveLength(1);
+    expect(VIEW.match(/<CognitionWavePanel\b/g)).toHaveLength(1);
   });
 
   it("the chat drawer mounts no monitor; it publishes the reply in view into the feed", () => {
@@ -173,25 +179,20 @@ describe("the monitor follows the timeline", () => {
     return renderToStaticMarkup(<CognitionWavePanel fold={createFoldState()} source={source} scrubSeq={12} live={live} replyFeed={feed} />);
   };
 
-  it("on the replay: his words at the timeline's position, read on demand with its button", () => {
+  it("no title, no basis line, no framing note, no button, no footnote: the reading and a one-word state; the framing and the basis are the ⓘ's hover", () => {
     const html = panel(false, reply());
-    expect(html).toContain("his words at the timeline&#x27;s position");
-    expect(html).toContain('class="cw_pull_btn"');
-    expect(html).toContain(">read his words</button>");
-    // The framing is always said.
-    expect(html).toContain("This reads the expressive character of his WORDS, not his inner state");
+    expect(html).toMatch(/^<div class="cw_panel cw_compact" data-reading-state="idle">/);
+    expect(html).not.toMatch(/<button|Cognitive Monitor|basis v|read his words|reads his diary|his words at the timeline|cw_framing|cw_pull/);
+    expect(html).toContain('aria-label="Tone of the phrasing"');
+    expect(html).toMatch(/<span class="cw_about" title="This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm\." aria-label="[^"]*">ⓘ<\/span>/);
   });
 
-  it("live with his conversation open: the reply in view, per message (no corpus button)", () => {
-    const html = panel(true, reply());
-    expect(html).toContain("the reply in view in his conversation");
-    expect(html).not.toContain("cw_pull_btn");
+  it("live with his conversation open: the reply in view, per message", () => {
+    expect(panel(true, reply())).toMatch(/^<div class="cw_panel cw_compact" data-reading-state="conversation">/);
   });
 
-  it("live without a conversation: the timeline's position again", () => {
-    const html = panel(true, null);
-    expect(html).toContain("his words at the timeline&#x27;s position");
-    expect(html).toContain('class="cw_pull_btn"');
+  it("live without a conversation: his words at the position again", () => {
+    expect(panel(true, null)).toMatch(/^<div class="cw_panel cw_compact" data-reading-state="idle">/);
   });
 });
 
@@ -222,23 +223,16 @@ describe("the reply feed", () => {
 });
 
 describe("layout", () => {
-  it("the side panel keeps its whole height: while open the main area is a grid, graph over monitor in the first column, the side panel down the second", () => {
-    expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\) \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: minmax\(0, 1fr\) auto;/);
-    expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\) > \.side_tabs \{\s*grid-column: 2;\s*grid-row: 1 \/ span 2;/);
-    expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\) > \.entity_canvas_wrap \{\s*grid-column: 1;\s*grid-row: 1;/);
-    // No rule squeezes the side panel's tab strip for the monitor any more.
-    expect(CSS).not.toMatch(/entity_monitor_dock\)?[^{]*\.st_rail/);
+  it("in the timeline's third column over the lanes' rows, about 110 px tall at most; the main area is never a grid for it", () => {
+    expect(CSS).toMatch(/\.et_monitor_slot \{\s*grid-column: 3;\s*min-width: 0;/);
+    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 110px;[^}]*overflow: hidden;/);
+    expect(CSS).not.toMatch(/entity_monitor_dock|cw_dock|\.entity_main:has\(> \.entity/);
   });
 
-  it("a bounded strip with its own scroll; on a phone one column in the graph's place", () => {
-    expect(CSS).toMatch(/\.entity_monitor_dock \{\s*grid-column: 1;\s*grid-row: 2;\s*min-width: 0;\s*max-height: calc\(var\(--vh-full, 100vh\) \* 0\.38\);\s*overflow-y: auto;/);
-    expect(CSS).toMatch(/\.cw_panel\.cw_dock \{[^}]*grid-template-columns: minmax\(220px, 300px\) minmax\(0, 1fr\);/);
-    const phone = CSS.slice(CSS.indexOf(".cw_dock .cm_body {"));
-    expect(phone).toMatch(/@media \(max-width: 767\.98px\) \{\s*\.cw_panel\.cw_dock \{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
-    // Beside the avatar view it is not mounted at all (monitorShown), so no CSS hides it there.
-    expect(CSS).not.toMatch(/side_tabs_(avatar|emphasized)\) [>~] \.entity_monitor_dock/);
-    // A phone holds one pane at a time: the open monitor takes the graph's place above the tab strip.
-    expect(CSS).toMatch(/@media \(max-width: 767\.98px\), \(max-height: 500px\) \{\s*\.entity_main:has\(> \.entity_monitor_dock\) \{\s*display: flex;\s*\}\s*\.entity_main:has\(> \.entity_monitor_dock\) > \.entity_canvas_wrap \{\s*display: none;\s*\}\s*\/\*[^*]*\*\/\s*\.entity_monitor_dock \{\s*flex: 1 1 0;/);
+  it("on a phone it takes the lanes' place, above the bar", () => {
+    const phone = CSS.slice(CSS.indexOf("/* Phone (the lanes fill the width): the open monitor takes the lanes' place"));
+    expect(phone).toMatch(/\.et_monitor_slot \{\s*grid-column: 1 \/ -1;\s*grid-row: auto !important;/);
+    expect(phone).toMatch(/\.entity_timeline\.et_monitor_open \.et_lane_label:not\(\.et_time_label\),\s*\.entity_timeline\.et_monitor_open \.et_lane \{\s*display: none;/);
     expect(CSS).toMatch(/\.et_monitor\[aria-pressed="true"\] \{[^}]*border-color: var\(--ea-accent\);/);
   });
 });

@@ -82,3 +82,24 @@ describe("the graph's top row (backlog 0019: the clickable legend replaces the f
     expect(view).toContain("searchIds={emphasisIds}");
   });
 });
+
+describe("a focused topic's chip (backlog 0030: unpressing topics lets it go; one line)", () => {
+  const view = fs.readFileSync(path.join(__dirname, "entity_view.tsx"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
+
+  it("unpressing the topics toggle clears the focused topic", () => {
+    const toggle = view.slice(view.indexOf('🗺<span className="lens_search_label">topics</span>') - 400, view.indexOf('🗺<span className="lens_search_label">topics</span>'));
+    expect(toggle).toMatch(/const next = !showTopics;\s*setShowTopics\(next\);\s*if \(!next\) setTopicFilter\(null\);/);
+  });
+
+  it("one line: the title cut with an ellipsis, the whole title first in its hover, the ✕ kept", () => {
+    const at = view.indexOf('className="lens_chip active tm_filter_chip"');
+    expect(at).toBeGreaterThan(-1);
+    const chip = view.slice(at, view.indexOf("</button>", at));
+    expect(chip).not.toContain("gc_topic_chip_full");
+    expect(chip).toContain('<span className="tm_filter_label">{topicFilter.label}</span> ✕');
+    expect(chip).toContain("? `${topicFilter.label}\\n");
+    expect(css).toMatch(/\.tm_filter_chip \{[^}]*max-width: 260px;[^}]*white-space: nowrap;/);
+    expect(css).toMatch(/\.tm_filter_label \{[^}]*min-width: 0;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;/);
+  });
+});

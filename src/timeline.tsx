@@ -8,6 +8,8 @@
  *   label | lane of marks       |
  *   …     | …                   |
  *   time  | scrub bar + ticks   | transport ⏮ ◀ ▶/❚❚ ▶ ⏭ · speed · Live · Monitor · position
+ * The Cognitive Monitor, when open, sits in the free space right of the lanes, above the transport
+ * (backlog 0032); on a phone it takes the lanes' place.
  * Position = envelope index (even pacing across the life), display =
  * journal seq. A mark is a memory he formed — a lived moment, a diary
  * entry, a lesson, a world-model revision, a dream — at the place it
@@ -42,10 +44,12 @@ export interface TimelineProps {
   onTogglePlay(): void;
   onSpeed(speed: number): void;
   onToggleLive(): void;
-  /** The Cognitive Monitor docked above this panel (backlog 0018): on screen or not, and its toggle;
-   * null while it cannot show (beside the avatar view): the toggle is then disabled and says why. */
+  /** The Cognitive Monitor in this panel (backlog 0032): on screen or not, and its toggle; null while
+   * it cannot show (beside the avatar view): the toggle is then disabled and says why. */
   monitorOpen: boolean;
   onToggleMonitor: (() => void) | null;
+  /** The open monitor, placed right of the lanes (null when closed). */
+  monitor: React.ReactNode;
   /** A defining event was clicked: move time to it and open its memory. */
   onOpenEvent?(index: number, recordId: string): void;
   /** The play head while playing (the panel follows it every frame). */
@@ -210,7 +214,11 @@ export function Timeline(props: TimelineProps): React.ReactElement {
   }, [byLane, span]);
 
   return (
-    <div className="entity_timeline et_grid">
+    <div className={`entity_timeline et_grid${props.monitor ? " et_monitor_open" : ""}`}>
+      {/* The monitor's place: the free space right of the lanes (their rows), above the transport. */}
+      <div className="et_monitor_slot" style={{ gridRow: `1 / span ${LANES.length}` }}>
+        {props.monitor}
+      </div>
       {LANES.map((lane) => (
         <React.Fragment key={lane.id}>
           <span className="et_lane_label" style={{ color: lane.color }}>
@@ -221,7 +229,6 @@ export function Timeline(props: TimelineProps): React.ReactElement {
             {marks[lane.id]}
             {pos < max ? <div className="et_lane_future" style={{ left: pct(Math.max(pos, -1)) }} aria-hidden="true" /> : null}
           </div>
-          <span />
         </React.Fragment>
       ))}
       <span className="et_lane_label et_time_label">time</span>

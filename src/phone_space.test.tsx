@@ -160,7 +160,9 @@ describe("type floor (DESIGN §12.1)", () => {
       return /^calc\([0-9.]+px \* var\(--font-scale/.test(v) || /rem$/.test(v);
     });
     expect(raw).toEqual([]);
-    expect(decls.filter((v) => v.includes("var(--ent-type-floor, 0px)")).length).toBeGreaterThan(300);
+    // The scan found the sheet's sizes (about 290 read the floor since the blueprint page and the
+    // monitor's old panel went, 2026-11-10); none bypasses it (above).
+    expect(decls.filter((v) => v.includes("var(--ent-type-floor, 0px)")).length).toBeGreaterThan(250);
   });
 
   it("desktop 13 px, dense lists and the tool matrix 12 px, touch 14 px", () => {

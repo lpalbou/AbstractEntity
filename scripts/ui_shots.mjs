@@ -113,34 +113,29 @@ async function main() {
     await shot(page, name + (ok ? "" : "_MISS"));
   }
 
-  // 4b) The Cognitive Monitor, docked above the timeline (backlog 0018): its
-  // toggle in the timeline (pressed = open). On the replay it reads his words
-  // on demand: wait for the life to finish streaming (the harvest reads the
-  // fold; a partial boot yields an empty corpus), then read.
+  // 4b) The Cognitive Monitor in the timeline (backlog 0032): its toggle
+  // (pressed = open) is the act that reads his words, once. Wait for the life
+  // to finish streaming first (the harvest reads the fold; a partial boot
+  // yields an empty corpus), then press and wait for the reading.
+  for (let i = 0; i < 15; i++) {
+    const booting = await page.evaluate(() => document.body.textContent?.includes("partial view") ?? false);
+    if (!booting) break;
+    await sleep(2000);
+  }
   const opened = await page.evaluate(() => {
     const b = document.querySelector("button.et_monitor");
     if (b && b.getAttribute("aria-pressed") !== "true") b.click();
     return Boolean(b);
   });
-  await sleep(1500);
   if (opened) {
-    for (let i = 0; i < 15; i++) {
-      const booting = await page.evaluate(() => document.body.textContent?.includes("partial view") ?? false);
-      if (!booting) break;
+    // Scoring reads every utterance through the doors — poll for the
+    // reading instead of guessing a fixed wait.
+    for (let i = 0; i < 45; i++) {
+      const state = await page.evaluate(() => document.querySelector(".et_monitor_slot .cw_compact")?.getAttribute("data-reading-state") ?? null);
+      if (state && state !== "idle" && state !== "scoring") break;
       await sleep(2000);
     }
-    const pulled = (await clickText(page, ".entity_monitor_dock button", "read his words", { contains: true })) || (await clickText(page, ".entity_monitor_dock button", "re-read", { contains: true }));
-    if (pulled) {
-      console.log("  read his words (scoring…)");
-      // Scoring reads every utterance through the doors — poll for the
-      // reading instead of guessing a fixed wait.
-      for (let i = 0; i < 45; i++) {
-        const ready = await page.evaluate(() => Boolean(document.querySelector(".entity_monitor_dock .cw_ready, .entity_monitor_dock .cm_body")));
-        if (ready) break;
-        await sleep(2000);
-      }
-      await sleep(2000);
-    }
+    await sleep(1000);
   }
   await shot(page, "07_monitor" + (opened ? "" : "_MISS"));
 
