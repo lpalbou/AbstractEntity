@@ -1,7 +1,7 @@
 /**
  * The Context legend (operator live test 2026-11-09: "when i click on
  * context, it shows [rings: …] but i am unsure how to interpret it?"): the
- * ring colours in his words, the lit lines, the grey-to-green fill. Rendered
+ * ring colours in his words, the lit lines (the grey-to-green fill is the graph's legend's only). Rendered
  * with react-dom/server from a real fold's recall; the wiring into the
  * canvas and the graph's key is pinned on the source.
  */
@@ -15,7 +15,6 @@ import { ContextLegend } from "./context_legend";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { recallEmphasis, TRAVELLED_DIRECTION } from "./recall_emphasis";
-import { USAGE_RANK, USAGE_TITLE } from "./graph_usage";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope {
   return { stream: "abstractmemory.replay", stream_version: 1, seq, family, observed_at: "2026-11-09T10:00:00+00:00", scope: "life", owner_id: "entity:test", trace_id: null, turn_id: null, run_id: null, payload, ...extra } as ReplayEnvelope;
@@ -47,10 +46,12 @@ describe("ContextLegend", () => {
     expect(key).toContain("continuity:memories that followed from the last ones");
     expect(key).toContain("matched:memories found for this message");
     expect(key).toContain("lit lines: the path he travelled to reach each one, in the colour of its ring");
-    expect(key).toContain("fill: dark grey = rarely used · green = most used");
-    // Each ring row carries its class colour; the scale row explains itself on hover.
+    // The fill (dark grey -> green) is said by the graph's legend at the bottom only (operator 2026-11-10:
+    // "remove the line about fill dark grey … because it's in the legend at the bottom").
+    expect(key).not.toMatch(/fill|rarely used|most used|ranked within his own life/);
+    expect(html).not.toContain("gc_rl_scale");
+    // Each ring row carries its class colour.
     for (const cls of ["self", "stm", "matched"]) expect(html).toContain(`<i class="gc_rl_ring gc_rl_${cls}" aria-hidden="true"></i><span class="gc_rl_name">`);
-    expect(html).toContain(`title="${USAGE_TITLE}"`);
   });
 
   it("the lit lines' row says their direction in words (operator 2026-11-09)", () => {
@@ -59,12 +60,11 @@ describe("ContextLegend", () => {
     expect(html).toContain(`<span class="gc_rl_more">${TRAVELLED_DIRECTION}</span>`);
   });
 
-  it("every row reads without a tooltip: the lit lines and the fill carry their meaning as a visible line (review N4)", () => {
+  it("every row reads without a tooltip: the lit lines carry their meaning as a visible line (review N4)", () => {
     const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
     const rows = html.match(/<div class="gc_rl_row"[^>]*>[\s\S]*?<\/div>/g)!;
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(4);
     for (const row of rows.slice(3)) expect(row).toMatch(/<span class="gc_rl_more">[^<]+<\/span>/);
-    expect(html).toContain(`<span class="gc_rl_more">${USAGE_RANK}</span>`);
   });
 
   it("the fold control is a real disclosure: a button with aria-expanded controlling the key, never a live region (review S3)", () => {

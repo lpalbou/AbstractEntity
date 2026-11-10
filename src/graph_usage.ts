@@ -186,8 +186,5 @@ export function coldOf(bg: Rgb, text: Rgb): Rgb {
 /** The legend's words for the scale (canvas legend + the graph's key). */
 export const USAGE_LOW = "rarely used";
 export const USAGE_HIGH = "most used";
-/** The scale's one-line reading under the Context legend's fill row (review
- * N4: never in a tooltip only). */
-export const USAGE_RANK = "how much he has used it, ranked within his own life";
 export const USAGE_TITLE =
   "Colour of a memory and of a line between two memories: how much he has used it, ranked within his own life (the history loaded here). Dark grey: rarely used; green: his most used; his most used tenth is bright green. Ties are ordered by how recently he used them. Memories he keeps in mind by right are always there and are never counted as a use.";
