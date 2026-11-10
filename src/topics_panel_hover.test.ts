@@ -170,9 +170,10 @@ describe("the panel and the canvas are wired to it", () => {
       expect(line, cls).toContain("data-tkey={");
     }
     expect(PANEL).toContain("useEffect(() => () => hover.dispose(), [hover]);");
-    // Gone (topics off), nothing it lit stays lit; folded, neither the hover nor a clicked path.
+    // Gone (topics off), nothing it lit stays lit; folded, neither the hover nor a clicked path
+    // (but a path a phone tap framed: that tap folded the panel to show it).
     expect(PANEL).toContain("useEffect(() => () => lights.release(), [lights]);");
-    expect(PANEL).toMatch(/if \(open\) return;\n\s+hover\.dispose\(\);\n\s+lights\.release\(\);/);
+    expect(PANEL).toMatch(/if \(open\) return;\n\s+hover\.dispose\(\);\n\s+lights\.release\(foldedToFrame\.current\);\n\s+foldedToFrame\.current = false;/);
     expect(PANEL).toContain("useEffect(() => lights.setRows(rows), [lights, rows]);");
     expect(PANEL).toContain("useEffect(() => lights.unpin(), [focused, lights]);");
     // A row that lights memories of its own says which row it is.

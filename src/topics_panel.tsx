@@ -47,7 +47,9 @@
  *   (the line unfolds) and LIGHTS its two memories on the graph
  *   (onHoverRows); leaving it lets go (the topic's own light comes back). A
  *   click (a tap, Enter) frames the two (onFrameRows) and keeps them lit
- *   until it is clicked again, another is, or the topic changes.
+ *   until it is clicked again, another is, or the topic changes. On the
+ *   phone layout a tap also folds the panel (it covered the frame), the
+ *   pair kept lit.
  * - His author's verdict "no common subject" is said under the summary.
  * - Not served: ONE sentence instead of the list — his first sleep has not
  *   formed topics yet, or this gateway serves the old shape.
@@ -730,6 +732,14 @@ function revealRows(body: HTMLElement | null, first: string, last: string): void
   if (top !== null) body.scrollTop = top;
 }
 
+/** The phone layout: the viewport graph_canvas.narrowViewport calls narrow
+ * (where a topic picked in the panel folds it; the same query, pinned by the
+ * test). */
+export const PHONE_LAYOUT_QUERY = "(max-width: 599.98px)";
+function phoneLayout(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(PHONE_LAYOUT_QUERY).matches;
+}
+
 /** What a row's content needs from the panel. */
 export interface RowContext {
   focused: string | null;
@@ -835,17 +845,26 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
   const bodyId = useId();
   const onHoverRef = useRef(onHoverTopic);
   onHoverRef.current = onHoverTopic;
-  const host = useRef({ onHoverRows, onFrameRows });
-  host.current = { onHoverRows, onFrameRows };
+  const host = useRef({ onHoverRows, onFrameRows, onToggle });
+  host.current = { onHoverRows, onFrameRows, onToggle };
   const hover = useMemo(() => topicHover((key) => onHoverRef.current?.(key)), []);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   // The row (a path, a type) whose memories are lit: its line unfolds.
   const [shownRow, setShownRow] = useState<string | null>(null);
+  // A path framed by a tap on the phone layout folds the panel (it covered
+  // the frame) and keeps the pair lit; any other fold lets it go.
+  const foldedToFrame = useRef(false);
   const lights = useMemo(
     () =>
       panelLights({
         onHoverRows: (ids) => host.current.onHoverRows(ids),
-        onFrameRows: (ids) => host.current.onFrameRows(ids),
+        onFrameRows: (ids) => {
+          host.current.onFrameRows(ids);
+          if (phoneLayout()) {
+            foldedToFrame.current = true;
+            host.current.onToggle(false);
+          }
+        },
         onShown: setShownRow,
         reveal: (first, last) => revealRows(bodyRef.current, first, last),
       }),
@@ -857,7 +876,8 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
   useEffect(() => {
     if (open) return;
     hover.dispose();
-    lights.release();
+    lights.release(foldedToFrame.current);
+    foldedToFrame.current = false;
   }, [open, hover, lights]);
   // Another topic focused (or none): the clicked path lets go.
   useEffect(() => lights.unpin(), [focused, lights]);

@@ -9,6 +9,8 @@
  * the body's handlers hand it; what reaches onHoverRows / onFrameRows /
  * reveal is asserted id for id.
  */
+import fs from "node:fs";
+import path from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -19,7 +21,7 @@ import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { HOVER_INTENT_MS, type HoverIntentTimers } from "./hover_intent";
 import { membershipOf } from "./topic_layout";
-import { groupRowKey, panelLights, pathRowKey, renderTopicRow, revealScrollTop, topicRows, typesRowKey, type PanelLightsHost, type RowContext, type TopicRow } from "./topics_panel";
+import { groupRowKey, panelLights, PHONE_LAYOUT_QUERY, pathRowKey, renderTopicRow, revealScrollTop, topicRows, typesRowKey, type PanelLightsHost, type RowContext, type TopicRow } from "./topics_panel";
 
 // ------------------------------------------------------------ a minimal element tree from real markup
 
@@ -321,7 +323,7 @@ describe("what the lights send, and when", () => {
     expect(calls.hover).toEqual([["ex:episode-1", "ex:diary-3"], null]);
   });
 
-  it("the clicked path lets go when another topic is focused, when the panel folds (release can keep it: release(true))", () => {
+  it("the clicked path lets go when another topic is focused, when the panel folds — not when a phone tap folded it to show the frame", () => {
     const { lights, calls } = setup();
     lights.clickPath(PATH);
     lights.unpin();
@@ -356,5 +358,20 @@ describe("what the lights send, and when", () => {
     expect(revealScrollTop(body, { top: 500 }, { bottom: 600 })).toBe(57);
     // Scrolled past the opened row (it is above the top): back to it.
     expect(revealScrollTop({ ...body, scrollTop: 300 }, { top: 350 }, { bottom: 900 })).toBe(250);
+  });
+});
+
+// ------------------------------------------------------------ the phone
+
+describe("on the phone layout a path tapped frames and folds the panel", () => {
+  const PANEL = fs.readFileSync(path.resolve(__dirname, "topics_panel.tsx"), "utf8");
+  const CANVAS = fs.readFileSync(path.resolve(__dirname, "graph_canvas.tsx"), "utf8");
+  it("the phone layout is the canvas's own narrow viewport (one query, where a topic picked folds the panel)", () => {
+    expect(PHONE_LAYOUT_QUERY).toBe("(max-width: 599.98px)");
+    expect(CANVAS).toContain(`window.matchMedia("${PHONE_LAYOUT_QUERY}").matches`);
+  });
+  it("the frame folds the panel there, keeping the pair lit (the fold that follows keeps the pin)", () => {
+    expect(PANEL).toMatch(/host\.current\.onFrameRows\(ids\);\n\s+if \(phoneLayout\(\)\) \{\n\s+foldedToFrame\.current = true;\n\s+host\.current\.onToggle\(false\);/);
+    expect(PANEL).toContain("lights.release(foldedToFrame.current);");
   });
 });
