@@ -54,7 +54,7 @@ consistent at any scrub position.
 | Book | `FoldState` diary nodes (`selectDiaryEntries`) | day-grouped journal → diary door on click |
 | Health | `computeHealthMetrics(FoldState)` + `fetchEntityFootprint` | re-use / concentration / forgetting / kind mix + on-disk bytes |
 | Cognitive Monitor | `harvestUtterances` → `embedTexts` → vendored scorer, at the timeline's position; live with the chat open, the reply in view | scored samples → the bloom |
-| Ledger | `FoldState` beats/host markers (`ledgerLine`) | the continuous life ledger |
+| Ledger | `FoldState` beats/host markers (`ledgerLine`), including the gateway's `step_tools` marker per step | the continuous life ledger, with each step's tool and file counts |
 | Meet console | `openMeet` / `relayMeet` / `closeMeet` / `fetchMeetStatus` | live two-leg transcript |
 
 ## The Cognitive Monitor pipeline (the one multi-step seam)

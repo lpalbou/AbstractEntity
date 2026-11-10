@@ -137,13 +137,14 @@ for every launch flag.
 | World | His world model: how he represents and sees the world, one card per thing he understands (people, places, ideas, systems) |
 | Lessons | What the entity has learned and kept |
 | Detail | One memory: its verbatim text, feelings and associations |
-| Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
+| Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance; a world model's revision as one row by its title that opens it; feelings named by what they are about; on each step's row, icons with the counts of tools used, files read and files written (only those above 0) |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
-| Cognitive Monitor | Opened with **🧠 Monitor**, after **Live** in the timeline's controls, in the timeline's free space right of the lanes and never taller than them: a small bloom and the tone row for the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Opening it is what reads his words (once per entity while the page is open), after checking that the gateway has embeddings for him; without them it reads nothing and says "no embeddings · set up". Its ⓘ card says what it reads, its five tone channels and its basis |
+| Cognitive Monitor | Opened with **🧠 Monitor**, in the row above the timeline's transport controls beside **● Live** and the position, in the space right of the lanes (the timeline grows a little while it is open): the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Every reading is named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness), the five tone channels (warmth, tension, reflection, structure, certainty) and, for a reply, the conduct readings (effort, action, attention, rigor). Opening it is what reads his words (once per entity while the page is open), after checking that the gateway has embeddings for him; without them it reads nothing and says "no embeddings · set up". Its ⓘ card says what it reads, the channels' scale and its basis |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
-of entities your account can see, and it becomes a chip inside your sentence (the
-first pick says "Nerin will read this conversation's history"). When you send,
+of entities your account can see, and it becomes a chip inside your sentence; the
+sent message keeps the chip, and resting on it shows that entity's card (a
+conversation reopened later shows the plain words). When you send,
 the entity you are talking with answers first, then each entity you picked, one
 after the other in your order, so the second one reads the first one's answer.
 Each answer shows who wrote it: the entity's avatar, its name and an "entity"
@@ -263,7 +264,8 @@ monitor.
   **Topics** panel stays in place: it sits under the Context box and opens as a
   sheet over the graph.
 - **Cognitive Monitor:** on a phone the open monitor takes the place of the
-  timeline's lanes; press **Monitor** again to get them back.
+  timeline's lanes, at the phone's width; press **Monitor** again to get them
+  back.
 - **Full-width panels on phones:** below 768 px the chat transcript, the
   ledger, the health panel and the entity list are flat sections without card
   borders, with a thin line between items and text that starts at the screen

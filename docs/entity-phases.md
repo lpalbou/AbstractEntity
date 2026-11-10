@@ -65,7 +65,10 @@ stateDiagram-v2
   turned own time off in the meantime, it stays awake and idle; the bar says
   "Own time is off; he stays awake."
 - Turning **personal** off never puts the entity to sleep: it finishes the
-  step it is on and stays awake and visitable.
+  step it is on and stays awake and visitable. Until that step ends, the bar
+  shows the gateway's sentence "Own time withdrawn: he finishes what he is
+  doing, then goes idle." (AbstractGateway 0.21.0), and the ledger then says
+  "Own time ended".
 - Stop cancels its own time. After Resume it is idle until you grant own time
   again.
 

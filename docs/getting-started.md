@@ -94,8 +94,9 @@ far it can be trusted for each kind of task, and whom it has met
 ## 5. Bring another entity in
 
 While you talk with one entity, type `@` in the message box and pick another
-entity from the list (the first pick says "Nerin will read this conversation's
-history"). When you send, the entity you are talking with answers first, then
+entity from the list; it becomes a chip in your sentence, and stays one in
+the sent message (rest on it to see the entity's card). When you send, the
+entity you are talking with answers first, then
 each entity you picked, in your order; each answer shows the entity's avatar,
 its name and an "entity" tag. If one is busy in another conversation, the app
 says so and goes on with the next.

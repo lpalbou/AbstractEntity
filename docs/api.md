@@ -230,6 +230,12 @@ answer for themselves. A message without chips sends no `mentions`.
 
 The app sets no time limit on a mention, as on any visit turn.
 
+The sent message keeps its chips. Resting on one for 150 ms shows the
+mentioned entity's card, from `GET /entities/{name}/tile` (read when the card
+first shows, kept five minutes); this needs `@abstractframework/panel-chat`
+0.9.13. The gateway stores no mentions, so a conversation reopened later shows
+the plain words.
+
 ### Avatar conversation
 
 The optional Avatar presentation needs AbstractGateway 0.19.0 or newer. It requests

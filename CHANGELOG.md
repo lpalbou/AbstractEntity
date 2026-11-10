@@ -60,12 +60,11 @@ Highlights:
   gateway does not run his turn (the summon answers `agent: "not_addressed"` with the id of your
   recorded turn, `turn_id`, which the mention calls send as `repeat_of`; an answer without it is
   an error line and your words come back): only the mentioned entities answer, and nothing waits for him: no
-  thinking bars for his turn, no bubble, no "served no readable answer" line. While the chips name
-  only other entities, one small line above the message box says "<his name> stays out of this
-  message." The `@` list now offers him first, under his name: picked beside other entities, he
+  thinking bars for his turn, no bubble, no "served no readable answer" line. The `@` list now
+  offers him first, under his name: picked beside other entities, he
   answers too, then they do (`mentions` carries the reserved slug `agent` in pick order). A
-  followed turn whose row says `agent_addressed: false` shows the same way. His chip gets no "will
-  read this conversation's history" notice and is never sent to the mentions route, and sending
+  followed turn whose row says `agent_addressed: false` shows the same way. His chip is never sent
+  to the mentions route, and sending
   the same words again after a mention stopped partway asks only the entities. The visit lane is
   unchanged (it has no session agent). Needs the gateway's half of the rule (`agent` and `turn_id`
   on the summon answer, a turn id accepted as `repeat_of`, `agent_addressed` on the turn row,
@@ -329,9 +328,6 @@ Highlights:
   twice, and an entity that already answered is never asked again (if you pick it again, a line
   says "Castor already answered this message." instead). Changing the words makes it a new
   message, sent as usual. An entity picked twice in one message is asked once.
-- **The "will read this conversation's history" line shows once per flow-brain conversation.**
-  It used to show a second time after the first message, because the conversation's name changed
-  when that message started it.
 - **An older gateway that answers "Method Not Allowed" gets the same sentence as one that
   answers "Not Found":** "This gateway does not offer mentions yet". A refusal the gateway names
   (with its own code) is never taken for a missing route: it shows the gateway's words, and your
@@ -410,9 +406,7 @@ Highlights:
 
 - **Bring another entity into the conversation with `@`.** While you visit one entity, type `@`
   in the message box: a list offers the other entities your account can see (never the one you
-  are visiting), each with its avatar. A pick becomes a chip; the first time you pick a name in
-  a conversation, a line under it says "Nerin will read this conversation's history". When you
-  send, your message goes to the entity you are visiting as before; once it has answered, each
+  are visiting), each with its avatar. A pick becomes a chip. When you send, your message goes to the entity you are visiting as before; once it has answered, each
   mentioned entity receives the same words, one after the other in the order you picked them
   (so the second one sees the first one's answer), and each answer appears as its own message.
   During a visit the gateway also tells the entity you are visiting what the mentioned one said;
@@ -551,23 +545,27 @@ Highlights:
   graph. Rest on a type, or reach it with the keyboard, to light those memories on the graph;
   click it (or press Enter or →) to unfold its memories, newest first, and the panel scrolls to
   show them.
-- **The Cognitive Monitor opens in the timeline** (backlog 0018 and 0032). **🧠 Monitor**, after
-  **Live** in the timeline's controls, opens the monitor in the timeline's free space, right of the
-  lanes and above the controls, and closes it again. It is never taller than the lanes, so
-  opening it moves neither the graph, the timeline nor the side panel: a small bloom (rest on it
-  for the register his words are closest to) and the tone row. Opening it is what reads his words,
-  once per entity, kept while the page is open, so reopening it shows the reading at once; another
-  entity's page opens with it closed. Before reading, it checks that his home has an embedding
+- **The Cognitive Monitor opens in the timeline** (backlog 0018, 0032 and 0036). The timeline's
+  position, **● Live** and **🧠 Monitor** sit in their own row above the transport controls.
+  **Monitor** opens the monitor in the space right of the lanes, between them and the controls,
+  and closes it again; the timeline grows a little only while it is open, and the graph gets that
+  height back when it closes. Every reading is named, never coded: the bloom with its nine
+  registers around it (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm,
+  tenderness), the five tone channels by name (warmth, tension, reflection, structure,
+  certainty), each in smaller type than its value, and, for a reply, the conduct readings beside
+  its gauge (effort, action, attention, rigor). Opening it is what reads his words, once per
+  entity, kept while the page is open, so reopening it shows the reading at once; another entity's
+  page opens with it closed. Before reading, it checks that his home has an embedding
   model and that the embedding route answers in his memory's space; when not, it reads nothing (his
   book is never opened) and says "no embeddings · set up" or "could not read", the whole reason on
   hover, and the next opening tries again. It follows the timeline: while you replay, his words at
   the timeline's position; live with his conversation open, the reply in view, with its conduct
-  gauge. A short line says when it is reading or has nothing to show. Its ⓘ (hover, focus or a long
-  press) opens a small card: what it reads (his words, not his inner state), the five tone
-  channels (warmth, tension, reflection, structure, certainty) with their poles on one −1 to +1
-  scale, and the basis. On a phone it takes exactly the place of the timeline's lanes until you
-  close it. Beside the Avatar view it is not shown, and its toggle says why. A closed monitor reads
-  nothing.
+  gauge. A short line says when it is reading or has nothing to show. Each name opens a small
+  card with its value, and the ⓘ (hover, focus or a long press) says what the monitor reads (his
+  words, not his inner state), the five tone channels with their poles on one −1 to +1 scale, and
+  the basis. On a phone it takes the place of the timeline's lanes, at the phone's width, until
+  you close it. Beside the Avatar view it is not shown, and its toggle says why. A closed monitor
+  reads nothing.
 - **"just travelled" in the legend.** The legend's second line names the amber line: two memories
   he used together a moment ago. It fades as he goes on.
 - **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
@@ -654,6 +652,33 @@ Highlights:
   while Detail does not hold it yet), and "0 tools" opens the Tools tab; files and notices show
   when the turn has them. The centred summary pill under the message is gone, and "system" marks
   only a message whose author is not an entity.
+- **A world model's revision is one ledger row, by its title** (backlog 0037). "Belief revised —
+  <its title>", with the new version's revision, how many memories it is drawn from and, when that
+  changed, "evidence changed (N before)"; a click opens the new version in Detail. The links closed
+  with that revision get no rows of their own.
+- **A feeling in the ledger names what it is about in words**: the memory's title ("a <kind>
+  (title being written…)" while it has none yet), or a word such as "lineage", "web search" or
+  "admin", never an id. A click still opens it.
+- **Each step's ledger row says what it used** (backlog 0035). On the rows that stand for a step
+  (a moment he lived, its summary, an own-time or a sleep step), a quiet line of icons with counts:
+  a wrench for the tools used, a page for the files read and a pencil for the files written, each
+  only when above 0, nothing when all are 0. Hover it for the words ("4 tools used: web_search,
+  read_file ×2, write_file · 2 files read · 1 file written"). Needs AbstractGateway 0.21.0 with
+  its step marker; steps recorded before the gateway sent it show none.
+- **Taking his own time back lets the step in progress finish.** With AbstractGateway 0.21.0 the
+  phase bar shows the gateway's sentence "Own time withdrawn: he finishes what he is doing, then
+  goes idle." until that step ends; when his own-time loop exits, the ledger says "Own time ended"
+  ("nothing more runs on its own").
+- **A mention stays a chip in the sent message** (needs `@abstractframework/panel-chat` 0.9.13). A
+  name you picked with `@` shows in your sent message as the chip it was while you typed; resting
+  on it for 150 ms shows the entity's card (the same card as the home page, its tile read once and
+  kept five minutes). A conversation reopened later shows the plain words, since the gateway keeps
+  no mentions. The Docs assistant uses the same chat kit.
+- **No information lines above the message box.** The "<name> will read this conversation's
+  history" notice and the "<name> stays out of this message." line are gone; the line above the
+  composer only says how the last send went (a refusal, or "Mia is in another conversation."). A
+  mentioned entity still reads the conversation's history, and an entities-only flow-brain message
+  still leaves the session's own entity out.
 - **For contributors:** `npm test` runs the project's tests under `src/`; scratch copies under
   `untracked/` are ignored.
 - **One card per topic, in its colour** (backlog 0014). In the Topics panel each topic, with what it
@@ -743,9 +768,9 @@ Highlights:
   the time bar follows the play position every frame while the rest of the page catches up a few
   times a second, and pausing stops exactly where the bar shows.
 - **Cognitive Monitor: the numbers speak.** No sentence under the bloom; each tone channel prints
-  its signed score; "—" marks a value that does not exist; the three-letter codes
-  are labels, and resting on one for a moment (or a long press on a phone) opens a small card
-  explaining it with this reply's value; failed tool calls reach the gauge.
+  its signed score; "—" marks a value that does not exist; every reading is named, and resting on
+  a name for a moment (or a long press on a phone) opens a small card explaining it with this
+  reply's value; failed tool calls reach the gauge.
 - **A lived moment reads facts and summary first.** Clicking an episode now shows what kind of
   moment it was (his own time with its tick, a conversation or a visit with its turn, and with
   whom), how many lookups he made and of what kind, the record's facts, then its summary: the
@@ -777,9 +802,8 @@ Highlights:
   words to that emotional register, on one fixed scale for every reply: the inner ring is −0.25,
   the outer edge +0.75, zero a quarter of the way out.
   Nothing is centred or hidden any more (before, most registers of an ordinary reply were drawn
-  at zero and the bloom often went flat). Resting on the bloom names the register his words are
-  closest to, with its number ("closest to joy (JOY −0.02)"), and the edge tint is gone (it read
-  the values as intensities).
+  at zero and the bloom often went flat). Its nine registers are named around it, and the edge
+  tint is gone (it read the values as intensities).
 - **A calmer, better organised Settings window.** Its nine sections now sit in four groups (Mind &
   voice, Identity & record, Workspace, Prompt) in a side list — a section picker on a phone — and
   each opens with a title and one line saying what it is for, with the long explanations folded
