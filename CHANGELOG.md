@@ -10,6 +10,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
   Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
   its own, a full-height sheet on a phone.
 
+### Changed
+
+- **A focused topic is a spotlight on the graph** (operator's test round 2, 2026-11-10: "today
+  barely" visible). Its circle is tinted, ringed at full strength and glows; each of its memories
+  carries a ring in the topic's colour; everything else sits under a veil, and the other circles
+  and their titles dim further. Its title is placed first and its plate is tinted. Circles at rest
+  are a little stronger, so topics read without a hover. The change eases in and out on the
+  graph's usual half-second dim.
+
 ## [0.12.0] - 2026-11-10
 
 On `@abstractframework/ui-kit` ^0.9.27 and `@abstractframework/panel-chat` ^0.9.11, both installed

@@ -83,6 +83,7 @@ import { overlayStack } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
+import { litRowsCache, litTopicKey, MEMBER_RING, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
 
 export interface GraphCanvasProps {
   fold: FoldState;
@@ -909,6 +910,8 @@ export function GraphCanvas({
     // placement (served topics, the viewer's drags, the fold) and, while a
     // new version glides in, the moving seats — then only drawn per frame.
     const titlesCache: { key: string; placed: Array<{ rect: Rect; topic: string; label: string; lines: string[] }> } = { key: "", placed: [] };
+    // The lit topic's memories (a set per lit topic and seating, not per frame).
+    const litRowsOf = litRowsCache();
 
     const frame = () => {
       if (disposed) return;
@@ -1273,7 +1276,14 @@ export function GraphCanvas({
       // with the rest (same eased dim as nodes); the focused one is drawn
       // stronger.
       const cssH = canvas.height / (window.devicePixelRatio || 1);
-      const topicHalos: Array<{ label: string; topic: string; color: string; cx: number; cy: number; r: number; hd: number }> = [];
+      const topicHalos: Array<{ label: string; topic: string; color: string; cx: number; cy: number; r: number; hd: number; gain: number }> = [];
+      // THE SPOTLIGHT (graph_canvas_spotlight.ts; operator 2026-11-10: an
+      // activated topic was "barely" visible): the lit topic's circle is
+      // tinted, ringed and glowing, its memories ringed in its colour, the
+      // rest under a veil; each circle's gain eases on the dim ramp.
+      const litKey = topicsOn && seated ? litTopicKey(null, picked) : null;
+      const litRows = litRowsOf(litKey, seated ? seated.rowsOf : null, pc.gen);
+      let litHalo: (typeof topicHalos)[number] | null = null;
       if (topicsOn && placement && seated) {
         for (const circle of placement.circles) {
           const ids = seated.rowsOf.get(circle.id);
@@ -1284,21 +1294,29 @@ export function GraphCanvas({
           // title there would frame nothing; the panel names it, with its
           // count, and says why its list is empty.
           if (!ids || ids.length === 0 || !c) continue;
-          let lit = false;
-          if (emphasis) for (const id of ids) if (emphasis.has(id)) { lit = true; break; }
+          let hits = false;
+          if (emphasis) for (const id of ids) if (emphasis.has(id)) { hits = true; break; }
           const color = topicColor(circle.id);
           const at = toScreen(circle.x, circle.y);
           const R = circle.r * cam.zoom;
-          const hd = easedDim(`topic:${circle.id}`, emphasis && !lit ? 0.25 : 1);
-          const focused = picked === circle.id;
+          const lit = litKey === circle.id;
+          const hd = easedDim(`topic:${circle.id}`, topicDimTarget({ lit, anyLit: litKey !== null, emphasis: emphasis !== null, emphasisHits: hits }));
+          // The gain eases 0 -> 1 (stored as 1 - gain: the ramp's rest is 1).
+          const gain = 1 - easedDim(`topiclit:${circle.id}`, lit ? 0 : 1);
+          const style = topicCircleStyle(gain);
           ctx.beginPath();
           ctx.arc(at.x, at.y, R, 0, Math.PI * 2);
-          ctx.fillStyle = hexAlpha(color, (focused ? 0.09 : 0.055) * hd);
+          ctx.fillStyle = hexAlpha(color, style.fill * hd);
           ctx.fill();
-          ctx.strokeStyle = hexAlpha(color, (focused ? 0.75 : 0.3) * hd);
-          ctx.lineWidth = focused ? 2 : 1.1;
-          ctx.stroke();
-          topicHalos.push({ label: topicTitle(c, TITLE_BEING_WRITTEN), topic: circle.id, color, cx: at.x, cy: at.y, r: R, hd });
+          const halo = { label: topicTitle(c, TITLE_BEING_WRITTEN), topic: circle.id, color, cx: at.x, cy: at.y, r: R, hd, gain };
+          // A lit (or still easing) ring is drawn over the veil, after the memories.
+          if (gain <= 0) {
+            ctx.strokeStyle = hexAlpha(color, style.stroke * hd);
+            ctx.lineWidth = style.width;
+            ctx.stroke();
+          }
+          if (lit) litHalo = halo;
+          topicHalos.push(halo);
         }
       }
 
@@ -1603,6 +1621,14 @@ export function GraphCanvas({
           if (feeling.bonds.length > 0) drawHalo(p.x, p.y, r + (feeling.scars.length ? 10.5 : 7), rgbaOf(CANVAS_THEME.bond, 0.9));
         }
         if (isSelected || isHover) drawHalo(p.x, p.y, r + 6, rgbaOf(CANVAS_THEME.text, 0.75));
+        // THE SPOTLIGHT: the lit topic's memory, ringed in its colour.
+        if (litHalo && litRows !== null && litHalo.gain > 0 && litRows.has(node.id)) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r + MEMBER_RING.gap, 0, Math.PI * 2);
+          ctx.strokeStyle = hexAlpha(litHalo.color, MEMBER_RING.alpha * litHalo.gain);
+          ctx.lineWidth = MEMBER_RING.width;
+          ctx.stroke();
+        }
         // Recall ring: WHY this memory is on the shelf — a solid ring in
         // the class colour (the dashed halos above stay pin/feeling/
         // selection marks). Shown while the recall is lit (also under a
@@ -1640,6 +1666,34 @@ export function GraphCanvas({
         ctx.globalAlpha = 1;
       }
 
+      // THE SPOTLIGHT'S VEIL: the canvas background over everything but the
+      // circles still lit (one veil, a hole per circle: circles never
+      // overlap), then their rings and glow on top of it.
+      const easing = topicHalos.filter((hl) => hl.gain > 0);
+      if (easing.length > 0) {
+        ctx.beginPath();
+        ctx.rect(0, 0, cssW, cssH);
+        for (const hl of easing) {
+          ctx.moveTo(hl.cx + hl.r, hl.cy);
+          ctx.arc(hl.cx, hl.cy, hl.r, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = rgbaOf(CANVAS_THEME.bg, veilAlpha(easing.map((hl) => hl.gain)));
+        ctx.fill("evenodd");
+        for (const hl of easing) {
+          const style = topicCircleStyle(hl.gain);
+          ctx.beginPath();
+          ctx.arc(hl.cx, hl.cy, hl.r + TOPIC_GLOW.gap, 0, Math.PI * 2);
+          ctx.strokeStyle = hexAlpha(hl.color, style.glow * hl.hd);
+          ctx.lineWidth = TOPIC_GLOW.width;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(hl.cx, hl.cy, hl.r, 0, Math.PI * 2);
+          ctx.strokeStyle = hexAlpha(hl.color, style.stroke * hl.hd);
+          ctx.lineWidth = style.width;
+          ctx.stroke();
+        }
+      }
+
       // Topic LABELS go last, on top: they were placed off every node, so
       // on top they cover only the faint edges under their plate.
       let labelHits: Array<{ rect: Rect; topic: string; label: string }> = [];
@@ -1651,7 +1705,7 @@ export function GraphCanvas({
         // legend, the kinds legend, the motion buttons): a title never
         // hides under one. Their rects are cached (OverlayRects).
         const overlayRects = overlays.current();
-        const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}`;
+        const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}|${litKey}`;
         if (titlesCache.key !== titlesKey) {
           titlesCache.key = titlesKey;
           titlesCache.placed = [];
@@ -1661,7 +1715,9 @@ export function GraphCanvas({
             screenNodes.push({ x: p.x, y: p.y, r: Math.max(2.5, ln.r * cam.zoom * 0.75) + 3 });
           }
           const placed: Rect[] = [];
-          for (const halo of topicHalos) {
+          // The lit topic's title is placed first: it takes its best place.
+          const order = litHalo ? [litHalo, ...topicHalos.filter((hl) => hl !== litHalo)] : topicHalos;
+          for (const halo of order) {
             if (halo.r < TOPIC_LABEL_MIN_SCREEN_R) continue;
             // Never cut mid-word at a fixed count: the title wraps onto two
             // lines; the hover card carries the whole title.
@@ -1693,10 +1749,15 @@ export function GraphCanvas({
           ctx.globalAlpha = halo.hd;
           ctx.beginPath();
           ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 9);
-          ctx.fillStyle = rgbaOf(CANVAS_THEME.bg, 0.82);
+          ctx.fillStyle = rgbaOf(CANVAS_THEME.bg, 0.82 + 0.12 * halo.gain);
           ctx.fill();
-          ctx.strokeStyle = hexAlpha(halo.color, 0.55);
-          ctx.lineWidth = 1;
+          // The lit topic's plate: tinted and ringed at full strength.
+          if (halo.gain > 0) {
+            ctx.fillStyle = hexAlpha(halo.color, 0.2 * halo.gain);
+            ctx.fill();
+          }
+          ctx.strokeStyle = hexAlpha(halo.color, 0.55 + 0.45 * halo.gain);
+          ctx.lineWidth = 1 + halo.gain;
           ctx.stroke();
           ctx.fillStyle = rgbaOf(CANVAS_THEME.text, 0.92);
           lines.forEach((line, li) => ctx.fillText(line, rect.x + rect.w / 2, rect.y + 3 + TOPIC_LABEL_LINE_H * (li + 0.5) + 0.5));

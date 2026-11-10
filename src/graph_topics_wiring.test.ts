@@ -50,7 +50,8 @@ describe("served: the base placement is the served layout", () => {
   });
 
   it("the circle's title is the served one (topicTitle), never a keyword", () => {
-    expect(CANVAS).toContain("topicHalos.push({ label: topicTitle(c, TITLE_BEING_WRITTEN), topic: circle.id,");
+    expect(CANVAS).toContain("const halo = { label: topicTitle(c, TITLE_BEING_WRITTEN), topic: circle.id,");
+    expect(CANVAS).toContain("topicHalos.push(halo);");
     for (const f of ["graph_canvas.tsx", "communities.ts", "topic_layout.ts", "topic_labels.ts", "topic_map.tsx", "topics_panel.tsx", "communities_source.ts", "entity_view.tsx", "hover_card.ts"]) {
       const src = read(f);
       expect(src, f).not.toMatch(/\bkeywords\b|exemplar_|member_ids|readableTopicLabel|readableKeyword/);
@@ -154,7 +155,7 @@ describe("no per-frame DOM layout reads in the title pass (review S3)", () => {
     expect(branch).toContain("placeTopicLabel({");
     expect(branch).toContain("ctx.measureText(");
     // The key: the camera, the canvas, the overlays, the seated placement, the glide.
-    expect(frame).toContain("const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}`;");
+    expect(frame).toContain("const titlesKey = `${cam.x}|${cam.y}|${cam.zoom}|${cssW}|${cssH}|${overlays.rev}|${pc.gen}|${reseat ? reseat.start : 0}|${reseat ? ease : 1}|${layout.size}|${topicHalos.length}|${litKey}`;");
   });
 
   it("OverlayRects reads the DOM once, then again only after a resize or a change around the canvas", async () => {
