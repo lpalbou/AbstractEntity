@@ -243,7 +243,9 @@ describe("the reply feed", () => {
 describe("layout", () => {
   it("in the timeline's third column, the block's full height, never taller than the block (116 px); the main area is never a grid for it", () => {
     expect(CSS).toMatch(/\.et_monitor_slot \{\s*grid-column: 3;\s*min-width: 0;/);
-    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 116px;[^}]*overflow: hidden;/);
+    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 116px;[^}]*overflow: visible;/);
+    // The petal labels in the bloom's own small type (under the floor), so nine fit around it.
+    expect(CSS).toMatch(/\.cw_compact \.cm_overlay \{\s*--ent-type-floor: 0px;/);
     // Its state is one line, whatever it says (the reason in the hover).
     expect(CSS).toMatch(/\.cw_state \{[^}]*white-space: nowrap;/);
     // A phone keeps the one row (smaller squares), never a wrapped column.

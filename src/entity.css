@@ -4179,7 +4179,15 @@ body {
   gap: 12px;
   min-width: 0;
   max-height: 116px;
-  overflow: hidden;
+  /* Visible: the bloom's top and bottom petal labels reach a few px into the block's padding (the
+   * max-height still holds the layout; the labels never leave their box sideways). */
+  overflow: visible;
+}
+/* The bloom's petal labels (backlog 0036: "they must be here, but smaller font, like for the right
+ * one"): the bloom's own small type, under the type floor (its documented exception, as the graph's
+ * canvas labels), so nine labels fit around a bloom the block's height. */
+.cw_compact .cm_overlay {
+  --ent-type-floor: 0px;
 }
 .cw_compact .cm_body,
 .cw_compact .cm_panel.cm_compact,
