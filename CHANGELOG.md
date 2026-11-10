@@ -19,9 +19,15 @@ All notable changes to `@abstractframework/entity` are recorded here.
   turn: 2 steps · 2 memory searches · 44 memories came to mind · 1 formed · 56 s") that opens them
   again; a reload rebuilds it from the same record. His own visits read the visit run's ledger
   (`GET /entities/{name}/visit/{run}/ledger`: once a second while a turn runs, only the new
-  records; nothing between turns); the flow brain reads its run's view and the memory stream. Not
-  shown until the gateway serves them: the topics a recall touched, how many memories a search
-  found, and the loop's ceiling (so "step 2", not "step 2 of 20").
+  records; nothing between turns); the flow brain reads its run's view and the memory stream.
+  Where his visit's record says more (AbstractRuntime's visit ledger fields), the rows do too:
+  "Recalled passively: 44 memories · Harbour work, The sea, Old letters" (the topics most of them
+  are in, by title; one topics read when a turn names a topic whose title the chat does not hold,
+  at most one per turn), "Step 2 of 50 · thinking…", and "Recalled on purpose: “main topics” → 7
+  found". A record without them reads as before (never "of ?" or "0 found"). A row's words are
+  plain text (a web address in a row is no second control inside it); a tool's nested arguments
+  read by their size ("headers: an object with 2 fields", "a list of 3 items"), here and in the
+  turn panel, never as JSON.
 - **Files, beside Settings.** A folder button next to Settings opens his files: the Settings →
   Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
   its own, a full-height sheet on a phone.
