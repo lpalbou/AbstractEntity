@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 28 |
+| Planned | 29 |
 | Proposed | 6 |
 | Completed | 9 |
 | Deprecated | 0 |
 
-`planned/` holds 32 files: the 28 planned items and four completed records (0002-0005) whose move
+`planned/` holds 33 files: the 29 planned items and four completed records (0002-0005) whose move
 to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -83,6 +83,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0033 | [The summary under his reply no longer crashes; it sits in his message as small chips](planned/0033_reply_summary_crash_and_footer.md) (built) | S | W5 | |
 | 0034 | [P1: the graph draws only when something changed; at rest it idles](planned/0034_graph_draw_loop_idles.md) | M | | |
 | 0035 | [Each step's row: tools used, files read, files written](planned/0035_ledger_step_tools_and_files.md) (blocked: the stream carries no tool calls) | S | W2 | |
+| 0036 | [The monitor uses the timeline's space: a large bloom with its petal labels, named tone channels, the time and its buttons stacked above the transport](planned/0036_monitor_larger_names_tree_controls_stacked.md) | M | W1 | |
 
 ## Proposed (legacy names)
 
