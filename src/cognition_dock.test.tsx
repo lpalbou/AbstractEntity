@@ -253,6 +253,7 @@ describe("layout", () => {
     const phone = CSS.slice(CSS.indexOf("/* Phone (the lanes fill the width): the open monitor takes the lanes' place"));
     // A phone: the lanes' place at least, the names alone around its bloom (numbers in the cards).
     expect(phone).toMatch(/\.et_monitor_slot \{[^}]*min-height: 88px;/);
+    expect(phone).toMatch(/\.et_monitor_slot:not\(:empty\) \{\s*min-width: 0;/);
     expect(phone).toMatch(/\.cw_compact \.cm_overlay_num \{\s*display: none;/);
     // The five channels: a column of names (smaller) and values; the gauge's four names beside it.
     expect(CSS).toMatch(/\.cm_tone_list \{\s*display: grid;\s*grid-template-columns: max-content max-content;/);

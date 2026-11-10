@@ -176,6 +176,7 @@ try {
     assert.deepEqual(layout.perLine,[1,1,1,1,1],`one channel per line at ${width}: ${layout.perLine}`);
     assert.ok(layout.monitorHeight <= (width >= 768 ? 160 : 260), `the monitor stays within its room (${layout.monitorHeight} px) at ${width}`);
     assert.ok(layout.scroll <= layout.inner, `no sideways scroll at ${width}`);
+    assert.equal(layout.inner, width, `the page keeps its ${width} px width (nothing wider forced a zoom-out)`);
     assert.ok(layout.dockScroll <= layout.dockWidth, `the monitor never scrolls sideways at ${width}`);
     assert.ok(layout.valContrast >= 4.5, `value contrast ${layout.valContrast.toFixed(2)} at ${width}`);
     await phone.screenshot({path:resolve(shots,`entity-cognition-joy-${width}${touch?"-touch":""}.png`),fullPage:true});

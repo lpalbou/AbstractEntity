@@ -4329,6 +4329,10 @@ body {
   .et_monitor_slot:empty {
     display: none;
   }
+  /* The phone's width, never the desktop's 420 px floor (no sideways scroll). */
+  .et_monitor_slot:not(:empty) {
+    min-width: 0;
+  }
   .entity_timeline.et_monitor_open .et_lane_label:not(.et_time_label),
   .entity_timeline.et_monitor_open .et_lane {
     display: none;
