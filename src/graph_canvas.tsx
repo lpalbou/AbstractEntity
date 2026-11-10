@@ -2504,36 +2504,6 @@ export function GraphCanvas({
         )}
         <button
           className="gc_btn"
-          title="Reset layout — forget saved positions (and where you moved his topics) and re-place every node"
-          onClick={() => {
-            if (layoutKey) {
-              try {
-                localStorage.removeItem(layoutStorageKey(layoutKey));
-              } catch {
-                // best-effort
-              }
-            }
-            layoutRef.current = new Map();
-            seatRef.current = { seats: new Map(), next: 0 };
-            // Forget the viewer's drags too: every circle back where it is served.
-            if (layoutKey) {
-              try {
-                localStorage.removeItem(topicOffsetsStorageKey(layoutKey));
-              } catch {
-                // best-effort
-              }
-            }
-            offsetsRef.current = new Map();
-            offsetsRevRef.current += 1;
-            simRef.current.alpha = 1;
-            simRef.current.frozen = false;
-            setMotionUi("live");
-          }}
-        >
-          ⟲ <span className="gc_btn_word">reset</span>
-        </button>
-        <button
-          className="gc_btn"
           title="Fit view — recenter the camera on the whole graph"
           onClick={() => {
             // The records drawn (the hidden ring outside his topics left out).

@@ -113,6 +113,20 @@ describe("the live marker and the focus reach the graph", () => {
     expect(css).toContain('.gc_tp_open .gc_tp_head::before {\n  content: "▾";\n  content: "▾" / "";');
   });
 
+  it("the motion buttons keep fit and have no reset (backlog 0020: \"remove 'reset', keep 'fit'\")", () => {
+    const at = CANVAS.indexOf('<div className="gc_motion_controls">');
+    expect(at).toBeGreaterThan(0);
+    const controls = CANVAS.slice(at);
+    expect(controls).toContain('⛶ <span className="gc_btn_word">fit</span>');
+    expect(controls).toContain('❄ <span className="gc_btn_word">');
+    expect(controls).toContain('⏸ <span className="gc_btn_word">settle</span>');
+    expect(controls).not.toContain("⟲");
+    expect(controls).not.toMatch(/gc_btn_word">reset</);
+    // Nothing on screen forgets the saved layout or the viewer's moved circles any more.
+    expect(CANVAS).not.toContain("localStorage.removeItem(layoutStorageKey(");
+    expect(CANVAS).not.toContain("localStorage.removeItem(topicOffsetsStorageKey(");
+  });
+
   it("wide canvas: the motion buttons stay inside the room the lens row leaves them, so a click on freeze lands", () => {
     const css = read("entity.css");
     expect(css).toMatch(/\.entity_graph_overlay \{\n  position: absolute;\n  top: 10px;\n  left: 12px;\n  right: 200px;/);
