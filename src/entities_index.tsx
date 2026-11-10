@@ -197,7 +197,9 @@ export function RosterEntityCard({
         // The card speaks the SAME phase bar as the entity page, all four pills (laurent dm#44
         // 2026-07-16: "we should have the 4 badges always visible for each entity, so we know
         // their state"); the kill switch stays on his page. The card's box says what blocks (with
-        // its Retry) and the stopped sentence (with its Resume), so the bar does not say them twice.
+        // its Retry) and the stopped sentence (with its Resume), so the bar does not say them twice:
+        // neither the blocked warning nor its sentence ("Awake and reachable; his own time stopped
+        // unexpectedly." under the box's "His own time stopped unexpectedly…", review 2b).
         <PhaseBarControls
           className="eix_phase_bar"
           view={view.blocked ? { ...view, blocked: "" } : view}
@@ -208,7 +210,7 @@ export function RosterEntityCard({
           onConfirm={onConfirm}
           onCancel={onCancel}
           showPower={false}
-          showSentence={!view.stopped}
+          showSentence={!view.stopped && !view.blocked}
         />
       }
     />

@@ -415,15 +415,25 @@ describe("the roster card is the kit's EntityCard over the entity tile (operator
     expect(c.html).toContain('class="ec_phase_bar eix_phase_bar"');
   });
 
+  it("idle (the live tile's phase for an awake entity with nothing running): the head says Awake, never a lone dot", () => {
+    const c = card(tile({ card: tileOf("castor", { now: { phase: "idle", state: "awake", detail: null, busy: false, since: null, trouble: null } }) }));
+    expect(c.html).toMatch(/class="af-entity-card__head"[^>]*aria-label="Castor\. Awake"/);
+    expect(c.html).toContain('<span class="af-entity-card__dot" aria-hidden="true"></span>Awake</span>');
+  });
+
   it("own time stopped unexpectedly: the served sentence, the reason and Retry on the card; the bar does not repeat it", () => {
     const c = card(tile({ phase: CRASHED, loop: FAILURES }));
     expect(c.props.life).toMatchObject({ blocked: { code: "loop_crashed", action: "retry" } });
     expect(c.html).toContain('<span class="af-entity-card__life-sentence">His own time stopped unexpectedly. Retry to start it again.</span>');
-    expect(c.html).toContain('<span class="af-entity-card__life-reason">It stopped after repeated failures (Nov 7); its memory is intact.</span>');
+    expect(c.html).toContain('<span class="af-entity-card__life-reason">Stopped after repeated failures (Nov 7); memory intact.</span>');
     expect(c.html).toMatch(/class="af-entity-card__act af-entity-card__retry is-primary"[^>]*>[\s\S]*?<span>Retry<\/span>/);
     expect(c.html).toContain("af-entity-card__watch");
     expect(shown(c.html).match(/His own time stopped unexpectedly\. Retry to start it again\./g)).toHaveLength(1);
     expect(c.html).not.toContain("ec_pb_blocked");
+    // Said once (review 2b): the bar's served sentence steps aside under the box, like the stopped one.
+    expect((c.props.actions as El).props.showSentence).toBe(false);
+    expect(shown(c.html)).not.toContain("Awake and reachable; his own time stopped unexpectedly.");
+    expect(shown(c.html).match(/own time stopped unexpectedly/gi)).toHaveLength(1);
     (c.props.onRetry as () => void)();
     expect(c.acts).toEqual(["retry"]);
   });
