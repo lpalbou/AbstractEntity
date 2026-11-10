@@ -194,6 +194,13 @@ function WorldCard({ fold, node, onSelect }: { fold: FoldState; node: NodeState;
   );
 }
 
+/** The World tab's intro (operator 2026-11-10, backlog 0031: "this is the world model, how the
+ * entity represents and sees the world. 2 lines top, better explain"): what the tab is, in plain
+ * words. Two lines at the docked tab's width (311 px of text at 1440 px, 13 px italic, measured on
+ * the hermetic app: these 89 characters take two lines there; 99 took three), so it stays this
+ * short. Each card's own "why he thinks this" says the rest. */
+export const WORLD_INTRO = "His world model: how he represents and sees the world. One card per thing he understands.";
+
 export function WorldPanel({ fold, onSelect }: { fold: FoldState; onSelect(id: string): void }): React.ReactElement {
   const cards = useMemo(() => nodesOfKind(fold, "world_model"), [fold]);
   const live = cards.filter((c) => !c.closed);
@@ -217,7 +224,7 @@ export function WorldPanel({ fold, onSelect }: { fold: FoldState; onSelect(id: s
         </span>
       </div>
       <div className="lw_framing wl_p">
-        <WordsLine text={`One card per "something" he understands — a person, a place, a concept, a system. The card is the distilled working model (what would remain if everything else vanished); "why he thinks this" unfolds its provenance — the memories behind the claim, each one click away. Sleep maintains the cards; his own revisions refine them.`} />
+        <WordsLine text={WORLD_INTRO} />
       </div>
       {narrowBreadth ? (
         <div className="lw_note wl_p">
