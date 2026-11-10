@@ -1,0 +1,11 @@
+/* The facts of a turn in his message's footer (reply_notices_summary.tsx, operator 2026-11-10): the
+   kit's notice chips (pc-chat-notice, the family of the badge of what the reply formed, at its size),
+   tighter so the row stays one line in the side panel's default width; spacing only, the kit's
+   colours and type. */
+.cd_turnfacts {
+  gap: 4px;
+}
+
+.cd_turnfacts .cd_turnfact {
+  padding: 1px 7px;
+}

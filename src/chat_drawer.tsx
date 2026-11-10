@@ -61,7 +61,8 @@ import {
 import { toolClaimVerdict } from "./tool_claim_guard";
 import { ownVisitSignal, type ClientVisitSignal } from "./entity_state";
 import { foldVisitStatus } from "./visit_status_poll";
-import { ChatMessageList, splitVisitDecoration, toolGaugeTrustworthy, type DrawerMessage } from "./chat_message_list";
+import { ChatMessageList, splitVisitDecoration, type DrawerMessage } from "./chat_message_list";
+import { toolGaugeTrustworthy, type TurnPanelTab } from "./reply_notices_summary";
 export { splitVisitDecoration } from "./chat_message_list";
 import { getEntitySeat, listEntities, postMention, refusalText, stoppedSentence, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
@@ -262,7 +263,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * visit_status_poll.ts; the counter is keyed to a RUN ID so a streak can
    * never leak across run identities and kill a fresh visit. */
   const missStateRef = useRef<{ misses: number; missesForRun: string | null }>({ misses: 0, missesForRun: null });
-  const [detailTurn, setDetailTurn] = useState<ChatTurnResult | null>(null);
+  const [detailTurn, setDetailTurn] = useState<{ turn: ChatTurnResult; tab: TurnPanelTab } | null>(null);
   // ONE substrate per entity (maintainer ruling 2026-07-09 06:32): the
   // drawer only DISPLAYS the gateway-stored mind; it is changed in the
   // controls strip (🧠) and resolved by the gateway on open — the visit
@@ -1440,13 +1441,14 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             }}
           /> : <ChatMessageList
             messages={messages}
-            onDetail={setDetailTurn}
+            onDetail={(turn, tab) => setDetailTurn({ turn, tab })}
+            onOpenRecord={onOpenRecord}
             onSpeakToggle={voice.tts_supported ? (m) => void voice.toggle_tts(String(m.id || ""), m.content) : undefined}
             getSpeakState={voice.tts_supported ? (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle") : undefined}
             onFocusMessage={setFocusMid}
             onNoticeOpen={openNotice}
           />}
-          {detailTurn ? <TurnDetailModal turn={detailTurn} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
+          {detailTurn ? <TurnDetailModal turn={detailTurn.turn} initialTab={detailTurn.tab} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (
             <div className="cd_queue_offer">
               <span className="cd_note">

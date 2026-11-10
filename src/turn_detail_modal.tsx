@@ -35,17 +35,19 @@ export interface TurnDetailModalProps {
   entityName: string;
   /** Where a context memory's full words are read (the pure record read). */
   source: VerbatimSource;
+  /** The tab it opens on: the chip clicked under his reply (memories and what formed: context). */
+  initialTab?: ProbeTab;
   onClose(): void;
 }
 
-type ProbeTab = "context" | "tools" | "system";
+export type ProbeTab = "context" | "tools" | "system";
 
 async function copyToClipboard(text: string, done: (msg: string) => void): Promise<void> {
   done((await clipboardWrite(text)) ? "copied" : COPY_FAILED);
 }
 
-export function TurnDetailModal({ turn, entityName, source, onClose }: TurnDetailModalProps): React.ReactElement {
-  const [tab, setTab] = useState<ProbeTab>("context");
+export function TurnDetailModal({ turn, entityName, source, initialTab = "context", onClose }: TurnDetailModalProps): React.ReactElement {
+  const [tab, setTab] = useState<ProbeTab>(initialTab);
   const [copied, setCopied] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   // Each tab opens at its top (the body is one scroller for all three).

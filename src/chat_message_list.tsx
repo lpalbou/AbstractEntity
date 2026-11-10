@@ -9,12 +9,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatMessageCard, type ChatMessage, type ChatNotice } from "@abstractframework/panel-chat";
 
+import { openTurnFact, TurnFactsRow, turnFactChips, type TurnPanelTab } from "./reply_notices_summary";
 import type { ChatTurnResult } from "./stream_source";
 import { NO_IMAGE_PROPS, WordsLine } from "./words_line";
 
 /** A thread message, optionally carrying its turn's probe payload — the
- * discreet "system" badge under a reply opens it (maintainer, 2026-07-08:
- * the facts bubble was louder than the words). `context` carries the
+ * summary chips in his message's footer open it (maintainer, 2026-07-08:
+ * the facts bubble was louder than the words; operator 2026-11-10: in the
+ * message itself, left-aligned, the chips of what the reply formed). `context` carries the
  * runtime's presence+MEMORIES decoration, folded OFF the card (operator
  * 2026-07-15: keep the chat clean — progressive disclosure). */
 export type DrawerMessage = ChatMessage & { detail?: ChatTurnResult; context?: string };
@@ -69,38 +71,6 @@ export function ContextFoldCard({ context }: { context: string }): React.ReactEl
   );
 }
 
-/** Is the turn's tool gauge TRUSTWORTHY? The visit lane's tools_ran was
- * structurally zero (incident report 2026-07-16, agent F3: the adapter
- * never wrote turn_captures["tools_ran"] — laurent reasoned on a broken
- * gauge). Evidence of a live gauge: a non-empty tools_ran, OR the
- * tool_details field being PRESENT (even empty = a verified zero). An
- * absent field on a zero count is an unverifiable zero — say so, never
- * assert "0 tools" from a gauge that cannot read. */
-export function toolGaugeTrustworthy(detail: ChatTurnResult): boolean {
-  return (detail.tools_ran ?? []).length > 0 || detail.tool_details !== undefined;
-}
-
-export function badgeLabel(detail: ChatTurnResult): string {
-  const parts: string[] = [];
-  if (typeof detail.memories_in_context === "number") parts.push(`${detail.memories_in_context} memories`);
-  const formed = Array.isArray(detail.records_formed) ? detail.records_formed.length : detail.records_formed ? 1 : 0;
-  if (formed) parts.push(`${formed} formed`);
-  const diary = Array.isArray(detail.diary_entries) ? detail.diary_entries.length : detail.diary_entries ? 1 : 0;
-  if (diary) parts.push(`${diary} diary`);
-  // The tool count is ALWAYS shown, zero included (seq 43: a reader must
-  // SEE the zero next to a reply that talks like it looked things up) —
-  // but only a TRUSTWORTHY zero renders as "0 tools".
-  const toolCount = (detail.tools_ran ?? []).length;
-  if (toolCount > 0 || toolGaugeTrustworthy(detail)) {
-    parts.push(`${toolCount} tool${toolCount === 1 ? "" : "s"}`);
-  } else {
-    parts.push("tools unverified");
-  }
-  if (detail.files && detail.files.length > 0) parts.push(`${detail.files.length} file${detail.files.length === 1 ? "" : "s"}`);
-  if ((detail.notices ?? []).length > 0) parts.push(`${(detail.notices ?? []).length} notice${(detail.notices ?? []).length === 1 ? "" : "s"}`);
-  return parts.join(" · ") || "details";
-}
-
 export function ChatMessageList({
   messages,
   onDetail,
@@ -108,9 +78,14 @@ export function ChatMessageList({
   getSpeakState,
   onFocusMessage,
   onNoticeOpen,
+  onOpenRecord,
 }: {
   messages: DrawerMessage[];
-  onDetail(detail: ChatTurnResult): void;
+  /** A summary chip opens the turn panel on its tab (memories and what formed: context; tools). */
+  onDetail(detail: ChatTurnResult, tab: TurnPanelTab): void;
+  /** A chip that names one record (the memory formed, the diary entry) opens it in Detail by its
+   * graph id; `false` = Detail does not hold it yet: the turn panel opens instead. */
+  onOpenRecord?: (graphId: string) => boolean;
   /** A badge of what a reply formed (`message.notices`) was clicked: the drawer opens what it
    * names; `false` = nothing to open, the badge shows its own panel (as without this prop). */
   onNoticeOpen?: (notice: ChatNotice, message: ChatMessage) => void | boolean;
@@ -183,19 +158,16 @@ export function ChatMessageList({
           ) : (
             <>
               {m.context ? <ContextFoldCard context={m.context} /> : null}
-              <ChatMessageCard message={m} onSpeakToggle={onSpeakToggle} getSpeakState={getSpeakState} onNoticeOpen={onNoticeOpen} {...NO_IMAGE_PROPS} />
+              <ChatMessageCard
+                message={m}
+                onSpeakToggle={onSpeakToggle}
+                getSpeakState={getSpeakState}
+                onNoticeOpen={onNoticeOpen}
+                renderFooter={m.detail ? () => <TurnFactsRow chips={turnFactChips(m.detail!)} authorKind={m.author?.kind} onOpen={(chip) => openTurnFact(chip, m.detail!, { onDetail, onOpenRecord })} /> : undefined}
+                {...NO_IMAGE_PROPS}
+              />
             </>
           )}
-          {m.detail ? (
-            <button
-              className="cd_sysbadge"
-              onClick={() => onDetail(m.detail!)}
-              title="What moved in his mind this turn — memories in context, formations, tools, files"
-            >
-              <span className="cd_sysbadge_dot" aria-hidden="true" />
-              system · {badgeLabel(m.detail)}
-            </button>
-          ) : null}
         </div>
       ))}
       <div ref={bottomRef} />
