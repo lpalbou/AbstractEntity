@@ -369,6 +369,12 @@
   opacity: 1;
 }
 
+/* Docked, the corner moves the bottom edge only (its right edge is the
+ * dock): the cursor says so. */
+.gc_topics_float[data-docked="true"] .gc_tp_resize {
+  cursor: ns-resize;
+}
+
 .gc_topics_note {
   padding: 6px 10px;
   color: var(--text-dim);

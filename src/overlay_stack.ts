@@ -87,22 +87,42 @@ export function movePanel(start: Box, dx: number, dy: number, view: { w: number;
   return { x: Math.round(x), y: Math.round(y) };
 }
 
-/** Its box after its bottom-right corner moved by (dx, dy): its top-left
- * stays put and it grows toward the bottom right, PANEL_W wide at most and
- * at least, as tall as the window lets it; only a width that would leave
- * the window moves its left edge (left, just enough). */
-export function resizePanel(start: Box, dx: number, dy: number, view: { w: number; h: number }): { x: number; w: number; h: number } {
-  const right = view.w - PANEL_GAP;
-  let w = Math.max(PANEL_W.min, Math.min(start.w + dx, PANEL_W.max));
-  let x = start.x;
-  if (x + w > right) x = right - w;
-  if (x < 0) {
-    // A window narrower than the panel's width: as wide as it.
-    x = 0;
-    w = right;
-  }
-  const h = Math.max(PANEL_MIN_H, Math.min(start.h + dy, view.h - start.y - PANEL_GAP));
-  return { x: Math.round(x), w: Math.round(w), h: Math.round(h) };
+/** THE CORNER'S RULE (round-4 review F1, F2): the edge under the pointer is
+ * the edge that moves, and no other edge moves. The grip is the bottom-right
+ * corner, so it moves the bottom edge and the right edge; the top and the
+ * left edges never move.
+ * - Moved (anywhere in the window): the right edge follows the pointer and
+ *   stops at the window's edge (the width is clamped to the room on the
+ *   right, PANEL_W wide at most and at least); the bottom follows, as far
+ *   as the window's foot.
+ * - Docked: its right edge IS the dock (10 px inside the canvas's), so it
+ *   cannot move; the corner moves the bottom edge only, the panel stays
+ *   docked (only a drag of its head or grip undocks it), as far as the
+ *   canvas's foot. */
+export function resizePanel(start: Box, dx: number, dy: number, view: { w: number; h: number }, docked: boolean, dockBottom: number): { w: number; h: number } {
+  const room = view.w - PANEL_GAP - start.x;
+  const w = docked ? start.w : Math.max(Math.min(PANEL_W.min, start.w), Math.min(start.w + dx, PANEL_W.max, room));
+  const foot = (docked ? dockBottom : view.h) - PANEL_GAP;
+  const h = Math.max(PANEL_MIN_H, Math.min(start.h + dy, foot - start.y));
+  return { w: Math.round(w), h: Math.round(h) };
+}
+
+/** The float after a corner pull from `start` (the panel's box at the
+ * press): docked, it stays docked with its new height; moved, its place
+ * kept and its new size. */
+export function resizeFloat(from: PanelFloat, start: Box, dx: number, dy: number, view: { w: number; h: number }, dockBottom: number): PanelFloat {
+  const docked = from.at === null;
+  const r = resizePanel(start, dx, dy, view, docked, dockBottom);
+  return docked ? { at: null, w: from.w, h: r.h } : { at: from.at, w: r.w, h: r.h };
+}
+
+/** The float after a move from `start` (round-4 review F3: a move never
+ * changes the height). Open on its list, a panel with no height of its own
+ * keeps the height it had at the press (docked, its cap was 58 % of the
+ * canvas; moved, the window's would let it grow on release); folded (its
+ * head) it keeps none. */
+export function moveFloat(from: PanelFloat, start: Box, dx: number, dy: number, view: { w: number; h: number }, openList: boolean): PanelFloat {
+  return { at: movePanel(start, dx, dy, view), w: from.w, h: from.h ?? (openList ? Math.round(start.h) : null) };
 }
 
 /** Where the docked panel goes (window px, measured by the canvas): its top

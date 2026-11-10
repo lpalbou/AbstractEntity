@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   legendReserve,
+  moveFloat,
   movePanel,
   overlayStack,
   PANEL_DOCKED,
@@ -25,6 +26,7 @@ import {
   PANEL_W,
   panelVars,
   parsePanelFloat,
+  resizeFloat,
   resizePanel,
   serializePanelFloat,
   topReserve,
@@ -290,21 +292,49 @@ describe("the floating panel (backlog 0017, 0027)", () => {
     expect(PANEL_DRAG_SLOP).toBeLessThanOrEqual(6);
   });
 
-  it("its corner grows it toward the bottom right: the top-left stays, only a width that would leave the window moves its left edge", () => {
+  // THE CORNER'S RULE: the edge under the pointer is the edge that moves, and no other edge moves.
+  it("review F2: moved, the corner moves the right and bottom edges only; the left edge never moves, the width stops at the window's edge", () => {
     const moved = { x: 300, y: 100, w: 320, h: 300 };
-    expect(resizePanel(moved, 100, 50, view)).toEqual({ x: 300, w: 420, h: 350 });
-    expect(resizePanel(moved, 5000, 0, view).w).toBe(PANEL_W.max);
-    expect(resizePanel(moved, -5000, -5000, view)).toEqual({ x: 300, w: PANEL_W.min, h: PANEL_MIN_H });
-    expect(resizePanel(moved, 0, 5000, view).h).toBe(view.h - moved.y - PANEL_GAP);
-    // A docked panel at the canvas's right edge: it grows right, over the drawer (the window has room).
-    const docked = resizePanel(start, 30, 40, view);
-    expect(docked).toEqual({ x: 730, w: 350, h: 432 });
-    // At the window's right edge a wider panel moves its left edge just enough.
-    const edge = resizePanel({ x: 1100, y: 100, w: 320, h: 300 }, 150, 0, view);
-    expect(edge.w).toBe(470);
-    expect(edge.x + edge.w).toBe(view.w - PANEL_GAP);
-    // A window narrower than the panel: as wide as it.
-    expect(resizePanel({ x: 0, y: 60, w: 300, h: 200 }, 400, 0, { w: 280, h: 400 })).toEqual({ x: 0, w: 272, h: 200 });
+    expect(resizePanel(moved, 100, 50, view, false, 768)).toEqual({ w: 420, h: 350 });
+    expect(resizePanel(moved, 5000, 0, view, false, 768).w).toBe(PANEL_W.max);
+    expect(resizePanel(moved, -5000, -5000, view, false, 768)).toEqual({ w: PANEL_W.min, h: PANEL_MIN_H });
+    expect(resizePanel(moved, 0, 5000, view, false, 768).h).toBe(view.h - PANEL_GAP - moved.y);
+    // The review's case: the panel's right edge at the window's (the drawer collapsed), +80 px on the corner.
+    const atEdge = { at: { x: 1070, y: 168 }, w: 320, h: 392 };
+    const box = { x: 1070, y: 168, w: 320, h: 392 };
+    const after = resizeFloat(atEdge, box, 80, 0, view, 768);
+    expect(after.at).toEqual({ x: 1070, y: 168 }); // the left edge did not move (it moved -38 px before)
+    expect(1070 + (after.w ?? 0)).toBeLessThanOrEqual(view.w - PANEL_GAP); // the right edge stopped at the window's
+    expect(after.w).toBe(view.w - PANEL_GAP - 1070);
+    // Room on the right: the right edge follows the pointer, nothing else moves.
+    const roomy = resizeFloat({ at: { x: 300, y: 100 }, w: 320, h: 300 }, { x: 300, y: 100, w: 320, h: 300 }, 80, 40, view, 768);
+    expect(roomy).toEqual({ at: { x: 300, y: 100 }, w: 400, h: 340 });
+  });
+
+  it("review F1: docked, the corner moves the bottom edge only and the panel stays docked (its reserves kept)", () => {
+    const docked = resizeFloat(PANEL_DOCKED, start, 80, 120, view, dock.canvasBottom);
+    expect(docked.at).toBeNull();
+    expect(docked.w).toBeNull(); // its width, the dock's: the right edge is the dock and cannot move
+    expect(docked.h).toBe(start.h + 120);
+    // Pulled to the canvas's foot, never past it.
+    expect(resizeFloat(PANEL_DOCKED, start, 0, 5000, view, dock.canvasBottom).h).toBe(dock.canvasBottom - PANEL_GAP - start.y);
+    // So both legends keep leaving it its width, and no "put back" (it never moved).
+    expect(legendReserve(docked, true)).not.toBe("0px");
+    expect(topReserve(docked)).not.toBe("0px");
+    // A docked panel resized earlier keeps its width.
+    expect(resizeFloat({ at: null, w: 460, h: 300 }, { ...start, w: 460, h: 300 }, 80, 0, view, dock.canvasBottom)).toEqual({ at: null, w: 460, h: 300 });
+    expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-docked="true"] .gc_tp_resize'), "cursor")).toBe("ns-resize");
+  });
+
+  it("review F3: a move never changes the height (open on its list it keeps the height it had at the press)", () => {
+    const nudged = moveFloat(PANEL_DOCKED, start, -10, 0, view, true);
+    expect(nudged.at).toEqual({ x: start.x - 10, y: start.y });
+    expect(nudged.h).toBe(start.h); // 392 docked; no window-tall jump on release
+    expect(panelVars(nudged, dock)["--gc-tp-h"]).toBe(`${start.h}px`);
+    // A height of its own is kept; folded (its head) it gets none.
+    expect(moveFloat({ at: { x: 1, y: 1 }, w: 400, h: 500 }, start, 5, 5, view, true).h).toBe(500);
+    expect(moveFloat(PANEL_DOCKED, { ...start, h: 34 }, 20, 20, view, false).h).toBeNull();
+    expect(moveFloat(PANEL_DOCKED, start, 20, 20, view, true).w).toBeNull();
   });
 
   it("is remembered under one versioned key (v2: window px; a v1 value, canvas px, is never read)", () => {
@@ -381,8 +411,11 @@ describe("the floating panel (backlog 0017, 0027)", () => {
     expect(drag).toContain("box.style.transform = `translate(${at.x - start.x}px, ${at.y - start.y}px)`;");
     expect(drag).not.toMatch(/setPanelFloat\(next\);[\s\S]*const onMove/);
     expect(drag.indexOf("if (next !== from) setPanelFloat(next);")).toBeGreaterThan(drag.indexOf("const onEnd"));
-    // A resize keeps the top-left (resizePanel) and writes the box's own size.
-    expect(drag).toContain("next = { at: { x: r.x, y: Math.round(start.y) }, w: r.w, h: r.h };");
+    // A resize follows the corner's rule (resizeFloat: docked stays docked), a move keeps the height (moveFloat).
+    expect(drag).toContain("next = resizeFloat(from, start, dx, dy, view, dock.canvasBottom);");
+    expect(drag).toContain("next = moveFloat(from, start, dx, dy, view, openList);");
+    expect(drag).toContain('const openList = box.dataset.list === "true";');
+    expect(drag).not.toContain('box.dataset.docked = "false";\n      } else {');
     // The click that ends a head move is not a fold.
     expect(CANVAS).toMatch(/onClickCapture=\{\(ev\) => \{\n\s+\/\/ The click that ends a move from the head bar is not a fold\.\n\s+if \(!panelDraggedRef\.current\) return;\n\s+panelDraggedRef\.current = false;\n\s+ev\.stopPropagation\(\);\n\s+ev\.preventDefault\(\);/);
     expect(CANVAS).toContain('<button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick={() => setPanelFloat({ ...panelFloatRef.current, at: null })}>');

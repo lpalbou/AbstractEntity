@@ -80,7 +80,7 @@ import {
   type SeatedFold,
 } from "./topic_layout";
 import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
-import { legendReserve, movePanel, overlayStack, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizePanel, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
+import { legendReserve, moveFloat, overlayStack, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizeFloat, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -2380,7 +2380,8 @@ export function GraphCanvas({
   };
   /** A press on the page panel: its grip (move), its head bar (a move once
    * the pointer travels PANEL_DRAG_SLOP; short of it, the head's own click
-   * folds the panel) or its corner (size; its top-left stays put). The panel
+   * folds the panel) or its corner (size: the edge under the pointer moves,
+   * no other; docked, its height only, and it stays docked). The panel
    * follows the pointer with pointer capture, one paint per frame: a move is
    * a transform (the compositor's, no layout, no re-render), a resize writes
    * the panel box's own size; both are kept and remembered on release
@@ -2402,6 +2403,7 @@ export function GraphCanvas({
     const start = { x: br.left - hr.left, y: br.top - hr.top, w: br.width, h: br.height };
     const view = { w: hr.width, h: hr.height };
     const from = panelFloatRef.current;
+    const openList = box.dataset.list === "true";
     const pointer = ev.pointerId;
     const x0 = ev.clientX;
     const y0 = ev.clientY;
@@ -2415,14 +2417,12 @@ export function GraphCanvas({
       const dx = last.x - x0;
       const dy = last.y - y0;
       if (mode === "size") {
-        const r = resizePanel(start, dx, dy, view);
-        next = { at: { x: r.x, y: Math.round(start.y) }, w: r.w, h: r.h };
+        next = resizeFloat(from, start, dx, dy, view, dock.canvasBottom);
         for (const [k, v] of Object.entries(panelVars(next, dock))) box.style.setProperty(k, v);
         box.dataset.sized = "true";
-        box.dataset.docked = "false";
       } else {
-        const at = movePanel(start, dx, dy, view);
-        next = { ...from, at };
+        next = moveFloat(from, start, dx, dy, view, openList);
+        const at = next.at ?? start;
         box.style.transform = `translate(${at.x - start.x}px, ${at.y - start.y}px)`;
       }
     };
@@ -2446,9 +2446,11 @@ export function GraphCanvas({
       if (frame) cancelAnimationFrame(frame);
       paint();
       if (mode !== "size") {
-        // Where the transform had it, as its place; then no transform (no jump).
+        // Where the transform had it, as its place, at the height it had;
+        // then no transform (no jump, of the place or of the size).
         for (const [k, v] of Object.entries(panelVars(next, dock))) box.style.setProperty(k, v);
         box.dataset.docked = "false";
+        if (next.h !== null) box.dataset.sized = "true";
         box.style.transform = "";
       }
       if (next !== from) setPanelFloat(next);
