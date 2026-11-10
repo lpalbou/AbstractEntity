@@ -66,10 +66,13 @@ try {
     if (url.pathname.endsWith("/embedding")) {
       // The other entity's pin is held once (its answer lands after the conversation emptied).
       if (url.pathname.includes("/mismatch/")) { if (!pinHeld) { pinHeld = true; await new Promise(resolve => { pinRelease = resolve; }); } return json({pin:{model_id:"different-embedding-space"}}); }
-      return json({pin:{model_id:fixtures.embedder_id}});
+      // The door's embedder resolved (the monitor's read checks it first, corpusPreflight).
+      return json({pin:{model_id:fixtures.embedder_id},resolved_embedder:fixtures.embedder_id,match:"match"});
     }
     if (url.pathname.endsWith("/embeddings")) {
       const input = route.request().postDataJSON().input[0];
+      // The read's check of the embedding route answers at once (only the replies' embeds are held).
+      if (input !== neutral.text && input !== joy.text) return json({model:fixtures.embedder_id,data:[{index:0,embedding:neutral.vector}]});
       await new Promise(resolve => pending.push({input,release:resolve}));
       const item = input === neutral.text ? neutral : joy;
       return json({model:fixtures.embedder_id,data:[{index:0,embedding:item.vector}]});
@@ -145,7 +148,7 @@ try {
     await phone.route("**/api/**", async route => {
       const url = new URL(route.request().url());
       const json = data => route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
-      if (url.pathname.endsWith("/embedding")) return json({pin:{model_id:fixtures.embedder_id}});
+      if (url.pathname.endsWith("/embedding")) return json({pin:{model_id:fixtures.embedder_id},resolved_embedder:fixtures.embedder_id,match:"match"});
       if (url.pathname.endsWith("/embeddings")) { const input = route.request().postDataJSON().input[0]; return json({model:fixtures.embedder_id,data:[{index:0,embedding:(input===neutral.text?neutral:joy).vector}]}); }
       return json({});
     });
