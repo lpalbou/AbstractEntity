@@ -1,8 +1,8 @@
-# Planned (blocked: the stream carries no tool calls): each step's row says how many tools, files read, files written
+# Planned (app half built; the gateway half is root 1204): each step's row says how many tools, files read, files written
 
 ## Metadata
 - Created: 2026-11-10
-- Status: Planned (blocked on a data gap; nothing built)
+- Status: Planned (app half built 9ea25e3; waiting for the gateway's marker, root backlog 1204, and the operator's check)
 - Completed: N/A
 - Source: the operator, 2026-11-10 22:02 (relayed by the Entity/memory session)
 - Lane: W2 (the ledger rows) once the data reaches the stream
@@ -47,7 +47,22 @@ files_written}`, so the ledger reads counts it already has in order (no per-row 
 first). The file counts need a structural fact on the tool definition (core: a `file_effect: read |
 write | none` beside `mutating` in the inventory), never a name list in the app.
 
-## Scope (once the marker ships)
+## The marker (root 1204, being built 2026-11-10)
+One host marker per finished step that called tools, in the replay export and the SSE stream:
+`{kind: "step_tools", run_id, turn_id, tools, tool_count, files_read, files_written}`.
+
+## Built (app half, 9ea25e3)
+- `stream_types.ts` STEP_TOOLS_KIND; `stream_fold.ts` `stepToolsOf` (a marker without its step or its
+  counts: one #SEAM log, ignored) and `FoldState.step_tools` by `stepKey(run_id, turn_id)`.
+- `ledger_lines.ts`: the marker is no row; its counts go on the one row that stands for its step (the
+  step's rows by turn and run, contiguous at the ledger's end; the first shown, its tick when it has
+  one); a marker for a step with no row: one #SEAM log. Read alone, an audit line.
+- `ledger_panel.tsx` `StepToolsGroup`: the kit's wrench / file / edit icons with their counts, each only
+  above 0, nothing when all are 0; the words on hover and for a screen reader; the row's meta colour.
+- Tests: `src/ledger_step_tools.test.tsx`.
+- Not verified live: the gateway emits no marker until it restarts with root 1204.
+
+## Scope (as built)
 On the rows that stand for a step (He lived a moment, He summed it up, the own-time and sleep step
 rows), a compact trailing group: ⚙ 12 · 📄 3 · ✎ 1 (tools used · files read · files written; the kit's
 icons if it has them), each shown only when > 0, its title in words ("12 tools used · 3 files read · 1

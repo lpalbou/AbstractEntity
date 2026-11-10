@@ -82,7 +82,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0032 | [The monitor opens in the timeline's empty space; its explanatory block goes](planned/0032_monitor_in_the_timeline_empty_space.md) | M | W1 | |
 | 0033 | [The summary under his reply no longer crashes; it sits in his message as small chips](planned/0033_reply_summary_crash_and_footer.md) (built) | S | W5 | |
 | 0034 | [P1: the graph draws only when something changed; at rest it idles](planned/0034_graph_draw_loop_idles.md) | M | | |
-| 0035 | [Each step's row: tools used, files read, files written](planned/0035_ledger_step_tools_and_files.md) (blocked: the stream carries no tool calls) | S | W2 | |
+| 0035 | [Each step's row: tools used, files read, files written](planned/0035_ledger_step_tools_and_files.md) (app half built; the gateway's marker is root 1204) | S | W2 | 1204 |
 | 0036 | [The monitor uses the timeline's space: a large bloom with its petal labels, named tone channels, the time and its buttons stacked above the transport](planned/0036_monitor_larger_names_tree_controls_stacked.md) | M | W1 | |
 | 0037 | [A world-model revision is one ledger row, by its title, that opens it](planned/0037_world_model_revision_one_row_by_title.md) (built) | S | W2 | |
 
