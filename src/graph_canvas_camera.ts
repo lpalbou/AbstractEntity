@@ -68,3 +68,25 @@ export function glideAt(g: Glide, now: number): { pose: CameraPose; done: boolea
   if (t >= 1) return { pose: { ...g.to }, done: true };
   return { pose: poseAt(g.from, g.to, easeInOut(t)), done: false };
 }
+
+/** Fit view's framing: the padding around what is framed (world px) and the
+ * zoom it stays within. */
+export const FIT_PAD = 120;
+export const FIT_ZOOM = { min: 0.12, max: 6 } as const;
+
+/** The camera that frames these points (world px; the Topics panel's
+ * onFrameRows) in `free`, the part of the canvas the panel leaves (canvas
+ * px: its centre and size): their box with Fit view's padding and zoom
+ * clamp; null with no point. */
+export function framePointsPose(points: ReadonlyArray<{ x: number; y: number }>, canvas: { w: number; h: number }, free: { x: number; y: number; w: number; h: number }): CameraPose | null {
+  if (points.length === 0) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  }
+  const spanX = Math.max(FIT_PAD, maxX - minX + FIT_PAD);
+  const spanY = Math.max(FIT_PAD, maxY - minY + FIT_PAD);
+  const zoom = Math.min(FIT_ZOOM.max, Math.max(FIT_ZOOM.min, Math.min(free.w / spanX, free.h / spanY)));
+  return { x: (minX + maxX) / 2 + (canvas.w / 2 - free.x) / zoom, y: (minY + maxY) / 2 + (canvas.h / 2 - free.y) / zoom, zoom };
+}

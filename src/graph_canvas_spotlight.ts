@@ -103,3 +103,49 @@ export function litPlateFallback(halo: { cx: number; cy: number; r: number }, w:
 export function plateInDisc(rc: { x: number; y: number; w: number; h: number }, disc: { cx: number; cy: number; r: number }): boolean {
   return Math.hypot(rc.x + rc.w / 2 - disc.cx, rc.y + rc.h / 2 - disc.cy) < disc.r;
 }
+
+/** THE ROWS THE PANEL LIGHTS (topics_panel onHoverRows: a path's two
+ * memories, a memory type's memories in a topic): exactly these memories,
+ * and the circles that hold them (each lit like a hovered topic, a hole in
+ * the veil); the ids are the graph's node ids. */
+export interface LitRows {
+  rows: ReadonlySet<string>;
+  /** The circles holding at least one of them (a memory waiting outside
+   * every circle adds none). */
+  circles: ReadonlySet<string>;
+}
+
+/** The lit rows with their circles, rebuilt only when the panel's set or the
+ * seating changes (never per frame): `circleOfRow` is the seated fold's. */
+export function litRowsSpotCache(): (ids: ReadonlySet<string> | null, circleOfRow: ReadonlyMap<string, string> | null, gen: number) => LitRows | null {
+  let last: { ids: ReadonlySet<string> | null; gen: number; spot: LitRows | null } = { ids: null, gen: -1, spot: null };
+  return (ids, circleOfRow, gen) => {
+    if (last.ids === ids && last.gen === gen) return last.spot;
+    let spot: LitRows | null = null;
+    if (ids && circleOfRow) {
+      const circles = new Set<string>();
+      for (const id of ids) {
+        const key = circleOfRow.get(id);
+        if (key !== undefined) circles.add(key);
+      }
+      spot = { rows: ids, circles };
+    }
+    last = { ids, gen, spot };
+    return spot;
+  };
+}
+
+/** Whether the lit rows light the canvas this frame: one of their circles
+ * meets it (the hovered-topic rule: nothing lit off-screen veils nothing),
+ * or they sit in no circle (lit by the emphasis alone). */
+export function litRowsOnScreen(spot: LitRows, circleOnScreen: (key: string) => boolean): boolean {
+  if (spot.circles.size === 0) return true;
+  for (const key of spot.circles) if (circleOnScreen(key)) return true;
+  return false;
+}
+
+/** Whether a circle is lit this frame: one holding a lit row while the panel
+ * lights rows, else the lit topic's. */
+export function circleLit(id: string, rows: LitRows | null, litKey: string | null): boolean {
+  return rows ? rows.circles.has(id) : litKey === id;
+}

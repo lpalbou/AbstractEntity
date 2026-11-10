@@ -84,8 +84,8 @@ import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
 import { closedTitle, closedWord, drawnOutside, hiddenOutside, outsideTopics, neverJoins, type OutsideTopics } from "./graph_canvas_outside";
-import { glideAt, startGlide, type CameraPose, type Glide } from "./graph_canvas_camera";
-import { circleMeetsCanvas, litPlateFallback, litRowsCache, litTopicKey, MEMBER_RING, plateInDisc, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
+import { framePointsPose, glideAt, startGlide, type CameraPose, type Glide } from "./graph_canvas_camera";
+import { circleLit, circleMeetsCanvas, litPlateFallback, litRowsCache, litRowsOnScreen, litRowsSpotCache, litTopicKey, MEMBER_RING, plateInDisc, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
 
 export interface GraphCanvasProps {
   fold: FoldState;
@@ -579,6 +579,16 @@ function narrowViewport(): boolean {
   }
 }
 
+/** The Topics panel's ids (onHoverRows / onFrameRows) are the graph's node
+ * ids (NodeState.id, the fold's rows: the panel resolves a served record id
+ * through fold.graph_to_row). One that is not says so loudly: the panel
+ * broke the seam, and nothing lights or frames for it. */
+export function seamRows(fold: Pick<FoldState, "nodes">, ids: string[], what: string): string[] {
+  const unknown = ids.filter((id) => !fold.nodes.has(id));
+  if (unknown.length > 0) console.error(`#SEAM ${what}: ${unknown.length} of ${ids.length} ids are not graph node ids`, unknown.slice(0, 3));
+  return ids;
+}
+
 /** The one card on screen: a memory's (node id) or a topic title's (its key). */
 type CardAt =
   | { kind: "node"; id: string; x: number; y: number; pinned: boolean }
@@ -700,6 +710,11 @@ export function GraphCanvas({
    * on, after the panel's hover intent: the frame lights it (a ref, read by
    * the RAF loop; no re-render). */
   const hoverTopicRef = useRef<string | null>(null);
+  /** The memories the Topics panel lights (onHoverRows: a path's two
+   * memories, a memory type's memories in a topic), after its hover intent:
+   * exactly these node ids lit, the rest dimmed; null lets go. A ref, read
+   * by the RAF loop (no re-render); the set is built once per hover. */
+  const hoverRowsRef = useRef<ReadonlySet<string> | null>(null);
   /** The lit lines the LAST FRAME drew (null when the recall does not
    * drive the canvas): what a pointer resting on a line can be over. */
   const shownLinesRef = useRef<Map<string, TravelledLine> | null>(null);
@@ -961,6 +976,8 @@ export function GraphCanvas({
     const titlesCache: { key: string; placed: Array<{ rect: Rect; topic: string; label: string; lines: string[] }> } = { key: "", placed: [] };
     // The lit topic's memories (a set per lit topic and seating, not per frame).
     const litRowsOf = litRowsCache();
+    // The rows the panel lights and their circles (a set per hover and seating, not per frame).
+    const litRowsSpotOf = litRowsSpotCache();
 
     const frame = () => {
       if (disposed) return;
@@ -1268,15 +1285,25 @@ export function GraphCanvas({
       const hoveredTopic = topicsOn && seated && hoverOnScreen && hoverTopicRef.current !== null && (seated.rowsOf.get(hoverTopicRef.current)?.length ?? 0) > 0 ? hoverTopicRef.current : null;
       const litKey = topicsOn && seated ? litTopicKey(hoveredTopic, picked) : null;
       const litRows = litRowsOf(litKey, seated ? seated.rowsOf : null, pc.gen);
+      // THE ROWS THE PANEL LIGHTS (onHoverRows), before the hovered topic:
+      // exactly these memories, the circles holding them lit as a hovered
+      // topic's; none of those circles on screen lights nothing (the
+      // hovered-topic rule).
+      const rowsSpot = topicsOn && seated && placement ? litRowsSpotOf(hoverRowsRef.current, seated.circleOfRow, pc.gen) : null;
+      const rowsLit = rowsSpot && litRowsOnScreen(rowsSpot, (key) => {
+        const c = placement?.circleById.get(key);
+        return c ? circleMeetsCanvas(toScreen(c.x, c.y), c.r * cam.zoom, w, h) : false;
+      }) ? rowsSpot : null;
       // ONE mechanism, ordered triggers (recall_emphasis.emphasisDriver):
-      // a topic hovered in the panel > lens/search/topic filter >
-      // hovered/selected node > current recall. The hovered topic lights its
-      // memories as a filter does (its preview wins while the pointer rests).
+      // rows lit from the panel > a topic hovered in the panel >
+      // lens/search/topic filter > hovered/selected node > current recall.
+      // The hovered topic (or rows) lights its memories as a filter does
+      // (its preview wins while the pointer rests).
       const topicHover = hoveredTopic !== null && litRows !== null;
       const driver = topicHover
         ? "filter"
         : emphasisDriver({
-            filter: searchIds !== null,
+            filter: searchIds !== null || rowsLit !== null,
             hover: hoverRef.current !== null && layout.has(hoverRef.current),
             selected: selectedId !== null && layout.has(selectedId),
             recall: recall !== null,
@@ -1304,6 +1331,9 @@ export function GraphCanvas({
           emphasis = near;
         }
       }
+      // The rows the panel lights win over every other trigger (a hovered
+      // topic included): exactly their set.
+      if (rowsLit) emphasis = rowsLit.rows;
       // Dim TRANSITION (laurent 2026-07-17: "allow a 0.5 transition for
       // the other unconnected edges and nodes to gradually decrease their
       // transparency" when the hover card shows/hides). Targets stay the
@@ -1378,8 +1408,8 @@ export function GraphCanvas({
           const color = topicColor(circle.id);
           const at = toScreen(circle.x, circle.y);
           const R = circle.r * cam.zoom;
-          const lit = litKey === circle.id;
-          const hd = easedDim(`topic:${circle.id}`, topicDimTarget({ lit, anyLit: litKey !== null, emphasis: emphasis !== null, emphasisHits: hits }));
+          const lit = circleLit(circle.id, rowsLit, litKey);
+          const hd = easedDim(`topic:${circle.id}`, topicDimTarget({ lit, anyLit: rowsLit ? rowsLit.circles.size > 0 : litKey !== null, emphasis: emphasis !== null, emphasisHits: hits }));
           // The gain eases 0 -> 1 (stored as 1 - gain: the ramp's rest is 1).
           const gain = 1 - easedDim(`topiclit:${circle.id}`, lit ? 0 : 1);
           const style = topicCircleStyle(gain);
@@ -1394,7 +1424,7 @@ export function GraphCanvas({
             ctx.lineWidth = style.width;
             ctx.stroke();
           }
-          if (lit) litHalo = halo;
+          if (lit && litKey === circle.id) litHalo = halo;
           topicHalos.push(halo);
         }
       }
@@ -1609,6 +1639,9 @@ export function GraphCanvas({
         ctx.globalAlpha = 1;
       }
 
+      // The lit circles holding the panel's rows, by key (their rings' colour and gain).
+      const rowHalos = rowsLit ? new Map(topicHalos.filter((hl) => rowsLit.circles.has(hl.topic)).map((hl) => [hl.topic, hl] as const)) : null;
+
       // Memory nodes (the hidden records left out).
       for (const node of fold.nodes.values()) {
         const ln = layout.get(node.id);
@@ -1703,11 +1736,15 @@ export function GraphCanvas({
           if (feeling.bonds.length > 0) drawHalo(p.x, p.y, r + (feeling.scars.length ? 10.5 : 7), rgbaOf(CANVAS_THEME.bond, 0.9));
         }
         if (isSelected || isHover) drawHalo(p.x, p.y, r + 6, rgbaOf(CANVAS_THEME.text, 0.75));
-        // THE SPOTLIGHT: the lit topic's memory, ringed in its colour.
-        if (litHalo && litRows !== null && litHalo.gain > 0 && litRows.has(node.id)) {
+        // THE SPOTLIGHT: the lit topic's memory, ringed in its colour (the
+        // rows the panel lights instead, each in its own topic's).
+        const ringHalo = rowsLit
+          ? (rowsLit.rows.has(node.id) ? rowHalos?.get(seated?.circleOfRow.get(node.id) ?? "") ?? null : null)
+          : litHalo && litRows !== null && litRows.has(node.id) ? litHalo : null;
+        if (ringHalo && ringHalo.gain > 0) {
           ctx.beginPath();
           ctx.arc(p.x, p.y, r + MEMBER_RING.gap, 0, Math.PI * 2);
-          ctx.strokeStyle = hexAlpha(litHalo.color, MEMBER_RING.alpha * litHalo.gain);
+          ctx.strokeStyle = hexAlpha(ringHalo.color, MEMBER_RING.alpha * ringHalo.gain);
           ctx.lineWidth = MEMBER_RING.width;
           ctx.stroke();
         }
@@ -2213,6 +2250,23 @@ export function GraphCanvas({
       moveCamera({ x: circle.x + (rect.width / 2 - free.x) / zoom, y: circle.y + (rect.height / 2 - free.y) / zoom, zoom });
     }
   };
+  /** The camera on these memories (the panel's onFrameRows), in the part
+   * of the canvas the panel leaves free, Fit view's padding and zoom clamp. */
+  const frameRows = (ids: string[]) => {
+    const canvas = canvasRef.current;
+    const rect = canvas?.getBoundingClientRect();
+    if (!canvas || !rect || rect.width < 10) return;
+    const points: LayoutNode[] = [];
+    for (const id of ids) {
+      const ln = layoutRef.current.get(id);
+      if (ln) points.push(ln);
+    }
+    const panelEl = canvas.parentElement?.querySelector(".gc_topics");
+    const pr = panelEl?.getBoundingClientRect();
+    const panel = pr && pr.width > 0 ? { x: pr.left - rect.left, y: pr.top - rect.top, w: pr.width, h: pr.height } : null;
+    const pose = framePointsPose(points, { w: rect.width, h: rect.height }, freeCentre({ w: rect.width, h: rect.height }, panel));
+    if (pose) moveCamera(pose);
+  };
   const focusTopicRef = useRef(focusTopic);
   focusTopicRef.current = focusTopic;
   // A LEDGER ROW ABOUT A TOPIC (ledger_lines.topicTarget): the panel opens,
@@ -2470,6 +2524,10 @@ export function GraphCanvas({
             onHoverTopic={(key) => {
               hoverTopicRef.current = key;
             }}
+            onHoverRows={(ids) => {
+              hoverRowsRef.current = ids === null ? null : new Set(seamRows(fold, ids, "onHoverRows"));
+            }}
+            onFrameRows={(ids) => frameRows(seamRows(fold, ids, "onFrameRows"))}
             onRetry={retryTopics}
             colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
           />

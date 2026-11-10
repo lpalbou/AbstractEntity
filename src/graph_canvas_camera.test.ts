@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { CAMERA_GLIDE_MAX_MS, CAMERA_GLIDE_MS, easeInOut, glideAt, glideMs, poseAt, startGlide } from "./graph_canvas_camera";
+import { CAMERA_GLIDE_MAX_MS, CAMERA_GLIDE_MS, easeInOut, FIT_PAD, FIT_ZOOM, framePointsPose, glideAt, glideMs, poseAt, startGlide } from "./graph_canvas_camera";
 
 const CANVAS = fs.readFileSync(path.resolve(__dirname, "graph_canvas.tsx"), "utf8");
 const A = { x: 0, y: 0, zoom: 0.5 };
@@ -146,5 +146,37 @@ describe("the canvas glides", () => {
   it("the viewer's wheel and pan drop a glide (a drag during it wins)", () => {
     expect(CANVAS).toContain("glideRef.current = null; // the viewer's zoom wins over a glide");
     expect(CANVAS).toContain("if (drag.moved) glideRef.current = null; // the viewer's pan wins over a glide");
+  });
+});
+
+describe("framePointsPose (the Topics panel's onFrameRows)", () => {
+  const canvas = { w: 1000, h: 600 };
+  const whole = { x: 500, y: 300, w: 1000, h: 600 };
+
+  it("no point: no move", () => {
+    expect(framePointsPose([], canvas, whole)).toBeNull();
+  });
+
+  it("frames their box with Fit view's padding, centred in the free part", () => {
+    const pose = framePointsPose([{ x: -100, y: 0 }, { x: 300, y: 100 }], canvas, whole)!;
+    // Box 400 x 100 + 120 padding: 520 x 220 -> zoom min(1000/520, 600/220).
+    expect(pose.zoom).toBeCloseTo(1000 / 520, 6);
+    expect(pose.x).toBeCloseTo(100, 6);
+    expect(pose.y).toBeCloseTo(50, 6);
+    // The free part left of a panel: the box's centre lands on the part's centre.
+    const left = { x: 340, y: 324, w: 680, h: 552 };
+    const p2 = framePointsPose([{ x: -100, y: 0 }, { x: 300, y: 100 }], canvas, left)!;
+    expect((100 - p2.x) * p2.zoom + canvas.w / 2).toBeCloseTo(left.x, 6);
+    expect((50 - p2.y) * p2.zoom + canvas.h / 2).toBeCloseTo(left.y, 6);
+  });
+
+  it("clamps the zoom like Fit view (one memory: at most FIT_ZOOM.max; a huge box: at least FIT_ZOOM.min)", () => {
+    expect(framePointsPose([{ x: 5, y: 5 }], { w: 1000, h: 1000 }, { x: 500, y: 500, w: 1000, h: 1000 })!.zoom).toBe(FIT_ZOOM.max);
+    expect(framePointsPose([{ x: 5, y: 5 }], canvas, whole)!.zoom).toBe(5); // 600 / 120: inside the clamp
+    expect(framePointsPose([{ x: 0, y: 0 }, { x: 1e6, y: 0 }], canvas, whole)!.zoom).toBe(FIT_ZOOM.min);
+    expect(FIT_PAD).toBe(120);
+    // Fit view's own numbers (graph_canvas.tsx).
+    expect(CANVAS).toContain("const spanX = Math.max(120, maxX - minX + 120);");
+    expect(CANVAS).toContain("Math.min(6, Math.max(0.12, Math.min(rect.width / spanX, rect.height / spanY)))");
   });
 });
