@@ -81,6 +81,20 @@ describe("a step's tools on the row that stands for it", () => {
     expect(ls.find((l) => l.title === "— tick 3 —")!.tools).toBeUndefined();
   });
 
+  it("a row without a run stamp never receives a marker (round-5 review F2: castor's run-less t-0001 bindings)", () => {
+    const RUN_B = "owntime-castor-2026-11-11";
+    const runLess = { ...lived(20, "t-0001"), run_id: null, seq: 20 } as ReplayEnvelope;
+    const runB = { ...lived(30, "t-0001"), run_id: RUN_B, seq: 30 } as ReplayEnvelope;
+    const ls = foldLedgerLines(null, [lived(10, "t-0001"), runLess, runB, marker(31, { tool_count: 3, files_read: 1, files_written: 0 }, "t-0001", RUN_B)]).lines.map((l) => l.line);
+    const withTools = ls.filter((l) => l.tools);
+    expect(withTools).toHaveLength(1);
+    expect(withTools[0].run_id).toBe(RUN_B);
+    expect(withTools[0].seq).toBe(30);
+    expect(ls.filter((l) => l.seq === 20 && l.tools)).toHaveLength(0);
+    // Run A's own row (the same turn id) never takes run B's counts either.
+    expect(ls.filter((l) => l.seq === 10 && l.tools)).toHaveLength(0);
+  });
+
   it("a marker for a step the ledger has no row for, or without its counts, says so loudly once", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     lines([lived(10), marker(11, { tool_count: 3, files_read: 0, files_written: 0 }, "t-0099")]);

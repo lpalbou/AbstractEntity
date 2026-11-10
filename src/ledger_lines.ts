@@ -463,15 +463,17 @@ const NO_TOPIC_IDS: TopicIds = new Set();
  * a few dozen at most; the marker lands right after them). */
 const STEP_LOOKBACK = 600;
 
-/** The row that stands for a step: of the step's rows (its turn, its run or
- * no run stamp), contiguous at the end of the ledger, the first one shown by
- * default (not an audit line): its tick when it has one. Null when none. */
+/** The row that stands for a step: of the step's rows (its turn AND its run:
+ * a row without a run stamp never receives a marker, turn ids are reused by
+ * every run, round-5 review F2), contiguous at the end of the ledger, the
+ * first one shown by default (not an audit line): its tick when it has one.
+ * Null when none. */
 export function stepRowIndex(lines: ReadonlyArray<IndexedLine>, runId: string, turnId: string): number | null {
   let found: number | null = null;
   const stop = Math.max(0, lines.length - STEP_LOOKBACK);
   for (let i = lines.length - 1; i >= stop; i--) {
     const l = lines[i].line;
-    const inStep = l.turn_id === turnId && (l.run_id == null || l.run_id === runId);
+    const inStep = l.turn_id === turnId && l.run_id === runId;
     if (inStep) {
       if (l.tone !== "quiet") found = i;
       continue;
