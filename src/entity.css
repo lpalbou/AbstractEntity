@@ -4238,10 +4238,17 @@ body {
 }
 /* Phone (the lanes fill the width): the open monitor takes the lanes' place, above the bar. */
 @media (max-width: 767.98px) {
+  /* Exactly the lanes' place: their five 16 px rows and four 2 px gaps (the rows are held at 16 px
+   * here, whatever the type floor), so opening it moves neither the bar nor the graph. */
   .et_monitor_slot {
     grid-column: 1 / -1;
     grid-row: auto !important;
     justify-content: flex-start;
+    height: 88px;
+  }
+  .entity_timeline.et_grid .et_lane_label {
+    height: 16px;
+    line-height: 16px;
   }
   .et_monitor_slot:empty {
     display: none;
