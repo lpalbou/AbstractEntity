@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 25 |
+| Planned | 26 |
 | Proposed | 6 |
 | Completed | 9 |
 | Deprecated | 0 |
 
-`planned/` holds 29 files: the 25 planned items and four completed records (0002-0005) whose move
+`planned/` holds 30 files: the 26 planned items and four completed records (0002-0005) whose move
 to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -76,6 +76,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0030 | [Unpressing "topics" clears the topic; the chip is one line](planned/0030_topics_off_clears_topic_chip_one_line.md) | XS-S | W1 | |
 | 0031 | [World tab: two clear lines on top](planned/0031_world_tab_intro_two_lines.md) | XS | W4 | |
 | 0032 | [The monitor opens in the timeline's empty space; its explanatory block goes](planned/0032_monitor_in_the_timeline_empty_space.md) | M | W1 | |
+| 0034 | [P1: the graph draws only when something changed; at rest it idles](planned/0034_graph_draw_loop_idles.md) | M | | |
 
 ## Proposed (legacy names)
 
@@ -111,7 +112,7 @@ None.
 
 ## Process
 
-- A new item takes the next unused `NNNN_` prefix (next: 0033) and the template's sections
+- A new item takes the next unused `NNNN_` prefix (next: 0035) and the template's sections
   (metadata, ADR status, context or the operator's words, current code reality, scope, expected
   outcomes, validation, size).
 - Completing an item: set `Status: Completed` and `Completed: <date>`, add what was done and its
