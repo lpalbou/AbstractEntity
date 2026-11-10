@@ -366,9 +366,11 @@ export function topicHover(emit: (key: string | null) => void, timers?: HoverInt
   };
   return {
     pointerOver(key, pointerType) {
-      // Back on the lit topic, a pending other is forgotten (its rest re-emits nothing).
-      if (pointerType === "touch" || key === null) return;
-      intent.over(key);
+      // Back on the lit topic, a pending other is forgotten (its rest re-emits
+      // nothing); over a gap between rows, a pending one is forgotten too.
+      if (pointerType === "touch") return;
+      if (key === null) intent.cancel();
+      else intent.over(key);
     },
     pointerLeave(pointerType) {
       if (pointerType !== "touch") letGo();

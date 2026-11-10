@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { CAMERA_GLIDE_MS, easeInOut, glideAt, poseAt, startGlide } from "./graph_canvas_camera";
+import { CAMERA_GLIDE_MAX_MS, CAMERA_GLIDE_MS, easeInOut, glideAt, glideMs, poseAt, startGlide } from "./graph_canvas_camera";
 
 const CANVAS = fs.readFileSync(path.resolve(__dirname, "graph_canvas.tsx"), "utf8");
 const A = { x: 0, y: 0, zoom: 0.5 };
@@ -48,31 +48,47 @@ describe("poseAt", () => {
 });
 
 describe("startGlide / glideAt", () => {
-  it("glides over CAMERA_GLIDE_MS (~300 ms), monotone, and ends exactly on the target", () => {
+  it("lasts ~300 ms for a short move, longer for a long one, never past CAMERA_GLIDE_MAX_MS", () => {
     expect(CAMERA_GLIDE_MS).toBeGreaterThanOrEqual(250);
     expect(CAMERA_GLIDE_MS).toBeLessThanOrEqual(450);
+    expect(CAMERA_GLIDE_MAX_MS).toBeLessThanOrEqual(650);
+    const at = (x: number, zoom = 1) => ({ x, y: 0, zoom });
+    expect(glideMs(at(0), at(0))).toBe(CAMERA_GLIDE_MS);
+    expect(glideMs(at(0), at(80))).toBe(CAMERA_GLIDE_MS + 10);
+    // ~2000 screen px (the review's far topic at zoom 3.6): 552 ms, not 300; ~3000 px: the cap.
+    expect(glideMs(at(0, 3.6), at(560, 3.6))).toBeCloseTo(552);
+    expect(glideMs(at(0, 3.6), at(840, 3.6))).toBe(CAMERA_GLIDE_MAX_MS);
+    expect(glideMs(at(0), at(400))).toBeGreaterThan(glideMs(at(0), at(100)));
+    // A zoom change alone takes a little longer too, the same either way.
+    expect(glideMs(at(0, 0.5), at(0, 2))).toBeGreaterThan(CAMERA_GLIDE_MS);
+    expect(glideMs(at(0, 2), at(0, 0.5))).toBeCloseTo(glideMs(at(0, 0.5), at(0, 2)));
+    expect(startGlide(at(0), at(80), 0, false)!.ms).toBe(CAMERA_GLIDE_MS + 10);
+  });
+
+  it("glides by the clock, monotone, and ends exactly on the target", () => {
     const g = startGlide(A, B, 1000, false)!;
     expect(g).not.toBeNull();
+    expect(g.ms).toBe(glideMs(A, B));
     expect(glideAt(g, 1000)).toEqual({ pose: A, done: false });
     let prev = A;
-    for (let t = 1000; t < 1000 + CAMERA_GLIDE_MS; t += 16) {
+    for (let t = 1000; t < 1000 + g.ms; t += 16) {
       const { pose, done } = glideAt(g, t);
       expect(done).toBe(false);
       expect(pose.x).toBeGreaterThanOrEqual(prev.x);
       expect(pose.zoom).toBeGreaterThanOrEqual(prev.zoom);
       prev = pose;
     }
-    const mid = glideAt(g, 1000 + CAMERA_GLIDE_MS / 2).pose;
+    const mid = glideAt(g, 1000 + g.ms / 2).pose;
     expect(mid.x).toBeGreaterThan(A.x);
     expect(mid.x).toBeLessThan(B.x);
-    expect(glideAt(g, 1000 + CAMERA_GLIDE_MS)).toEqual({ pose: B, done: true });
+    expect(glideAt(g, 1000 + g.ms)).toEqual({ pose: B, done: true });
     expect(glideAt(g, 99999)).toEqual({ pose: B, done: true });
   });
 
   it("is frame-rate independent: the pose depends on the clock only", () => {
     const g = startGlide(A, B, 0, false)!;
     expect(glideAt(g, 120)).toEqual(glideAt(g, 120));
-    expect(glideAt(g, 120).pose).toEqual(poseAt(A, B, easeInOut(120 / CAMERA_GLIDE_MS)));
+    expect(glideAt(g, 120).pose).toEqual(poseAt(A, B, easeInOut(120 / g.ms)));
   });
 
   it("under reduced motion, a zero duration or nothing to move: one step (null)", () => {
@@ -114,6 +130,17 @@ describe("the canvas glides", () => {
     const lens = CANVAS.slice(CANVAS.indexOf("const try_fit = () => {"), CANVAS.indexOf("try_fit();\n"));
     expect(lens).toContain("moveCamera({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, zoom: Math.min(4,");
     expect(lens).not.toMatch(/cam\.(x|y|zoom) =/);
+  });
+
+  it("a selection (a member opened from the panel) glides to it at the viewer's zoom (review 2026-11-10: it teleported)", () => {
+    const eff = CANVAS.slice(CANVAS.indexOf("  // Center the camera on selection changes"), CANVAS.indexOf("}, [selectedRow]);"));
+    expect(eff).toContain("if (ln) moveCamera({ x: ln.x, y: ln.y, zoom: cameraRef.current.zoom });");
+    expect(eff).not.toMatch(/cameraRef\.current\.(x|y|zoom) =/);
+  });
+
+  it("reduced motion is kept current (a change listener), not read once", () => {
+    expect(CANVAS).toContain('mq.addEventListener?.("change", read);');
+    expect(CANVAS).toContain('return () => mq.removeEventListener?.("change", read);');
   });
 
   it("the viewer's wheel and pan drop a glide (a drag during it wins)", () => {

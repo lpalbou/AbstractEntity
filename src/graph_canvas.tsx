@@ -85,7 +85,7 @@ import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
 import { drawnOutside, OUTSIDE_WORD, outsideTitle, outsideTopics, neverJoins, type OutsideTopics } from "./graph_canvas_outside";
 import { glideAt, startGlide, type CameraPose, type Glide } from "./graph_canvas_camera";
-import { litRowsCache, litTopicKey, MEMBER_RING, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
+import { circleMeetsCanvas, litPlateFallback, litRowsCache, litTopicKey, MEMBER_RING, plateInDisc, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
 
 export interface GraphCanvasProps {
   fold: FoldState;
@@ -363,7 +363,7 @@ export function resolveCanvasTheme(): void {
  * topology should be a whisper the eye can see THROUGH; hover/selection
  * lifts the touched edges to full strength via edgeDim. */
 
-function nodeClass(node: NodeState): string {
+export function nodeClass(node: NodeState): string {
   if (node.diary) return "diary";
   // Bookkeeping markers are kind="claim" like identity claims, but the
   // engine keeps them OFF the self (self_component excludes
@@ -544,16 +544,29 @@ function rectsMeet(a: Rect, b: Rect): boolean {
 /** The lens row's band at the top of the canvas (a framed topic sits below it). */
 const LENS_BAND = 48;
 
-/** Where a framed topic goes on screen: the centre of the larger part of
- * the canvas below the lens row that the Topics panel leaves free (left of
- * it on a wide canvas, above it on a phone), in canvas px. */
+/** The narrowest and shortest part of the canvas a framed topic is put in
+ * (review 2026-11-10: at 400 x 700 the folded panel head left an 8 px strip
+ * at the left edge, and the topic was framed there at zoom 0.12). */
+export const FREE_MIN_W = 120;
+export const FREE_MIN_H = 40;
+
+/** Where a framed topic goes on screen: the centre of the largest part of
+ * the canvas below the lens row that the Topics panel leaves free — left of
+ * it (a wide canvas), above it or below it (a phone: under the folded head)
+ * — among the parts at least FREE_MIN_W wide and FREE_MIN_H tall; none: the
+ * whole canvas below the lens row. In canvas px. */
 export function freeCentre(canvas: { w: number; h: number }, panel: Rect | null, top: number = LENS_BAND): { x: number; y: number; w: number; h: number } {
   const h = Math.max(0, canvas.h - top);
-  if (!panel) return { x: canvas.w / 2, y: top + h / 2, w: canvas.w, h };
-  const left = { w: Math.max(0, panel.x), h };
-  const above = { w: canvas.w, h: Math.max(0, panel.y - top) };
-  if (left.w * left.h >= above.w * above.h) return { x: left.w / 2, y: top + h / 2, w: left.w, h: left.h };
-  return { x: canvas.w / 2, y: top + above.h / 2, w: above.w, h: above.h };
+  const whole = { x: canvas.w / 2, y: top + h / 2, w: canvas.w, h };
+  if (!panel) return whole;
+  const belowTop = Math.max(top, panel.y + panel.h);
+  const parts = [
+    { x: Math.max(0, panel.x) / 2, y: top + h / 2, w: Math.max(0, panel.x), h },
+    { x: canvas.w / 2, y: top + Math.max(0, panel.y - top) / 2, w: canvas.w, h: Math.max(0, panel.y - top) },
+    { x: canvas.w / 2, y: belowTop + Math.max(0, canvas.h - belowTop) / 2, w: canvas.w, h: Math.max(0, canvas.h - belowTop) },
+  ].filter((p) => p.w >= FREE_MIN_W && p.h >= FREE_MIN_H);
+  if (parts.length === 0) return whole;
+  return parts.reduce((best, p) => (p.w * p.h > best.w * best.h ? p : best));
 }
 
 /** A phone-width viewport (the canvas is short: the Context legend starts
@@ -887,19 +900,25 @@ export function GraphCanvas({
     }
   }, [servedRead, layoutKey]);
 
+  // prefers-reduced-motion, kept current (the setting can change while the page is open).
   useEffect(() => {
-    reducedMotionRef.current = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const read = () => {
+      reducedMotionRef.current = mq.matches;
+    };
+    read();
+    mq.addEventListener?.("change", read);
+    return () => mq.removeEventListener?.("change", read);
   }, []);
 
   // Center the camera on selection changes (P0-6: "find the node again").
   useEffect(() => {
     if (!selectedRow) return;
     const ln = layoutRef.current.get(selectedRow);
-    if (ln) {
-      glideRef.current = null;
-      cameraRef.current.x = ln.x;
-      cameraRef.current.y = ln.y;
-    }
+    // A glide to it, at the zoom the viewer has (review 2026-11-10: a member
+    // opened from the Topics panel teleported the camera).
+    if (ln) moveCamera({ x: ln.x, y: ln.y, zoom: cameraRef.current.zoom });
   }, [selectedRow]);
 
   useEffect(() => {
@@ -1240,7 +1259,11 @@ export function GraphCanvas({
       // THE LIT TOPIC (graph_canvas_spotlight.ts): the topic whose panel row
       // the pointer rests on (a preview; one with a circle on this graph)
       // before the focused one.
-      const hoveredTopic = topicsOn && seated && hoverTopicRef.current !== null && (seated.rowsOf.get(hoverTopicRef.current)?.length ?? 0) > 0 ? hoverTopicRef.current : null;
+      // A hovered topic whose circle is off-screen lights nothing (no veil
+      // over a graph where nothing would be lit: review 2026-11-10 blocker).
+      const hoverCircle = topicsOn && placement && hoverTopicRef.current !== null ? placement.circleById.get(hoverTopicRef.current) : undefined;
+      const hoverOnScreen = hoverCircle ? circleMeetsCanvas(toScreen(hoverCircle.x, hoverCircle.y), hoverCircle.r * cam.zoom, w, h) : false;
+      const hoveredTopic = topicsOn && seated && hoverOnScreen && hoverTopicRef.current !== null && (seated.rowsOf.get(hoverTopicRef.current)?.length ?? 0) > 0 ? hoverTopicRef.current : null;
       const litKey = topicsOn && seated ? litTopicKey(hoveredTopic, picked) : null;
       const litRows = litRowsOf(litKey, seated ? seated.rowsOf : null, pc.gen);
       // ONE mechanism, ordered triggers (recall_emphasis.emphasisDriver):
@@ -1794,9 +1817,15 @@ export function GraphCanvas({
               // strip; the legend owns the bottom-left corner; no overlay.
               blocked: (rc) => rc.y < 78 || overlayBand(rc.x, rc.y) || (rc.y + rc.h > cssH - 78 && rc.x < cssW - 190) || overlayRects.some((o) => rectsMeet(o, rc)),
             });
-            if (!rect) continue;
-            placed.push(rect);
-            titlesCache.placed.push({ rect, topic: halo.topic, label: words, lines });
+            // The lit topic's title is always drawn: framed, its circle fills
+            // the canvas and no place around it is free — then just inside
+            // its top edge (review 2026-11-10). Another topic's title is not
+            // drawn inside the lit circle.
+            const at = rect ?? (halo === litHalo && circleMeetsCanvas({ x: halo.cx, y: halo.cy }, halo.r, cssW, cssH) ? litPlateFallback(halo, w, h, { w: cssW, h: cssH }, 82) : null);
+            if (!at) continue;
+            if (litHalo && halo !== litHalo && plateInDisc(at, litHalo)) continue;
+            placed.push(at);
+            titlesCache.placed.push({ rect: at, topic: halo.topic, label: words, lines });
           }
         }
         labelHits = titlesCache.placed;

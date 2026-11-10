@@ -81,3 +81,25 @@ export function litRowsCache(): (key: string | null, rowsOf: ReadonlyMap<string,
     return rows;
   };
 }
+
+/** Whether a circle (screen px) meets the canvas: a hovered topic lights only
+ * then (review 2026-11-10 blocker: once a topic is framed, the others are
+ * off-screen, and resting on one veiled the whole graph with nothing lit). */
+export function circleMeetsCanvas(c: { x: number; y: number }, r: number, w: number, h: number): boolean {
+  return c.x + r >= 0 && c.x - r <= w && c.y + r >= 0 && c.y - r <= h;
+}
+
+/** Where the lit topic's title goes when no place around its circle is free
+ * (framed, its circle fills the canvas): just inside the circle's top edge,
+ * held inside the canvas and below the lens row (`top`). */
+export function litPlateFallback(halo: { cx: number; cy: number; r: number }, w: number, h: number, bounds: { w: number; h: number }, top: number): { x: number; y: number; w: number; h: number } {
+  const x = Math.min(Math.max(8, halo.cx - w / 2), Math.max(8, bounds.w - w - 8));
+  const y = Math.min(Math.max(top, halo.cy - halo.r + 8), Math.max(top, bounds.h - h - 8));
+  return { x, y, w, h };
+}
+
+/** Whether a title plate's centre lies inside a disc (another topic's title
+ * is not drawn inside the lit circle). */
+export function plateInDisc(rc: { x: number; y: number; w: number; h: number }, disc: { cx: number; cy: number; r: number }): boolean {
+  return Math.hypot(rc.x + rc.w / 2 - disc.cx, rc.y + rc.h / 2 - disc.cy) < disc.r;
+}

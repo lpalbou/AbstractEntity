@@ -103,6 +103,17 @@ describe("topicHover", () => {
     expect(emitted).toEqual(["k1"]);
   });
 
+  it("over a gap between rows, a pending topic is forgotten (the lit one stays)", () => {
+    const { h, advance, emitted } = setup();
+    h.pointerOver("k1", "mouse");
+    advance(200);
+    h.pointerOver("k2", "mouse");
+    advance(50);
+    h.pointerOver(null, "mouse");
+    advance(500);
+    expect(emitted).toEqual(["k1"]);
+  });
+
   it("leaving the list lets go at once (and cancels a pending one)", () => {
     const { h, advance, emitted } = setup();
     h.pointerOver("k1", "mouse");
