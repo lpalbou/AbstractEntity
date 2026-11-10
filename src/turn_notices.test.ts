@@ -16,6 +16,8 @@ import type { ReplayEnvelope } from "./stream_types";
 import { avatarVisitHistory } from "./avatar_visit";
 import { ChatMessageList, type DrawerMessage } from "./chat_message_list";
 import { followRunToTerminal } from "./flow_lane";
+import { visitReplyMessage } from "./chat_drawer";
+import { VISIT_TURN_WITH_DIARY } from "./fixtures/visit_turn_reply";
 
 const SRC = resolve(__dirname);
 const diary = { kind: "diary", record_id: "ex:diary-0eb1c2", title: "the first durable visit" };
@@ -72,8 +74,13 @@ describe("the served list is read as data", () => {
   });
 
   it("each lane hands the served list to its thread message (visit: reply_notices; flow: the outcome's notices)", () => {
+    // The visit lane: the drawer pushes visitReplyMessage, which carries the served list as notices.
     const drawer = readFileSync(resolve(SRC, "chat_drawer.tsx"), "utf8");
-    expect(drawer).toMatch(/detail: \{ \.\.\.\(r as ChatTurnResult\), think_ms: Date\.now\(\) - turnT0 \} as ChatTurnResult, \.\.\.noticesField\(r\.reply_notices\) \}\)/);
+    expect(drawer).toContain("push(visitReplyMessage(r, entityName, Date.now() - turnT0));");
+    const reply = visitReplyMessage(VISIT_TURN_WITH_DIARY, "Castor", 1);
+    expect(reply.notices).toEqual(VISIT_TURN_WITH_DIARY.reply_notices);
+    expect(reply.detail?.reply_notices).toEqual(VISIT_TURN_WITH_DIARY.reply_notices);
+    expect(visitReplyMessage({ ...VISIT_TURN_WITH_DIARY, reply_notices: [] }, "Castor", 1)).not.toHaveProperty("notices");
     const flow = readFileSync(resolve(SRC, "use_flow_conversation.ts"), "utf8");
     expect(flow).toMatch(/push\(\{ role: "assistant", content: answer, title: entityName, [^\n]*\.\.\.noticesField\(outcome\.notices\) \}\)/);
   });
