@@ -1,67 +1,51 @@
 /**
- * Topics as the NATURAL layout of the memory graph (operator 2026-11-07:
- * "all the memory nodes should have been naturally grouped by topics so we
- * don't have to click on 'topics' to alter the graph; it would at best
- * show the labels of nodes already clustered").
- *
- * The communities themselves are computed at the runtime level and served
- * by the gateway (topic_map.fetchCommunities — deterministic Louvain over
- * engraved relations + digest-keyword bridges). This module only turns
- * that payload into GEOMETRY for the canvas's existing force layout:
- *
- * - every topic gets a HOME on the disc (deterministic spiral packing,
- *   outside the identity ring, sized by its free-memory count, a label-
- *   sized gap between homes) that it KEEPS, with its colour, across
- *   refetches and reloads while it continues (holds ≥ 0.6 of the old
- *   topic's members; a merge keeps its biggest contributor's); new topics
- *   take free room;
- * - a topic's memories hold SEATS inside their home (a small sunflower,
- *   oldest at the centre, newer at the rim — a newer memory never moves an
- *   older one); the canvas pulls each memory to its seat with the SAME
- *   anchor strength the global seats use today, so the engraved-relation
- *   springs keep exactly the say they had (nothing new fights them);
- * - an unclustered memory sits where its relations are: at the mean of
- *   its related memories' seats (no relation into a topic → no topic pull);
- * - a usage trail (co-use edge) between two DIFFERENT topics stays drawn
- *   (its green still says "used together recently") but does not pull:
- *   position by topic, warmth by colour. Otherwise one recall's shelf —
- *   fifty memories co-selected across topics — collapses every topic into
- *   one ball (nerin, measured: 47% of members ended nearer another
- *   topic's centre; 25% with this rule) and the recall highlight could no
- *   longer show WHICH parts of the graph were used. Engraved relations
- *   (structural edges, what the topics are computed from) always pull;
- * - the halo of a topic circles most of its members where they are NOW
- *   (a hub its relations drag across the disc does not inflate it); its
- *   label goes just outside, only where it covers no node or label.
- *
- * Lanes stay lanes: identity (the ring), diary (the shelf) and standing
- * targets (the outer arc) keep their own places — only the free memories
- * of the disc group by topic. Pure functions; the canvas does the drawing.
+ * The graph's BASE placement from his served topics (memory-owned
+ * communities, COMMUNITIES-DESIGN 2026-11-10 §4; the payload is read by
+ * communities.ts): every circle at its served xy/radius, every member on its
+ * served seat — diary entries and identity records included — and a member
+ * with no served seat (vector-less, or provisional: placed since the
+ * version) on a rim seat in join order (placeCommunities + seatFold). The
+ * app never detects, labels or seats a topic itself: no keyword, no force
+ * layout for the base. The only motion it adds is the viewer's: a dragged
+ * circle REPELS the circles it meets (relaxCircles / dragCircle — never an
+ * attraction). Memories the version does not list wait on a ring outside.
+ * Pure functions (no DOM); graph_canvas draws.
  */
 
 import type { FoldState, NodeState } from "./stream_fold";
-import type { TopicCommunity } from "./topic_map";
+import type { ServedCommunities } from "./communities";
+import type { TailPlacement } from "./topic_map";
 import { hash01 } from "./force_layout";
-import { summaryLabel } from "./node_label";
 
-const GOLDEN_ANGLE = 2.399963229728653;
-/** Seat spacing inside a home: nearest neighbours ≈ 1.77 × this (≈ 55 px)
- * — the repulsion/anchor balance holds seats (see graph_canvas PHYLLO). */
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+function readPair(v: unknown): [number, number] | null {
+  return Array.isArray(v) && v.length === 2 && isNum(v[0]) && isNum(v[1]) ? [v[0], v[1]] : null;
+}
+
+/** World size of a community with `n` members (the same density the graph
+ * had: a seat ≈ 55 px apart). The served units are scaled uniformly so the
+ * MEDIAN circle meets it — a uniform scale keeps every served relation:
+ * circles that do not overlap still do not, seats stay inside. */
 export const TOPIC_SPACING = 31;
-/** Rim margin around a home's last seat (node radius + breathing room). */
 export const TOPIC_PAD = 20;
-/** Gap between two homes: room for a topic label between their halos. */
-export const TOPIC_GAP = 64;
-/** Pull toward a topic seat: the SAME strength the canvas's global seats
- * use, so the relation springs keep exactly the say they had. */
-export const TOPIC_SEAT_STRENGTH = 0.1;
-/** Homes stay clear of the identity ring (graph_canvas PHYLLO_INNER_R). */
-export const IDENTITY_CLEAR = 175;
+export function targetRadius(n: number): number {
+  return TOPIC_SPACING * Math.sqrt(Math.max(1, n)) + TOPIC_PAD;
+}
+/** A member's seat stays this far inside its circle's rim (node + margin). */
+export const SEAT_MARGIN = 14;
+/** Rim seats (members with no served seat): spacing along a ring, and the
+ * step inward to the next ring when one is full. */
+export const RIM_SPACING = 30;
+export const RIM_STEP = 28;
+/** The gap a dragged circle keeps from the circles it pushes. */
+export const CIRCLE_GAP = 24;
+/** Memories the version does not list wait on a ring this far outside. */
+export const WAITING_GAP = 90;
+export const WAITING_SPACING = 36;
 
-const IDENTITY_KIND_NAMES = ["value", "purpose", "trait", "claim"];
-
-/** Stable topic palette (index-keyed by home order) — theme-adjacent
- * mid-tones, legible on both theme groups. */
+/** Topic palette, keyed by the community's stable id (a topic keeps its
+ * colour across versions). Theme-adjacent mid-tones. */
 export const TOPIC_COLORS = [
   "#79c7ff",
   "#7bd88a",
@@ -77,448 +61,341 @@ export const TOPIC_COLORS = [
   "#d98fbf",
 ];
 
-export interface TopicHome {
-  id: number;
-  label: string;
-  /** Every keyword the runtime gave this topic (the label is the first 3). */
-  keywords: string[];
-  /** Members the payload counts (all lanes). */
-  size: number;
-  color: string;
-  /** Index into TOPIC_COLORS — kept by a persisting topic. */
-  colorIndex: number;
-  /** Home centre + radius (world px). */
+export function topicColor(key: string): string {
+  return TOPIC_COLORS[Math.floor(hash01(key, 29) * TOPIC_COLORS.length) % TOPIC_COLORS.length];
+}
+
+export interface PlacedCircle {
+  /** The community key. */
+  id: string;
   x: number;
   y: number;
   r: number;
-  /** Free memories the payload counts for this topic (sizes the home). */
-  free: number;
-  /** The members' GRAPH ids (the identity a later fetch is matched on). */
-  members: string[];
-  /** The runtime's most representative member (graph id + title). */
-  exemplarId: string;
-  exemplarTitle: string;
 }
 
-/** What the layout remembers of a topic between fetches (and reloads):
- * where its home is, its colour, and who was in it. */
-export interface TopicSlot {
-  x: number;
-  y: number;
-  color: number;
-  members: string[];
+/** The served scale (world px per served unit): the median of each
+ * circle's density radius over its served radius, counted on the members
+ * of the version (a provisional member placed since never moves the scale,
+ * so it never moves anyone). */
+export function servedScale(communities: ServedCommunities["communities"]): number {
+  if (communities.length === 0) return 1;
+  const ratios = communities.map((c) => targetRadius(c.members.filter((m) => !c.provisional.has(m.id)).length) / c.layout.radius).sort((a, b) => a - b);
+  const mid = Math.floor(ratios.length / 2);
+  return ratios.length % 2 ? ratios[mid] : (ratios[mid - 1] + ratios[mid]) / 2;
 }
 
-/** A refetched topic CONTINUES an old one when it holds at least this
- * share of the OLD topic's members; it then keeps that topic's home and
- * colour — of the old topic that brought it the most members when it took
- * in several (a merge: the runtime folded two old topics into one). For
- * disjoint topics (the runtime's partitions) this includes AbstractNote's
- * communities rule (abstractnote/recall/communities.py, Jaccard ≥ 0.6):
- * a Jaccard ≥ 0.6 match always holds ≥ 0.6 of the old topic and is its
- * biggest contributor, so one rule covers both. The runtime's community
- * ids are Louvain labels, not identities (they renumber as the life
- * grows). Measured on nerin's real refetch (20:29 → 21:45, 11 → 8
- * topics): Jaccard alone kept 3 homes of 8, 143 of 207 surviving memories
- * changed home; this rule keeps 6 of 8, 83 change. */
-export const KEEP_CONTAINED = 0.6;
-
-/** Share of `old`'s members that are in `next`. */
-export function contained(next: Set<string>, old: Set<string>): number {
-  if (old.size === 0) return 0;
-  let inter = 0;
-  for (const x of old) if (next.has(x)) inter += 1;
-  return inter / old.size;
-}
-
-/** Free (disc) members a community counts — its size minus the lanes'
- * kinds (diary entries, identity records). Payload-only, so a home's size
- * never changes with the scrub position. */
-export function freeCountOf(c: TopicCommunity): number {
-  let lane = Number(c.kinds?.diary ?? 0);
-  for (const k of IDENTITY_KIND_NAMES) lane += Number(c.kinds?.[k] ?? 0);
-  return Math.max(0, c.size - lane);
-}
-
-export function topicRadius(free: number): number {
-  return TOPIC_SPACING * Math.sqrt(Math.max(1, free)) + TOPIC_PAD;
-}
-
-/** Seat `rank` (0 = oldest) inside a home, relative to its centre. */
-export function topicSeatOffset(rank: number): { dx: number; dy: number } {
-  const r = TOPIC_SPACING * Math.sqrt(rank + 0.5);
-  const a = rank * GOLDEN_ANGLE;
-  return { dx: Math.cos(a) * r, dy: Math.sin(a) * r };
-}
-
-/** Homes STABLE across refetches (review 2026-11-07: rank-derived homes
- * moved a topic 839-1188 px and recoloured it whenever its size rank
- * changed). A topic continuing an old one (KEEP_CONTAINED) keeps that
- * home's centre and colour — only its radius follows its size. New topics
- * take free room: biggest first, each walking a golden spiral out from
- * the identity ring until it clears every home by TOPIC_GAP, coloured with
- * the least-used palette colour. With no previous slots this is the plain
- * deterministic packing (the same payload always maps the same). */
-export function planTopicHomes(communities: TopicCommunity[], previous: TopicSlot[] = []): TopicHome[] {
-  const sized = communities
-    .map((c) => ({ c, free: freeCountOf(c), members: new Set(c.member_ids) }))
-    .filter((x) => x.free > 0)
-    .sort((a, b) => b.free - a.free || a.c.id - b.c.id);
-  const prevSets = previous.map((p) => new Set(p.members));
-  // Each topic continues the old one that brought it the most members among
-  // those it holds ≥ KEEP_CONTAINED of (ties: the bigger old topic, then
-  // the earlier). Each old topic is continued once.
-  const pairs: Array<{ brought: number; size: number; i: number; k: number }> = [];
-  sized.forEach((x, i) => {
-    prevSets.forEach((set, k) => {
-      if (contained(x.members, set) < KEEP_CONTAINED) return;
-      let brought = 0;
-      for (const id of set) if (x.members.has(id)) brought += 1;
-      pairs.push({ brought, size: set.size, i, k });
-    });
-  });
-  pairs.sort((a, b) => b.brought - a.brought || b.size - a.size || a.i - b.i || a.k - b.k);
-  const slotOf = new Map<number, TopicSlot>();
-  const usedPrev = new Set<number>();
-  for (const { i, k } of pairs) {
-    if (slotOf.has(i) || usedPrev.has(k)) continue;
-    slotOf.set(i, previous[k]);
-    usedPrev.add(k);
-  }
-  const homes: TopicHome[] = [];
-  const home = (x: (typeof sized)[number], at: { x: number; y: number }, colorIndex: number): TopicHome => ({
-    id: x.c.id,
-    label: x.c.label,
-    keywords: x.c.keywords ?? [],
-    size: x.c.size,
-    color: TOPIC_COLORS[colorIndex % TOPIC_COLORS.length],
-    colorIndex,
-    x: at.x,
-    y: at.y,
-    r: topicRadius(x.free),
-    free: x.free,
-    members: [...x.c.member_ids],
-    exemplarId: x.c.exemplar_id ?? "",
-    exemplarTitle: x.c.exemplar_title ?? "",
-  });
-  // Persisting topics first: they hold their place.
-  const kept = new Map<number, TopicHome>();
-  sized.forEach((x, i) => {
-    const slot = slotOf.get(i);
-    if (slot) kept.set(i, home(x, slot, slot.color));
-  });
-  const placed: TopicHome[] = [...kept.values()];
-  const colorUse = new Array<number>(TOPIC_COLORS.length).fill(0);
-  for (const h of placed) colorUse[h.colorIndex % TOPIC_COLORS.length] += 1;
-  sized.forEach((x, i) => {
-    const keptHome = kept.get(i);
-    if (keptHome) {
-      homes.push(keptHome);
-      return;
+/** Rim seat `j` (join order among the members with no served seat) inside
+ * a circle of radius `r`, relative to its centre: rings from the rim
+ * inward, evenly spaced from the top. A newcomer takes the next seat; no
+ * earlier seat moves. */
+export function rimSeat(j: number, r: number): { dx: number; dy: number } {
+  let ring = 0;
+  let k = j;
+  for (;;) {
+    const rr = r - SEAT_MARGIN - ring * RIM_STEP;
+    if (rr <= RIM_STEP) {
+      // The circle is full of rings: the rest share its centre region (a
+      // small sunflower; never two on one point).
+      const a = k * 2.399963229728653;
+      const d = Math.min(RIM_STEP, Math.max(0, r - SEAT_MARGIN)) * Math.sqrt(((k % 13) + 0.5) / 13);
+      return { dx: Math.cos(a) * d, dy: Math.sin(a) * d };
     }
-    const r = topicRadius(x.free);
-    const n = placed.length;
-    let at: { x: number; y: number } | null = null;
-    for (let step = 0; step < 20000 && !at; step++) {
-      const dist = IDENTITY_CLEAR + r + step * 3;
-      const angle = n * GOLDEN_ANGLE + step * 0.21;
-      const px = Math.cos(angle) * dist;
-      const py = Math.sin(angle) * dist;
-      if (placed.every((h) => Math.hypot(h.x - px, h.y - py) >= h.r + r + TOPIC_GAP)) at = { x: px, y: py };
+    const cap = Math.max(1, Math.floor((2 * Math.PI * rr) / RIM_SPACING));
+    if (k < cap) {
+      const a = -Math.PI / 2 + (2 * Math.PI * k) / cap + ring * 0.37;
+      return { dx: Math.cos(a) * rr, dy: Math.sin(a) * rr };
     }
-    let colorIndex = 0;
-    for (let c = 1; c < colorUse.length; c++) if (colorUse[c] < colorUse[colorIndex]) colorIndex = c;
-    colorUse[colorIndex] += 1;
-    const h = home(x, at ?? { x: 0, y: IDENTITY_CLEAR + r + n * 2 * r }, colorIndex);
-    placed.push(h);
-    homes.push(h);
-  });
-  return homes;
-}
-
-/** What to remember of these homes for the next fetch / reload. */
-export function topicSlotsOf(homes: TopicHome[]): TopicSlot[] {
-  return homes.map((h) => ({ x: Math.round(h.x * 10) / 10, y: Math.round(h.y * 10) / 10, color: h.colorIndex, members: h.members }));
-}
-
-/** Read remembered slots back (storage is presentation: anything
- * malformed is dropped, never trusted). */
-export function parseTopicSlots(raw: string | null): TopicSlot[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw) as unknown;
-    const list = Array.isArray(v) ? v : [];
-    return list.filter(
-      (s): s is TopicSlot =>
-        !!s &&
-        typeof s === "object" &&
-        Number.isFinite((s as TopicSlot).x) &&
-        Number.isFinite((s as TopicSlot).y) &&
-        Number.isInteger((s as TopicSlot).color) &&
-        Array.isArray((s as TopicSlot).members),
-    );
-  } catch {
-    return [];
+    k -= cap;
+    ring += 1;
   }
 }
 
-/** A diary ENTRY id as the runtime mints it (identity/diary.py:
- * "diary_" + 24 hex) — never a label a person should read. */
-const ENTRY_ID = /^diary_[0-9a-f]{24}$/;
-
-/** A topic keyword as a person reads it: a raw diary entry id becomes
- * that entry's title (its summary, when the fold carries one), else
- * "a diary entry"; every other keyword stays as the runtime wrote it. */
-export function readableKeyword(keyword: string, entryTitle: (entryId: string) => string | null): string {
-  const k = keyword.trim();
-  if (!ENTRY_ID.test(k)) return k;
-  return entryTitle(k) ?? "a diary entry";
-}
-
-/** Entry id -> the entry's readable title from the fold (its summary
- * when served; null for a redacted entry or one not in the fold). */
-export function entryTitleOf(fold: FoldState): (entryId: string) => string | null {
-  const byEntry = new Map<string, NodeState>();
-  for (const n of fold.nodes.values()) if (n.entry_id) byEntry.set(n.entry_id, n);
-  return (id) => {
-    const n = byEntry.get(id);
-    return n ? summaryLabel(n.title, n.redacted) : null;
-  };
-}
-
-/** The label's words, readable (the label is the runtime's first three
- * keywords joined by ", "). */
-export function readableTopicLabel(label: string, entryTitle: (entryId: string) => string | null): string {
-  return label
-    .split(", ")
-    .map((k) => readableKeyword(k, entryTitle))
-    .join(", ");
-}
-
-/** Wrap a label onto at most two lines of `maxW` (measured), breaking
- * after ", " first, then at spaces. `complete` = nothing was left out (the
- * canvas then needs no "…"; the hover card always shows everything). */
-export function wrapTopicLabel(text: string, maxW: number, measure: (s: string) => number): { lines: string[]; complete: boolean } {
-  if (measure(text) <= maxW) return { lines: [text], complete: true };
-  const tokens = text.split(/(?<=, )|(?<= )/);
-  let first = "";
-  let i = 0;
-  while (i < tokens.length && measure(first + tokens[i]) <= maxW) {
-    first += tokens[i];
-    i += 1;
+/** Push overlapping circles apart until none overlaps (with CIRCLE_GAP):
+ * repel ONLY — a pair that does not overlap never moves, nothing is ever
+ * pulled toward anything. `pinned` (the circle the viewer drags) never
+ * moves; the others take the push. Deterministic (fixed order, fixed
+ * iterations). Returns new circles; the input is untouched. */
+export function relaxCircles(
+  circles: PlacedCircle[],
+  pinned: string | null,
+  gap: number | ((a: PlacedCircle, b: PlacedCircle) => number) = CIRCLE_GAP,
+  iterations = 80,
+): PlacedCircle[] {
+  const out = circles.map((c) => ({ ...c }));
+  const gapOf = typeof gap === "number" ? () => gap : gap;
+  for (let it = 0; it < iterations; it++) {
+    let moved = false;
+    for (let i = 0; i < out.length; i++) {
+      for (let k = i + 1; k < out.length; k++) {
+        const a = out[i];
+        const b = out[k];
+        const min = a.r + b.r + gapOf(a, b);
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        if (d >= min - 1e-6) continue;
+        if (d < 1e-6) {
+          // Same centre: part along a direction fixed by the two ids.
+          const ang = hash01(`${a.id}\u0000${b.id}`, 3) * Math.PI * 2;
+          dx = Math.cos(ang);
+          dy = Math.sin(ang);
+          d = 1;
+        }
+        const push = min - Math.hypot(b.x - a.x, b.y - a.y);
+        const ux = dx / d;
+        const uy = dy / d;
+        if (a.id === pinned) {
+          b.x += ux * push;
+          b.y += uy * push;
+        } else if (b.id === pinned) {
+          a.x -= ux * push;
+          a.y -= uy * push;
+        } else {
+          a.x -= (ux * push) / 2;
+          a.y -= (uy * push) / 2;
+          b.x += (ux * push) / 2;
+          b.y += (uy * push) / 2;
+        }
+        moved = true;
+      }
+    }
+    if (!moved) break;
   }
-  if (!first) {
-    // One word wider than a line: it is the first line as is.
-    first = tokens[0];
-    i = 1;
-  }
-  const rest = tokens.slice(i).join("").trim();
-  if (!rest) return { lines: [first.trim()], complete: true };
-  if (measure(rest) <= maxW) return { lines: [first.trim(), rest], complete: true };
-  let second = "";
-  for (const ch of rest) {
-    if (measure(second + ch + "…") > maxW) break;
-    second += ch;
-  }
-  return { lines: [first.trim(), `${second.trimEnd()}…`], complete: false };
+  return out;
 }
 
-/** Furthest world reach of the homes (lanes step outside it). */
-export function homesExtent(homes: TopicHome[]): number {
-  let max = 0;
-  for (const h of homes) max = Math.max(max, Math.hypot(h.x, h.y) + h.r);
-  return max;
-}
-
-export interface TopicPlan {
-  homes: TopicHome[];
-  /** Free node id -> its seat (world) — topic members AND unclustered
-   * memories seated among their relations. */
-  anchorOf: Map<string, { x: number; y: number }>;
-  /** Free node id -> topic id (members only). */
-  topicOf: Map<string, number>;
-  /** topic id -> its free members present in the fold (halo input). */
-  membersOf: Map<number, string[]>;
-  /** topic id -> EVERY member present in the fold (diary and identity
-   * included) — what a click on the topic label lights. */
-  allRowsOf: Map<number, Set<string>>;
-  /** Free nodes in no topic with no related topic member (no topic pull:
-   * the canvas keeps them on its outer rim). */
-  loose: Set<string>;
+export interface CommunityPlacement {
+  scale: number;
+  circles: PlacedCircle[];
+  circleById: Map<string, PlacedCircle>;
+  /** Member GRAPH id -> its world seat. */
+  seatOf: Map<string, { x: number; y: number }>;
+  /** Member graph id -> its ONE community key (a member listed twice —
+   * memory's I1 breached — keeps its first listing). */
+  circleOf: Map<string, string>;
+  /** Furthest world reach of the circles from the origin. */
   extent: number;
 }
 
-function rowOf(fold: FoldState, graphId: string): string | null {
-  const row = fold.graph_to_row.get(graphId);
-  if (row !== undefined && fold.nodes.has(row)) return row;
-  return fold.nodes.has(graphId) ? graphId : null;
+/** The served placement in world px: circles at their served xy/radius
+ * (uniform scale), moved by the viewer's offsets (world px, by community
+ * key), any overlap resolved repel-only; members on their served seats
+ * (kept inside the rim), members with no served seat (or provisional) on
+ * rim seats in join order. */
+export function placeCommunities(data: ServedCommunities, offsets: ReadonlyMap<string, { dx: number; dy: number }> = new Map()): CommunityPlacement {
+  const scale = servedScale(data.communities);
+  const base: PlacedCircle[] = data.communities.map((c) => {
+    const off = offsets.get(c.key);
+    return { id: c.key, x: c.layout.x * scale + (off?.dx ?? 0), y: c.layout.y * scale + (off?.dy ?? 0), r: c.layout.radius * scale };
+  });
+  // The served base is kept as served; only a true overlap (a drag's
+  // offsets meeting a new version) is resolved, repel-only.
+  const circles = relaxCircles(base, null, 0);
+  const circleById = new Map(circles.map((c) => [c.id, c]));
+  const seatOf = new Map<string, { x: number; y: number }>();
+  const circleOf = new Map<string, string>();
+  let extent = 0;
+  data.communities.forEach((c, i) => {
+    const circle = circles[i];
+    extent = Math.max(extent, Math.hypot(circle.x, circle.y) + circle.r);
+    const inner = Math.max(0, circle.r - SEAT_MARGIN);
+    let rim = 0;
+    for (const m of c.members) {
+      if (circleOf.has(m.id)) continue;
+      circleOf.set(m.id, c.key);
+      const served = c.provisional.has(m.id) ? undefined : c.layout.seats.get(m.id);
+      let dx: number;
+      let dy: number;
+      if (served) {
+        dx = served.dx * scale;
+        dy = served.dy * scale;
+        const d = Math.hypot(dx, dy);
+        if (d > inner && d > 0) {
+          dx = (dx / d) * inner;
+          dy = (dy / d) * inner;
+        }
+      } else {
+        ({ dx, dy } = rimSeat(rim, circle.r));
+        rim += 1;
+      }
+      seatOf.set(m.id, { x: circle.x + dx, y: circle.y + dy });
+    }
+  });
+  return { scale, circles, circleById, seatOf, circleOf, extent };
 }
 
-/** The seats for the fold at the scrub position. `isFree` is the canvas's
- * own lane rule (identity ring / diary shelf stay out of the disc). */
-export function planTopicSeats(
-  fold: FoldState,
-  communities: TopicCommunity[],
-  homes: TopicHome[],
-  isFree: (node: NodeState) => boolean,
-): TopicPlan {
-  const homeById = new Map(homes.map((h) => [h.id, h]));
-  const anchorOf = new Map<string, { x: number; y: number }>();
-  const topicOf = new Map<string, number>();
-  const membersOf = new Map<number, string[]>();
-  const allRowsOf = new Map<number, Set<string>>();
-  for (const c of communities) {
-    const all = new Set<string>();
-    const free: NodeState[] = [];
-    for (const gid of c.member_ids) {
-      const row = rowOf(fold, gid);
-      if (row === null) continue;
-      all.add(row);
-      const node = fold.nodes.get(row);
-      if (node && isFree(node) && !topicOf.has(row)) free.push(node);
-    }
-    allRowsOf.set(c.id, all);
-    const home = homeById.get(c.id);
-    if (!home) continue;
-    // Oldest at the centre: rank by first sight (ties by id) — a newer
-    // memory only ever takes the next rim seat.
-    free.sort((a, b) => a.first_seq - b.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const ids: string[] = [];
-    free.forEach((node, rank) => {
-      const o = topicSeatOffset(rank);
-      anchorOf.set(node.id, { x: home.x + o.dx, y: home.y + o.dy });
-      topicOf.set(node.id, c.id);
-      ids.push(node.id);
-    });
-    membersOf.set(c.id, ids);
+/** The version as served, plus the memories memory placed since it (the
+ * stream's `placed` events against THIS version, in the order placed): each
+ * joins its community as a provisional member — at the rim, never moving
+ * anyone (the scale counts the version's members only). A placement against
+ * another version, into a community this version does not have, or of a
+ * record already listed is ignored. The same object comes back when nothing
+ * joins. */
+export function withTailPlacements(data: ServedCommunities, placed: ReadonlyMap<string, TailPlacement>): ServedCommunities {
+  if (placed.size === 0) return data;
+  const listed = new Set<string>();
+  for (const c of data.communities) for (const m of c.members) listed.add(m.id);
+  const joins = new Map<string, string[]>();
+  for (const [rid, at] of placed) {
+    if (at.versionSeq !== data.versionSeq || listed.has(rid)) continue;
+    const list = joins.get(at.key) ?? [];
+    list.push(rid);
+    joins.set(at.key, list);
   }
+  if (joins.size === 0) return data;
+  let added = false;
+  const communities = data.communities.map((c) => {
+    const ids = joins.get(c.key);
+    if (!ids) return c;
+    added = true;
+    const provisional = new Set(c.provisional);
+    for (const id of ids) provisional.add(id);
+    return { ...c, members: [...c.members, ...ids.map((id) => ({ id, via: "provisional" }))], provisional };
+  });
+  return added ? { ...data, communities } : data;
+}
 
-  // Unclustered free memories: where their relations are.
-  const unclustered = new Set<string>();
+/** Seat `i` of the memories the version does not list (closed records,
+ * records formed since it with no placement yet): a ring outside every
+ * circle, oldest first, no circle drawn round them. */
+export function waitingSeat(i: number, extent: number): { x: number; y: number } {
+  const r0 = extent + WAITING_GAP;
+  let ring = 0;
+  let k = i;
+  for (;;) {
+    const rr = r0 + ring * WAITING_SPACING;
+    const cap = Math.max(1, Math.floor((2 * Math.PI * rr) / WAITING_SPACING));
+    if (k < cap) {
+      const a = Math.PI / 2 + (2 * Math.PI * k) / cap;
+      return { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
+    }
+    k -= cap;
+    ring += 1;
+  }
+}
+
+export interface SeatedFold {
+  /** Fold row id -> its world target. Every node of the fold has one. */
+  targetOf: Map<string, { x: number; y: number }>;
+  /** Fold row id -> its one community key (absent: waiting outside). */
+  circleOfRow: Map<string, string>;
+  /** Community key -> its rows present in the fold, in served order. */
+  rowsOf: Map<string, string[]>;
+  /** Rows the version does not list, oldest first. */
+  waiting: string[];
+}
+
+function graphIdOf(node: NodeState): string {
+  return node.graph_id ?? node.id;
+}
+
+/** Every memory of the fold on its seat: each member in exactly one circle,
+ * diary entries and identity records included; the rest on the waiting
+ * ring. */
+export function seatFold(fold: FoldState, placement: CommunityPlacement): SeatedFold {
+  const targetOf = new Map<string, { x: number; y: number }>();
+  const circleOfRow = new Map<string, string>();
+  const rowsOf = new Map<string, string[]>();
+  for (const c of placement.circles) rowsOf.set(c.id, []);
+  const waitingNodes: NodeState[] = [];
   for (const node of fold.nodes.values()) {
-    if (isFree(node) && !topicOf.has(node.id)) unclustered.add(node.id);
-  }
-  const sum = new Map<string, { x: number; y: number; n: number }>();
-  const touch = (u: string, v: string) => {
-    if (!unclustered.has(u)) return;
-    const seat = topicOf.has(v) ? anchorOf.get(v) : undefined;
-    if (!seat) return;
-    const s = sum.get(u) ?? { x: 0, y: 0, n: 0 };
-    s.x += seat.x;
-    s.y += seat.y;
-    s.n += 1;
-    sum.set(u, s);
-  };
-  for (const e of fold.edges.values()) {
-    touch(e.a, e.b);
-    touch(e.b, e.a);
-  }
-  for (const se of fold.structural_edges.values()) {
-    const a = rowOf(fold, se.source_graph_id);
-    const b = rowOf(fold, se.target_graph_id);
-    if (a === null || b === null || a === b) continue;
-    touch(a, b);
-    touch(b, a);
-  }
-  const loose = new Set<string>();
-  for (const id of unclustered) {
-    const s = sum.get(id);
-    if (!s) {
-      loose.add(id);
-      continue;
+    const gid = graphIdOf(node);
+    const circle = placement.circleOf.get(gid) ?? placement.circleOf.get(node.id);
+    const seat = placement.seatOf.get(gid) ?? placement.seatOf.get(node.id);
+    if (circle !== undefined && seat) {
+      targetOf.set(node.id, seat);
+      circleOfRow.set(node.id, circle);
+    } else {
+      waitingNodes.push(node);
     }
-    // A stable nudge off the mean so two memories with the same relations
-    // never share one point (repulsion would fight over it).
-    const a = hash01(id, 17) * Math.PI * 2;
-    anchorOf.set(id, { x: s.x / s.n + Math.cos(a) * TOPIC_SPACING, y: s.y / s.n + Math.sin(a) * TOPIC_SPACING });
   }
-  return { homes, anchorOf, topicOf, membersOf, allRowsOf, loose, extent: homesExtent(homes) };
-}
-
-/** Does this usage trail pull its two ends together? Not across two
- * topics (see the module note); yes inside one topic, and yes whenever an
- * end is in no topic (an unclustered memory sits where its relations put
- * it). Without a plan every trail pulls (today's layout). */
-export function trailPulls(plan: Pick<TopicPlan, "topicOf"> | null, a: string, b: string): boolean {
-  if (!plan) return true;
-  const ta = plan.topicOf.get(a);
-  const tb = plan.topicOf.get(b);
-  return ta === undefined || tb === undefined || ta === tb;
-}
-
-/** How far from its home a member still counts as SETTLED there (in
- * home radii). A member its relations drag further (a hub linked into
- * other topics, a memory bound to the diary shelf) stays visible where it
- * is, but outside its topic's halo — the halo marks where the topic
- * lives, never a circle swollen across the neighbours. */
-export const HALO_HOME_REACH = 1.6;
-
-/** A topic's halo: the members settled at its home (within
- * HALO_HOME_REACH home radii of the home centre), circled where they are
- * NOW — centred on them, reaching the furthest one's rim. null when fewer
- * than two are settled (a dispersed topic draws no halo). */
-export function haloOf(
-  home: { x: number; y: number; r: number },
-  points: Array<{ x: number; y: number; r: number }>,
-): { cx: number; cy: number; r: number; settled: number } | null {
-  const reach = home.r * HALO_HOME_REACH;
-  const kept = points.filter((p) => Math.hypot(p.x - home.x, p.y - home.y) <= reach);
-  if (kept.length < 2) return null;
-  let cx = 0;
-  let cy = 0;
-  for (const p of kept) {
-    cx += p.x;
-    cy += p.y;
+  // Served order within each community (the panel's and the halo's).
+  for (const [gid, circle] of placement.circleOf) {
+    const row = fold.graph_to_row.get(gid) ?? gid;
+    if (circleOfRow.get(row) === circle) rowsOf.get(circle)?.push(row);
   }
-  cx /= kept.length;
-  cy /= kept.length;
-  let r = 0;
-  for (const p of kept) r = Math.max(r, Math.hypot(p.x - cx, p.y - cy) + p.r);
-  return { cx, cy, r, settled: kept.length };
+  waitingNodes.sort((a, b) => a.first_seq - b.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const waiting = waitingNodes.map((n) => n.id);
+  waiting.forEach((id, i) => targetOf.set(id, waitingSeat(i, placement.extent)));
+  return { targetOf, circleOfRow, rowsOf, waiting };
 }
 
-export interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-function rectHitsCircle(rc: Rect, c: { x: number; y: number; r: number }): boolean {
-  const nx = Math.max(rc.x, Math.min(c.x, rc.x + rc.w));
-  const ny = Math.max(rc.y, Math.min(c.y, rc.y + rc.h));
-  return (nx - c.x) ** 2 + (ny - c.y) ** 2 < c.r * c.r;
-}
-
-function rectsOverlap(a: Rect, b: Rect): boolean {
-  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-}
-
-/** Where a topic label may go (screen px): just above the halo, else
- * below, right, left — never over a node, another label, a blocked band,
- * or off the canvas. null = no free spot this frame (the label waits). */
-export function placeTopicLabel(args: {
-  halo: { cx: number; cy: number; r: number };
-  w: number;
-  h: number;
-  nodes: Array<{ x: number; y: number; r: number }>;
-  placed: Rect[];
-  bounds: { w: number; h: number };
-  blocked?: (rc: Rect) => boolean;
-}): Rect | null {
-  const { halo, w, h, nodes, placed, bounds, blocked } = args;
-  const candidates: Rect[] = [
-    { x: halo.cx - w / 2, y: halo.cy - halo.r - 4 - h, w, h },
-    { x: halo.cx - w / 2, y: halo.cy + halo.r + 4, w, h },
-    { x: halo.cx + halo.r + 6, y: halo.cy - h / 2, w, h },
-    { x: halo.cx - halo.r - 6 - w, y: halo.cy - h / 2, w, h },
-  ];
-  for (const rc of candidates) {
-    if (rc.x < 2 || rc.y < 2 || rc.x + rc.w > bounds.w - 2 || rc.y + rc.h > bounds.h - 2) continue;
-    if (blocked?.(rc)) continue;
-    if (placed.some((p) => rectsOverlap(p, rc))) continue;
-    if (nodes.some((n) => rectHitsCircle(rc, n))) continue;
-    return rc;
+/** Membership only (no geometry): fold row -> community, community ->
+ * rows. What the panel and the cards need; independent of the viewer's
+ * drags. */
+export function membershipOf(fold: FoldState, data: ServedCommunities): { circleOfRow: Map<string, string>; rowsOf: Map<string, string[]> } {
+  const firstOf = new Map<string, string>();
+  for (const c of data.communities) for (const m of c.members) if (!firstOf.has(m.id)) firstOf.set(m.id, c.key);
+  const circleOfRow = new Map<string, string>();
+  const rowsOf = new Map<string, string[]>(data.communities.map((c) => [c.key, []]));
+  for (const c of data.communities) {
+    for (const m of c.members) {
+      if (firstOf.get(m.id) !== c.key) continue;
+      const row = fold.graph_to_row.get(m.id) ?? m.id;
+      if (!fold.nodes.has(row) || circleOfRow.has(row)) continue;
+      circleOfRow.set(row, c.key);
+      rowsOf.get(c.key)?.push(row);
+    }
   }
-  return null;
+  return { circleOfRow, rowsOf };
+}
+
+// ------------------------------------------------------------- the drag
+
+/** The viewer moves circle `key` by (dx, dy) world px: it goes there, the
+ * circles it meets are pushed away (repel only) and STAY where they were
+ * pushed. Returns the new offsets (world px from each served position, by
+ * community key). */
+export function dragCircle(
+  data: ServedCommunities,
+  offsets: ReadonlyMap<string, { dx: number; dy: number }>,
+  key: string,
+  dx: number,
+  dy: number,
+): Map<string, { dx: number; dy: number }> {
+  const scale = servedScale(data.communities);
+  const current = placeCommunities(data, offsets).circles;
+  const moved = current.map((c) => (c.id === key ? { ...c, x: c.x + dx, y: c.y + dy } : c));
+  // The dragged circle keeps CIRCLE_GAP from what it meets; two circles
+  // already closer than that keep the clearance they had (the drag never
+  // makes the rest of the map breathe), but never overlap.
+  const before = new Map(current.map((c) => [c.id, c]));
+  const clearance = (a: PlacedCircle, b: PlacedCircle): number => {
+    if (a.id === key || b.id === key) return CIRCLE_GAP;
+    const pa = before.get(a.id)!;
+    const pb = before.get(b.id)!;
+    return Math.min(CIRCLE_GAP, Math.max(0, Math.hypot(pa.x - pb.x, pa.y - pb.y) - pa.r - pb.r));
+  };
+  const relaxed = relaxCircles(moved, key, clearance);
+  const next = new Map<string, { dx: number; dy: number }>();
+  data.communities.forEach((c, i) => {
+    const ox = relaxed[i].x - c.layout.x * scale;
+    const oy = relaxed[i].y - c.layout.y * scale;
+    if (Math.abs(ox) > 1e-6 || Math.abs(oy) > 1e-6) next.set(c.key, { dx: ox, dy: oy });
+  });
+  return next;
+}
+
+/** Remembered offsets back from storage (presentation: anything malformed
+ * is dropped). */
+export function parseOffsets(raw: string | null): Map<string, { dx: number; dy: number }> {
+  const out = new Map<string, { dx: number; dy: number }>();
+  if (!raw) return out;
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!isObj(v)) return out;
+    for (const [id, o] of Object.entries(v)) {
+      const p = readPair(o);
+      if (p) out.set(id, { dx: p[0], dy: p[1] });
+    }
+  } catch {
+    return out;
+  }
+  return out;
+}
+
+export function serializeOffsets(offsets: ReadonlyMap<string, { dx: number; dy: number }>): string {
+  const o: Record<string, [number, number]> = {};
+  for (const [id, v] of offsets) o[id] = [Math.round(v.dx * 10) / 10, Math.round(v.dy * 10) / 10];
+  return JSON.stringify(o);
 }

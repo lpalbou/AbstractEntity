@@ -216,23 +216,182 @@
   }
 }
 
-/* TOPICS note (the toggle is on but the topics are not drawable yet:
- * loading / unavailable / none). Under the motion buttons, top-right. */
-.gc_topic_note {
+/* THE TOPICS PANEL (topics_panel.tsx): his topics, biggest first, a click
+ * focuses one and lists its memories. Bottom-right over the graph on a wide
+ * canvas (the Context legend owns the top centre, the motion buttons the top
+ * right); it scrolls inside. Not served, it is one line: the sentence. */
+.gc_topics {
   position: absolute;
-  top: 48px;
   right: 10px;
-  max-width: min(360px, calc(100% - 32px));
-  padding: 4px 10px;
-  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  bottom: 12px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100% - 32px));
+  max-height: 58%;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--bg-panel) 90%, transparent);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.35;
+}
+
+.gc_topics_note {
+  padding: 6px 10px;
   color: var(--text-dim);
   font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-.gc_topic_note_error {
+.gc_topics_error {
   border-color: color-mix(in srgb, var(--scar) 55%, var(--line));
+}
+
+/* The head is the panel's fold control (aria-expanded): its fold mark leads. */
+.gc_tp_head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap-min, 32px);
+  margin: 0;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gc_tp_head::before {
+  content: "▸";
+  color: var(--text-dim);
+}
+
+.gc_tp_open .gc_tp_head::before {
+  content: "▾";
+}
+
+.gc_tp_head_word {
+  font-weight: 600;
+}
+
+.gc_tp_head_count,
+.gc_tp_head_pending {
+  color: var(--text-dim);
+}
+
+.gc_tp_head_pending {
+  font-style: italic;
+}
+
+.gc_tp_body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--line);
+  padding: 2px 4px 6px;
+}
+
+.gc_tp_list .af-disclosure__row[data-depth="0"] {
+  align-items: baseline;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.gc_tp_list .af-disclosure__row[data-depth="1"] {
+  align-items: baseline;
+  margin-left: 14px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 0;
+}
+
+/* A member has no chevron: its margin is the indent, not a blank slot. */
+.gc_tp_list .af-disclosure__row[data-depth="1"] > .af-disclosure__chevron--spacer {
+  display: none;
+}
+
+.gc_tp_topic,
+.gc_tp_member {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  cursor: pointer;
+}
+
+.gc_tp_dot,
+.gc_tp_kdot {
+  flex: none;
+  align-self: center;
+  border-radius: 50%;
+}
+
+.gc_tp_dot {
+  width: 9px;
+  height: 9px;
+}
+
+.gc_tp_kdot {
+  width: 7px;
+  height: 7px;
+}
+
+.gc_tp_title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.gc_tp_focused .gc_tp_title {
+  color: var(--ea-accent);
+}
+
+.gc_tp_mtitle {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Being written: in his own words, never a stand-in label. */
+.gc_tp_pending,
+.gc_topic_pending {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+/* The summary: two lines in the list, whole once the topic is focused (and
+ * in the title's card on the graph). */
+.gc_tp_summary {
+  flex-basis: 100%;
+  color: var(--text-dim);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gc_tp_focused .gc_tp_summary {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.gc_tp_waiting {
+  margin: 6px 8px 2px;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
 .gc_topic_retry {
@@ -253,11 +412,20 @@
 /* Phone-width canvas: the lens row is a single strip at the top; the
  * recall line sits under it, full width. */
 @container entity-canvas (max-width: 859.98px) {
-  .gc_topic_note {
-    top: 84px;
-    right: 8px;
+  /* The Topics panel starts folded (one tap-target line) across the bottom,
+   * just above the motion buttons' row (it never sits under them); open, it
+   * grows up to the Context legend's floor and scrolls inside — the graph
+   * keeps its tap targets. */
+  .gc_topics {
     left: 8px;
-    max-width: none;
+    right: 8px;
+    bottom: calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px);
+    width: auto;
+    max-height: calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px));
+  }
+  /* No Context legend over the canvas: open, it may reach the lens row. */
+  .entity_canvas_wrap:not(:has(.gc_recall_legend)) .gc_topics {
+    max-height: calc(100% - var(--gc-legend-top) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px));
   }
   /* It ends above the motion buttons (bottom: --gc-motion-bottom, one tap
    * target tall, then an 8 px gap) and scrolls inside, so it never sits
@@ -284,7 +452,7 @@
   }
 }
 
-/* TOPIC CARD (hover a topic label): the topic's every keyword, never cut
+/* TOPIC CARD (hover a topic's title): its whole authored title, never cut
  * (the shared hover card clamps titles to two lines — not this one). */
 .gc_topic_card .gc_topic_words {
   display: block;
@@ -361,11 +529,11 @@
   overflow-wrap: anywhere;
 }
 
-.gc_topic_exemplar {
+.gc_topic_most {
   margin: 2px 0 6px;
 }
 
-.gc_topic_exemplar_word {
+.gc_topic_most_word {
   display: block;
   color: var(--text-dim);
   font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));

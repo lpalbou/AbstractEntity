@@ -6013,6 +6013,14 @@ body {
   --gc-legend-floor: calc(var(--tap-min, 32px) + 10px);
 }
 
+/* A wide canvas with the Topics panel open at the bottom-right: the kinds
+ * legend ends before it. */
+@container entity-canvas (min-width: 860px) {
+  .entity_canvas_wrap:has(.gc_topics) > .entity_legend {
+    max-width: calc(100% - min(320px, calc(100% - 32px)) - 40px);
+  }
+}
+
 @container entity-canvas (max-width: 859.98px) {
   /* Lens row: one scrollable strip across the canvas top (it folded into a
    * vertical column over the graph and collided with the motion buttons). */

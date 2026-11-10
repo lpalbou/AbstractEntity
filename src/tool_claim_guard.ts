@@ -48,6 +48,7 @@ export const TOOL_NAMES = [
   "diary_read",
   "read_memory",
   "search_memory",
+  "topics",
   "recent_memories",
   "feelings_about",
   "write_file",

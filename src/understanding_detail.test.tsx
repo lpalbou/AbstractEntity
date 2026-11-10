@@ -372,7 +372,7 @@ describe("a record whose summary was cut when saved (the gateway's `cut`, abstra
     const card = renderToStaticMarkup(<CardSummaryBlock summary={{ kind: "cut", text: line }} />);
     expect(card).toContain(line);
     expect(card).toContain("gc_hc_cut");
-    // A topic card's exemplar falls back to the title.
+    // Cut words are never a card text summary (the title says it).
     expect(nodeCardText(recalled).summary).toBeNull();
     expect(nodeCardText({ ...recalled, digest_cut: false }).summary).toBe(CUT_WORDS);
   });

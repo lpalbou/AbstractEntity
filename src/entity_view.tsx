@@ -63,6 +63,7 @@ import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBar
 import { PhaseWrites } from "./phase_bar_writes";
 import { PhaseBarControls } from "./phase_bar_controls";
 import { getPhaseBar, highestPhaseMarker, postLifecycle, postSleepNow, putPhaseToggle, type PhaseMarker, type PhaseWire } from "./phase_bar_source";
+import { useCommunitiesMarker, usePlacedOnStream } from "./topic_map";
 import { substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { getEntitySubstrate } from "./stream_source";
 import { checkSpecSync, type SpecSyncResult } from "./spec_sync";
@@ -1431,6 +1432,11 @@ export function EntityView(): React.ReactElement {
     cache.tailSeq = envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : -Infinity;
     return sourceKind === "gateway" ? cache.marker : null;
   }, [envelopes, sourceKind]);
+  // HIS TOPICS, LIVE: the newest communities_changed marker on the stream
+  // (topic_map.tsx) — the graph re-reads its topics on a newer version.
+  const communitiesMarker = useCommunitiesMarker(envelopes, sourceKind === "gateway");
+  // …and the memories placed since his last sleep (provisional members).
+  const communitiesPlaced = usePlacedOnStream(envelopes, sourceKind === "gateway");
   const phaseMarkerRef = useRef(phaseMarker);
   phaseMarkerRef.current = phaseMarker;
   const phaseReadRef = useRef(phaseRead);
@@ -1586,13 +1592,15 @@ export function EntityView(): React.ReactElement {
   // Search text INTERSECTS the active lens ("questions about tolstoy");
   // either alone emphasizes on its own.
   const [lens, setLens] = useState<GraphLens>("all");
-  // TOPIC filter (2026-07-17): clicking a topic's label on the graph
-  // lights its members — same emphasis mechanism, one more intersecting
-  // source.
-  const [topicFilter, setTopicFilter] = useState<{ ids: Set<string>; label: string } | null>(null);
+  // TOPIC filter (2026-07-17): a focused topic (its title on the graph,
+  // the Topics panel) lights its members — same emphasis mechanism, one
+  // more intersecting source. Keyed by the community's STABLE key, so a
+  // nightly revision keeps the focus (the graph re-emits its new members).
+  const [topicFilter, setTopicFilter] = useState<{ key: string; ids: Set<string>; label: string } | null>(null);
   // Topics are the graph's NATURAL layout (operator 2026-11-07: "all the
   // memory nodes should have been naturally grouped by topics"): the
-  // "topics" toggle only shows their halos + labels over the same graph.
+  // "topics" toggle only shows their circles, titles and the Topics panel
+  // over the same graph.
   const [showTopics, setShowTopics] = useState(false);
   // The "Context" toggle (operator 2026-11-08): the memories he brought to
   // mind for his last answer stay lit until his next recall; on by
@@ -2125,8 +2133,8 @@ export function EntityView(): React.ReactElement {
                   aria-pressed={showTopics}
                   title={
                     showTopics
-                      ? "Hide the topic halos and labels. Memories group by topic even with this off; “used together” trails across topics are drawn but do not pull."
-                      : "Show the topics — a halo and a label around each group of memories (groups computed from his memory graph: engraved relations + shared digest keywords; click a label to light that topic). Memories group by topic even with this off; “used together” trails across topics are drawn but do not pull."
+                      ? "Hide his topics' circles, titles and list. His memories stay grouped by topic with this off."
+                      : "Show his topics — a circle and a title around each group of memories, formed and named in his sleep, and the list of them. Click a title to focus a topic; drag a title to move its circle."
                   }
                   onClick={() => setShowTopics((v) => !v)}
                 >
@@ -2199,7 +2207,10 @@ export function EntityView(): React.ReactElement {
             }}
             showTopics={showTopics}
             showContext={contextOn}
-            onPickTopic={(rowIds, label) => setTopicFilter(rowIds.size > 0 ? { ids: rowIds, label } : null)}
+            onPickTopic={(pick) => setTopicFilter(pick && pick.rowIds.size > 0 ? { key: pick.key, ids: pick.rowIds, label: pick.label } : null)}
+            pickedTopic={topicFilter?.key ?? null}
+            communitiesMarker={communitiesMarker}
+            communitiesPlaced={communitiesPlaced}
           />
           <div className="entity_legend">
             <span className="lg lg_identity">identity</span>

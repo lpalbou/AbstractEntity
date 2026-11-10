@@ -563,9 +563,15 @@ function getBeat(state: FoldState, trace_id: string, seq: number): BeatState {
 
 // ---------------------------------------------------------- appliers
 
+/** Memory's `community` records (his topics, COMMUNITIES-DESIGN 2026-11-10)
+ * are the graph's CIRCLES, served with their layout — never a node of it
+ * (the ghost guard: a community binding on the replay forms no memory). */
+export const COMMUNITY_RECORD_KIND = "community";
+
 function applyBinding(state: FoldState, env: ReplayEnvelope): void {
   const p = env.payload as unknown as BindingPayload;
   const display = displayOf(env);
+  if (display.kind === COMMUNITY_RECORD_KIND) return;
   const graphId = String(p.record_id || "");
   // Bindings key nodes by graph id; if a usage row id was already seen for
   // the same record we cannot know the pairing until enrichment reveals it,

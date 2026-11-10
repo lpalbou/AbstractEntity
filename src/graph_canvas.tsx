@@ -52,7 +52,6 @@ import {
   partnerCount,
   plainCardTitle,
   topicActions,
-  topicExemplarText,
   type CardActionId,
 } from "./hover_card";
 import { CardActions, CardSummaryBlock, HoverCardBox, useHoverWords } from "./graph_hover_card";
@@ -63,23 +62,24 @@ import { WordsLine } from "./words_line";
 import { nodeLabel, summaryLabel } from "./node_label";
 import type { TemporalActivation } from "./temporal_activation";
 import { DEFAULT_FORCE_PARAMS, hash01, maxVelocity, seedPosition, tickForces, type LayoutEdge, type LayoutNode } from "./force_layout";
-import { useCommunities, type TopicSource } from "./topic_map";
+import { useServedCommunities, type TopicSource } from "./communities_source";
+import { topicSummary, topicTitle, type ServedCommunities, type ServedCommunity } from "./communities";
 import {
-  entryTitleOf,
-  haloOf,
-  parseTopicSlots,
-  placeTopicLabel,
-  planTopicHomes,
-  planTopicSeats,
-  readableKeyword,
-  readableTopicLabel,
-  TOPIC_SEAT_STRENGTH,
-  topicSlotsOf,
-  trailPulls,
-  wrapTopicLabel,
-  type Rect,
-  type TopicSlot,
+  dragCircle,
+  membershipOf,
+  parseOffsets,
+  placeCommunities,
+  seatFold,
+  serializeOffsets,
+  topicColor,
+  withTailPlacements,
+  type CommunityPlacement,
+  type SeatedFold,
 } from "./topic_layout";
+import { memberOpensIn, memoriesWord, TopicsPanel, type TopicsView } from "./topics_panel";
+import type { TailPlacement } from "./topic_map";
+import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
+import { TITLE_BEING_WRITTEN } from "./untitled";
 
 export interface GraphCanvasProps {
   fold: FoldState;
@@ -103,21 +103,31 @@ export interface GraphCanvasProps {
   layoutKey: string | null;
   onSelect(id: string | null): void;
   /** The gateway life this graph reads from (null for file/demo sources):
-   * the topic communities (topics shape the layout whenever they exist —
-   * topic_layout.ts) and the record read a hover card leads with — its
-   * current understanding (graph_hover_card.useHoverWords; never a diary
-   * record's). */
+   * his topics (memory's communities, served with their layout — the
+   * graph's base placement whenever they are served; communities.ts) and
+   * the record read a hover card leads with — its current understanding
+   * (graph_hover_card.useHoverWords; never a diary record's). */
   gatewaySource: TopicSource | null;
-  /** The "topics" toggle: soft halos + labels over the grouped layout
-   * (never a different graph). */
+  /** The newest `communities_changed` marker on the live stream (its
+   * version_seq): a newer version is re-read and the graph re-seats. */
+  communitiesMarker: number | null;
+  /** The memories memory placed since a version (the stream's `placed`
+   * events, topic_map.usePlacedOnStream): provisional members until the
+   * next version lists them. */
+  communitiesPlaced: ReadonlyMap<string, TailPlacement>;
+  /** The "topics" toggle: the circles, their titles and the Topics panel
+   * over the same graph (the placement is the served one either way). */
   showTopics: boolean;
   /** The "Context" toggle: the newest recall's shelf + that turn's pairs
    * stay lit until the next recall (off = the plain graph, the resting
    * warmth view). A recall picked in the ledger lights either way. */
   showContext: boolean;
-  /** A click on a topic label lights that topic's memories (the topic
-   * filter: every member present, diary and identity included). */
-  onPickTopic(rowIds: Set<string>, label: string): void;
+  /** A topic focused (its title on the graph, the panel): its key, its
+   * memories present (the topic filter: every member, diary and identity
+   * included) and its title; null lets it go. */
+  onPickTopic(pick: { key: string; rowIds: Set<string>; label: string } | null): void;
+  /** The focused topic's key (the topic filter's). */
+  pickedTopic: string | null;
   /** A diary entry's card action: open the Book at that entry (its words
    * are read there, on their own click — never from the graph). */
   onShowInBook(graphId: string): void;
@@ -356,22 +366,16 @@ function nodeClass(node: NodeState): string {
   return "unknown";
 }
 
-/** The disc's lane rule: identity keeps its ring, diary its shelf;
- * everything else is a free memory of the disc (topics group these). */
-function isFreeNode(node: NodeState): boolean {
-  const cls = nodeClass(node);
-  return cls !== "identity" && cls !== "diary";
-}
-
-/** Topic labels: hidden when zoomed out so far they would crowd; a halo
- * smaller than this on screen carries no label either. */
+/** Topic titles: hidden when zoomed out so far they would crowd; a circle
+ * smaller than this on screen carries no title either. */
 const TOPIC_LABEL_MIN_ZOOM = 0.16;
 const TOPIC_LABEL_MIN_SCREEN_R = 24;
 /** A label line's width before it wraps (two lines at most). */
 const TOPIC_LABEL_MAX_W = 220;
 const TOPIC_LABEL_LINE_H = 14;
-/** Halo margin around the furthest member (world px). */
-const TOPIC_HALO_PAD = 16;
+/** How long the graph takes to re-seat on a new version of his topics. */
+const RESEAT_MS = 450;
+const EMPTY_ROWS: ReadonlyMap<string, string[]> = new Map();
 
 function hexAlpha(hex: string, a: number): string {
   const rgb = parseCssColor(hex);
@@ -433,10 +437,10 @@ function layoutStorageKey(key: string): string {
   return `abstractentity_layout_v2:${key}`;
 }
 
-/** Topic homes + colours remembered per life (presentation, like the
- * layout): a refetch or a reload keeps every persisting topic in place. */
-function topicSlotsStorageKey(key: string): string {
-  return `abstractentity_topic_homes_v1:${key}`;
+/** Where the viewer dragged his topics' circles, per life (presentation,
+ * keyed by the stable community key: a nightly revision keeps it). */
+function topicOffsetsStorageKey(key: string): string {
+  return `abstractentity_topic_offsets_v2:${key}`;
 }
 
 /** SPATIAL MEMORY MIGRATION (repo split 2026-07-12): this app used to ship
@@ -450,6 +454,39 @@ function readStoredLayout(key: string): string | null {
   return localStorage.getItem(`abstractobserver_entity_layout_v2:${key}`);
 }
 
+/** The DOM overlays over the canvas, in canvas px (what a topic's title
+ * must never sit under). */
+const CANVAS_OVERLAYS = ".gc_topics, .gc_recall_legend, .gc_motion_controls, .entity_legend";
+function overlayRectsOver(canvas: HTMLCanvasElement): Rect[] {
+  const host = canvas.parentElement;
+  if (!host) return [];
+  const c = canvas.getBoundingClientRect();
+  const out: Rect[] = [];
+  host.querySelectorAll(CANVAS_OVERLAYS).forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) out.push({ x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height });
+  });
+  return out;
+}
+function rectsMeet(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/** The lens row's band at the top of the canvas (a framed topic sits below it). */
+const LENS_BAND = 48;
+
+/** Where a framed topic goes on screen: the centre of the larger part of
+ * the canvas below the lens row that the Topics panel leaves free (left of
+ * it on a wide canvas, above it on a phone), in canvas px. */
+export function freeCentre(canvas: { w: number; h: number }, panel: Rect | null, top: number = LENS_BAND): { x: number; y: number; w: number; h: number } {
+  const h = Math.max(0, canvas.h - top);
+  if (!panel) return { x: canvas.w / 2, y: top + h / 2, w: canvas.w, h };
+  const left = { w: Math.max(0, panel.x), h };
+  const above = { w: canvas.w, h: Math.max(0, panel.y - top) };
+  if (left.w * left.h >= above.w * above.h) return { x: left.w / 2, y: top + h / 2, w: left.w, h: left.h };
+  return { x: canvas.w / 2, y: top + above.h / 2, w: above.w, h: above.h };
+}
+
 /** A phone-width viewport (the canvas is short: the Context legend starts
  * folded there). */
 function narrowViewport(): boolean {
@@ -460,10 +497,10 @@ function narrowViewport(): boolean {
   }
 }
 
-/** The one card on screen: a memory's (node id) or a topic label's. */
+/** The one card on screen: a memory's (node id) or a topic title's (its key). */
 type CardAt =
   | { kind: "node"; id: string; x: number; y: number; pinned: boolean }
-  | { kind: "topic"; topic: number; x: number; y: number; pinned: boolean };
+  | { kind: "topic"; topic: string; x: number; y: number; pinned: boolean };
 
 /** How long a card holds after the pointer leaves its memory — the time to
  * cross into the card and reach its actions. */
@@ -479,9 +516,12 @@ export function GraphCanvas({
   layoutKey,
   onSelect,
   gatewaySource,
+  communitiesMarker,
+  communitiesPlaced,
   showTopics,
   showContext,
   onPickTopic,
+  pickedTopic,
   onShowInBook,
   height,
 }: GraphCanvasProps): React.ReactElement {
@@ -508,57 +548,48 @@ export function GraphCanvas({
   // THE USAGE SCALE: one rank per memory and per co-use line, per fold
   // change (never per frame).
   const usage = useMemo(() => usageScale(fold, temporal), [fold, temporal]);
-  // TOPICS AS THE NATURAL LAYOUT (operator 2026-11-07): the served
-  // communities give every topic a home and its memories seats inside it
-  // (topic_layout.ts); the force sim pulls each memory to its seat with
-  // the same anchor strength the global seats use. Homes depend on the
-  // payload only (stable under scrub); seats per fold change.
-  const { state: topicsState, retry: retryTopics } = useCommunities(gatewaySource, fold.nodes.size);
-  const topicsData = topicsState.phase === "ready" ? topicsState.data : null;
-  // Homes are STABLE: planned against the slots remembered from the last
-  // fetch (and from storage after a reload) — a persisting topic keeps
-  // its place and colour (topic_layout.planTopicHomes). `topicResetN`
-  // re-plans from scratch after ⟲ reset.
-  const topicSlotsRef = useRef<TopicSlot[]>([]);
-  const [topicResetN, setTopicResetN] = useState(0);
-  const topicHomes = useMemo(
-    () => (topicsData ? planTopicHomes(topicsData.communities, topicSlotsRef.current) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [topicsData, topicResetN],
+  // HIS TOPICS (memory-owned communities, COMMUNITIES-DESIGN 2026-11-10):
+  // memory serves every community with its layout; whenever they are
+  // served, every memory sits on its served seat inside its one circle
+  // (communities.ts reads them, topic_layout.ts seats them) — no force
+  // layout for the base. Re-read on the live
+  // stream's communities_changed marker; the graph re-seats with a short
+  // transition. Not served (his first sleep is still to come, a gateway
+  // before v2, a file source): the plain layout, and one sentence.
+  const { state: topicsState, retry: retryTopics } = useServedCommunities(gatewaySource, communitiesMarker);
+  const topicsView: TopicsView | null = "kind" in topicsState ? topicsState : null;
+  // The version as read (a new one re-seats with the transition)…
+  const servedRead: ServedCommunities | null = topicsView?.kind === "read" && topicsView.read.kind === "served" && topicsView.read.data.communities.length > 0 ? topicsView.read.data : null;
+  // …plus the memories placed since it on the live stream (provisional
+  // members at their circle's rim, without a re-read).
+  const served = useMemo(() => (servedRead ? withTailPlacements(servedRead, communitiesPlaced) : null), [servedRead, communitiesPlaced]);
+  const topicsPanelView = useMemo<TopicsView | null>(
+    () => (topicsView?.kind === "read" && topicsView.read.kind === "served" && served ? { kind: "read", read: { kind: "served", data: served } } : topicsView),
+    [topicsView, served],
   );
-  useEffect(() => {
-    if (!topicHomes) return;
-    topicSlotsRef.current = topicSlotsOf(topicHomes);
-    const key = layoutKeyRef.current;
-    if (!key) return;
-    try {
-      localStorage.setItem(topicSlotsStorageKey(key), JSON.stringify(topicSlotsRef.current));
-    } catch {
-      // Quota/private mode: stability then holds for this session only.
-    }
-  }, [topicHomes]);
-  // A topic's words as a person reads them: a raw diary entry id in the
-  // runtime's keywords becomes that entry's title, else "a diary entry".
-  const topicWords = useMemo(() => {
-    const out = new Map<number, { label: string; keywords: string }>();
-    if (!topicHomes) return out;
-    const entryTitle = entryTitleOf(fold);
-    for (const h of topicHomes) {
-      out.set(h.id, {
-        label: readableTopicLabel(h.label, entryTitle),
-        keywords: (h.keywords.length ? h.keywords : h.label.split(", ")).map((k) => readableKeyword(k, entryTitle)).join(", "),
-      });
-    }
-    return out;
-  }, [topicHomes, fold]);
-  const topicPlan = useMemo(
-    () => (topicsData && topicHomes && topicHomes.length > 0 ? planTopicSeats(fold, topicsData.communities, topicHomes, isFreeNode) : null),
-    [fold, topicsData, topicHomes],
-  );
-  const topicsPending = topicsState.phase === "loading";
-  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, topicPlan, showTopics, topicsPending, topicWords });
-  /** Topic label rects drawn last frame (screen px) — the click targets. */
-  const topicLabelsRef = useRef<Array<{ rect: Rect; topic: number; label: string }>>([]);
+  const communityByKey = useMemo(() => new Map<string, ServedCommunity>((served?.communities ?? []).map((c) => [c.key, c])), [served]);
+  // Membership (no geometry): what the panel, the cards and the topic
+  // filter read. Every member in exactly one topic.
+  const membership = useMemo(() => (served ? membershipOf(fold, served) : null), [fold, served]);
+  // The memories the version does not list yet (formed since; closed ones
+  // and relation rows never join one).
+  const waitingCount = useMemo(() => {
+    if (!membership) return 0;
+    let n = 0;
+    for (const node of fold.nodes.values()) if (!membership.circleOfRow.has(node.id) && node.closed === null && node.kind !== "relation") n += 1;
+    return n;
+  }, [fold, membership]);
+  const topicsPending = topicsView?.kind === "loading";
+  // Where the viewer dragged circles (world px from the served position, by
+  // community key); bumped per drag step so the frame re-places.
+  const offsetsRef = useRef<Map<string, { dx: number; dy: number }>>(new Map());
+  const offsetsRevRef = useRef(0);
+  /** The frame's placement and seating, recomputed only when the served
+   * topics, the viewer's offsets or the fold change. */
+  const placementCacheRef = useRef<{ data: ServedCommunities | null; rev: number; placement: CommunityPlacement | null; fold: FoldState | null; seated: SeatedFold | null }>({ data: null, rev: -1, placement: null, fold: null, seated: null });
+  const stateRef = useRef({ fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic });
+  /** Topic title rects drawn last frame (screen px) — click and drag targets. */
+  const topicLabelsRef = useRef<Array<{ rect: Rect; topic: string; label: string }>>([]);
   const onPickTopicRef = useRef(onPickTopic);
   onPickTopicRef.current = onPickTopic;
   /** While the first topics answer is on its way, the sim holds (≤ 3 s) so
@@ -567,6 +598,8 @@ export function GraphCanvas({
   useEffect(() => {
     topicsPendingSinceRef.current = topicsPending ? performance.now() : null;
   }, [topicsPending]);
+  // The Topics panel: open on a wide screen, folded on a phone.
+  const [topicsOpen, setTopicsOpen] = useState(() => !narrowViewport());
   /** Last frame time the recall drove the emphasis (ease-out pacing). */
   const recallDriveAtRef = useRef<number | null>(null);
   const hoverRef = useRef<string | null>(null);
@@ -629,13 +662,17 @@ export function GraphCanvas({
       }, CARD_GRACE_MS);
     },
   }).current;
-  const dragRef = useRef<{ x: number; y: number; moved: boolean; card: CardAt | null } | null>(null);
+  /** A press in progress: a pan, or — pressed on a topic's title — that
+   * circle's drag (`circle` = its key; the circles it meets are pushed). */
+  const dragRef = useRef<{ x: number; y: number; moved: boolean; card: CardAt | null; circle: string | null } | null>(null);
   const onSelectRef = useRef(onSelect);
   // Cooling state (P0-2/3): alpha decays toward freeze; arrivals reheat.
   const simRef = useRef({ alpha: 1, frozen: false, lastSaveAt: 0, autoFitDone: false, lastCount: 0, stableFrames: 0 });
   const reducedMotionRef = useRef(false);
-  /** The topic homes the layout last adopted (reheat on change). */
-  const topicHomesSeenRef = useRef<unknown>(null);
+  /** The served topics the layout last seated (a new version re-seats with
+   * a short transition from where every memory is). */
+  const servedSeenRef = useRef<ServedCommunities | null>(null);
+  const reseatRef = useRef<{ start: number; from: Map<string, { x: number; y: number }> } | null>(null);
   // The Context legend: unfolded on a wide screen, folded on a phone; the
   // reader's fold/unfold holds for this view.
   const [legendOpen, setLegendOpen] = useState(() => !narrowViewport());
@@ -644,7 +681,7 @@ export function GraphCanvas({
    * for the node's lifetime (and persisted): permanent spatial memory. */
   const seatRef = useRef<{ seats: Map<string, number>; next: number }>({ seats: new Map(), next: 0 });
 
-  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, topicPlan, showTopics, topicsPending, topicWords };
+  stateRef.current = { fold, temporal, usage, scrubSeq, selectedId: selectedRow, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics, topicsPending, pickedTopic };
   onSelectRef.current = onSelect;
 
   // FIT-TO-EMPHASIS (graph-access wave, 2026-07-12): when the OPERATOR's
@@ -704,12 +741,13 @@ export function GraphCanvas({
     seatRef.current = { seats: new Map(), next: 0 };
     simRef.current.alpha = 1;
     simRef.current.autoFitDone = false;
-    topicSlotsRef.current = [];
+    offsetsRef.current = new Map();
+    offsetsRevRef.current += 1;
     if (!layoutKey) return;
     try {
-      topicSlotsRef.current = parseTopicSlots(localStorage.getItem(topicSlotsStorageKey(layoutKey)));
+      offsetsRef.current = parseOffsets(localStorage.getItem(topicOffsetsStorageKey(layoutKey)));
     } catch {
-      topicSlotsRef.current = [];
+      offsetsRef.current = new Map();
     }
     try {
       const raw = readStoredLayout(layoutKey);
@@ -777,9 +815,57 @@ export function GraphCanvas({
 
     const frame = () => {
       if (disposed) return;
-      const { fold, usage, scrubSeq, selectedId, searchIds, recall, litLines, topicPlan: plan, showTopics: topicsOn, topicsPending: pending, topicWords } = stateRef.current;
+      const { fold, usage, scrubSeq, selectedId, searchIds, recall, litLines, served, servedRead, communityByKey, showTopics: topicsOn, topicsPending: pending, pickedTopic: picked } = stateRef.current;
       const layout = layoutRef.current;
       const sim = simRef.current;
+
+      // ---- HIS TOPICS: the served placement (communities.ts), recomputed
+      // only when the served topics, the viewer's drags or the fold change.
+      const pc = placementCacheRef.current;
+      if (pc.data !== served || pc.rev !== offsetsRevRef.current) {
+        pc.data = served;
+        pc.rev = offsetsRevRef.current;
+        pc.placement = served ? placeCommunities(served, offsetsRef.current) : null;
+        pc.fold = null;
+      }
+      if (pc.placement && pc.fold !== fold) {
+        pc.fold = fold;
+        pc.seated = seatFold(fold, pc.placement);
+      }
+      const placement = pc.placement;
+      const seated = placement ? pc.seated : null;
+      // A NEW VERSION (or the first answer): every memory glides from where
+      // it is to its new seat (RESEAT_MS; at once under reduced motion). The
+      // viewer's drags and a memory placed since the version (born on its
+      // rim seat) move without the glide.
+      if (servedRead !== servedSeenRef.current) {
+        servedSeenRef.current = servedRead;
+        if (servedRead && layout.size > 0 && !reducedMotionRef.current) {
+          const from = new Map<string, { x: number; y: number }>();
+          for (const ln of layout.values()) from.set(ln.id, { x: ln.x, y: ln.y });
+          reseatRef.current = { start: performance.now(), from };
+        } else {
+          reseatRef.current = null;
+        }
+      }
+      let reseat = reseatRef.current;
+      let ease = 1;
+      if (reseat) {
+        const t = (performance.now() - reseat.start) / RESEAT_MS;
+        if (t >= 1 || !seated) {
+          reseatRef.current = reseat = null;
+        } else {
+          ease = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+        }
+      }
+      const seatAt = (ln: LayoutNode, target: { x: number; y: number }) => {
+        const from = reseat?.from.get(ln.id);
+        ln.x = from ? from.x + (target.x - from.x) * ease : target.x;
+        ln.y = from ? from.y + (target.y - from.y) * ease : target.y;
+        ln.vx = 0;
+        ln.vy = 0;
+        ln.anchor = undefined;
+      };
 
       // ---- sync layout population with the fold (stable world anchors) --
       // The fold is already prefix-limited to the scrub seq, so everything
@@ -792,6 +878,20 @@ export function GraphCanvas({
       for (const node of fold.nodes.values()) {
         liveIds.add(node.id);
         let ln = layout.get(node.id);
+        if (seated) {
+          // SERVED: the memory's seat in its one circle (diary entries and
+          // identity records included), or the waiting ring outside.
+          const target = seated.targetOf.get(node.id) ?? { x: 0, y: 0 };
+          if (!ln) {
+            // Born on its seat (no glide across the disc).
+            ln = { id: node.id, x: target.x, y: target.y, vx: 0, vy: 0, r: nodeRadius(node) };
+            layout.set(node.id, ln);
+            arrivals += 1;
+          }
+          ln.r = nodeRadius(node);
+          seatAt(ln, target);
+          continue;
+        }
         const cls = nodeClass(node);
         const isFree = cls !== "identity" && cls !== "diary";
         // Every free memory gets a PERMANENT phyllotaxis seat at first
@@ -812,9 +912,7 @@ export function GraphCanvas({
           }
         }
         if (!ln) {
-          // A memory with a topic seat is BORN there (no glide across the
-          // disc); otherwise at its global seat as before.
-          const seat = isFree ? plan?.anchorOf.get(node.id) ?? phyllotaxisSeat(seats.seats.get(seatKey) ?? 0) : null;
+          const seat = isFree ? phyllotaxisSeat(seats.seats.get(seatKey) ?? 0) : null;
           const seed = seat ?? seedPosition(node.id, WORLD_IDENTITY_R);
           ln = { id: node.id, x: seed.x, y: seed.y, vx: 0, vy: 0, r: nodeRadius(node) };
           layout.set(node.id, ln);
@@ -829,33 +927,16 @@ export function GraphCanvas({
         } else {
           // Strength 0.1 beats the spring cap (1.6) at ~16px displacement:
           // springs can pull a node toward its relations by a visible nudge,
-          // but the seat owns the position (readable, stable disc). With
-          // topics, the seat is the memory's seat in its topic's home (or,
-          // unclustered, among its relations) — same strength, so the
-          // relation springs keep exactly the say they had.
-          const topicSeat = plan?.anchorOf.get(node.id);
-          if (topicSeat) {
-            ln.anchor = { x: topicSeat.x, y: topicSeat.y, strength: TOPIC_SEAT_STRENGTH };
-          } else {
-            const seat = phyllotaxisSeat(seats.seats.get(seatKey) ?? 0);
-            if (plan) {
-              // Unclustered with no relation into a topic: no topic pull —
-              // it keeps its seat's bearing on the rim outside the homes.
-              const d = Math.hypot(seat.x, seat.y) || 1;
-              const rim = Math.max(d, plan.extent + 60);
-              ln.anchor = { x: (seat.x / d) * rim, y: (seat.y / d) * rim, strength: 0.1 };
-            } else {
-              ln.anchor = { x: seat.x, y: seat.y, strength: 0.1 };
-            }
-          }
+          // but the seat owns the position (readable, stable disc).
+          const seat = phyllotaxisSeat(seats.seats.get(seatKey) ?? 0);
+          ln.anchor = { x: seat.x, y: seat.y, strength: 0.1 };
         }
       }
       // Lane radius: the phyllotaxis disc grows as sqrt(seats), so outer
       // lanes derive from the MONOTONIC seat counter, quantized to 80px
-      // steps — they step outward rarely and never move back in.
-      // With topics the disc IS the homes (+ the unclustered rim), so the
-      // lanes step outside THAT — payload-derived, stable under scrub.
-      const discR = plan ? plan.extent + 60 : PHYLLO_INNER_R + PHYLLO_SPACING * Math.sqrt(Math.max(1, seats.next));
+      // steps — they step outward rarely and never move back in. Served,
+      // the standing arc steps outside the circles and the waiting ring.
+      const discR = placement ? placement.extent + 160 : PHYLLO_INNER_R + PHYLLO_SPACING * Math.sqrt(Math.max(1, seats.next));
       const laneR = Math.max(WORLD_STANDING_R, Math.ceil((discR + 70) / 80) * 80);
       // The diary SHELF: fixed slots by birth order, WRAPPED into rows —
       // bounded width; existing entries never move; new rows grow down.
@@ -892,20 +973,19 @@ export function GraphCanvas({
         }
         const arc = Math.PI * 0.9;
         const angle = -Math.PI / 2 - arc / 2 + arc * hash01(t, 9);
-        ln.anchor = { x: Math.cos(angle) * laneR, y: Math.sin(angle) * laneR, strength: 0.06 };
+        const at = { x: Math.cos(angle) * laneR, y: Math.sin(angle) * laneR };
+        if (seated) seatAt(ln, at);
+        else ln.anchor = { ...at, strength: 0.06 };
       }
       for (const id of Array.from(layout.keys())) {
         if (!liveIds.has(id)) layout.delete(id);
       }
 
       // Edges: the fold is prefix-limited, so every edge in it exists now.
+      // Served, they are drawn and never pull (no force layout).
       const edges: LayoutEdge[] = [];
       for (const e of fold.edges.values()) {
         if (!layout.has(e.a) || !layout.has(e.b)) continue;
-        // With topics, a usage trail across two topics is drawn but does
-        // not pull (topic_layout.trailPulls: position by topic, warmth by
-        // colour); engraved relations below always pull.
-        if (!trailPulls(plan, e.a, e.b)) continue;
         edges.push({ a: e.a, b: e.b, weight: e.count });
       }
       // Structural ("born linked") edges: weak springs + faint draw. Graph
@@ -921,34 +1001,14 @@ export function GraphCanvas({
 
       // ---- cooling: place with energy, then HOLD STILL (P0-2/3) ----
       // Arrivals reheat gently (skipped under prefers-reduced-motion:
-      // neighbor seeding already placed them sensibly).
+      // neighbor seeding already placed them sensibly). Served, nothing
+      // simulates: every memory is on its seat.
       if (arrivals > 0 && !reducedMotionRef.current && !sim.frozen) {
         sim.alpha = Math.max(sim.alpha, 0.25);
       }
       const nodes = Array.from(layout.values());
-      // New topic homes (first answer, or a refresh that regrouped): the
-      // memories glide to their seats — a reheat, or under reduced motion
-      // a direct placement. A frozen layout stays frozen.
-      if (plan?.homes !== topicHomesSeenRef.current) {
-        topicHomesSeenRef.current = plan?.homes ?? null;
-        if (plan && !sim.frozen) {
-          if (reducedMotionRef.current) {
-            for (const [id, seat] of plan.anchorOf) {
-              const ln = layout.get(id);
-              if (ln) {
-                ln.x = seat.x;
-                ln.y = seat.y;
-                ln.vx = 0;
-                ln.vy = 0;
-              }
-            }
-          } else {
-            sim.alpha = Math.max(sim.alpha, 0.6);
-          }
-        }
-      }
       const holdForTopics = pending && topicsPendingSinceRef.current !== null && performance.now() - topicsPendingSinceRef.current < 3000;
-      if (!sim.frozen && !holdForTopics && sim.alpha > 0.02) {
+      if (!seated && !sim.frozen && !holdForTopics && sim.alpha > 0.02) {
         tickForces(nodes, edges, DEFAULT_FORCE_PARAMS, Math.min(1, sim.alpha));
         sim.alpha *= maxVelocity(nodes) < 0.05 ? 0.85 : 0.995;
       }
@@ -982,7 +1042,8 @@ export function GraphCanvas({
       // were never found again on reload.
       const liveLayoutKey = layoutKeyRef.current;
       const nowMs = performance.now();
-      if (liveLayoutKey && sim.alpha <= 0.02 && nowMs - sim.lastSaveAt > 5000) {
+      // Served, the positions ARE the served seats: nothing to remember.
+      if (liveLayoutKey && !seated && sim.alpha <= 0.02 && nowMs - sim.lastSaveAt > 5000) {
         sim.lastSaveAt = nowMs;
         try {
           localStorage.setItem(
@@ -1105,39 +1166,35 @@ export function GraphCanvas({
       const cssW = canvas.width / (window.devicePixelRatio || 1);
       const overlayBand = (x: number, y: number): boolean => y < 104 && x < Math.min(820, cssW);
 
-      // TOPIC HALOS + LABELS (the "topics" toggle): a soft circle around
-      // each topic's members where they are NOW, its label just outside —
-      // placed only where it covers no node and no other label, never
-      // under the overlays; hidden when zoomed far out. Drawn first, under
-      // every edge and node. A topic with no emphasized member dims with
-      // the rest (same eased dim as nodes).
+      // HIS TOPICS (the "topics" toggle): each community's circle where it is
+      // served (moved where the viewer dragged it), its authored title just
+      // outside — placed only where it covers no node and no other title,
+      // never under the overlays; hidden when zoomed far out. Drawn first,
+      // under every edge and node. A topic with no emphasized member dims
+      // with the rest (same eased dim as nodes); the focused one is drawn
+      // stronger.
       const cssH = canvas.height / (window.devicePixelRatio || 1);
-      const topicHalos: Array<{ label: string; topic: number; color: string; cx: number; cy: number; r: number; hd: number }> = [];
-      if (topicsOn && plan) {
-        for (const home of plan.homes) {
-          const ids = plan.membersOf.get(home.id);
-          if (!ids || ids.length === 0) continue;
-          const pts: Array<{ x: number; y: number; r: number }> = [];
+      const topicHalos: Array<{ label: string; topic: string; color: string; cx: number; cy: number; r: number; hd: number }> = [];
+      if (topicsOn && placement && seated) {
+        for (const circle of placement.circles) {
+          const ids = seated.rowsOf.get(circle.id);
+          const c = communityByKey.get(circle.id);
+          if (!ids || ids.length === 0 || !c) continue;
           let lit = false;
-          for (const id of ids) {
-            const ln = layout.get(id);
-            if (!ln) continue;
-            pts.push({ x: ln.x, y: ln.y, r: ln.r });
-            if (emphasis?.has(id)) lit = true;
-          }
-          const halo = haloOf(home, pts);
-          if (!halo) continue;
-          const c = toScreen(halo.cx, halo.cy);
-          const R = (halo.r + TOPIC_HALO_PAD) * cam.zoom;
-          const hd = easedDim(`topic:${home.id}`, emphasis && !lit ? 0.25 : 1);
+          if (emphasis) for (const id of ids) if (emphasis.has(id)) { lit = true; break; }
+          const color = topicColor(circle.id);
+          const at = toScreen(circle.x, circle.y);
+          const R = circle.r * cam.zoom;
+          const hd = easedDim(`topic:${circle.id}`, emphasis && !lit ? 0.25 : 1);
+          const focused = picked === circle.id;
           ctx.beginPath();
-          ctx.arc(c.x, c.y, R, 0, Math.PI * 2);
-          ctx.fillStyle = hexAlpha(home.color, 0.055 * hd);
+          ctx.arc(at.x, at.y, R, 0, Math.PI * 2);
+          ctx.fillStyle = hexAlpha(color, (focused ? 0.09 : 0.055) * hd);
           ctx.fill();
-          ctx.strokeStyle = hexAlpha(home.color, 0.3 * hd);
-          ctx.lineWidth = 1.1;
+          ctx.strokeStyle = hexAlpha(color, (focused ? 0.75 : 0.3) * hd);
+          ctx.lineWidth = focused ? 2 : 1.1;
           ctx.stroke();
-          topicHalos.push({ label: home.label, topic: home.id, color: home.color, cx: c.x, cy: c.y, r: R, hd });
+          topicHalos.push({ label: topicTitle(c, TITLE_BEING_WRITTEN), topic: circle.id, color, cx: at.x, cy: at.y, r: R, hd });
         }
       }
 
@@ -1480,7 +1537,7 @@ export function GraphCanvas({
 
       // Topic LABELS go last, on top: they were placed off every node, so
       // on top they cover only the faint edges under their plate.
-      const labelHits: Array<{ rect: Rect; topic: number; label: string }> = [];
+      const labelHits: Array<{ rect: Rect; topic: string; label: string }> = [];
       if (topicHalos.length > 0 && cam.zoom >= TOPIC_LABEL_MIN_ZOOM) {
         const screenNodes: Array<{ x: number; y: number; r: number }> = [];
         for (const ln of layout.values()) {
@@ -1488,14 +1545,18 @@ export function GraphCanvas({
           screenNodes.push({ x: p.x, y: p.y, r: Math.max(2.5, ln.r * cam.zoom * 0.75) + 3 });
         }
         const placed: Rect[] = [];
+        // The DOM overlays over the canvas (the Topics panel, the Context
+        // legend, the kinds legend, the motion buttons): a title never
+        // hides under one.
+        const overlays = overlayRectsOver(canvas);
         ctx.font = "600 11px system-ui, -apple-system, Segoe UI, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         for (const halo of topicHalos) {
           if (halo.r < TOPIC_LABEL_MIN_SCREEN_R) continue;
-          // Never cut mid-word at a fixed count: the label wraps onto two
-          // lines; the hover card carries every keyword.
-          const words = topicWords.get(halo.topic)?.label ?? halo.label;
+          // Never cut mid-word at a fixed count: the title wraps onto two
+          // lines; the hover card carries the whole title.
+          const words = halo.label;
           const { lines } = wrapTopicLabel(words, TOPIC_LABEL_MAX_W, (t) => ctx.measureText(t).width);
           const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 14;
           const h = 6 + lines.length * TOPIC_LABEL_LINE_H;
@@ -1507,8 +1568,8 @@ export function GraphCanvas({
             placed,
             bounds: { w: cssW, h: cssH },
             // The lens row / recall line / motion buttons own the top
-            // strip; the legend owns the bottom-left corner.
-            blocked: (rc) => rc.y < 78 || overlayBand(rc.x, rc.y) || (rc.y + rc.h > cssH - 78 && rc.x < cssW - 190),
+            // strip; the legend owns the bottom-left corner; no overlay.
+            blocked: (rc) => rc.y < 78 || overlayBand(rc.x, rc.y) || (rc.y + rc.h > cssH - 78 && rc.x < cssW - 190) || overlays.some((o) => rectsMeet(o, rc)),
           });
           if (!rect) continue;
           placed.push(rect);
@@ -1612,8 +1673,10 @@ export function GraphCanvas({
       return lineAt(clientX - rect.left, clientY - rect.top, segs);
     };
     const onDown = (ev: MouseEvent) => {
-      // The card at the press: a second tap on a pinned memory opens it.
-      dragRef.current = { x: ev.clientX, y: ev.clientY, moved: false, card: cardRef.current };
+      // The card at the press: a second tap on a pinned memory opens it. A
+      // press on a topic's title holds that circle (a drag moves it).
+      const title = stateRef.current.served && !hitTest(ev.clientX, ev.clientY) ? topicLabelAt(ev.clientX, ev.clientY) : null;
+      dragRef.current = { x: ev.clientX, y: ev.clientY, moved: false, card: cardRef.current, circle: title?.topic ?? null };
       intent.cancel();
       setLineTipRef.current(null);
       if (pointerTypeRef.current === "mouse") cardCtl.close();
@@ -1630,8 +1693,18 @@ export function GraphCanvas({
       const dy = ev.clientY - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
       const cam = cameraRef.current;
-      cam.x -= dx / cam.zoom;
-      cam.y -= dy / cam.zoom;
+      const servedNow = stateRef.current.served;
+      if (drag.circle && servedNow) {
+        // THE VIEWER'S DRAG: the circle follows the pointer; the circles it
+        // meets are pushed away and stay there (communities.dragCircle:
+        // repel only, never an attraction).
+        if (!drag.moved) return;
+        offsetsRef.current = dragCircle(servedNow, offsetsRef.current, drag.circle, dx / cam.zoom, dy / cam.zoom);
+        offsetsRevRef.current += 1;
+      } else {
+        cam.x -= dx / cam.zoom;
+        cam.y -= dy / cam.zoom;
+      }
       drag.x = ev.clientX;
       drag.y = ev.clientY;
     };
@@ -1652,7 +1725,7 @@ export function GraphCanvas({
       const label = hit ? null : topicLabelAt(ev.clientX, ev.clientY);
       // A lit line under the cursor (no memory, no label): its words.
       const line = hit || label ? null : litLineAt(ev.clientX, ev.clientY);
-      canvas.style.cursor = hit || label ? "pointer" : "grab";
+      canvas.style.cursor = hit ? "pointer" : label ? "move" : "grab";
       // The line's words stay only while the pointer stays on that line.
       if (lineTipRef.current && lineTipRef.current.key !== line) setLineTipRef.current(null);
       const c = cardRef.current;
@@ -1710,9 +1783,21 @@ export function GraphCanvas({
     const onUp = (ev: MouseEvent) => {
       const drag = dragRef.current;
       dragRef.current = null;
+      if (drag?.circle && drag.moved) {
+        // A dragged circle stays where the viewer left it (per life).
+        const key = layoutKeyRef.current;
+        if (key) {
+          try {
+            localStorage.setItem(topicOffsetsStorageKey(key), serializeOffsets(offsetsRef.current));
+          } catch {
+            // Quota/private mode: the drag holds for this session only.
+          }
+        }
+        return;
+      }
       if (!drag || drag.moved) return;
       const label = ev.target === canvas ? topicLabelAt(ev.clientX, ev.clientY) : null;
-      const plan = stateRef.current.topicPlan;
+      const plan = stateRef.current.served;
       if (pointerTypeRef.current !== "mouse" && ev.target === canvas) {
         // TOUCH: a tap shows the card and PINS it (its actions are taps);
         // a second tap on the same memory does its default action; a tap
@@ -1738,9 +1823,10 @@ export function GraphCanvas({
         onSelectRef.current(null);
         return;
       }
-      // A topic label is a door: it lights that topic's memories.
+      // A topic's title is a door: it focuses that topic (the graph frames
+      // its circle and lights its memories; the panel lists them).
       if (label && plan) {
-        onPickTopicRef.current(plan.allRowsOf.get(label.topic) ?? new Set(), label.label);
+        focusTopicRef.current(label.topic);
         return;
       }
       onSelectRef.current(hitTest(ev.clientX, ev.clientY));
@@ -1780,36 +1866,29 @@ export function GraphCanvas({
   // fold's reading when it arrives (hover_card.currentReading).
   const hoverWords = useHoverWords(gatewaySource, hoverNode);
   const hoverSummary = hoverNode ? cardSummary(hoverNode, hoverWords, gatewaySource?.entity ?? "") : null;
-  // Which topic a memory belongs to — any member, diary and identity too
-  // (they keep their lanes but share the topic).
-  const topicOfAny = useMemo(() => {
-    const out = new Map<string, number>();
-    if (!topicPlan) return out;
-    for (const [topic, rows] of topicPlan.allRowsOf) for (const r of rows) out.set(r, topic);
-    return out;
-  }, [topicPlan]);
-  const hoverTopic = hoverNode ? topicOfAny.get(hoverNode.id) ?? null : null;
+  // Which topic a memory belongs to — every member, diary and identity too.
+  const hoverTopic = hoverNode && membership ? membership.circleOfRow.get(hoverNode.id) ?? null : null;
   const hoverActions = hoverNode
-    ? nodeActions(hoverNode, { topic: hoverTopic !== null ? topicWords.get(hoverTopic)?.label ?? null : null, partners: partnerCount(fold, hoverNode.id) })
+    ? nodeActions(hoverNode, { topic: hoverTopic, partners: partnerCount(fold, hoverNode.id) })
     : cardNodeId?.startsWith("standing:")
       ? [{ id: "open" as const, label: "Open in Detail" }]
       : [];
   // The recall line shows while the recall is what the canvas lights (a
   // lens/search or a selection takes over — the Inspector's rule).
   const selectionIsNode = selectedRow !== null && (fold.nodes.has(selectedRow) || selectedRow.startsWith("standing:"));
-  const topicCardHome = card?.kind === "topic" && showTopics ? topicHomes?.find((h) => h.id === card.topic) ?? null : null;
-  const topicExemplar = topicCardHome ? topicExemplarText(fold, topicCardHome.exemplarId, topicCardHome.exemplarTitle) : null;
-  // A topic's leading memories: its most used disc members, by title.
+  const topicCard = card?.kind === "topic" && showTopics ? communityByKey.get(card.topic) ?? null : null;
+  // A topic's leading memories: its most used members, by title (never a
+  // private diary entry's words).
   const topicLeading = useMemo(() => {
-    if (!topicCardHome || !topicPlan) return [];
-    const ids = topicPlan.membersOf.get(topicCardHome.id) ?? [];
+    if (!topicCard || !membership) return [];
+    const ids = membership.rowsOf.get(topicCard.key) ?? [];
     return ids
       .map((id) => fold.nodes.get(id))
       .filter((n): n is NodeState => Boolean(n) && !n!.redacted && !n!.diary)
       .sort((x, y) => y.selected_count - x.selected_count || x.first_seq - y.first_seq)
       .slice(0, 3)
       .map((n) => ({ id: n.id, title: nodeCardText(n).title }));
-  }, [topicCardHome, topicPlan, fold]);
+  }, [topicCard, membership, fold]);
   const recallShown = recall !== null && searchIds === null && !selectionIsNode;
   // The lit line the pointer rests on: "<recalled> — reached from <shelf> · <relation>".
   const tipLine = lineTip && recallShown ? litLines.get(lineTip.key) ?? null : null;
@@ -1820,41 +1899,90 @@ export function GraphCanvas({
     ? fold.standings.get(cardNodeId.slice("standing:".length)) ?? null
     : null;
 
-  /** Frame the camera on these memories (world positions untouched). */
-  const frameIds = (ids: Iterable<string>) => {
-    const layout = layoutRef.current;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, found = 0;
-    for (const id of ids) {
-      const ln = layout.get(id);
-      if (!ln) continue;
-      found += 1;
-      minX = Math.min(minX, ln.x); maxX = Math.max(maxX, ln.x);
-      minY = Math.min(minY, ln.y); maxY = Math.max(maxY, ln.y);
+  /** The pick a topic's key makes: its memories present and its title. */
+  const pickOf = (key: string): { key: string; rowIds: Set<string>; label: string } | null => {
+    const c = communityByKey.get(key);
+    if (!c || !membership) return null;
+    return { key, rowIds: new Set(membership.rowsOf.get(key) ?? []), label: topicTitle(c, TITLE_BEING_WRITTEN) };
+  };
+  /** FOCUS a topic (its title on the graph, the panel, a card): the camera
+   * frames its circle, its memories light (the topic filter), the panel
+   * lists them. null lets it go. World positions are untouched. */
+  const focusTopic = (key: string | null) => {
+    if (key === null) {
+      onPickTopic(null);
+      return;
     }
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!found || !rect || rect.width < 10) return;
-    const cam = cameraRef.current;
-    cam.x = (minX + maxX) / 2;
-    cam.y = (minY + maxY) / 2;
-    cam.zoom = Math.min(4, Math.max(0.12, Math.min(rect.width / Math.max(140, maxX - minX + 180), rect.height / Math.max(140, maxY - minY + 180))));
+    const pick = pickOf(key);
+    if (!pick) return;
+    onPickTopic(pick);
+    // Framed once the panel has settled (it may just have folded).
+    requestAnimationFrame(() => frameTopic(key));
+  };
+  /** The camera on a topic's circle, in the part the panel leaves free. */
+  const frameTopic = (key: string) => {
+    const circle = placementCacheRef.current.placement?.circleById.get(key);
+    const canvas = canvasRef.current;
+    const rect = canvas?.getBoundingClientRect();
+    if (circle && canvas && rect && rect.width >= 10) {
+      // Framed in the part of the canvas the Topics panel leaves free.
+      const panelEl = canvas.parentElement?.querySelector(".gc_topics");
+      const pr = panelEl?.getBoundingClientRect();
+      const panel = pr && pr.width > 0 ? { x: pr.left - rect.left, y: pr.top - rect.top, w: pr.width, h: pr.height } : null;
+      const free = freeCentre({ w: rect.width, h: rect.height }, panel);
+      const cam = cameraRef.current;
+      cam.zoom = Math.min(4, Math.max(0.12, Math.min(free.w, free.h) / (2 * circle.r + 120)));
+      cam.x = circle.x + (rect.width / 2 - free.x) / cam.zoom;
+      cam.y = circle.y + (rect.height / 2 - free.y) / cam.zoom;
+    }
+  };
+  const focusTopicRef = useRef(focusTopic);
+  focusTopicRef.current = focusTopic;
+  // LIVE: a new version keeps the focused topic (by its stable key) with
+  // its new members; a topic that dissolved lets go. Emitted only when the
+  // members present changed.
+  const pickedRowsRef = useRef<string>("");
+  useEffect(() => {
+    if (!pickedTopic || !membership) {
+      pickedRowsRef.current = "";
+      return;
+    }
+    const pick = pickOf(pickedTopic);
+    if (!pick) {
+      if (served) onPickTopicRef.current(null);
+      return;
+    }
+    const sig = `${pick.key}\u0000${pick.label}\u0000${[...pick.rowIds].join("\u0000")}`;
+    if (pickedRowsRef.current === "") {
+      pickedRowsRef.current = sig;
+      return;
+    }
+    if (sig === pickedRowsRef.current) return;
+    pickedRowsRef.current = sig;
+    onPickTopicRef.current(pick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [membership, pickedTopic, served]);
+
+  /** A member of the panel opens where the graph opens it. */
+  const openMember = (node: NodeState) => {
+    if (memberOpensIn(node) === "book") onShowInBook(node.graph_id ?? node.id);
+    else onSelect(node.id);
   };
 
   /** A card action (or a pinned card's second tap: "default"). */
   const runCardAction = (id: CardActionId | "default") => {
     const c = cardRef.current;
     if (!c) return;
-    const plan = topicPlan;
     if (c.kind === "node") {
       const node = fold.nodes.get(c.id) ?? null;
-      const actions = node ? nodeActions(node, { topic: topicOfAny.has(c.id) ? "topic" : null, partners: partnerCount(fold, c.id) }) : [{ id: "open" as const, label: "" }];
+      const topic = membership?.circleOfRow.get(c.id) ?? null;
+      const actions = node ? nodeActions(node, { topic, partners: partnerCount(fold, c.id) }) : [{ id: "open" as const, label: "" }];
       const act = id === "default" ? actions[0]?.id ?? "open" : id;
       cardCtl.close();
       if (act === "book" && node) onShowInBook(node.graph_id ?? node.id);
       else if (act === "open") onSelect(c.id);
-      else if (act === "topic" && plan) {
-        const t = topicOfAny.get(c.id);
-        if (t !== undefined) onPickTopic(plan.allRowsOf.get(t) ?? new Set(), topicWords.get(t)?.label ?? "");
-      } else if (act === "partners") {
+      else if (act === "topic" && topic !== null) focusTopic(topic);
+      else if (act === "partners") {
         // Detail at its "Used together with" list: unfolded, scrolled to.
         writeSectionOpen("partners", true);
         onSelect(c.id);
@@ -1863,13 +1991,11 @@ export function GraphCanvas({
       return;
     }
     cardCtl.close();
-    if (!plan) return;
-    const rows = plan.allRowsOf.get(c.topic) ?? new Set<string>();
-    const label = topicWords.get(c.topic)?.label ?? "";
-    if (id === "light" || id === "default") onPickTopic(rows, label);
+    if (id === "light" || id === "default") focusTopic(c.topic);
     else if (id === "members") {
-      onPickTopic(rows, label);
-      frameIds(rows);
+      // Its memories, listed: the topic focused and the panel open.
+      focusTopic(c.topic);
+      setTopicsOpen(true);
     }
   };
   const cardActionRef = useRef(runCardAction);
@@ -1967,28 +2093,22 @@ export function GraphCanvas({
           <CardActions actions={hoverActions} onAction={runCardAction} />
         </HoverCardBox>
       ) : null}
-      {card?.kind === "topic" && topicCardHome ? (
+      {card?.kind === "topic" && topicCard ? (
         <HoverCardBox ref={cardElRef} x={card.x} y={card.y} className="gc_hovercard gc_topic_card" onEnter={onCardEnter} onLeave={onCardLeave}>
-          <div className="gc_hc_head" style={{ borderLeft: `3px solid ${topicCardHome.color}`, paddingLeft: 8 }}>
-            <span className="gc_hc_kind_dot" style={{ background: topicCardHome.color }} aria-hidden="true" />
+          <div className="gc_hc_head" style={{ borderLeft: `3px solid ${topicColor(topicCard.key)}`, paddingLeft: 8 }}>
+            <span className="gc_hc_kind_dot" style={{ background: topicColor(topicCard.key) }} aria-hidden="true" />
             <span className="ei_kind">topic</span>
-            <span className="gc_hc_title gc_topic_words">{topicWords.get(topicCardHome.id)?.keywords ?? topicCardHome.label}</span>
+            <span className={`gc_hc_title gc_topic_words${topicCard.titlePending ? " gc_topic_pending" : ""}`}>{topicTitle(topicCard, TITLE_BEING_WRITTEN)}</span>
           </div>
-          {/* Its most representative memory, by its summary (or title) —
-            * never a private diary entry's words (hover_card). */}
-          {topicExemplar ? (
-            <div className="gc_topic_exemplar">
-              <span className="gc_topic_exemplar_word">for example</span>
-              {topicExemplar.plain ? (
-                <div className="gc_hc_summary gc_hc_plain">{topicExemplar.text}</div>
-              ) : (
-                <Words text={topicExemplar.text} className="gc_hc_summary" />
-              )}
-            </div>
+          {/* Its authored summary (Markdown), or that it is being written. */}
+          {topicCard.summaryPending ? (
+            <div className="gc_hc_summary gc_hc_plain gc_topic_pending">{topicSummary(topicCard)}</div>
+          ) : topicCard.summary ? (
+            <Words text={topicCard.summary} className="gc_hc_summary" />
           ) : null}
           {topicLeading.length ? (
-            <div className="gc_topic_exemplar">
-              <span className="gc_topic_exemplar_word">most used</span>
+            <div className="gc_topic_most">
+              <span className="gc_topic_most_word">most used</span>
               {topicLeading.map((m) => (
                 <div key={m.id} className="gc_topic_leading">
                   <Words text={m.title} className="gc_hc_md" />
@@ -1999,10 +2119,11 @@ export function GraphCanvas({
           <div className="gc_hc_rows">
             <span>memories</span>
             <span>
-              {topicCardHome.size} ({topicCardHome.free} on the disc; diary entries and identity stay in their places)
+              {memoriesWord(topicCard.members.length)}
+              {topicCard.provisional.size > 0 ? ` (${topicCard.provisional.size} placed until his next sleep)` : ""}
             </span>
           </div>
-          <CardActions actions={topicActions(topicCardHome.size)} onAction={runCardAction} />
+          <CardActions actions={topicActions(topicCard.members.length)} onAction={runCardAction} />
         </HoverCardBox>
       ) : null}
       {lineTip && tipLine && tipTo && tipFrom ? (
@@ -2015,23 +2136,28 @@ export function GraphCanvas({
           </div>
         </HoverCardBox>
       ) : null}
-      {showTopics && topicsState.phase !== "ready" ? (
-        <div className={`gc_topic_note ${topicsState.phase === "error" ? "gc_topic_note_error" : ""}`} role="status">
-          {topicsState.phase === "loading" ? "grouping his memories by topic…" : null}
-          {topicsState.phase === "off" ? "topics come from the gateway — not available for this source" : null}
-          {topicsState.phase === "error" ? (
-            <>
-              topics unavailable — {topicsState.message}
-              <button className="gc_topic_retry" onClick={retryTopics}>
-                retry
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : showTopics && topicsState.phase === "ready" && !topicPlan ? (
-        <div className="gc_topic_note" role="status">
-          no topics in this life yet
-        </div>
+      {showTopics && topicsView ? (
+        // THE TOPICS PANEL (topics_panel.tsx): the drill-down, or the one
+        // sentence while his topics are not served.
+        <TopicsPanel
+          view={topicsPanelView ?? topicsView}
+          fold={fold}
+          rowsOf={membership?.rowsOf ?? EMPTY_ROWS}
+          waiting={waitingCount}
+          focused={pickedTopic}
+          open={topicsOpen}
+          onToggle={setTopicsOpen}
+          onFocus={(key) => {
+            // On a phone the open panel covers the short canvas: a topic
+            // picked there folds it so the graph shows the circle (its
+            // members stay one tap away, unfolded under its title).
+            if (key !== null && narrowViewport()) setTopicsOpen(false);
+            focusTopic(key);
+          }}
+          onOpenMember={openMember}
+          onRetry={retryTopics}
+          colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
+        />
       ) : null}
       {recallShown && recall ? (
         // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what
@@ -2040,8 +2166,11 @@ export function GraphCanvas({
       ) : null}
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the
         * bare 🌊⚓♻️🎯 emoji row read as mystery meat). aria-pressed marks
-        * the freeze toggle's state. */}
+        * the freeze toggle's state. Served topics place every memory (no
+        * simulation): freeze and settle have nothing to do then. */}
       <div className="gc_motion_controls">
+        {served ? null : (
+          <>
         <button
           className={`gc_btn ${motionUi === "frozen" ? "gc_btn_on" : ""}`}
           aria-pressed={motionUi === "frozen"}
@@ -2062,9 +2191,11 @@ export function GraphCanvas({
         >
           ⏸ <span className="gc_btn_word">settle</span>
         </button>
+          </>
+        )}
         <button
           className="gc_btn"
-          title="Reset layout — forget saved positions (and topic places) and re-place every node"
+          title="Reset layout — forget saved positions (and where you moved his topics) and re-place every node"
           onClick={() => {
             if (layoutKey) {
               try {
@@ -2075,16 +2206,16 @@ export function GraphCanvas({
             }
             layoutRef.current = new Map();
             seatRef.current = { seats: new Map(), next: 0 };
-            // Forget the topic homes too: re-planned from the current topics.
+            // Forget the viewer's drags too: every circle back where it is served.
             if (layoutKey) {
               try {
-                localStorage.removeItem(topicSlotsStorageKey(layoutKey));
+                localStorage.removeItem(topicOffsetsStorageKey(layoutKey));
               } catch {
                 // best-effort
               }
             }
-            topicSlotsRef.current = [];
-            setTopicResetN((n) => n + 1);
+            offsetsRef.current = new Map();
+            offsetsRevRef.current += 1;
             simRef.current.alpha = 1;
             simRef.current.frozen = false;
             setMotionUi("live");

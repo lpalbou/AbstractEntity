@@ -1,134 +1,116 @@
 /**
- * Topic communities — where the graph's topics come from (operator ask
- * 2026-07-17: "regroup memories on a same topic"; 2026-11-07: topics are
- * the graph's NATURAL layout, not a separate view).
+ * HIS TOPIC MAP, LIVE.
  *
- * Communities are computed DURABLY at the runtime level
- * (abstractruntime.identity.communities — deterministic Louvain over the
- * store's engraved relations + weak keyword bridges) and served by the
- * gateway (GET /entities/{name}/communities). This module fetches them
- * and keeps them fresh as the life grows (useCommunities); the geometry
- * is topic_layout.ts, the drawing graph_canvas.tsx.
+ * - THE MARKER: memory forms a new version of his topics in his sleep; the
+ *   gateway's live tail carries ONE host marker per version (payload
+ *   {kind: "communities_changed", version_seq}), never a community node. The
+ *   graph re-reads its topics on a marker newer than the version it shows
+ *   (communities_source.ts) and re-seats with a short transition — no
+ *   polling, no full reload.
+ * - THE PLACEMENTS: a memory formed since the version is placed in its
+ *   provisional community at formation (memory's place_record) and its
+ *   `placed` event rides the stream (family "event", payload {kind:
+ *   "placed", record_id, provenance: {community_key, version_seq, …}}). The
+ *   graph seats it at its circle's rim with the badge "placed until his next
+ *   sleep" until the next version lists it — no re-read.
  */
+import { useMemo, useRef } from "react";
 
-import React, { useEffect, useState } from "react";
+import type { CommunitiesRead } from "./communities";
+import type { ReplayEnvelope } from "./stream_types";
 
-import { gatewayReadHeaders } from "./stream_source";
-import { joinBaseUrl } from "@abstractframework/ui-kit";
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
-export interface TopicCommunity {
-  id: number;
-  label: string;
-  keywords: string[];
-  exemplar_id: string;
-  exemplar_title: string;
-  size: number;
-  kinds: Record<string, number>;
-  member_ids: string[];
+export const COMMUNITIES_CHANGED = "communities_changed";
+
+/** The newest `communities_changed` marker on the stream (a host envelope,
+ * payload {kind: "communities_changed", version_seq}) from index `from`,
+ * folded onto `prev`: its version_seq, or null when none. */
+export function latestCommunitiesMarker(envelopes: readonly ReplayEnvelope[], from = 0, prev: number | null = null): number | null {
+  let best = prev;
+  for (let i = Math.max(0, from); i < envelopes.length; i++) {
+    const env = envelopes[i];
+    if (env.family !== "host") continue;
+    const p = env.payload as { kind?: unknown; version_seq?: unknown } | null;
+    if (!p || p.kind !== COMMUNITIES_CHANGED || !isNum(p.version_seq)) continue;
+    if (best === null || p.version_seq > best) best = p.version_seq;
+  }
+  return best;
 }
 
-export interface TopicsPayload {
-  algorithm: string;
-  node_count: number;
-  edge_count: number;
-  communities: TopicCommunity[];
-  unclustered: string[];
-  links: Array<{ a: number; b: number; weight: number }>;
-  params: Record<string, unknown>;
-  journal_seq?: number;
+/** Re-read on a marker? Only for a version newer than the one shown, and
+ * once per marker (a gateway still caching the old version is not asked
+ * again until the next marker). */
+export function refetchForMarker(marker: number | null, shown: CommunitiesRead | null, asked: number | null): boolean {
+  if (marker === null || marker === asked) return false;
+  const seen = shown?.kind === "served" ? shown.data.versionSeq : -Infinity;
+  return marker > seen;
 }
 
-export function fetchCommunities(baseUrl: string, entity: string): Promise<TopicsPayload> {
-  return fetch(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/communities`), {
-    headers: gatewayReadHeaders({ Accept: "application/json" }),
-  }).then((res) => (res.ok ? (res.json() as Promise<TopicsPayload>) : Promise.reject(new Error(`HTTP ${res.status}`))));
+/** The newest marker over the whole stream (never the scrub position: his
+ * topics are his topics now). Incremental: appends from where it left off,
+ * rebuilds only when the array shrank or its covered tail moved (a
+ * retrograde host insert). Null when not enabled (file/demo sources). */
+export function useCommunitiesMarker(envelopes: readonly ReplayEnvelope[], enabled: boolean): number | null {
+  const cacheRef = useRef<{ upTo: number; tailSeq: number; marker: number | null }>({ upTo: 0, tailSeq: -Infinity, marker: null });
+  return useMemo(() => {
+    const cache = cacheRef.current;
+    const lastCovered = cache.upTo > 0 && cache.upTo <= envelopes.length ? envelopes[cache.upTo - 1] : null;
+    const appendable = cache.upTo <= envelopes.length && (cache.upTo === 0 || (lastCovered !== null && lastCovered.seq === cache.tailSeq));
+    cache.marker = latestCommunitiesMarker(envelopes, appendable ? cache.upTo : 0, appendable ? cache.marker : null);
+    cache.upTo = envelopes.length;
+    cache.tailSeq = envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : -Infinity;
+    return enabled ? cache.marker : null;
+  }, [envelopes, enabled]);
 }
 
-/** Where the communities come from (gateway lives only — the door
- * computes them; file/demo sources have none). */
-export interface TopicSource {
-  baseUrl: string;
-  entity: string;
+// ------------------------------------------------------------ placements
+
+export const PLACED_EVENT = "placed";
+
+/** Where memory placed a record since a version: its community key and the
+ * version it was placed against. */
+export interface TailPlacement {
+  key: string;
+  versionSeq: number;
 }
 
-export type CommunitiesState =
-  | { phase: "off" }
-  | { phase: "loading" }
-  | { phase: "error"; message: string }
-  | { phase: "ready"; data: TopicsPayload };
+const NO_PLACEMENTS: ReadonlyMap<string, TailPlacement> = new Map();
 
-/** A growing life asks for fresh topics at most this often (the door
- * caches them until the life grows; new memories sit among their
- * relations until then). */
-export const COMMUNITIES_REFRESH_MS = 120_000;
-
-/** When to ask again (ms from now), or null: only when the life GREW past
- * what the last answer covered, and never sooner than the refresh floor. */
-export function communitiesRefetchDelay(args: { nodeCount: number; countAtFetch: number; lastFetchAt: number; now: number }): number | null {
-  if (args.nodeCount <= args.countAtFetch) return null;
-  return Math.max(0, args.lastFetchAt + COMMUNITIES_REFRESH_MS - args.now);
+/** The `placed` events on the stream from index `from`, folded onto `prev`
+ * (record graph id -> its newest placement, in the order first seen). The
+ * same Map comes back when nothing new was placed (identity is the change
+ * signal). */
+export function placedOnStream(
+  envelopes: readonly ReplayEnvelope[],
+  from = 0,
+  prev: ReadonlyMap<string, TailPlacement> | null = null,
+): ReadonlyMap<string, TailPlacement> {
+  let out: Map<string, TailPlacement> | null = null;
+  for (let i = Math.max(0, from); i < envelopes.length; i++) {
+    const env = envelopes[i];
+    if (env.family !== "event") continue;
+    const p = env.payload as { kind?: unknown; record_id?: unknown; provenance?: unknown } | null;
+    if (!p || p.kind !== PLACED_EVENT || typeof p.record_id !== "string" || !p.record_id) continue;
+    const prov = p.provenance as { community_key?: unknown; version_seq?: unknown } | null | undefined;
+    if (!prov || typeof prov.community_key !== "string" || !prov.community_key || !isNum(prov.version_seq)) continue;
+    if (!out) out = new Map(prev ?? NO_PLACEMENTS);
+    out.set(p.record_id, { key: prov.community_key, versionSeq: prov.version_seq });
+  }
+  return out ?? prev ?? NO_PLACEMENTS;
 }
 
-/** The communities for the graph's layout: fetched once per source, then
- * again when the life grows (throttled). A refresh keeps the previous
- * answer on screen until the new one lands (no layout flapping); a failed
- * refresh keeps it too. `retry` asks now. */
-export function useCommunities(source: TopicSource | null, nodeCount: number): { state: CommunitiesState; retry(): void } {
-  const key = source ? `${source.baseUrl}\u0000${source.entity}` : null;
-  const [state, setState] = useState<CommunitiesState>(source ? { phase: "loading" } : { phase: "off" });
-  const sourceRef = React.useRef(source);
-  sourceRef.current = source;
-  const countRef = React.useRef(nodeCount);
-  countRef.current = nodeCount;
-  const metaRef = React.useRef({ countAtFetch: 0, lastFetchAt: 0, token: 0, timer: null as number | null });
-
-  const load = React.useCallback((keepData: boolean) => {
-    const src = sourceRef.current;
-    const meta = metaRef.current;
-    if (!src) return;
-    meta.token += 1;
-    const token = meta.token;
-    meta.countAtFetch = countRef.current;
-    meta.lastFetchAt = Date.now();
-    if (!keepData) setState({ phase: "loading" });
-    fetchCommunities(src.baseUrl, src.entity)
-      .then((data) => {
-        if (token === metaRef.current.token) setState({ phase: "ready", data });
-      })
-      .catch((e) => {
-        if (token !== metaRef.current.token) return;
-        const message = String((e as Error).message || e);
-        setState((prev) => (prev.phase === "ready" ? prev : { phase: "error", message }));
-      });
-  }, []);
-
-  useEffect(() => {
-    const meta = metaRef.current;
-    if (meta.timer !== null) window.clearTimeout(meta.timer);
-    meta.timer = null;
-    meta.token += 1; // drop any answer for the previous source
-    if (!key) {
-      setState({ phase: "off" });
-      return;
-    }
-    load(false);
-    return () => {
-      if (metaRef.current.timer !== null) window.clearTimeout(metaRef.current.timer);
-      metaRef.current.timer = null;
-    };
-  }, [key, load]);
-
-  useEffect(() => {
-    const meta = metaRef.current;
-    if (!key || state.phase !== "ready" || meta.timer !== null) return;
-    const delay = communitiesRefetchDelay({ nodeCount, countAtFetch: meta.countAtFetch, lastFetchAt: meta.lastFetchAt, now: Date.now() });
-    if (delay === null) return;
-    meta.timer = window.setTimeout(() => {
-      metaRef.current.timer = null;
-      load(true);
-    }, delay);
-  }, [key, nodeCount, state.phase, load]);
-
-  const retry = React.useCallback(() => load(false), [load]);
-  return { state, retry };
+/** The placements over the whole stream (never the scrub position),
+ * incremental like the marker. Empty when not enabled. */
+export function usePlacedOnStream(envelopes: readonly ReplayEnvelope[], enabled: boolean): ReadonlyMap<string, TailPlacement> {
+  const cacheRef = useRef<{ upTo: number; tailSeq: number; placed: ReadonlyMap<string, TailPlacement> }>({ upTo: 0, tailSeq: -Infinity, placed: NO_PLACEMENTS });
+  return useMemo(() => {
+    const cache = cacheRef.current;
+    const lastCovered = cache.upTo > 0 && cache.upTo <= envelopes.length ? envelopes[cache.upTo - 1] : null;
+    const appendable = cache.upTo <= envelopes.length && (cache.upTo === 0 || (lastCovered !== null && lastCovered.seq === cache.tailSeq));
+    cache.placed = placedOnStream(envelopes, appendable ? cache.upTo : 0, appendable ? cache.placed : null);
+    cache.upTo = envelopes.length;
+    cache.tailSeq = envelopes.length > 0 ? envelopes[envelopes.length - 1].seq : -Infinity;
+    return enabled ? cache.placed : NO_PLACEMENTS;
+  }, [envelopes, enabled]);
 }

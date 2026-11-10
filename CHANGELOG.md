@@ -4,6 +4,33 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **His topics come from his memory, with their titles, and they ARE the graph's layout.** Memory
+  now forms his topics in his sleep and names each one (an authored title and summary); the
+  gateway serves them with their layout (`GET /entities/{name}/communities`, payload version 2:
+  every topic's circle, every memory's seat in it). When they are served, every memory sits on its
+  seat inside its one topic's circle, diary entries and identity records included, and nothing is
+  pulled around by a force simulation any more (the freeze and settle buttons stay only for the
+  plain layout). A memory placed in a topic since his last sleep sits at its circle's rim with the
+  badge "placed until his next sleep"; a newer memory no topic lists yet waits on a ring outside.
+  You can drag a topic by its title: its circle moves, the circles it meets are pushed aside and
+  stay there (never pulled back), and the app remembers where you put them ("reset" forgets it).
+  - **Titles are his, never the app's.** Each circle carries the topic's authored title, or "title
+    being written…" while memory is still writing it. The keyword labels ("isabella-cognita,
+    abstract-hand, last-turn") and the client-side topic layout are gone.
+  - **The Topics panel.** With "topics" on, a panel lists his topics, biggest first: title,
+    summary and how many memories each holds ("summary being written…" while it is). A click on a
+    topic frames its circle, lights its memories and lists them (newest first); a click on a
+    memory opens it (a diary entry in the Book, anything else in Detail). It is open on a wide
+    screen and folded on a phone, where picking a topic folds it again so the circle shows.
+  - **Live.** When his topics change in his sleep, the stream says so once
+    (`communities_changed`); the graph reads the new version and every memory glides to its new
+    seat, keeping what you had selected and the topic you focused. A memory memory places in a
+    topic during the day (its `placed` event) joins that circle at once. The ledger says "His
+    topics changed" and "Placed in a topic until his next sleep".
+  - **Before his first sleep, and on an older gateway.** Until his first sleep forms topics the
+    graph shows his memories without circles and one sentence: "His topics form at his next
+    sleep." A gateway that serves the old shape gets one sentence too: "This gateway does not
+    serve topics yet." No topics are worked out in the app.
 - **An older record whose summary was cut says so instead of showing the cut text.** Some older
   memories had their summary cut short when they were saved (the flow brain's moments, and session
   reflections from before the whole summary was kept), and their hover card and Detail showed the

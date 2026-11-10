@@ -24,7 +24,6 @@ import {
   placeCard,
   plainCardTitle,
   topicActions,
-  topicExemplarText,
   type ServedReading,
 } from "./hover_card";
 import { PLACEHOLDER_WORDS } from "./understanding";
@@ -146,35 +145,6 @@ describe("nodeCardText", () => {
   });
 });
 
-describe("topicExemplarText", () => {
-  const fold = foldEnvelopes(life);
-  it("the exemplar by its summary when the fold holds it, else its title", () => {
-    expect(topicExemplarText(fold, "ex:episode-a", "ignored")).toEqual({ text: DIGEST, plain: false });
-    expect(topicExemplarText(fold, "ex:memory-b", "ignored")).toEqual({ text: "the media server", plain: false });
-  });
-
-  it("never a diary entry's words — in the fold or not", () => {
-    expect(topicExemplarText(fold, "ex:diary-c", "the bridges were real")).toBeNull();
-    expect(topicExemplarText(fold, "ex:diary-unseen", "private")).toBeNull();
-    // A diary record known by its ROW id (re-keyed by a usage event).
-    const rekeyed = foldEnvelopes([
-      ...life.slice(0, 4),
-      env(6, "event", { kind: "listed", scope: "life", owner_id: "entity:test", record_id: "row-dc", pair_ids: null, weight: 0, matched: false, event_id: "e6", seq: 6 }, {
-        record_id: "row-dc",
-        graph_id: "ex:diary-c",
-        title: "the bridges were real",
-      }),
-    ]);
-    expect(rekeyed.nodes.get("row-dc")?.graph_id).toBe("ex:diary-c");
-    expect(topicExemplarText(rekeyed, "row-dc", "the bridges were real")).toBeNull();
-  });
-
-  it("an exemplar not in the fold yet: the payload's title, scaffolding stripped", () => {
-    expect(topicExemplarText(fold, "ex:memory-later", "lesson: keep the record honest")).toEqual({ text: "keep the record honest", plain: false });
-    expect(topicExemplarText(fold, "ex:memory-later", "")).toBeNull();
-  });
-});
-
 describe("placeCard", () => {
   it("beside the cursor when it fits", () => {
     expect(placeCard(100, 100, 420, 200, 1600, 1000)).toEqual({ left: 116, top: 112 });
@@ -242,7 +212,6 @@ describe("dreams and diaries", () => {
     expect(t.title).toBe("A dream");
     expect(t.plain).toBe(true);
     expect(t.summary).toBe("Dream: revised `card A, `card B`\n- touched 3");
-    expect(topicExemplarText(dreamFold, "ex:dream-n", "")).toEqual({ text: "Dream: revised `card A, `card B`\n- touched 3", plain: true });
   });
 
   it("a diary record by its graph id is a diary record (no summary, no exemplar words)", () => {

@@ -444,10 +444,11 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
           tone: "quiet",
         };
       }
-      // Audit kinds: reading is not using — quiet lines.
+      // Audit kinds: reading is not using — quiet lines. A `placed` event:
+      // memory seated a new memory in a topic until his next sleep.
       return {
         ...base,
-        title: p.kind === "listed" ? "Considered" : p.kind,
+        title: p.kind === "listed" ? "Considered" : p.kind === "placed" ? "Placed in a topic until his next sleep" : p.kind,
         detail: displayTitle(env, tidy(p.record_id ?? "")),
         subject_id: p.record_id,
         tone: "quiet",
@@ -747,6 +748,11 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
         const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
         if (stays) return cause ? line(`${cap(cause.split("_").join(" "))} · ${stays}`, "") : line(cap(stays), causeDetail);
         return line(`Phase: ${phaseWord(from)} → ${phaseWord(to)}`, causeDetail);
+      }
+      if (p.kind === "communities_changed") {
+        // His topics changed (memory-owned communities: a new version formed
+        // in his sleep; the graph re-reads them on this marker).
+        return { ...base, title: "🗺 His topics changed", detail: "regrouped and named in his sleep", subject_id: null, tone: "session" };
       }
       if (p.kind === "substrate_changed") {
         // The mind swap is a DURABLE EVENT (laurent 12:39, c1430): render

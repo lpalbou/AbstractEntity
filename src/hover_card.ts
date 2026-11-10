@@ -12,22 +12,22 @@
  *   diary entry"; a record with no served title says "title being
  *   written…" only while the stream says so, else its raw kind and date
  *   (untitledHeader);
- * - summary (nodeCardText, the topic card's exemplar): the record's full
+ * - summary (nodeCardText): the record's full
  *   digest as the stream served it at or before the scrub position
  *   (stream_fold NodeState.digest — never kept for a diary record); none
  *   otherwise (absent, never invented). A memory's own hover card leads
  *   with its CURRENT understanding instead (cardSummary/currentReading:
  *   the record read, the fold's text only until it arrives);
- * - topic cards: the topic's readable words, then its exemplar — the
- *   memory the runtime chose as most representative — by its summary
- *   (or title) when the fold holds it and it is not private.
+ * - topic cards: the topic's authored title and summary as memory serves
+ *   them (communities.ts; "being written…" while memory says so), then its
+ *   most used memories (never a private diary entry's words).
  */
 
 import React, { isValidElement, type ReactNode } from "react";
 
 import type { FoldState, NodeState } from "./stream_fold";
 import { isDiaryGraphId } from "./stream_fold";
-import { shapeLabel, summaryLabel } from "./node_label";
+import { shapeLabel } from "./node_label";
 import { recordTitle } from "./record_detail";
 import { kindWords, wordsReadOnOpen } from "./record_detail_parts";
 import { isDiaryShaped } from "./episode_parse";
@@ -95,21 +95,6 @@ export function nodeCardText(node: NodeState): CardText {
   // A digest identical to the title would only say it twice.
   const summary = digest && digest !== title ? digest : null;
   return { title, summary, plain: dream };
-}
-
-/** The exemplar line of a topic card: the exemplar's summary (or title)
- * from the fold; else the payload's exemplar title — unless the exemplar
- * is a diary entry (private: never its words). */
-export function topicExemplarText(fold: FoldState, exemplarId: string, exemplarTitle: string): { text: string; plain: boolean } | null {
-  if (isDiaryGraphId(exemplarId)) return null;
-  const row = fold.graph_to_row.get(exemplarId) ?? exemplarId;
-  const node = fold.nodes.get(row);
-  if (node) {
-    if (isDiaryNode(node)) return null;
-    const { title, summary, plain } = nodeCardText(node);
-    return summary ? { text: summary, plain } : { text: title, plain: false };
-  }
-  return summaryLabel(exemplarTitle) ? { text: shapeLabel(exemplarTitle), plain: false } : null;
 }
 
 /** Where a hover card goes: beside the cursor (right, below), kept whole
