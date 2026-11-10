@@ -251,6 +251,9 @@ describe("layout", () => {
     // A phone keeps the one row (smaller squares), never a wrapped column.
     const phone = CSS.slice(CSS.indexOf("/* Phone (the lanes fill the width): the open monitor takes the lanes' place"));
     expect(phone.slice(0, phone.indexOf("/* ---"))).not.toMatch(/flex-wrap: wrap|max-height: none/);
+    // Its 84 px bloom keeps its petal codes inside the lanes' place: codes alone, the ring drawn in.
+    expect(phone).toMatch(/\.cw_compact \.cm_overlay_num \{\s*display: none;/);
+    expect(phone).toMatch(/\.cw_panel\.cw_compact \{\s*max-height: 88px;\s*overflow: hidden;/);
     // In the lanes' exact place: their five 16 px rows and four 2 px gaps.
     expect(phone).toMatch(/\.et_monitor_slot \{[^}]*height: 88px;/);
     expect(phone).toMatch(/\.entity_timeline\.et_grid \.et_lane_label \{\s*height: 16px;\s*line-height: 16px;/);

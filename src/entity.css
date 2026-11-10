@@ -4310,6 +4310,16 @@ body {
    * tall wrapped column. */
   .cw_panel.cw_compact {
     max-height: 88px;
+    overflow: hidden;
+  }
+  /* An 84 px bloom: its petal codes alone, the ring drawn a little in so it stays in the lanes'
+   * place (each code's number is in its card, on a long-press). */
+  .cw_compact .cm_overlay_num {
+    display: none;
+  }
+  .cw_compact .cm_overlay {
+    transform: scale(0.9);
+    transform-origin: center;
   }
   .cw_compact .cm_gauge_box {
     width: 104px;
