@@ -73,7 +73,6 @@ import { attachmentChips, attachmentRecords, turnRefusal, visitTurnPayload, type
 import type { ReplayEnvelope } from "./stream_types";
 import { TurnDetailModal } from "./turn_detail_modal";
 import { WordsLine } from "./words_line";
-import { ClosingNotice } from "./closing_notice";
 import { VisitVoiceButtons, useEntityVoice, useVoiceDefaults, useVoicePreferences } from "./entity_voice";
 
 /** The reflection's visible acts in the live stream: every envelope past
@@ -1219,7 +1218,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const [focusMid, setFocusMid] = useState<string | null>(null);
 
   // The reflection's visible acts while the close runs (live stream tail
-  // past the close-click seq, meaningful tones only).
+  // past the close-click seq, meaningful tones only). THE CLOSE IS
+  // OBSERVABLE (operator 2026-07-15 pm: "we've zero observability over
+  // it"): every act lands in the closing notice as it happens (feelings
+  // moved, summary formed, interests kept, session sealed); the notice is
+  // the thread's last row (ChatMessageList `closing`, operator 2026-11-10).
   const closingActivity = useMemo(
     () => (busy === "closing" ? reflectionActivity(envelopes, closeSeqRef.current) : []),
     [busy, envelopes],
@@ -1447,6 +1450,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             getSpeakState={voice.tts_supported ? (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle") : undefined}
             onFocusMessage={setFocusMid}
             onNoticeOpen={openNotice}
+            closing={busy === "closing" ? closingActivity : null}
           />}
           {detailTurn ? <TurnDetailModal turn={detailTurn.turn} initialTab={detailTurn.tab} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (
@@ -1503,12 +1507,6 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             </div>
           ) : null}
           {busy === "idle" && !avatarMode && activity ? <TurnActivityPanel activity={activity} live={false} onOpenRecord={props.onOpenRecord} /> : null}
-          {/* THE CLOSE IS OBSERVABLE (operator 2026-07-15 pm: "we've zero
-            * observability over it"): while the door closes the room, his
-            * reflection's acts land in the live stream — every envelope
-            * past the close-click seq renders here as it happens (feelings
-            * moved, summary formed, interests kept, session sealed). */}
-          {busy === "closing" && !avatarMode ? <ClosingNotice activity={closingActivity} /> : null}
           {avatarMode && publicVisit.error ? (
             <div className="cd_note" role="status">
               <WordsLine text={publicVisit.error} inline /> <button type="button" onClick={publicVisit.refresh}>Retry</button>
@@ -1599,7 +1597,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
                   className="cd_close_btn"
                   onClick={close}
                   disabled={busy !== "idle"}
-                  title="End the visit: the door closes the room, HIS REFLECTION runs (he looks back over the visit — feelings may move, a summary forms, interests may take root), then the phase he was in before re-enters (personal only if its grant still stands). Left silent, the visit also closes BY ITSELF (~1h idle — laurent's ruled target): same graceful close, reflection included; the gateway's reaper drives it within minutes of the deadline even with no client alive."
+                  title="End the visit: the door closes the room, the REFLECTION runs (looking back over the visit: feelings may move, a summary forms, interests may take root), then the phase that ran before re-enters (personal only if its grant still stands). Left silent, the visit also closes BY ITSELF (~1h idle — laurent's ruled target): same graceful close, reflection included; the gateway's reaper drives it within minutes of the deadline even with no client alive."
                 >
                   🚪 end visit
                 </button>

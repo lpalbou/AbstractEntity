@@ -9,3 +9,13 @@
 .cd_turnfacts .cd_turnfact {
   padding: 1px 7px;
 }
+
+/* The closing notice's narrator line (closing_notice.tsx, operator 2026-11-10): on its own line
+   under the head, in italic, aligned with the head's words (past the 12 px spinner and its 8 px
+   gap), the dim text the act rows' details use. */
+.cd_closing_narration {
+  padding-left: 20px;
+  font-style: italic;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}

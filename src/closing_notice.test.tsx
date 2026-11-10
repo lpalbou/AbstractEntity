@@ -1,7 +1,9 @@
 /**
- * The visit's closing notice (operator test round 2, 2026-11-10): the head line while his reflection
- * runs; nothing under it until an act lands (the "watching his stream… (the Ledger tab keeps the full
- * record)" line is gone); the acts as they land, "He wrote in his book" rows included (he likes those).
+ * The visit's closing notice (operator test round 2, 2026-11-10): the head line while the reflection
+ * runs and, on its own line in italic, the narrator's (no pronoun, no parentheses: 2026-11-10
+ * evening); no act row until an act lands (the "watching his stream… (the Ledger tab keeps the full
+ * record)" line is gone); the acts as they land, "He wrote in his book" rows included (he likes those);
+ * the notice is the thread's last row, never a card floating over the messages.
  * Rendered with react-dom/server (no DOM in the tests).
  */
 import fs from "fs";
@@ -11,7 +13,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { reflectionActivity } from "./chat_drawer";
-import { CLOSING_HEAD, ClosingNotice } from "./closing_notice";
+import { ChatMessageList, type DrawerMessage } from "./chat_message_list";
+import { CLOSING_HEAD, CLOSING_NARRATION, ClosingNotice } from "./closing_notice";
 import type { ReplayEnvelope } from "./stream_types";
 
 const env = (seq: number, family: string, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope =>
@@ -26,7 +29,28 @@ const OLD_HINT = /watching his stream|Ledger tab keeps the full record/;
 const html = (activity: ReturnType<typeof reflectionActivity>) => renderToStaticMarkup(<ClosingNotice activity={activity} />);
 
 describe("the closing notice", () => {
-  it("nothing landed yet: the head line only, no second line", () => {
+  it("two lines, no pronoun: the head, then the narrator's line on its own, without parentheses", () => {
+    expect(CLOSING_HEAD).toBe("Closing — reflection runs now");
+    expect(CLOSING_NARRATION).toBe("looking back over the visit; feelings may move, a summary forms…");
+    for (const words of [CLOSING_HEAD, CLOSING_NARRATION]) {
+      expect(words).not.toMatch(/[()]/);
+      expect(words).not.toMatch(/\b(he|his|him|she|her|it|its)\b/i);
+    }
+    const out = html([]);
+    const head = out.indexOf('class="cd_closing_head"');
+    const narration = out.indexOf('class="cd_closing_narration"');
+    expect(head).toBeGreaterThan(0);
+    expect(narration).toBeGreaterThan(head);
+    expect(out.slice(head, narration)).toContain(CLOSING_HEAD);
+    expect(out.slice(head, narration)).not.toContain(CLOSING_NARRATION);
+    expect(out.slice(narration)).toContain(CLOSING_NARRATION);
+    // Italic, dim, under the head's words (the CSS the notice imports).
+    const css = fs.readFileSync(path.join(__dirname, "chat_notices.css"), "utf8");
+    expect(css).toMatch(/\.cd_closing_narration \{[^}]*font-style: italic;/);
+    expect(fs.readFileSync(path.join(__dirname, "closing_notice.tsx"), "utf8")).toContain('import "./chat_notices.css";');
+  });
+
+  it("nothing landed yet: the head and the narration, no act rows", () => {
     const out = html([]);
     expect(out).toContain(CLOSING_HEAD);
     expect(out).toContain('aria-live="polite"');
@@ -56,9 +80,30 @@ describe("the closing notice", () => {
 
 describe("wiring", () => {
   const drawer = fs.readFileSync(path.join(__dirname, "chat_drawer.tsx"), "utf8");
-  it("the drawer shows it while the close runs (not in the avatar view), with the reflection's acts", () => {
-    expect(drawer).toContain('{busy === "closing" && !avatarMode ? <ClosingNotice activity={closingActivity} /> : null}');
+  it("the drawer hands the close to the thread while it runs (the chat view only), with the reflection's acts", () => {
+    const list = drawer.slice(drawer.indexOf("<ChatMessageList"), drawer.indexOf("/>}", drawer.indexOf("<ChatMessageList")));
+    expect(list).toContain('closing={busy === "closing" ? closingActivity : null}');
     expect(drawer).toContain('(busy === "closing" ? reflectionActivity(envelopes, closeSeqRef.current) : [])');
+    // Never a card of its own outside the thread (it floated over the messages).
+    expect(drawer).not.toContain("<ClosingNotice");
+  });
+  it("IN the chat: the thread's last row, in the messages' column, after the last message", () => {
+    const messages: DrawerMessage[] = [
+      { id: "m1", role: "user", content: "goodbye for now" },
+      { id: "m2", role: "assistant", content: "until next time", title: "Castor" },
+    ];
+    const acts = reflectionActivity([diary(6, "the harbour visit, kept")], 5);
+    const out = renderToStaticMarkup(<ChatMessageList messages={messages} onDetail={() => undefined} closing={acts} />);
+    const thread = out.indexOf('class="pc-chat-thread cd_thread"');
+    const last = out.indexOf('data-mid="m2"');
+    const row = out.indexOf('<div class="cd_msg" data-role="closing"><div class="cd_closing"');
+    expect(thread).toBe(5);
+    expect(last).toBeGreaterThan(thread);
+    expect(row).toBeGreaterThan(last);
+    expect(out.slice(row)).toContain("He wrote in his book");
+    expect(out.slice(row)).toContain("the harbour visit, kept");
+    expect(out.endsWith("<div></div></div>")).toBe(true); // nothing after it but the scroll anchor
+    expect(renderToStaticMarkup(<ChatMessageList messages={messages} onDetail={() => undefined} closing={null} />)).not.toContain("cd_closing");
   });
   it("the old second line is gone from the drawer and its style from the sheet", () => {
     expect(drawer).not.toMatch(OLD_HINT);

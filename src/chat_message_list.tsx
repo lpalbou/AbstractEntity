@@ -9,6 +9,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatMessageCard, type ChatMessage, type ChatNotice } from "@abstractframework/panel-chat";
 
+import { ClosingNotice } from "./closing_notice";
+import type { LedgerLine } from "./ledger_lines";
 import { openTurnFact, TurnFactsRow, turnFactChips, type TurnPanelTab } from "./reply_notices_summary";
 import type { ChatTurnResult } from "./stream_source";
 import { NO_IMAGE_PROPS, WordsLine } from "./words_line";
@@ -79,8 +81,12 @@ export function ChatMessageList({
   onFocusMessage,
   onNoticeOpen,
   onOpenRecord,
+  closing,
 }: {
   messages: DrawerMessage[];
+  /** While the visit closes: the reflection's acts so far. The closing notice is then the thread's
+   * last row, in the messages' column (never a card floating over them). Null: no close running. */
+  closing?: LedgerLine[] | null;
   /** A summary chip opens the turn panel on its tab (memories and what formed: context; tools). */
   onDetail(detail: ChatTurnResult, tab: TurnPanelTab): void;
   /** A chip that names one record (the memory formed, the diary entry) opens it in Detail by its
@@ -139,9 +145,11 @@ export function ChatMessageList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFocusMessage]);
 
+  // A new message, the closing row and each reflection act it gains keep the thread at its end.
+  const closingRows = closing ? closing.length : -1;
   useEffect(() => {
     if (stickRef.current) bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, closingRows]);
 
   return (
     <div ref={listRef} className="pc-chat-thread cd_thread">
@@ -170,6 +178,11 @@ export function ChatMessageList({
           )}
         </div>
       ))}
+      {closing ? (
+        <div className="cd_msg" data-role="closing">
+          <ClosingNotice activity={closing} />
+        </div>
+      ) : null}
       <div ref={bottomRef} />
     </div>
   );
