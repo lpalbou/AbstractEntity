@@ -49,6 +49,16 @@ export function summonSkippedAgent(answer: object | null | undefined): boolean {
   return (answer as { agent?: unknown } | null | undefined)?.agent === "not_addressed";
 }
 
+/** The person's turn a skipped summon recorded: `turn_id` on the `agent: "not_addressed"` answer
+ * (pinned with the gateway 2026-11-10; no run of his follows, so there is no run id to name). It is
+ * the mentions' `repeat_of` (the mention route takes a turn id as well as a run id). An answer
+ * without it fails loudly: the mentions are never asked without the turn they repeat. */
+export function notAddressedTurnId(answer: { turn_id?: unknown }): string {
+  const id = typeof answer.turn_id === "string" ? answer.turn_id.trim() : "";
+  if (!id) throw new Error('The gateway skipped his turn (agent "not_addressed") without naming your recorded turn (turn_id), so the entities you mentioned were not asked.');
+  return id;
+}
+
 /**
  * Poll a summoned run to terminal. ONE loop for both the turn poll and
  * the goodbye poll (they were ~80% duplicated inline; finding B).

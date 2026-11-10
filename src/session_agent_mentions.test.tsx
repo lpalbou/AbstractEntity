@@ -14,7 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMention, ChatMentionSent } from "@abstractframework/panel-chat";
 
-import { flowMentionSlugs, flowTurnBody, mentionsAddressEntities, pollRunToTerminal, summonSkippedAgent, turnAgentAddressed, type RunSummaryShape } from "./flow_lane";
+import { flowMentionSlugs, flowTurnBody, mentionsAddressEntities, notAddressedTurnId, pollRunToTerminal, summonSkippedAgent, turnAgentAddressed, type RunSummaryShape } from "./flow_lane";
 import { useFlowConversation, type FlowConversationApi } from "./use_flow_conversation";
 import { ChatComposer } from "./vendor/abstractchat/conversation";
 import {
@@ -23,7 +23,9 @@ import {
   agentStaysOutLine,
   entityMentions,
   heldAfterRun,
+  mentionBody,
   mentionCandidatesFor,
+  mentionMessageKey,
   mentionNotice,
   mentionResendPlan,
   runMentions,
@@ -155,11 +157,18 @@ describe("the hint: he stays out of a message for entities only", () => {
 
 describe("the gateway's markers (pinned): read them, never the absence of a run", () => {
   it("the summon's agent: \"not_addressed\" means skipped; \"started\" or no key means a run", () => {
-    expect(summonSkippedAgent({ agent: "not_addressed", run_id: "turn-1" })).toBe(true);
+    expect(summonSkippedAgent({ agent: "not_addressed", turn_id: "turn-1" })).toBe(true);
     expect(summonSkippedAgent({ agent: "not_addressed" })).toBe(true);
     expect(summonSkippedAgent({ agent: "started", run_id: "run-1" })).toBe(false);
     expect(summonSkippedAgent({ run_id: "run-1" })).toBe(false);
     expect(summonSkippedAgent(null)).toBe(false);
+  });
+
+  it("a not_addressed answer names the recorded turn as turn_id; without it, it fails loudly", () => {
+    expect(notAddressedTurnId({ turn_id: "turn-1" })).toBe("turn-1");
+    for (const answer of [{}, { turn_id: "  " }, { turn_id: 7 }, { run_id: "turn-1" }]) {
+      expect(() => notAddressedTurnId(answer)).toThrow(/turn_id/);
+    }
   });
 
   it("the turn row's agent_addressed: false means not addressed; true or absent means addressed", () => {
@@ -210,10 +219,13 @@ describe("the flow lane renders a skipped turn: no wait, no bubble, no line", ()
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   const VIEW = { version: "replay_view_v1", root_run_id: "run-1", status: "completed", cursor: { token: "run-1:1", records: 1, runs: {} }, runs: [], interaction: null, messages: [], activities: [], artifacts: [] };
 
-  it("live: agent \"not_addressed\" = the summon only, it landed, the recorded turn is the mentions' repeat_of", async () => {
-    const { api, calls, push, busy } = lane(() => json({ agent: "not_addressed", run_id: "turn-1", session_id: "s-1" }));
+  it("live: agent \"not_addressed\" = the summon only, it landed, the recorded turn_id is the mentions' repeat_of", async () => {
+    // The pinned answer: no run of his, so no run id; the person's turn is `turn_id`.
+    const { api, calls, push, busy } = lane(() => json({ agent: "not_addressed", turn_id: "turn-1", session_id: "s-1" }));
     const settled = await api.sendFlow("hi Leo", { mentions: ["leo"] });
     expect(settled).toMatchObject({ landed: true, runId: "turn-1" });
+    // What the drawer then posts per entity (sendMentions(sessionId, mentionMessageKey(turnRunId), ..., turnRunId)).
+    expect(mentionBody("hi Leo", entity("leo", "Leo", 0), settled.runId, mentionMessageKey(settled.runId))).toEqual({ entity: "leo", text: "hi Leo", mention_index: 0, repeat_of: "turn-1", mention_id: "turn-1:leo:0" });
     expect(settled.sessionId).toBeTruthy();
     expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(["POST http://gw.test/api/gateway/entities/castor/summon"]);
     expect((calls[0].body as { mentions?: unknown }).mentions).toEqual(["leo"]);
@@ -221,11 +233,12 @@ describe("the flow lane renders a skipped turn: no wait, no bubble, no line", ()
     expect(busy).toEqual(["turn", "idle"]);
   });
 
-  it("live: a not_addressed answer without a run id still lands (no repeat_of to name)", async () => {
-    const { api, calls, push } = lane(() => json({ agent: "not_addressed", session_id: "s-1" }));
-    expect(await api.sendFlow("hi Leo", { mentions: ["leo"] })).toMatchObject({ landed: true, runId: null });
+  it.each([["no turn_id", { agent: "not_addressed", session_id: "s-1" }], ["a run_id only", { agent: "not_addressed", run_id: "turn-1", session_id: "s-1" }]] as const)("live: a not_addressed answer with %s fails loudly: not landed (no mention call), the sentence names turn_id", async (_case, answer) => {
+    const { api, calls, push } = lane(() => json(answer));
+    expect(await api.sendFlow("hi Leo", { mentions: ["leo"] })).toMatchObject({ landed: false, runId: null });
     expect(calls).toHaveLength(1);
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({ role: "system", level: "error", content: expect.stringContaining("(turn_id)") }));
   });
 
   const followed = (row: Record<string, unknown>) => (url: string) => {

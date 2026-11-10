@@ -9,7 +9,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { emptyAnswerLine, flowSession, flowTurnBody, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, mentionsAddressEntities, queueCardLine, screenDiaryFences, summonSkippedAgent, waitingLine, type PollOutcome } from "./flow_lane";
+import { emptyAnswerLine, flowSession, flowTurnBody, foldFlowAnswer, foldGoodbyeWords, followRunToTerminal, mentionsAddressEntities, notAddressedTurnId, queueCardLine, screenDiaryFences, summonSkippedAgent, waitingLine, type PollOutcome } from "./flow_lane";
 import { gatewayReplayView, getRunSummary, leaveQueue, pollQueueEntry, refusalText, stoppedSentence, summonEntity } from "./stream_source";
 import { toolClaimVerdict } from "./tool_claim_guard";
 import type { ReplayEnvelope } from "./stream_types";
@@ -30,7 +30,7 @@ export interface FlowConversationApi {
   /** Resolves once the turn settled: `landed` = his answer reached the thread, or he said nothing
    * to a message addressed to the entities it mentions (so a mention can follow it), `sessionId` =
    * the conversation's session (minted on the first message), `runId` = the person's turn in it
-   * (a mention's `repeat_of`). `mentions`: the message's @ chips as slugs in pick order
+   * (a mention's `repeat_of`): his run, or the recorded turn's `turn_id` when he was not addressed. `mentions`: the message's @ chips as slugs in pick order
    * (flow_lane.flowMentionSlugs), sent with the summon. */
   sendFlow(text: string, opts?: { queue?: boolean; park?: boolean; mentions?: string[] }): Promise<FlowTurnSettled>;
   endFlowConversation(): void;
@@ -342,9 +342,9 @@ export function useFlowConversation(io: {
           // NOT ADDRESSED (operator 2026-11-10): the message mentions entities and not him, so the
           // gateway ran no turn of his (`agent: "not_addressed"`); the person's turn is recorded.
           // Nothing to wait for: no follow, no line; it landed and the mentions follow. The
-          // recorded turn's id, when served, is the person's turn the mentions repeat.
+          // recorded turn's id (`turn_id`; there is no run id) is the turn the mentions repeat.
           if (summonSkippedAgent(r)) {
-            turnRunId = typeof r.run_id === "string" && r.run_id.trim() ? r.run_id : null;
+            turnRunId = notAddressedTurnId(r);
             return true;
           }
           // The summoned run executes async in the runner — poll to

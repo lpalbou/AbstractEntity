@@ -832,6 +832,10 @@ export function summonEntity(
   token: string | null,
 ): Promise<{
   run_id: string;
+  /** "started" = his run (`run_id`); "not_addressed" = no run of his, the person's turn recorded as
+   * `turn_id` (mentions routing, pinned with the gateway 2026-11-10). */
+  agent?: string;
+  turn_id?: string;
   session_id?: string;
   warnings?: string[];
   prelude?: { text?: string };
