@@ -2178,6 +2178,20 @@ export function EntityView(): React.ReactElement {
             * pressed toggle that shows where those memories or links are. */}
           <GraphLegend extraKinds={extraKinds} relationTypes={relationTypes} warmthAge={warmthAge} picked={legendPick} onPick={setLegendPick} />
         </div>
+        {/* THE COGNITIVE MONITOR, docked above the timeline under the graph (backlog 0018): the side
+          * panel keeps its whole height beside it. Never behind the content gate (a locked browser
+          * sees nothing of him). */}
+        {monitorOpen && !gatewayLocked && !(indexBase !== null && !entityName) ? (
+          <section className="entity_monitor_dock" aria-label="Cognitive monitor">
+            <CognitionWavePanel
+              fold={fold}
+              source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
+              scrubSeq={scrubSeq}
+              live={live}
+              replyFeed={replyFeed}
+            />
+          </section>
+        ) : null}
         <SideTabs
           defaultTab="ledger"
           emphasizedTab={avatarChat ? "chat" : undefined}
@@ -2360,20 +2374,6 @@ export function EntityView(): React.ReactElement {
           ]}
         />
       </div>
-
-      {/* THE COGNITIVE MONITOR, docked above the timeline (backlog 0018); never behind the content
-        * gate (a locked browser sees nothing of him). */}
-      {monitorOpen && !gatewayLocked && !(indexBase !== null && !entityName) ? (
-        <section className="entity_monitor_dock" aria-label="Cognitive monitor">
-          <CognitionWavePanel
-            fold={fold}
-            source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
-            scrubSeq={scrubSeq}
-            live={live}
-            replyFeed={replyFeed}
-          />
-        </section>
-      ) : null}
 
       {indexBase !== null && !entityName ? null : (
         <Timeline

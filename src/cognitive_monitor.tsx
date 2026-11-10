@@ -82,7 +82,7 @@ export const EMOTION_AXES: AxisInfo[] = EMOTION_REGISTERS.map((r) =>
 
 /** The six scored channels. The five tone channels are drawn as the row under the bloom, each
  * with its signed score; each description names BOTH poles in the meaning of the generic anchor
- * texts that build the axis. CUR belongs to the Wave tab. */
+ * texts that build the axis. CUR (the conversation's own main direction) is not drawn. */
 export const CHANNEL_AXES: AxisInfo[] = [
   axis("warmth", "WAR", "warmth", channelColor.get("warmth") ?? "#8a94a6", "Warm (glad, grateful, at ease with the work) against discouraged (drained, stung, bitter) phrasing.", "Warm against discouraged phrasing, from −1 to +1."),
   axis("tension", "TSN", "tension", channelColor.get("tension") ?? "#8a94a6", "Urgent (pressed for time, attention jumping) against unhurried (no rush, at leisure) phrasing.", "Urgent against unhurried phrasing, from −1 to +1."),
@@ -320,7 +320,7 @@ export function conductExplainer(a: AxisInfo, cell: ConductCell | null | undefin
   };
 }
 
-/** What the monitor IS — the (i) window, shared by the chat panel and the Wave tab. (The codes
+/** What the monitor IS — the (i) window of the monitor docked above the timeline. (The codes
  * explain themselves on hover; there is no per-axis window.) */
 export function MonitorInfoModal({ onClose, calibration }: { onClose(): void; /** basisProvenanceNote's sentence; absent before the basis loads. */ calibration?: string | null }): React.ReactElement {
   useEffect(() => {
@@ -399,7 +399,7 @@ export function MonitorInfoModal({ onClose, calibration }: { onClose(): void; /*
                     <span className="cm_axis_desc">{a.description}</span>
                   </div>
                 ))}
-                <span className="cm_modal_axes_head">The tone channels (under the bloom; CUR belongs to the Wave tab)</span>
+                <span className="cm_modal_axes_head">The tone channels (the five under the bloom; CUR, the conversation's own main direction, is not drawn)</span>
                 {CHANNEL_AXES.map((a) => (
                   <div key={a.id} className="cm_modal_axis">
                     <span className="cm_axis_code" style={{ color: a.color }}>{a.code}</span>

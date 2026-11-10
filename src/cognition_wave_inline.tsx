@@ -110,6 +110,16 @@ interface ScoredText {
   emotionMaxSim?: number;
 }
 
+/** The score caches, one per gateway + entity for the page's life: the monitor mounts only while
+ * open, and a reply already read is never embedded again; another home never shares one. */
+const HOME_READS = new Map<string, ScoringReads<ScoredText>>();
+function homeReads(baseUrl: string, entity: string): ScoringReads<ScoredText> {
+  const key = JSON.stringify([baseUrl, entity]);
+  let reads = HOME_READS.get(key);
+  if (!reads) HOME_READS.set(key, (reads = new ScoringReads<ScoredText>()));
+  return reads;
+}
+
 export interface CognitionWaveInlineProps {
   baseUrl: string;
   entity: string;
@@ -182,9 +192,10 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   const scorerRef = useRef<VendorScorer | null>(null);
   const embedderRef = useRef<string | null>(null);
   const setupRef = useRef<Promise<void> | null>(null);
-  /** Per-text score cache (scroll-follow: each distinct reply embeds ONCE). */
+  /** Per-text score cache (scroll-follow: each distinct reply embeds ONCE), kept per home across
+   * the monitor's mounts (it closes, the timeline leaves Live and comes back). */
   const readsRef = useRef<ScoringReads<ScoredText> | null>(null);
-  if (!readsRef.current) readsRef.current = new ScoringReads<ScoredText>();
+  if (!readsRef.current) readsRef.current = homeReads(baseUrl, entity);
   /** Sticky: a KNOWN pin↔basis mismatch never retries. */
   const mismatchRef = useRef(false);
 

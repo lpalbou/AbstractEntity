@@ -4441,27 +4441,41 @@ body {
   cursor: help;
 }
 
-/* ---- THE COGNITIVE MONITOR, DOCKED above the timeline (backlog 0018): a strip as wide as the
- * page, its own scroll; the head (title, ⓘ, what it follows, the framing, the read button) in a
- * column on the left, the reading beside it: the bloom and the turn at the timeline's position, or
- * the reply in view of his conversation (bloom + conduct gauge). One column on a phone. */
+/* ---- THE COGNITIVE MONITOR, DOCKED above the timeline (backlog 0018): a strip under the graph,
+ * a bounded height with its own scroll; the head (title, ⓘ, what it follows, the framing, the read
+ * button) in a column on the left, the reading beside it: the bloom and the turn at the timeline's
+ * position, or the reply in view of his conversation (bloom + conduct gauge). One column on a
+ * phone.
+ * The side panel keeps its whole height beside graph + monitor (its tab strip never gives the
+ * monitor any room): the main area becomes a grid while the monitor is open, the graph and the
+ * monitor in the first column, the side panel down the second. */
+.entity_main:has(> .entity_monitor_dock):not(:has(> .side_tabs_emphasized)) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.entity_main:has(> .entity_monitor_dock) > .entity_canvas_wrap {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+}
+.entity_main:has(> .entity_monitor_dock) > .side_tabs {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
 .entity_monitor_dock {
-  flex: none;
-  max-height: 42%;
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  max-height: calc(var(--vh-full, 100vh) * 0.38);
   overflow-y: auto;
   overscroll-behavior: contain;
   border-top: 1px solid var(--line);
   background: var(--bg-panel);
-  padding-left: var(--safe-left, 0px);
-  padding-right: var(--safe-right, 0px);
-  /* Above the side panel's tab rail, whose last tab may reach past a main area the open monitor
-   * made shorter (the rail draws its tabs outside itself). */
-  position: relative;
-  z-index: 6;
 }
-/* With the monitor open the main area is shorter: the rail's tabs sit closer. */
-.entity_main:has(~ .entity_monitor_dock) .st_rail {
-  gap: 4px;
+/* The avatar view takes the whole main area (side_tabs_emphasized): no column for the monitor. */
+.entity_main:has(> .side_tabs_emphasized) > .entity_monitor_dock {
+  display: none;
 }
 .cw_panel.cw_dock {
   flex: none;
@@ -4533,13 +4547,16 @@ body {
   background: color-mix(in srgb, var(--ea-accent) 14%, var(--bg-raise));
 }
 /* One pane at a time (the phone's rule, like an open side panel over the graph): the open monitor
- * takes the main area's place, between the controls and the timeline; its toggle in the timeline
- * gives the graph back. */
+ * takes the graph's place above the tab strip (an open panel covers it like it covers the graph);
+ * its toggle in the timeline gives the graph back. */
 @media (max-width: 767.98px), (max-height: 500px) {
-  .entity_main:has(~ .entity_monitor_dock) {
+  .entity_main:has(> .entity_monitor_dock):not(:has(> .side_tabs_emphasized)) {
+    display: flex;
+  }
+  .entity_main:has(> .entity_monitor_dock) > .entity_canvas_wrap {
     display: none;
   }
-  /* Basis 0: it takes only the room the main area left (a content basis squeezed the controls). */
+  /* Basis 0: it takes only the room the main area leaves (a content basis squeezes the rest). */
   .entity_monitor_dock {
     flex: 1 1 0;
     min-height: 0;
@@ -6716,7 +6733,7 @@ body {
 .entity_main:has(> .side_tabs_emphasized) > .entity_canvas_wrap { overflow: hidden; }
 @media (max-width: 767.98px), (max-height: 599.98px) {
   .entity_main:has(> .side_tabs_avatar) ~ .entity_timeline,
-  .entity_main:has(> .side_tabs_avatar) ~ .entity_monitor_dock { display: none; }
+  .entity_main:has(> .side_tabs_avatar) > .entity_monitor_dock { display: none; }
   .side_tabs_avatar .pc-avatar-conversation { gap: .45rem; padding: .45rem; }
   .side_tabs_avatar .pc-avatar-conversation__scene { flex: 0 0 auto; min-height: 0; height: min(20dvh, 144px); }
   .side_tabs_avatar .pc-avatar-conversation__scene canvas { width: min(20dvh, 144px) !important; height: min(20dvh, 144px) !important; }

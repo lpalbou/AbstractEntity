@@ -47,7 +47,8 @@ export interface WaveScore {
   emotionSims?: Record<string, number>;
 }
 
-/** What one scored reply shows, for BOTH mounts (chat monitor and Wave tab):
+/** What one scored reply shows, for BOTH readings of the docked monitor (the reply in view, and
+ * his words at the replay position):
  * `emotions` carries each register's measured similarity in [-1, 1], never
  * the gated values (operator 2026-11-07: "we just represent the value,
  * however small it is; it's not up to us to remove them"). A scorer without
