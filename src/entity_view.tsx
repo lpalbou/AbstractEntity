@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EntityMark } from "./brand_mark";
 import { ChatDrawer } from "./chat_drawer";
 import { SettingsPanel } from "./workspace_panel";
+import { FilesView } from "./files_view";
 import { REVEAL_GRAPH, SideTabs, type SideTab } from "./drawer";
 import { topicKeyOfTarget } from "./ledger_lines";
 import { EntitiesIndex } from "./entities_index";
@@ -348,6 +349,8 @@ export function EntityView(): React.ReactElement {
   // AND the mind substrate (provider/model), keeping the top bar clean
   // (progressive disclosure). `showSettings` replaces the old showWorkspace.
   const [showSettings, setShowSettings] = useState(false);
+  // The Files view (operator test round 2, 2026-11-10): his files from a folder button beside Settings.
+  const [showFiles, setShowFiles] = useState(false);
   // Shared top-bar cluster surfaces (operator 2026-07-15 (i)): assistant
   // drawer + appearance dialog, the SAME components flow/continuum carry.
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -1871,6 +1874,16 @@ export function EntityView(): React.ReactElement {
             <Icon name="settings" size={14} />
             <span>Settings</span>
           </button>
+          {/* FILES (operator test round 2, 2026-11-10): his home workspace, the Settings → Files
+            * browser in a dialog of its own (files_view.tsx). */}
+          <button
+            className="ec_btn ec_files_btn"
+            onClick={() => setShowFiles(true)}
+            title={`${entityName.charAt(0).toUpperCase() + entityName.slice(1)}'s files: his home workspace`}
+          >
+            <Icon name="folder" size={14} />
+            <span>Files</span>
+          </button>
           {loopStatus?.inbox_warning ? (
             <span className="ec_note ec_warn" title="The loop's command inbox could not be read — stop requests may not land until this clears.">
               {loopStatus.inbox_warning}
@@ -2042,6 +2055,15 @@ export function EntityView(): React.ReactElement {
               : null
           }
           onClose={() => setShowSettings(false)}
+        />
+      ) : null}
+
+      {showFiles && sourceKind === "gateway" && entityName ? (
+        <FilesView
+          baseUrl={gatewayUrl.trim().replace(/\/+$/, "")}
+          entity={entityName}
+          entityName={entityName.charAt(0).toUpperCase() + entityName.slice(1)}
+          onClose={() => setShowFiles(false)}
         />
       ) : null}
 

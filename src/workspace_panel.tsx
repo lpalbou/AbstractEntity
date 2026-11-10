@@ -434,7 +434,9 @@ function VoiceTab({ baseUrl, onOpenIdentity }: { baseUrl: string; onOpenIdentity
 
 // ------------------------------------------------------------------ files
 
-function FilesTab({ baseUrl, entity }: { baseUrl: string; entity: string }): React.ReactElement {
+/** Settings → Files: his home workspace, one level at a time, and a file's text (read-only). The
+ * Files view opened from the controls strip (files_view.tsx) shows this same browser. */
+export function FilesTab({ baseUrl, entity }: { baseUrl: string; entity: string }): React.ReactElement {
   const [path, setPath] = useState(".");
   const [listing, setListing] = useState<WorkspaceListing | null>(null);
   const [file, setFile] = useState<{ path: string; text: string; truncated: boolean } | null>(null);

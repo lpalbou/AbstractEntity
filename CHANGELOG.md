@@ -4,6 +4,12 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- **Files, beside Settings.** A folder button next to Settings opens his files: the Settings →
+  Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
+  its own, a full-height sheet on a phone.
+
 ## [0.12.0] - 2026-11-10
 
 On `@abstractframework/ui-kit` ^0.9.27 and `@abstractframework/panel-chat` ^0.9.11, both installed

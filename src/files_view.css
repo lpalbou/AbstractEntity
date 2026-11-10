@@ -1,0 +1,19 @@
+/* The Files view (files_view.tsx): Settings' sheet with one column, the page only (no section list).
+ * Its chrome, page and file list are settings_modal.css; this sheet only drops the side list's column
+ * and sizes the dialog to a file list. The Files button sits beside Settings in the controls strip. */
+.stg.fls {
+  grid-template-columns: minmax(0, 1fr);
+}
+.fls_modal.af-modal {
+  height: min(720px, 90dvh);
+}
+.ec_files_btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+@media (max-width: 767.98px) {
+  .fls_modal.af-modal {
+    height: var(--vh-full, 100vh);
+  }
+}
