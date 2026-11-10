@@ -6,6 +6,22 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Added
 
+- **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
+  root 1196; it replaces the turns / recall / recall-tokens bars and the five ledger lines under
+  them). While a turn runs, the chat shows one row per thing he does, newest at the bottom, the
+  running ones in bold: "Recalled passively: 44 memories" (his identity is not counted; open it for
+  the list, each memory opens in Detail), "Step 2 · thinking…" with the model and how long each
+  step took, "Recalled on purpose: “main topics”" for his memory tools (search, read, recent,
+  topics, book, feelings), "Tool: read_file — notes/plan.md" for the others (what it asked, in plain
+  words; open it for what it returned), "Writing this moment's title and summary…", then "Formed a
+  memory: …" or "Wrote in his book: …" (opens in Detail). Past five rows the earlier ones fold
+  into "N earlier". Once the turn is over the rows fold into one line above the composer ("Last
+  turn: 2 steps · 2 memory searches · 44 memories came to mind · 1 formed · 56 s") that opens them
+  again; a reload rebuilds it from the same record. His own visits read the visit run's ledger
+  (`GET /entities/{name}/visit/{run}/ledger`: once a second while a turn runs, only the new
+  records; nothing between turns); the flow brain reads its run's view and the memory stream. Not
+  shown until the gateway serves them: the topics a recall touched, how many memories a search
+  found, and the loop's ceiling (so "step 2", not "step 2 of 20").
 - **Files, beside Settings.** A folder button next to Settings opens his files: the Settings →
   Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
   its own, a full-height sheet on a phone.
@@ -16,6 +32,17 @@ All notable changes to `@abstractframework/entity` are recorded here.
   yet." Needs AbstractGateway's `GET /entities/{name}/self-brief`.
 
 ### Changed
+
+- **Every entity card is the shared card, and it acts** (operator test round 2, 2026-11-10). The
+  "Summoned entities" grid draws each entity with ui-kit's `EntityCard`, the card every app uses,
+  over the entity's tile (`GET /entities/{name}/tile`, about 2 KB, in place of the full identity
+  card read). **Watch** is now a clear button in the card's head (it opens his page, where the
+  conversation starts). When his own time stopped unexpectedly, the card says the gateway's
+  sentence, why ("It stopped after repeated failures (Aug 4); its memory is intact.") and offers
+  **Retry**; when he is stopped, it says so and offers **Resume** (both through
+  `POST /entities/{name}/lifecycle`; "Retrying…" / "Resuming…" while they run, and a refusal in the
+  gateway's words under the button). The phase bar stays at the bottom of each card and no longer
+  repeats what the card says. Needs ui-kit 0.9.28.
 
 - **The closing notice is one line shorter.** While a visit closes, the notice says his reflection
   runs and lists his acts as they land ("He wrote in his book", feelings moved); before any lands,
@@ -32,6 +59,32 @@ All notable changes to `@abstractframework/entity` are recorded here.
   keyboard, and the graph shows it as a spotlight and dims the rest; sweeping across the list
   lights nothing, and leaving the list brings back the focused topic, if any. A touch never
   hovers: a tap still focuses the topic.
+- **The camera glides to a topic** (Entity backlog 0003). Clicking a topic still unfolds it and
+  frames its circle, now as a 300 ms eased move instead of a jump; Fit view and a lens or search
+  framing what it lights glide the same way. Your own pan or zoom during the move takes over at
+  once; with reduced motion the camera moves in one step.
+- **A topic says what it holds by memory type** (Entity backlog 0005). An unfolded topic says,
+  right under its title and before its summary, "118 episodes · 29 diary entries · 17 summaries ·
+  10 interests · 3 world models" (memory's own counts) and "last formed 11 hours ago · since 8 Jul
+  2026", so both show the moment it unfolds, on a phone too (they used to sit below a long summary,
+  out of view). Its memories are listed by type, one line per type with how many are listed ("118
+  episodes"), newest first inside each, open by default.
+- **The records outside his topics are hidden until you ask for them** (operator test round 2:
+  "why so many isolated nodes sit on the periphery arc?"). On castor's life that ring held 151
+  records, none of them a memory waiting for a topic: 149 closed ones (mostly near-identical
+  episodes merged on 2026-07-13, and old readings replaced) and 2 engine records. Memory never
+  puts these in a topic, so the graph no longer draws them by default. A pressed toggle after
+  **fit**, "◌ 151 outside topics" ("◌ 151" on a phone), shows them on their ring; a record you open
+  from the ledger still shows. Fit view frames what is drawn. The Topics panel's "newer memories
+  join a topic at his next sleep" line no longer counts engine records.
+- **The graph's legend is two lines and you can click it** (Entity backlog 0004: "at most 2 lines
+  at the bottom, never more; interactive"). The first line names what the memories are (identity,
+  memory, diary, feeling, scar, bond, then the kinds this life holds); the second line explains
+  the lines and colours (the usage scale, how old the last selection is, the link types). If a
+  line holds more than fits, it scrolls sideways instead of wrapping onto a third line; a phone
+  keeps its one scrollable row. Click a memory type or a link type and the graph lights where
+  those memories (or both ends of those links) are, dims the rest and frames them. Click again, or
+  press Escape, to let go.
 
 ## [0.12.0] - 2026-11-10
 
