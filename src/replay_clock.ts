@@ -23,6 +23,20 @@
  *   second (2,500 events a second cannot be read row by row, and batching
  *   them costs the fold nothing — it is incremental).
  *
+ * What a commit costs is measured against the page's OWN steady frame,
+ * not the display's (operator 2026-11-10, 297 moments at 100x: "it starts
+ * playing and freezes … pushing pause will update the graph"). The graph
+ * canvas draws every frame, so on a big graph, a 120 Hz display or a busy
+ * machine a frame between commits takes two display frames or more. The
+ * pacer used to count every frame held past one and a half display frames
+ * as the last commit's cost, and that sum only reset on the next commit: it
+ * grew by half the elapsed time or more, `commitDue` (elapsed ≥ twice the
+ * busy time) was never true again, and the head ran on while the page
+ * stayed where it was until a pause committed it. Now the pacer learns the
+ * steady frame from the frames no commit can be landing in, and only the
+ * excess over it is a commit's cost: frames that cost the same with or
+ * without a commit add nothing, so the wait is bounded.
+ *
  * `playFrame` is the whole per-frame decision; entity_view.tsx only wires
  * it to requestAnimationFrame and React state. Everything here is pure
  * except the store.
@@ -75,16 +89,27 @@ export interface CommitPacer {
   lastCommitAt: number;
   /** Main-thread time one page commit takes, learned (EWMA, ms). */
   costMs: number;
-  /** Main-thread time taken since the last commit (ms). */
+  /** Main-thread time taken since the last commit beyond the page's steady
+   * frame (ms). */
   busyMs: number;
-  /** The display's own frame interval: the shortest frame seen (ms). */
+  /** The page's steady frame interval: what a frame takes when no commit
+   * lands in it (the display's cadence, or longer when every frame draws a
+   * big graph). Learned from the frames past SETTLE_FRAMES after a commit
+   * (EWMA, ms); starts at 60 Hz. */
   frameMs: number;
   /** The previous frame's timestamp, or null before the first frame. */
   lastFrameAt: number | null;
+  /** Frames observed since the last commit. */
+  sinceCommit: number;
 }
 
+/** A page commit lands within this many frames after it is asked for
+ * (React renders after the frame; the fold index may land one render
+ * later): those frames never teach the steady frame. */
+export const SETTLE_FRAMES = 3;
+
 export function startPacer(): CommitPacer {
-  return { lastCommitAt: Number.NEGATIVE_INFINITY, costMs: 0, busyMs: 0, frameMs: 1000 / 60, lastFrameAt: null };
+  return { lastCommitAt: Number.NEGATIVE_INFINITY, costMs: 0, busyMs: 0, frameMs: 1000 / 60, lastFrameAt: null, sinceCommit: SETTLE_FRAMES + 1 };
 }
 
 const EWMA = 0.3;
@@ -92,15 +117,22 @@ const EWMA = 0.3;
 const MIN_FRAME_MS = 4;
 
 /** Learn from the gap since the previous frame. A frame held past one and
- * a half display frames was held by main-thread work (a page commit lands
+ * a half steady frames was held by main-thread work (a page commit lands
  * one or more frames after it is asked for, and may render twice), so the
- * excess counts as busy time. Call once per animation frame. */
+ * excess over the steady frame counts as busy time. A frame no commit can
+ * be landing in teaches the steady frame; one held far past it moves it at
+ * most to twice itself (a late commit or a pause of the tab is not the
+ * page's cadence). Call once per animation frame. */
 export function observeFrame(p: CommitPacer, now: number): CommitPacer {
-  if (p.lastFrameAt === null) return { ...p, lastFrameAt: now };
-  const gap = Math.max(0, now - p.lastFrameAt);
-  const frameMs = gap >= MIN_FRAME_MS ? Math.min(p.frameMs, gap) : p.frameMs;
-  const busy = gap > 1.5 * frameMs ? gap - frameMs : 0;
-  return { ...p, frameMs, busyMs: p.busyMs + busy, lastFrameAt: now };
+  const sinceCommit = p.sinceCommit + 1;
+  if (p.lastFrameAt === null) return { ...p, lastFrameAt: now, sinceCommit };
+  // A gap past MAX_FRAME_MS is a hidden tab or a sleeping machine, not the
+  // page's work: it counts as one second at most (the head does the same).
+  const gap = Math.min(MAX_FRAME_MS, Math.max(0, now - p.lastFrameAt));
+  const busy = gap > 1.5 * p.frameMs ? gap - p.frameMs : 0;
+  const steady = sinceCommit > SETTLE_FRAMES && gap >= MIN_FRAME_MS;
+  const frameMs = steady ? p.frameMs + EWMA * (Math.min(gap, 2 * p.frameMs) - p.frameMs) : p.frameMs;
+  return { ...p, frameMs, busyMs: p.busyMs + busy, lastFrameAt: now, sinceCommit };
 }
 
 /** The shortest gap between two page commits at this speed. */
@@ -118,7 +150,7 @@ export function commitDue(p: CommitPacer, now: number, speed: number): boolean {
  * commit was that commit's cost (the time before the first one is not). */
 export function markCommit(p: CommitPacer, now: number): CommitPacer {
   const first = !Number.isFinite(p.lastCommitAt);
-  return { ...p, costMs: first ? p.costMs : p.costMs + EWMA * (p.busyMs - p.costMs), busyMs: 0, lastCommitAt: now };
+  return { ...p, costMs: first ? p.costMs : p.costMs + EWMA * (p.busyMs - p.costMs), busyMs: 0, lastCommitAt: now, sinceCommit: 0 };
 }
 
 export interface PlayState {

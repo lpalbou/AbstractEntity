@@ -14,6 +14,7 @@ import {
   minCommitGapMs,
   observeFrame,
   playFrame,
+  SETTLE_FRAMES,
   SPEEDS,
   startClock,
   startPacer,
@@ -35,9 +36,13 @@ function quietPacer(frames: number, end = frames * FRAME): CommitPacer {
  * commit costs `costMs` of main thread. The cost lands `lag` frames after
  * the commit is asked for (React renders after the frame; the fold index
  * used to land one render later) and holds that frame back by the cost.
+ * `frame` is the page's steady frame (the graph canvas draws every frame:
+ * a big graph or a busy machine takes two display frames or more), from
+ * `slowFrom` ms on (before it, `fastFrame`: a 120 Hz display while the
+ * graph is still small).
  */
-function simulate(opts: { speed: number; costMs: number; seconds: number; lag?: number; start?: number; maxIndex?: number }) {
-  const { speed, costMs, seconds, lag = 1, start = 0, maxIndex = 10_000_000 } = opts;
+function simulate(opts: { speed: number; costMs: number; seconds: number; lag?: number; start?: number; maxIndex?: number; frame?: number; fastFrame?: number; slowFrom?: number }) {
+  const { speed, costMs, seconds, lag = 1, start = 0, maxIndex = 10_000_000, frame = FRAME, fastFrame = frame, slowFrom = 0 } = opts;
   let t = 0;
   let state = startPlay(start, t);
   const commits: Array<{ at: number; index: number }> = [];
@@ -48,7 +53,7 @@ function simulate(opts: { speed: number; costMs: number; seconds: number; lag?: 
   while (t < seconds * 1000) {
     const owed = pendingCost.shift() ?? 0;
     busy += owed;
-    t += FRAME + owed;
+    t += (t < slowFrom ? fastFrame : frame) + owed;
     const f = playFrame(state, t, speed, maxIndex);
     frames++;
     state = f.state;
@@ -103,7 +108,7 @@ describe("the page follows at a paced rate", () => {
   it("learns a faster display's cadence", () => {
     let p = startPacer();
     for (let i = 0; i <= 20; i++) p = observeFrame(p, i * (1000 / 120));
-    expect(p.frameMs).toBeCloseTo(1000 / 120, 6);
+    expect(p.frameMs).toBeCloseTo(1000 / 120, 1);
     expect(p.busyMs).toBe(0);
   });
 
@@ -157,6 +162,72 @@ describe("one playback frame", () => {
   it("the pacing holds when the cost lands frames after the commit (the page renders after the frame)", () => {
     const sim = simulate({ speed: 200, costMs: 120, seconds: 10, lag: 3 });
     expect(sim.busyShare).toBeLessThan(0.55);
+  });
+
+  // THE FREEZE (operator 2026-11-10, 297 moments at 100x: "it starts
+  // playing and freezes … pushing pause will update the graph"): frames
+  // that take two display frames whether or not a commit lands in them
+  // were counted as the last commit's cost and never let the next one be
+  // due. The page must keep following the head.
+  it.each([
+    ["every frame draws a big graph (two 60 Hz frames each)", { frame: 2 * FRAME }],
+    ["a busy machine (three 60 Hz frames each)", { frame: 3 * FRAME }],
+    ["a 120 Hz display that drops to 60 Hz once the graph grows", { fastFrame: 1000 / 120, frame: FRAME, slowFrom: 1500 }],
+  ])("at 100x the page keeps following the head when %s", (_label, shape) => {
+    const sim = simulate({ speed: 100, costMs: 80, seconds: 10, lag: 2, ...shape });
+    const late = sim.commits.filter((c) => c.at > 2000);
+    expect(late.length).toBeGreaterThan(10);
+    let longest = 0;
+    for (let i = 1; i < sim.commits.length; i++) longest = Math.max(longest, sim.commits[i].at - sim.commits[i - 1].at);
+    expect(longest).toBeLessThan(600);
+    const last = sim.commits[sim.commits.length - 1];
+    expect(sim.elapsed - last.at).toBeLessThan(600);
+    expect(sim.head - last.index).toBeLessThan(BASE_EPS * 100 * 0.6);
+    // still paced: rendering takes about half the main thread at most
+    expect(sim.busyShare).toBeLessThan(0.55);
+  });
+
+  it("at 1x on a page whose frames take two display frames, every event is still shown in turn", () => {
+    const sim = simulate({ speed: 1, costMs: 30, seconds: 10, frame: 2 * FRAME, start: 100 });
+    expect(sim.commits.length).toBe(25);
+    sim.commits.forEach((c, i) => expect(c.index).toBe(101 + i));
+  });
+
+  it("at 5x on a page whose frames take two display frames, the page stays within a few events of the head", () => {
+    const sim = simulate({ speed: 5, costMs: 30, seconds: 10, frame: 2 * FRAME, start: 100 });
+    expect(sim.commits.length).toBeGreaterThan(60);
+    for (let i = 1; i < sim.commits.length; i++) expect(sim.commits[i].index - sim.commits[i - 1].index).toBeLessThanOrEqual(3);
+    expect(sim.head - sim.commits[sim.commits.length - 1].index).toBeLessThanOrEqual(3);
+  });
+
+  it("a steady frame is learned only from frames no commit can be landing in", () => {
+    let p = quietPacer(30);
+    p = markCommit(p, p.lastFrameAt!);
+    let at = p.lastFrameAt!;
+    for (let i = 0; i < SETTLE_FRAMES; i++) p = observeFrame(p, (at += 120));
+    expect(p.frameMs).toBeCloseTo(FRAME, 6);
+    expect(p.busyMs).toBeCloseTo(SETTLE_FRAMES * (120 - FRAME), 6);
+    // past them, a long frame moves it at most to twice itself
+    const next = observeFrame(p, at + 500);
+    expect(next.frameMs).toBeLessThanOrEqual(FRAME + 0.3 * FRAME + 1e-9);
+  });
+
+  it("coming back to a hidden tab holds the page back two seconds at most, not twice the time away", () => {
+    let s = startPlay(0, 0);
+    for (let i = 1; i <= 30; i++) s = playFrame(s, i * FRAME, 100, 1e9).state;
+    const back = 30 * FRAME + 120_000; // two minutes hidden
+    let at = back;
+    let f = playFrame(s, at, 100, 1e9);
+    s = f.state;
+    let committedAt: number | null = f.commit !== null ? at : null;
+    while (committedAt === null && at < back + 10_000) {
+      at += FRAME;
+      f = playFrame(s, at, 100, 1e9);
+      s = f.state;
+      if (f.commit !== null) committedAt = at;
+    }
+    expect(committedAt).not.toBeNull();
+    expect(committedAt! - back).toBeLessThanOrEqual(2 * MAX_FRAME_MS + FRAME);
   });
 
   it("from 200x a cheap page still follows at most 10 times a second", () => {

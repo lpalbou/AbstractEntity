@@ -4,6 +4,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **Playing his history back no longer freezes the graph.** On a big life at a high speed (or on a
+  120 Hz screen), the graph stopped changing a moment after Play while the position at the bottom
+  right kept counting, and only a pause brought it up to date. The playback paces page updates so
+  they take about half the main thread, and it counted every frame the graph takes to draw as the
+  cost of the last update; once each frame took two screen frames or more, the next update was
+  never due. It now measures an update against the page's own steady frame, learned from the frames
+  no update lands in, so the graph keeps following the play head at every speed, and after a pause
+  and a resume. Coming back to a tab left hidden while it played holds the graph back two seconds
+  at most, not twice the time away (`replay_clock.ts`; the tests reproduce the freeze for a graph
+  that takes two and three screen frames to draw and for a 120 Hz screen that drops to 60 Hz).
 - **A topic tells what his memory knows of it.** Unfold a topic in the Topics panel and, above its
   memories, it says when they were formed ("since 7 Jul 2026 · last 13 Jul 2026"), how often they
   were used in the last 7 days, the one used most, how many of its memories bridge to other
