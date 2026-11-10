@@ -143,7 +143,15 @@ describe("responsive layer: graph canvas", () => {
         // The buttons never leave the canvas.
         if (H >= top + floor + 8 + tap) expect(bottom).toBeGreaterThanOrEqual(0);
       }
+      // Moved down over the kinds strip, the buttons stay on top (tappable) and the strip's end
+      // scrolls clear of their row (4 buttons a tap target wide, 6 px apart, 8 px from the edge).
+      const pad = evalCss(decl(rule(narrow, ".entity_legend"), "padding-right"), { "--tap-min": tap }, 0);
+      expect(pad).toBeGreaterThanOrEqual(4 * tap + 3 * 6 + 8);
     }
+    expect(Number(decl(buttons, "z-index"))).toBeGreaterThan(0);
+    // The fold mark leads the summary (at its end it wrapped onto a cut-off line of its own).
+    expect(rule(CANVAS_CSS, ".gc_rl_summary::before")).toMatch(/content:\s*"▸"/);
+    expect(CANVAS_CSS).not.toContain(".gc_rl_summary::after");
   });
 });
 

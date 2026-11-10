@@ -6048,6 +6048,9 @@ body {
     top: auto;
     bottom: min(var(--gc-motion-bottom), calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 8px - var(--tap-min, 32px)));
     right: 8px;
+    /* Moved down on a short canvas they come over the kinds strip: they
+     * stay on top and tappable (the strip scrolls under them, below). */
+    z-index: 2;
   }
   .gc_btn {
     justify-content: center;
@@ -6060,7 +6063,9 @@ body {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-  /* Legend: one scrollable row along the bottom edge. */
+  /* Legend: one scrollable row along the bottom edge. Its end scrolls clear
+   * of the motion buttons where a short canvas brings them over it (the
+   * buttons' row width as trailing room; invisible until scrolled to). */
   .entity_legend {
     left: 8px;
     right: 8px;
@@ -6070,6 +6075,7 @@ body {
     overflow-x: auto;
     scrollbar-width: none;
     white-space: nowrap;
+    padding-right: calc(4 * var(--tap-min, 32px) + 30px);
   }
   .entity_legend::-webkit-scrollbar {
     display: none;

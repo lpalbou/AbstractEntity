@@ -44,15 +44,17 @@
 }
 
 /* The fold mark: ▸ folded, ▾ open (decoration: the button says
- * aria-expanded). */
-.gc_rl_summary::after {
+ * aria-expanded). It LEADS the summary, so it rides its first line: at the
+ * end it wrapped onto a line of its own under a two-line summary at 400 px
+ * and was cut by the one-line floor. */
+.gc_rl_summary::before {
   content: "▸";
   content: "▸" / "";
-  margin-left: 2px;
+  margin-right: 2px;
   color: var(--text-dim);
 }
 
-.gc_rl_open > .gc_rl_summary::after {
+.gc_rl_open > .gc_rl_summary::before {
   content: "▾";
   content: "▾" / "";
 }
