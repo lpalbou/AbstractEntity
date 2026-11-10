@@ -12,6 +12,14 @@
  * - A click on a member opens it (Detail; a diary entry shows in the Book —
  *   the graph's rule). A member placed since his last sleep carries the
  *   badge "placed until his next sleep".
+ * - The topic view (unfolded) says what memory counts of it (`facts`), in
+ *   words: when its memories were formed, how much it was used this week,
+ *   its most used memory, its bridges to other topics, what his last sleep
+ *   changed, the pairs of memories most used together; and, when its
+ *   centroid is stale, that its placement may be. Memories and topics are
+ *   named by their titles (the graph's nodes, the served topics) — a fact
+ *   naming one the graph does not hold is not said, never an id.
+ * - His author's verdict "no common subject" is said under the summary.
  * - Not served: ONE sentence instead of the list — his first sleep has not
  *   formed topics yet, or this gateway serves the old shape.
  *
@@ -22,10 +30,11 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AfChip, DisclosureList, type DisclosureListHandle, type DisclosureRow, type DisclosureSelection } from "@abstractframework/ui-kit";
 
-import { FIRST_SLEEP_SENTENCE, PROVISIONAL_BADGE, topicSummary, topicTitle, UNSERVED_SENTENCE, type CommunitiesRead, type ServedCommunity } from "./communities";
+import { FIRST_SLEEP_SENTENCE, NO_COMMON_SUBJECT, PROVISIONAL_BADGE, topicSummary, topicTitle, UNSERVED_SENTENCE, type CommunitiesRead, type ServedCommunity } from "./communities";
 import { topicColor } from "./topic_layout";
 import type { FoldState, NodeState } from "./stream_fold";
 import { isDiaryNode, plainCardTitle } from "./hover_card";
+import { dayWords } from "./understanding";
 import { TITLE_BEING_WRITTEN } from "./untitled";
 
 /** What the panel shows: the answer being read, a failed read, or the read. */
@@ -58,25 +67,104 @@ export function waitingLine(n: number): string | null {
   return n === 1 ? "1 newer memory joins a topic at his next sleep." : `${n} newer memories join a topic at his next sleep.`;
 }
 
+/** The window memory counts `facts.activity` and `facts.paths` over
+ * (abstractmemory community_index.FACTS_WINDOW_DAYS; pinned by the test). */
+export const FACTS_WINDOW_DAYS = 7;
+/** The sentence of each verdict memory's author may return. */
+export const VERDICT_SENTENCE: Record<typeof NO_COMMON_SUBJECT, string> = {
+  [NO_COMMON_SUBJECT]: "He found no common subject in these memories.",
+};
+export const CENTROID_STALE_NOTE = "placement may be stale until his next sleep";
+export const PATHS_HEAD = "paths most travelled";
+
+export type TopicFact =
+  | { kind: "span" | "activity" | "hub" | "bridges" | "changed" | "stale"; text: string }
+  | { kind: "paths"; text: string; paths: { a: string; b: string; count: number }[] };
+
+/** What memory counts of a topic, in words. `titleOf` names a member record
+ * (its graph id) by the graph's node, null when the graph does not hold it;
+ * `topicTitleOf` names another topic by its key, null when not served or
+ * its title is not written. Nothing is said for an absent fact, an empty
+ * one, or one that would have to show an id. */
+export function topicFacts(c: ServedCommunity, titleOf: (graphId: string) => string | null, topicTitleOf: (key: string) => string | null, timeZone?: string): TopicFact[] {
+  const f = c.facts;
+  const out: TopicFact[] = [];
+  const first = f.span?.first ?? null;
+  const last = f.span?.last ?? null;
+  if (first) {
+    const a = dayWords(first, timeZone);
+    const b = last ? dayWords(last, timeZone) : a;
+    out.push({ kind: "span", text: b === a ? `since ${a}` : `since ${a} · last ${b}` });
+  }
+  if (f.activity !== undefined) {
+    const n = f.activity;
+    out.push({ kind: "activity", text: n === 0 ? `not used in the last ${FACTS_WINDOW_DAYS} days` : `used ${n} ${n === 1 ? "time" : "times"} in the last ${FACTS_WINDOW_DAYS} days` });
+  }
+  const hub = f.hub ? titleOf(f.hub) : null;
+  if (hub) out.push({ kind: "hub", text: `most used: ${hub}` });
+  const bridges = f.bridges?.length ?? 0;
+  if (bridges > 0) out.push({ kind: "bridges", text: `${bridges} ${bridges === 1 ? "memory bridges" : "memories bridge"} to other topics` });
+  const ch = f.changed;
+  if (ch) {
+    const parts: string[] = [];
+    if (ch.added > 0) parts.push(`+${ch.added} joined`);
+    if (ch.moved > 0) parts.push(`${ch.moved} moved out`);
+    if (ch.splitFrom) {
+      const origin = ch.splitFrom !== c.key ? topicTitleOf(ch.splitFrom) : null;
+      parts.push(origin ? `split from “${origin}”` : "split from a larger topic");
+    }
+    if (parts.length) out.push({ kind: "changed", text: `changed since his last sleep: ${parts.join(" · ")}` });
+  }
+  const paths: { a: string; b: string; count: number }[] = [];
+  for (const p of f.paths ?? []) {
+    const a = titleOf(p.from);
+    const b = titleOf(p.to);
+    if (a && b) paths.push({ a, b, count: p.count });
+  }
+  if (paths.length) out.push({ kind: "paths", text: PATHS_HEAD, paths });
+  if (c.centroidStale) out.push({ kind: "stale", text: CENTROID_STALE_NOTE });
+  return out;
+}
+
+/** The facts as one line of text (the row's accessible text). */
+export function factsText(facts: TopicFact[]): string {
+  return facts.map((f) => (f.kind === "paths" ? `${f.text}: ${f.paths.map((p) => `${p.a} ↔ ${p.b} (${p.count})`).join("; ")}` : f.text)).join(". ");
+}
+
 /** Topics biggest first (ties by key: stable). */
 export function topicOrder(communities: ServedCommunity[]): ServedCommunity[] {
   return [...communities].sort((a, b) => b.members.length - a.members.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
-type TopicRowData = { kind: "topic"; c: ServedCommunity } | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
+type TopicRowData = { kind: "topic"; c: ServedCommunity } | { kind: "facts"; c: ServedCommunity; facts: TopicFact[] } | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
 type TopicRow = DisclosureRow<TopicRowData>;
 
 export const topicRowKey = (key: string) => `topic:${key}`;
 export const memberRowKey = (key: string, row: string) => `member:${key}:${row}`;
+export const factsRowKey = (key: string) => `facts:${key}`;
 
-/** The panel's visible rows: every topic; an unfolded one's members (the
- * memories of the fold, newest first). */
+/** The panel's visible rows: every topic; an unfolded one's facts (a static
+ * row: never focused or selected) then its members (the memories of the
+ * fold, newest first). */
 export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState): TopicRow[] {
   const out: TopicRow[] = [];
+  const byKey = new Map(communities.map((c) => [c.key, c]));
+  const titleOf = (gid: string): string | null => {
+    const node = fold.nodes.get(fold.graph_to_row.get(gid) ?? gid);
+    return node ? plainCardTitle(node) : null;
+  };
+  const topicTitleOf = (key: string): string | null => {
+    const t = byKey.get(key);
+    return t && !t.titlePending && t.title ? t.title : null;
+  };
   for (const c of topicOrder(communities)) {
     const open = expanded.has(c.key);
     out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c } });
     if (!open) continue;
+    const facts = topicFacts(c, titleOf, topicTitleOf);
+    if (facts.length) {
+      out.push({ key: factsRowKey(c.key), entityId: factsRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: factsText(facts), data: { kind: "facts", c, facts } });
+    }
     const nodes = (rowsOf.get(c.key) ?? []).map((r) => fold.nodes.get(r)).filter((n): n is NodeState => Boolean(n));
     nodes.sort((a, b) => b.first_seq - a.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     for (const node of nodes) {
@@ -164,6 +252,32 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
             {memoriesWord(c.members.length)}
           </AfChip>
           {summary ? <span className={`gc_tp_summary${c.summaryPending ? " gc_tp_pending" : ""}`}>{summary}</span> : null}
+          {c.verdict ? <span className="gc_tp_verdict">{VERDICT_SENTENCE[c.verdict]}</span> : null}
+        </span>
+      );
+    }
+    if (d.kind === "facts") {
+      return (
+        <span className="gc_tp_facts" data-facts={d.c.key}>
+          {d.facts.map((f) =>
+            f.kind === "paths" ? (
+              <span key={f.kind} className="gc_tp_fact gc_tp_fact_paths">
+                <span className="gc_tp_paths_head">{f.text}</span>
+                {f.paths.map((p, i) => (
+                  <span key={i} className="gc_tp_path">
+                    <span className="gc_tp_path_end">{p.a}</span>
+                    <span className="gc_tp_path_sep">↔</span>
+                    <span className="gc_tp_path_end">{p.b}</span>
+                    <span className="gc_tp_path_count">({p.count})</span>
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span key={f.kind} className={`gc_tp_fact gc_tp_fact_${f.kind}`}>
+                {f.text}
+              </span>
+            ),
+          )}
         </span>
       );
     }
@@ -200,7 +314,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
             const d = row.data;
             if (!d) return;
             if (d.kind === "topic") focus(d.c.key);
-            else onOpenMember(d.node);
+            else if (d.kind === "member") onOpenMember(d.node);
           }}
           renderRow={(row) => renderRow(row as TopicRow)}
           scrollOnSelect={false}

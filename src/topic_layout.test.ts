@@ -41,17 +41,21 @@ function comm(key: string, members: string[], xy: [number, number], radius: numb
     title: `Topic ${key}`,
     summary: null,
     pending: [],
+    verdict: null,
     size: members.length,
+    kinds: { episode: members.length },
     members: members.map((id) => ({ id, via: "detected" })),
     provisional_ids: [],
     cohesion: 0.5,
     layout: { xy, radius, seats },
+    centroid_stale: false,
+    facts: {},
     ...over,
   };
 }
 
 function data(communities: Raw[]): ServedCommunities {
-  const read = readCommunities({ version: 2, version_seq: 7, first_sleep_pending: false, communities, links: [] });
+  const read = readCommunities({ version: 2, version_seq: 7, first_sleep_pending: false, algorithm: "louvain-warm-v1", communities, links: [] });
   if (read.kind !== "served") throw new Error(JSON.stringify(read));
   return read.data;
 }

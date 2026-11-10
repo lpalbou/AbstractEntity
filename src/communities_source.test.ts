@@ -24,10 +24,29 @@ describe("fetchCommunities", () => {
       version: 2,
       version_seq: 9,
       first_sleep_pending: false,
-      communities: [{ id: "ex:community-r1", key: "k1", title: "Ports", summary: null, pending: [], members: [{ id: "ex:m1", via: "detected" }], provisional_ids: [], layout: { xy: [0, 0], radius: 1, seats: {} } }],
+      algorithm: "louvain-warm-v1",
+      communities: [
+        {
+          id: "ex:community-r1",
+          key: "k1",
+          title: "Ports",
+          summary: null,
+          pending: [],
+          verdict: null,
+          size: 1,
+          kinds: { episode: 1 },
+          members: [{ id: "ex:m1", via: "detected" }],
+          provisional_ids: [],
+          cohesion: null,
+          layout: { xy: [0, 0], radius: 1, seats: {} },
+          centroid_stale: false,
+          facts: {},
+        },
+      ],
+      links: [],
     };
     expect((await fetchCommunities("http://gw", "castor", reply(200, v2))).kind).toBe("served");
-    expect(await fetchCommunities("http://gw", "castor", reply(200, { version: 2, version_seq: null, first_sleep_pending: true, communities: [] }))).toEqual({ kind: "first_sleep" });
+    expect(await fetchCommunities("http://gw", "castor", reply(200, { version: 2, version_seq: null, first_sleep_pending: true, algorithm: null, communities: [], links: [] }))).toEqual({ kind: "first_sleep" });
     expect(await fetchCommunities("http://gw", "castor", reply(200, { algorithm: "louvain-v1", communities: [{ id: 0, label: "a, b, c", keywords: ["a"] }] }))).toEqual({ kind: "unserved" });
   });
 

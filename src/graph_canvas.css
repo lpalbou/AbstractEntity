@@ -387,6 +387,68 @@
   overflow: visible;
 }
 
+/* His author's verdict (memory: "no common subject"), under the summary. */
+.gc_tp_verdict {
+  flex-basis: 100%;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+/* The topic view's facts (a static row above its members): one short line
+ * each; a path's two titles share its line, each cut on its own. */
+.gc_tp_list .af-disclosure__row--static {
+  cursor: default;
+}
+
+.gc_tp_facts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 4px;
+  color: var(--text-dim);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.gc_tp_fact {
+  overflow-wrap: anywhere;
+}
+
+.gc_tp_fact_stale {
+  font-style: italic;
+}
+
+.gc_tp_fact_paths {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gc_tp_path {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  padding-left: 8px;
+  color: var(--text);
+}
+
+.gc_tp_path_end {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gc_tp_path_sep,
+.gc_tp_path_count {
+  flex: none;
+  color: var(--text-dim);
+}
+
 .gc_tp_waiting {
   margin: 6px 8px 2px;
   color: var(--text-dim);

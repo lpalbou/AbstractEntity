@@ -18,7 +18,7 @@ function env(seq: number, family: string, payload: Record<string, unknown>): Rep
   return { stream: "abstractmemory.replay", stream_version: 1, seq, family, observed_at: "2026-11-10T03:00:00+00:00", scope: "life", owner_id: "entity:castor", trace_id: null, turn_id: null, run_id: null, payload } as unknown as ReplayEnvelope;
 }
 const marker = (seq: number, version_seq: unknown) => env(seq, "host", { kind: COMMUNITIES_CHANGED, version_seq });
-const SERVED = (versionSeq: number): CommunitiesRead => ({ kind: "served", data: { versionSeq, communities: [] } });
+const SERVED = (versionSeq: number): CommunitiesRead => ({ kind: "served", data: { versionSeq, communities: [], links: [] } });
 
 describe("latestCommunitiesMarker", () => {
   it("the newest communities_changed version_seq on the stream", () => {

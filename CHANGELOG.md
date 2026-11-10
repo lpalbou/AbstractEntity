@@ -4,6 +4,18 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+- **A topic tells what his memory knows of it.** Unfold a topic in the Topics panel and, above its
+  memories, it says when they were formed ("since 7 Jul 2026 · last 13 Jul 2026"), how often they
+  were used in the last 7 days, the one used most, how many of its memories bridge to other
+  topics, what his last sleep changed ("+6 joined · 2 moved out", "split from “Tolstoy's late
+  letters”") and the pairs of memories most used together. Memories and topics are named by their
+  titles; a fact about a memory the graph does not hold is left out, never shown as an id. A topic
+  whose memories his author found no common subject in says so under its summary, and one whose
+  placement was computed before his memory changed its embedding says "placement may be stale
+  until his next sleep". The app reads memory's final topics answer exactly (verdict, kinds,
+  stale placement, facts, topic links); an answer that leaves out a required field shows "This
+  gateway does not serve topics yet." and nothing is filled in. The topic links are read but not
+  drawn yet.
 - **His topics come from his memory, with their titles, and they ARE the graph's layout.** Memory
   now forms his topics in his sleep and names each one (an authored title and summary); the
   gateway serves them with their layout (`GET /entities/{name}/communities`, payload version 2:
