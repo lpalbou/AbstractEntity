@@ -606,6 +606,17 @@ export interface TurnMemory {
   origin?: string;
 }
 
+/** A diary entry a visit turn wrote, as the visit lane serves it in `diary_entries` (the runtime's
+ * diary meta, gateway entity_visits.py): word-free for a private entry (it carries no title). */
+export interface VisitDiaryEntry {
+  entry_id: string;
+  kind: string;
+  visibility: string;
+  projected_record_id: string | null;
+  /** The record's title as formed; absent for a private entry, null while it is being written. */
+  title?: string | null;
+}
+
 export interface ChatTurnResult {
   reply: string;
   turn_id?: string;
@@ -613,8 +624,11 @@ export interface ChatTurnResult {
    * shape. Render THIS, never tool claims from reply prose. */
   tools_ran?: string[];
   memories_in_context?: number;
-  records_formed?: number;
-  diary_entries?: number;
+  /** The records the turn formed: their ids (gateway entity_chat.py, the runtime's TurnReport). */
+  records_formed?: string[];
+  /** The diary entries the turn wrote: entry ids on the hosted lane (its TurnReport.diary), objects on
+   * the visit lane (VisitDiaryEntry; the drawer keeps both lanes' turns in this one shape). */
+  diary_entries?: Array<string | VisitDiaryEntry>;
   /** The operator's log lines for this turn (marker imitation, refusals, fallbacks): strings. */
   notices?: string[];
   /** What the turn formed, served BESIDE the reply (AbstractRuntime turn notices, 2026-11-09):
@@ -1361,8 +1375,10 @@ export interface VisitTurnResult {
   output?: Record<string, unknown>;
   tools_ran?: string[];
   memories_in_context?: number;
-  records_formed?: number;
-  diary_entries?: number;
+  /** The records the turn formed: their ids (gateway entity_visits.py). */
+  records_formed?: string[];
+  /** The diary entries the turn wrote, as objects (VisitDiaryEntry), never a count. */
+  diary_entries?: VisitDiaryEntry[];
   memories?: TurnMemory[];
   tool_details?: Array<{ name: string; arg?: string; result?: string }>;
   system_prompt?: string;
