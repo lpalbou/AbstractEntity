@@ -114,7 +114,7 @@ try {
   await page.waitForFunction((t) => document.querySelector(".cm_panel .cm_canvas_box")?.getAttribute("title") !== t, neutralMood);
   await page.waitForTimeout(300);
   console.log(`  neutral: ${neutralMood} [${neutralValues.join(" ")}]; joy: ${await mood()} [${(await values()).join(" ")}]`);
-  assert.match(await mood(),/^closest to .+ \([A-Z]{3} [−-]?\d\.\d\d\)$/,"the mood dot names the closest register and its similarity");
+  assert.match(await mood(),/^closest to [a-z]+ \([−-]?\d\.\d\d\)$/,"the bloom's hover names the closest register (by name, no code) and its similarity");
   assert.notDeepEqual(await values(),neutralValues,"the joy control reads differently on the row");
   await page.screenshot({path:resolve(shots,"entity-cognition-joy.png")});
   // The replay: his words at the timeline's position, read by itself on opening (here: nothing
@@ -174,7 +174,7 @@ try {
     console.log(`  ${width}${touch ? " touch" : ""}: names per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
     assert.ok(layout.inside, `the named channels stay inside the monitor at ${width}`);
     assert.deepEqual(layout.perLine,[1,1,1,1,1],`one channel per line at ${width}: ${layout.perLine}`);
-    assert.ok(layout.monitorHeight <= (width >= 768 ? 116 : 88), `the monitor fits its place (${layout.monitorHeight} px) at ${width}`);
+    assert.ok(layout.monitorHeight <= (width >= 768 ? 160 : 260), `the monitor stays within its room (${layout.monitorHeight} px) at ${width}`);
     assert.ok(layout.scroll <= layout.inner, `no sideways scroll at ${width}`);
     assert.ok(layout.dockScroll <= layout.dockWidth, `the monitor never scrolls sideways at ${width}`);
     assert.ok(layout.valContrast >= 4.5, `value contrast ${layout.valContrast.toFixed(2)} at ${width}`);

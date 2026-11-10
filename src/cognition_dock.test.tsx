@@ -241,27 +241,23 @@ describe("the reply feed", () => {
 });
 
 describe("layout", () => {
-  it("in the timeline's third column, the block's full height, never taller than the block (116 px); the main area is never a grid for it", () => {
+  it("in the timeline's third column, the main thing right of the lanes while open (420 px at least, the block taller only while open); the main area is never a grid for it", () => {
     expect(CSS).toMatch(/\.et_monitor_slot \{\s*grid-column: 3;\s*min-width: 0;/);
-    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 116px;[^}]*overflow: visible;/);
-    // The petal labels in the bloom's own small type (under the floor), so nine fit around it.
+    expect(CSS).toMatch(/\.et_monitor_slot:not\(:empty\) \{\s*min-width: 420px;/);
+    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 160px;[^}]*overflow: visible;/);
+    // The register names in the bloom's own small type (under the floor), the canvas centred in its box.
     expect(CSS).toMatch(/\.cw_compact \.cm_overlay \{\s*--ent-type-floor: 0px;/);
+    expect(CSS).toMatch(/\.cm_bloom_canvas \{\s*position: absolute;\s*top: 0;/);
     // Its state is one line, whatever it says (the reason in the hover).
     expect(CSS).toMatch(/\.cw_state \{[^}]*white-space: nowrap;/);
-    // A phone keeps the one row (smaller squares), never a wrapped column.
     const phone = CSS.slice(CSS.indexOf("/* Phone (the lanes fill the width): the open monitor takes the lanes' place"));
-    expect(phone.slice(0, phone.indexOf("/* ---"))).not.toMatch(/flex-wrap: wrap|max-height: none/);
-    // Its 84 px bloom keeps its petal codes inside the lanes' place: codes alone, the ring drawn in.
+    // A phone: the lanes' place at least, the names alone around its bloom (numbers in the cards).
+    expect(phone).toMatch(/\.et_monitor_slot \{[^}]*min-height: 88px;/);
     expect(phone).toMatch(/\.cw_compact \.cm_overlay_num \{\s*display: none;/);
-    expect(phone).toMatch(/\.cw_panel\.cw_compact \{\s*max-height: 88px;\s*overflow: hidden;/);
-    // In the lanes' exact place: their five 16 px rows and four 2 px gaps.
-    expect(phone).toMatch(/\.et_monitor_slot \{[^}]*height: 88px;/);
-    expect(phone).toMatch(/\.entity_timeline\.et_grid \.et_lane_label \{\s*height: 16px;\s*line-height: 16px;/);
-    // The five channels: a column of names (smaller) and values; only the gauge's codes span their box.
+    // The five channels: a column of names (smaller) and values; the gauge's four names beside it.
     expect(CSS).toMatch(/\.cm_tone_list \{\s*display: grid;\s*grid-template-columns: max-content max-content;/);
     expect(CSS).toMatch(/\.cm_tone_name \{[^}]*font-size: max\(10px, calc\(var\(--ent-type-floor, 12px\) - 2px\)\);/);
-    expect(CSS).not.toMatch(/\.cw_compact \.cm_gauge_codes \{/);
-    expect(CSS).toMatch(/\.cw_compact \.cm_gauge_box \.cm_gauge_codes \{\s*width: 100%;/);
+    expect(CSS).toMatch(/\.cm_gauge_name \{\s*font-size: max\(10px, calc\(var\(--ent-type-floor, 12px\) - 2px\)\);/);
     expect(CSS).not.toMatch(/entity_monitor_dock|cw_dock|\.entity_main:has\(> \.entity/);
   });
 
@@ -360,11 +356,29 @@ describe("no embeddings: said at once, his book never opened (backlog 0032 revie
   });
 });
 
-describe("the bloom's tree is back (backlog 0036)", () => {
-  it("both readings draw the bloom with its petal labels, at the size the screen allows", () => {
-    expect(PANEL).toContain("<BloomAxisOverlay width={bloom} height={bloom} emotions={current?.emotions ?? {}} />");
-    expect(INLINE).toContain("<BloomAxisOverlay width={bloom} height={bloom} emotions={current.emotions} />");
-    expect(INLINE).toMatch(/const BLOOM = 112;\s*const BLOOM_PHONE = 84;/);
+describe("the bloom's tree is back, by name (backlog 0036)", () => {
+  it("both readings draw the named bloom: a 150 px canvas (a ~114 px bloom) in a wider box, 120 on a phone", () => {
+    expect(PANEL).toContain("<NamedBloom size={bloom} scores={bloomScores} emotions={current?.emotions} />");
+    expect(INLINE).toContain("<NamedBloom size={bloom} scores={bloomScores} emotions={current.emotions} />");
+    expect(INLINE).toContain("<BloomAxisOverlay width={size.box} height={size.canvas} emotions={emotions ?? {}} />");
+    expect(INLINE).toMatch(/const BLOOM = \{ canvas: 150, box: 210 \};\s*const BLOOM_PHONE = \{ canvas: 120, box: 180 \};/);
     expect(INLINE).toContain("return useAfMedia(AF_MEDIA.sm) ? BLOOM_PHONE : BLOOM;");
+  });
+
+  it("no 3-letter code in any label the monitor renders: the registers, the channels and the conduct go by name", async () => {
+    const CODES = /\b(JOY|DIS|SUR|ANX|FEA|SAD|GRV|CAL|TEN|WAR|TSN|REF|STR|CER|EFF|ACT|ATT|RIG)\b/;
+    const key = corpusKey({ baseUrl: "http://gw.test", entity: "named-castor" });
+    const reading = { ...sample(5, "the harbour visit"), emotions: { joy: 0.3, calm: 0.1 }, scores: { warmth: 0.2 } } as unknown as ScoredSample;
+    startCorpusRead(key, async () => ({ name: "ready", samples: [reading], warnings: [] }));
+    await new Promise((r) => setTimeout(r, 0));
+    const html = renderToStaticMarkup(<CognitionWavePanel fold={createFoldState()} source={{ baseUrl: "http://gw.test", entity: "named-castor" }} scrubSeq={10} live={false} replyFeed={createReplyFeed()} />);
+    expect(html).toContain('class="cm_overlay"');
+    for (const name of ["joy", "discovery", "surprise", "anxiety", "fear", "sadness", "gravity", "calm", "tenderness"]) expect(html).toContain(`>${name}<span class="cm_overlay_num">`);
+    for (const name of ["warmth", "tension", "reflection", "structure", "certainty"]) expect(html).toContain(`<span class="cm_tone_name">${name}</span>`);
+    expect(html.replace(/<[^>]*>/g, " ")).not.toMatch(CODES);
+    expect(html).not.toMatch(/title="[^"]*\b(JOY|CAL|DIS)\b/);
+    // The conduct's four names beside the gauge (live with a conversation).
+    expect(INLINE).toContain('<span className="cm_gauge_name">{a.name}</span>');
+    expect(INLINE).not.toMatch(/\{a\.code\}|mood\.axis\.code/);
   });
 });

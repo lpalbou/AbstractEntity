@@ -96,15 +96,30 @@ export function createReplyFeed(): ReplyFeed {
     },
   };
 }
-/** The bloom inside the timeline (backlog 0036): as tall as the block allows, the lanes' place on a
- * phone; the conduct gauge with its code row under it. */
-const BLOOM = 112;
-const BLOOM_PHONE = 84;
-const GAUGE = 56;
+/** The bloom inside the timeline (backlog 0036, "better use the space given"): its canvas (the kit
+ * draws the petals within 0.38 of it, so a 150 px canvas is a ~114 px bloom) and a box wider than
+ * tall for the register names around it. The conduct gauge with its names beside it. */
+const BLOOM = { canvas: 150, box: 210 };
+const BLOOM_PHONE = { canvas: 120, box: 180 };
+const GAUGE = 72;
 
-/** The bloom's side for this screen (a phone's monitor sits in the lanes' place). */
-export function useMonitorBloomSize(): number {
+/** The bloom's canvas and box for this screen. */
+export function useMonitorBloomSize(): { canvas: number; box: number } {
   return useAfMedia(AF_MEDIA.sm) ? BLOOM_PHONE : BLOOM;
+}
+
+/** The bloom, its register names around it (the box's height is the canvas's). */
+export function NamedBloom({ size, scores, emotions }: { size: { canvas: number; box: number }; scores: Record<string, number>; emotions: Record<string, number> | undefined }): React.ReactElement {
+  return (
+    <>
+      <div className="cm_bloom_canvas" style={{ left: (size.box - size.canvas) / 2 }}>
+        {/* Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
+          * similarity scale is not. The breathing stays. */}
+        <AfCognitionBloom scores={scores} options={{ labels: false, vignette: false }} size={size.canvas} />
+      </div>
+      <BloomAxisOverlay width={size.box} height={size.canvas} emotions={emotions ?? {}} />
+    </>
+  );
 }
 
 interface ScoredText {
@@ -340,18 +355,13 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
       <div className="cm_body">
         <div
           className="cm_canvas_box"
-          style={{ width: bloom, height: bloom }}
-          title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}
+          style={{ width: bloom.box, height: bloom.canvas }}
+          title={mood ? `closest to ${mood.axis.name} (${simText(mood.value)})` : undefined}
         >
           {status === "live" && current ? (
-            <>
-              {/* Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
-                * similarity scale is not. The breathing stays. */}
-              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={bloom} />
-              <BloomAxisOverlay width={bloom} height={bloom} emotions={current.emotions} />
-            </>
+            <NamedBloom size={bloom} scores={bloomScores} emotions={current.emotions} />
           ) : (
-            <div role="status" className="cm_reading_state" style={{ width: bloom, height: bloom, display: "grid", placeItems: "center", textAlign: "center", boxSizing: "border-box" }}>
+            <div role="status" className="cm_reading_state" style={{ width: bloom.box, height: bloom.canvas, display: "grid", placeItems: "center", textAlign: "center", boxSizing: "border-box" }}>
               {status === "scoring" ? "reading…" : "not read"}
             </div>
           )}
@@ -365,7 +375,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
               const cell = conduct[a.id];
               return (
                 <ExplainedCode key={a.id} className="cm_gauge_code" style={{ color: a.color }} explain={conductExplainer(a, cell)}>
-                  {a.code}
+                  <span className="cm_gauge_name">{a.name}</span>
                   <span className="cm_gauge_val">{cell?.short ?? ""}</span>
                 </ExplainedCode>
               );

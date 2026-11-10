@@ -36,14 +36,13 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
 import { ExplainedCode, type ExplainerContent } from "./code_explainer";
-import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, dominantEmotion, simText, ToneRow, TONE_POLES } from "./cognitive_monitor";
+import { basisProvenanceNote, bloomScoresOf, CHANNEL_AXES, dominantEmotion, simText, ToneRow, TONE_POLES } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { EMBEDDINGS_UNCONFIGURED, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
-import { CognitionWaveInline, EmbeddingsUnconfiguredNote, useMonitorBloomSize, type ReplyFeed } from "./cognition_wave_inline";
+import { CognitionWaveInline, EmbeddingsUnconfiguredNote, NamedBloom, useMonitorBloomSize, type ReplyFeed } from "./cognition_wave_inline";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
 // The frozen basis is ~190 KB of numbers; lazy-load it so opening the
@@ -301,10 +300,9 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
         <div className="cm_body cw_reading">
           {/* Same input and labels as the conversation's reading: every register on the bloom (its
             * closest one in the hover), each tone channel with its signed score beside it. */}
-          <div className="cm_canvas_box" style={{ width: bloom, height: bloom }} title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}>
-            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={bloom} />
-            {/* The tree's labels back (backlog 0036): each register's code at its petal, its number under it. */}
-            <BloomAxisOverlay width={bloom} height={bloom} emotions={current?.emotions ?? {}} />
+          <div className="cm_canvas_box" style={{ width: bloom.box, height: bloom.canvas }} title={mood ? `closest to ${mood.axis.name} (${simText(mood.value)})` : undefined}>
+            {/* The tree's labels back (backlog 0036): each register's name at its petal, its number under it. */}
+            <NamedBloom size={bloom} scores={bloomScores} emotions={current?.emotions} />
           </div>
           <ToneRow scores={current?.scores} />
         </div>

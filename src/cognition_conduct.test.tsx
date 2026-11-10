@@ -64,7 +64,8 @@ describe("conductCell: a value, or — with its reason on the card", () => {
   it("a conduct code's card: what it measures, this turn's read, the reason", () => {
     const rigor = CONDUCT_AXES.find((a) => a.id === "rigor")!;
     expect(conductExplainer(rigor, cells({ tool_rounds: 0 }, null).rigor)).toEqual({
-      code: "RIG",
+      // The conduct goes by its name (backlog 0036): no code on its card.
+      code: "",
       name: "rigor",
       color: rigor.color,
       summary: "The share of his tool calls that are verification-shaped (read, check, search), by their names.",

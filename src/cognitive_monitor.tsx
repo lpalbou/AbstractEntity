@@ -262,7 +262,8 @@ export function ToneRow({ scores }: { scores: Record<string, number> | undefined
 export function registerExplainer(a: AxisInfo, similarity: number | undefined): ExplainerContent {
   const read = typeof similarity === "number" && Number.isFinite(similarity);
   return {
-    code: a.code,
+    // No code anywhere (backlog 0036): the register goes by its name.
+    code: "",
     name: a.name,
     color: a.color,
     summary: a.summary,
@@ -314,7 +315,7 @@ export function conductCell(axis: ConductAxis | undefined, facts: ConductFacts |
 /** A conduct code's hover card: what it measures and this turn's read or reason. */
 export function conductExplainer(a: AxisInfo, cell: ConductCell | null | undefined): ExplainerContent {
   return {
-    code: a.code,
+    code: "",
     name: a.name,
     color: a.color,
     summary: a.summary,
@@ -343,8 +344,10 @@ export function petalLabelTransform(x: number, width: number): string {
     : `translate(min(calc(${px(width - x)} - 100%), max(-50%, ${px(cx + LABEL_AXIS_GAP - x)})), -50%)`;
 }
 
-/** Petal-anchor overlay: the 3-letter codes AT their petal positions over
- * the canvas (DOM, not canvas — each code's hover card explains it). The
+/** Petal-anchor overlay: each register's NAME at its petal position over the
+ * canvas (backlog 0036: no 3-letter code; DOM, not canvas — each name's hover
+ * card explains it). A box wider than tall keeps the ring by its height and
+ * gives the side names room. The
  * anchors mirror the vendored Bloom renderer's label anchors; no label
  * crosses the vertical centre line (petalLabelTransform). */
 export function BloomAxisOverlay({ width, height, emotions }: { width: number; height: number; /** The shown reply's similarities: each code carries its number. */ emotions?: Record<string, number> }): React.ReactElement | null {
@@ -364,7 +367,7 @@ export function BloomAxisOverlay({ width, height, emotions }: { width: number; h
         const num = typeof sim === "number" && Number.isFinite(sim) ? simText(sim) : "—";
         return (
           <ExplainedCode key={a.id} className="cm_overlay_code" style={{ left: x, top: y, color: a.color, transform: petalLabelTransform(x, width) }} explain={registerExplainer(a, sim)}>
-            {a.code}
+            {a.name}
             {emotions ? <span className="cm_overlay_num">{num}</span> : null}
           </ExplainedCode>
         );

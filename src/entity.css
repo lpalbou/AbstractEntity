@@ -4178,16 +4178,29 @@ body {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  max-height: 116px;
+  max-height: 160px;
   /* Visible: the bloom's top and bottom petal labels reach a few px into the block's padding (the
    * max-height still holds the layout; the labels never leave their box sideways). */
   overflow: visible;
 }
-/* The bloom's petal labels (backlog 0036: "they must be here, but smaller font, like for the right
- * one"): the bloom's own small type, under the type floor (its documented exception, as the graph's
- * canvas labels), so nine labels fit around a bloom the block's height. */
+/* The bloom's register names (backlog 0036: no code, "smaller font"): the bloom's own small type,
+ * under the type floor (its documented exception, as the graph's canvas labels), so nine names fit
+ * around the bloom; the canvas centred in its wider box. */
 .cw_compact .cm_overlay {
   --ent-type-floor: 0px;
+}
+.cw_compact .cm_overlay_code {
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.cm_bloom_canvas {
+  position: absolute;
+  top: 0;
+}
+/* While open the monitor is the main thing right of the lanes (they are bars and narrow fine). */
+.et_monitor_slot:not(:empty) {
+  min-width: 420px;
 }
 .cw_compact .cm_body,
 .cw_compact .cm_panel.cm_compact,
@@ -4225,16 +4238,29 @@ body {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+/* The conduct gauge with its four names beside it (backlog 0036: no code), each name smaller than its value. */
 .cw_compact .cm_gauge_box {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  width: 128px;
+  gap: 8px;
   flex: none;
 }
-/* The conduct codes span the gauge's box (the tone row carries cm_gauge_codes too: not it). */
 .cw_compact .cm_gauge_box .cm_gauge_codes {
-  width: 100%;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 0;
+  padding: 0;
+}
+.cw_compact .cm_gauge_box .cm_gauge_code {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: inherit;
+}
+.cm_gauge_name {
+  font-size: max(10px, calc(var(--ent-type-floor, 12px) - 2px));
 }
 .cw_compact .cm_reading_state {
   color: var(--text-dim);
@@ -4287,13 +4313,14 @@ body {
 }
 /* Phone (the lanes fill the width): the open monitor takes the lanes' place, above the bar. */
 @media (max-width: 767.98px) {
-  /* Exactly the lanes' place: their five 16 px rows and four 2 px gaps (the rows are held at 16 px
-   * here, whatever the type floor), so opening it moves neither the bar nor the graph. */
+  /* In the lanes' place: at least their height (five 16 px rows and four 2 px gaps), taller while
+   * open when the named bloom needs it (the block gives it back on closing). */
   .et_monitor_slot {
     grid-column: 1 / -1;
     grid-row: auto !important;
     justify-content: flex-start;
-    height: 88px;
+    min-width: 0;
+    min-height: 88px;
   }
   .entity_timeline.et_grid .et_lane_label {
     height: 16px;
@@ -4306,23 +4333,16 @@ body {
   .entity_timeline.et_monitor_open .et_lane {
     display: none;
   }
-  /* The same one row in the lanes' place (its bloom the lanes' height, useMonitorBloomSize), never a
-   * tall wrapped column. */
+  /* One row in the lanes' place (the named bloom, useMonitorBloomSize, and the channels), never a
+   * tall wrapped column; the gauge, live with a conversation, wraps under them. */
   .cw_panel.cw_compact {
-    max-height: 88px;
-    overflow: hidden;
+    max-height: none;
+    flex-wrap: wrap;
   }
-  /* An 84 px bloom: its petal codes alone, the ring drawn a little in so it stays in the lanes'
-   * place (each code's number is in its card, on a long-press). */
+  /* The register names alone around the phone's bloom (each number in its name's card, on a
+   * long-press). */
   .cw_compact .cm_overlay_num {
     display: none;
-  }
-  .cw_compact .cm_overlay {
-    transform: scale(0.9);
-    transform-origin: center;
-  }
-  .cw_compact .cm_gauge_box {
-    width: 104px;
   }
   .cw_panel.cw_compact,
   .cw_compact .cm_body {

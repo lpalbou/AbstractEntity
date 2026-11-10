@@ -132,7 +132,8 @@ describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), 
   it("a register's card: what it measures, this reply's similarity and the scale; — when not read", () => {
     const fear = EMOTION_AXES.find((a) => a.id === "fear")!;
     expect(registerExplainer(fear, 0.0612)).toEqual({
-      code: "FEA",
+      // The register goes by its name (backlog 0036): no code on its card.
+      code: "",
       name: fear.name,
       color: fear.color,
       summary: "How close his words are to threat language: danger, loss, being overwhelmed.",
