@@ -248,6 +248,8 @@ export interface LedgerLineFold {
   topicIds: TopicIds;
   /** World-model cards seen formed (what a revision row counts from). */
   cards: CardFacts;
+  /** Records' titles by graph id (what a feeling about a record names it by). */
+  titles: RecordTitles;
   /** The last closure's record and revision (its graph id, its replacement
    * ids): the closures of that record's links, which follow it in the same
    * revision, have no row of their own. Null after any other envelope. */
@@ -274,6 +276,7 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
   let topicSizes: TopicSizes = intact ? prev.topicSizes : NO_TOPIC_SIZES;
   let topicIds: TopicIds = intact ? prev.topicIds : NO_TOPIC_IDS;
   let cards: CardFacts = intact ? prev.cards : NO_CARDS;
+  const titles: RecordTitles = intact ? prev.titles : new Map();
   let closing = intact ? prev.closing : null;
   for (let i = from; i < envelopes.length; i++) {
     const env = envelopes[i];
@@ -301,7 +304,12 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
     const closure = env.family === "closure" ? closureKey(env) : null;
     const linkOfClosing = closure !== null && closing !== null && closure.gid === closing.gid && closure.replaced === closing.replaced;
     closing = closure;
-    if (!isTopicLink(env, topicIds) && !linkOfClosing) lines.push({ line: ledgerLine(env, topicSizes, topicIds, cards), index: i, own: rhythm.ownTime });
+    if (!isTopicLink(env, topicIds) && !linkOfClosing) lines.push({ line: ledgerLine(env, topicSizes, topicIds, cards, titles), index: i, own: rhythm.ownTime });
+    if (env.family === "binding") {
+      const gid = String(env.display?.graph_id || (env.payload as unknown as BindingPayload).record_id || "").trim();
+      const title = gid.startsWith("ex:") ? displayTitle(env, "") : "";
+      if (title) titles.set(gid, title);
+    }
     const card = cardFormed(env);
     if (card !== null) {
       const next = new Map(cards);
@@ -321,7 +329,7 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
       topicSizes = next;
     }
   }
-  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes, topicIds, cards, closing };
+  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes, topicIds, cards, closing, titles };
 }
 
 /** What a ledger line about a topic opens: "topic:<its stable key>" — the
@@ -363,6 +371,37 @@ function cardFormed(env: ReplayEnvelope): { id: string; revision: number | null;
 }
 
 let untitledCardSaid = false;
+
+/** Records' titles by graph id, as their bindings named them (the ledger's
+ * fold fills it; it only grows, so the folds that extend each other share
+ * it). What a feeling about a record names it by. */
+export type RecordTitles = Map<string, string>;
+
+const NO_TITLES: RecordTitles = new Map();
+let untitledTargetSaid = false;
+
+/** What a feeling is about, in words (operator 2026-11-10, round 5: never
+ * "ex:summary-…"): a record by its title (the valence's own display block,
+ * else its binding's), "a <kind> (title being written…)" while its title is
+ * pending, else "a memory" and one #SEAM log; a key ("concept:lineage",
+ * "tool:web_search", "person:ada") by its last part in words ("lineage",
+ * "web search", "ada"). */
+function feelingTarget(env: ReplayEnvelope, targetId: string, titles: RecordTitles): string {
+  if (!targetId.startsWith("ex:")) {
+    const at = targetId.indexOf(":");
+    return tidy((at >= 0 ? targetId.slice(at + 1) : targetId).replace(/[_-]+/g, " ")) || "something";
+  }
+  const own = displayTitle(env, "");
+  if (own) return own;
+  const known = titles.get(targetId);
+  if (known) return known;
+  if (displaySaysTitlePending(env.display)) return `a ${String(env.display?.kind || "memory").replace(/_/g, " ")} (${TITLE_BEING_WRITTEN})`;
+  if (!untitledTargetSaid) {
+    untitledTargetSaid = true;
+    console.error(`#SEAM a feeling at seq ${env.seq} is about a record the ledger has no title for: its row says "a memory"`);
+  }
+  return "a memory";
+}
 
 /** A world-model card revised (operator 2026-11-10 23:07, aletheia's ledger:
  * ten rows "Belief revised — ex:world_model-… refines/derived_from —
@@ -590,7 +629,7 @@ export const LEDGER_PHASE_STAYS: Readonly<Record<string, string>> = {
  * ledger's fold passes them, so a changed topic says by how much);
  * `topicIds`: their graph ids (a closed link between two of them is an
  * audit line in words; the ledger's fold shows no row for it at all). */
-export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES, topicIds: TopicIds = NO_TOPIC_IDS, cards: CardFacts = NO_CARDS): LedgerLine {
+export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES, topicIds: TopicIds = NO_TOPIC_IDS, cards: CardFacts = NO_CARDS, titles: RecordTitles = NO_TITLES): LedgerLine {
   const base = {
     seq: env.seq,
     family: env.family,
@@ -787,15 +826,14 @@ export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPI
       const sign = Number(p.sign) >= 0 ? "+" : "−";
       const mag = Number(p.magnitude ?? 0);
       const reason = p.reason ? ` — ${tidy(p.reason)}` : "";
-      // Record-targeted feelings: the display block names the memory
-      // ("a summary", "a diary entry") — raw graph ids stay for
-      // unenriched targets only. Free identity strings pass through.
+      // What the feeling is about, in words (feelingTarget): a record by its
+      // title, a key by its last part; never an id. A click opens the record.
       // target_id coerced (code adversary F11): a valence envelope missing
       // it threw here (`.startsWith` on undefined), killing the Ledger tab
       // and the chat drawer's live activity mid-visit — the fold already
       // guards this field, the ledger must too.
       const targetId = String(p.target_id || "");
-      const target = targetId.startsWith("ex:") ? displayTitle(env, tidy(targetId)) : targetId;
+      const target = feelingTarget(env, targetId, titles);
       if (p.kind === "appraisal") {
         return {
           ...base,
