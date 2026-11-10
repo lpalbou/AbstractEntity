@@ -25,6 +25,10 @@
  * beside the served reason when his own time stopped unexpectedly, and
  * "Resume" when he is stopped (POST /entities/{name}/lifecycle). The phase
  * bar stays at the bottom of the card.
+ *
+ * The page's width and columns (operator 2026-11-10, backlog 0024): one card per row on a phone,
+ * two up to 1199 px, three from 1200 px, four from 1700 px, over the page's width
+ * (entities_index.css).
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -41,6 +45,7 @@ import { createRosterLoader, type RosterCard, type RosterLoader, type RosterTile
 import { WordsLine } from "./words_line";
 import { gatewayReadHeaders, getLoopStatus, listEntities } from "./stream_source";
 import "./roster_cards.css";
+import "./entities_index.css";
 
 export interface EntitiesIndexProps {
   baseUrl: string;
@@ -365,7 +370,7 @@ export function EntitiesIndex({
   const head = rosterHeadActions(mode);
 
   return (
-    <div className="entities_index">
+    <div className="entities_index eix_roster">
       <div className="eix_head">
         <h2>Summoned entities</h2>
         <div className="eix_head_actions">
