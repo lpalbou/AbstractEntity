@@ -4198,6 +4198,11 @@ body {
   position: absolute;
   top: 0;
 }
+/* The named bloom's box keeps its size (its names are laid out for it): never the row's shrinkable
+ * item, or the names leave it and print over the channels. */
+.cw_compact .cm_canvas_box {
+  flex: none;
+}
 /* While open the monitor is the main thing right of the lanes (they are bars and narrow fine). */
 .et_monitor_slot:not(:empty) {
   min-width: 420px;
@@ -4341,6 +4346,11 @@ body {
    * tall wrapped column; the gauge, live with a conversation, wraps under them. */
   .cw_panel.cw_compact {
     max-height: none;
+    flex-wrap: wrap;
+  }
+  /* With a conversation open the reading's row (bloom, channels, gauge) wraps: the gauge on a second
+   * line, never a squeezed bloom. */
+  .cw_compact .cm_panel.cm_compact .cm_body {
     flex-wrap: wrap;
   }
   /* The register names alone around the phone's bloom (each number in its name's card, on a

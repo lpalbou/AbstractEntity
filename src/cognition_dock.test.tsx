@@ -255,6 +255,9 @@ describe("layout", () => {
     expect(phone).toMatch(/\.et_monitor_slot \{[^}]*min-height: 88px;/);
     expect(phone).toMatch(/\.et_monitor_slot:not\(:empty\) \{\s*min-width: 0;/);
     expect(phone).toMatch(/\.cw_compact \.cw_state \{\s*max-width: 72px;\s*white-space: normal;/);
+    // The bloom's box never shrinks (its names are laid out for it); a phone's reading row wraps instead.
+    expect(CSS).toMatch(/\.cw_compact \.cm_canvas_box \{\s*flex: none;/);
+    expect(phone).toMatch(/\.cw_compact \.cm_panel\.cm_compact \.cm_body \{\s*flex-wrap: wrap;/);
     expect(phone).toMatch(/\.cw_compact \.cm_overlay_num \{\s*display: none;/);
     // The five channels: a column of names (smaller) and values; the gauge's four names beside it.
     expect(CSS).toMatch(/\.cm_tone_list \{\s*display: grid;\s*grid-template-columns: max-content max-content;/);

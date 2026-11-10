@@ -169,10 +169,24 @@ try {
       return { perLine, inside: [...rowEl.querySelectorAll(".cm_tone_name, .cm_tone_val")].every(c => { const r = c.getBoundingClientRect(); return r.left >= box.left - 1 && r.right <= box.right + 1 && r.bottom <= box.bottom + 1; }),
         scroll: document.documentElement.scrollWidth, inner: innerWidth, dockScroll: dockEl.scrollWidth, dockWidth: dockEl.clientWidth,
         monitorHeight: Math.round(monitorEl.getBoundingClientRect().height),
+        // The bloom's names: inside their box (kept at its styled width), never over the channels or the gauge's names.
+        ...(() => {
+          const box = document.querySelector(".cm_panel .cm_canvas_box"), cb = box.getBoundingClientRect();
+          const names = [...box.querySelectorAll(".cm_overlay_code")].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
+          const others = [...document.querySelectorAll(".cm_tone_name, .cm_tone_val, .cm_gauge_name, .cm_gauge_val")].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
+          const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+          return { boxStyleW: parseFloat(box.style.width), boxW: Math.round(cb.width), petals: names.length,
+            overlaps: names.flatMap((n) => others.filter((o) => hit(n.r, o.r)).map((o) => `${n.t} x ${o.t}`)),
+            outOfBox: names.filter((n) => n.r.left < cb.left - 1 || n.r.right > cb.right + 1).map((n) => n.t) };
+        })(),
         valContrast: Math.min(...[...rowEl.querySelectorAll(".cm_tone_val")].map(contrast)) };
     });
-    console.log(`  ${width}${touch ? " touch" : ""}: names per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
+    console.log(`  ${width}${touch ? " touch" : ""}: bloom box ${layout.boxW}/${layout.boxStyleW} px, name overlaps ${layout.overlaps.length}, names per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
     assert.ok(layout.inside, `the named channels stay inside the monitor at ${width}`);
+    assert.equal(layout.petals, 9, `nine register names around the bloom at ${width}`);
+    assert.equal(layout.boxW, layout.boxStyleW, `the bloom's box keeps its ${layout.boxStyleW} px at ${width} (measured ${layout.boxW})`);
+    assert.deepEqual(layout.outOfBox, [], `the register names stay in the bloom's box at ${width}`);
+    assert.deepEqual(layout.overlaps, [], `no register name over a channel or a conduct name at ${width}`);
     assert.deepEqual(layout.perLine,[1,1,1,1,1],`one channel per line at ${width}: ${layout.perLine}`);
     assert.ok(layout.monitorHeight <= (width >= 768 ? 160 : 260), `the monitor stays within its room (${layout.monitorHeight} px) at ${width}`);
     assert.ok(layout.scroll <= layout.inner, `no sideways scroll at ${width}`);
