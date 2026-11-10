@@ -89,7 +89,7 @@ of invented data.
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
 | Life cycle | `GET /entities/{name}/life_state`, `PUT /entities/{name}/life_state/toggles`, `POST /entities/{name}/lifecycle`, `POST /entities/{name}/state` (sleep now); `GET /entities/{name}/loop` and `/seat` (reads); `GET`/`PUT /entities/spec/phases` (the blueprint). See [Life cycle](#life-cycle-the-phase-bar) |
 | Card and metrics | `/entities/{name}/tile` (the home grid draws each entity with the ui-kit `EntityCard` from `GET /entities`, whose rows carry `state`, then reads tiles three at a time once that entity's `/loop` and `life_state` answered, kept until 5 minutes pass, the row's `state.changed_at` moves or the served phase's `rev` moves; the card's **Watch** opens the entity, **Retry** and **Resume** post `lifecycle`), `/card` (the Card tab), `/footprint`, `/cognition`, `/communities`, `/embedding` |
-| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`, `/ledger` (the live activity panel: the visit run's records after a cursor, read once a second while a turn runs); `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}`; `POST /sessions/{session_id}/mentions` (see [Mentions](#mentions-in-a-conversation)) |
+| Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`, `/ledger` (the live activity panel: the visit run's records after a cursor, read once a second while a turn runs; where served it reads `topic` on each recall handle, `iteration` and `max_iterations` on the `reason` model call, and `hits` on a `search_memory` result); `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}`; `POST /sessions/{session_id}/mentions` (see [Mentions](#mentions-in-a-conversation)) |
 | Settings | `/entities/{name}/substrate`, `/cognition-profile` (Settings → Mind, including the Sleep card), `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
 | Identity (AbstractGateway 0.20.0) | `GET /entities/{name}/identity[?rev=N]` (the record: design, colour, voice, revision; `?rev` for the history), `PUT /entities/{name}/identity` (the whole record, one Save; a refusal's `detail` is shown as it is, its `error.download` becomes the **Download** button: `POST /models/download`), `GET /entities/{name}/voice` (only its `note`, the sentence for a record without a voice) |
 | Track record (AbstractGateway 0.20.0) | `GET /entities/{name}/track-record`, `/reputation`, `/acquaintances`, read when the tab opens |
@@ -157,6 +157,11 @@ The app reads payload version 2 as memory serves it: `version`, `version_seq`,
   `GET /replay/stream` makes the graph read the new version once; a `placed`
   event seats a new memory in its topic at once, with the badge "placed until
   his next sleep".
+- **The chat names them too.** The live activity panel's recall row adds the
+  titles of the topics most of the recalled memories are in (each recall
+  handle's `topic` in the visit ledger, matched to `key` here; never the key
+  itself). It reads this route once when a turn names a topic whose title it
+  does not hold, at most once per turn.
 - **Before his first sleep** (`first_sleep_pending`) the graph uses its plain
   layout and says "His topics form during his next sleep."
 - **Older gateways.** An answer without `version` 2, or one that leaves out a

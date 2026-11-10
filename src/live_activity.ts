@@ -13,11 +13,18 @@
  * - the flow brain: the run's replay view (`activities`: `llm`, `tool`) for thinking and tools, and
  *   the memory stream past the turn's start for what came to mind and what formed.
  *
- * Only what is served is said. Not served today, so not shown (asked of the gateway): the topics a
- * recall touched (no community key on recall handles or recall events), how many memories a memory
- * search found (the tool answers text only), and the loop's ceiling (`max_iterations` rides no
- * ledger record). "Step n" counts the model calls of his reasoning loop this turn (ledger node
- * `reason`: one call per iteration, abstractagent react_runtime).
+ * Only what is served is said. Three visit-ledger fields say more where served (AbstractRuntime
+ * 1afbf68, entity-runtime.md "What a visit turn's ledger records say"); a record without one reads
+ * as before, never "of ?" or "0 found":
+ * - `result.handles[i].topic` on a memory_recall record (node RECALL, and a live correction's recall
+ *   on node `reason`): the stable key of the topic the memory is in (the topics route's `key`), or
+ *   null. The row adds the titles of the topics most of them are in, resolved from the served topics
+ *   by key (`withTopicTitles`); a key is never shown.
+ * - `effect.payload.iteration` (from 1, per turn) and `effect.payload.max_iterations` on the `reason`
+ *   model call: "Step 2 of 50". Without them "Step n" counts the model calls of his reasoning loop
+ *   this turn (ledger node `reason`: one call per iteration, abstractagent react_runtime).
+ * - `hits` (int) on a search_memory result entry: "→ 7 found".
+ * The flow brain's view and stream carry none of them.
  */
 
 import type { ReplayView } from "@abstractframework/panel-chat";
@@ -51,6 +58,9 @@ export interface ActivityRow {
   /** How long it took, when both ends are served. */
   seconds: number | null;
   open: ActivityOpen | null;
+  /** A passive recall's topics (served keys, never shown), the one most of its memories are in
+   * first; absent where none is served. */
+  topicKeys?: string[];
 }
 
 export interface TurnActivity {
@@ -104,6 +114,11 @@ function str(v: unknown): string {
   return "";
 }
 
+/** A served count: an integer >= `min`, else null (absent or not a count). */
+function servedInt(v: unknown, min: number): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= min ? v : null;
+}
+
 function quoted(v: unknown): string | null {
   const s = str(v);
   return s ? `“${s}”` : null;
@@ -141,10 +156,11 @@ export function toolAskWords(name: string, args: Record<string, unknown>): strin
   return scalars.length ? scalars.map(([k, v]) => `${k} ${v}`).join(", ") : null;
 }
 
-/** One tool call's row. */
-export function toolRow(key: string, name: string, args: Record<string, unknown>, state: ActivityState, outcome: { output?: unknown; error?: unknown } | null, secs: number | null): ActivityRow {
+/** One tool call's row. `outcome.hits`: how many a memory search found, where served. */
+export function toolRow(key: string, name: string, args: Record<string, unknown>, state: ActivityState, outcome: { output?: unknown; error?: unknown; hits?: unknown } | null, secs: number | null): ActivityRow {
   const memory = name in MEMORY_TOOLS;
   const ask = toolAskWords(name, args);
+  const hits = memory && outcome && state === "done" ? servedInt(outcome.hits, 0) : null;
   const output = outcome ? (typeof outcome.output === "string" ? outcome.output : outcome.output == null ? "" : JSON.stringify(outcome.output)) : undefined;
   const error = outcome && outcome.error != null && outcome.error !== "" ? String(outcome.error) : "";
   const tool: ToolDetail = { name, arg: JSON.stringify(args) };
@@ -155,7 +171,7 @@ export function toolRow(key: string, name: string, args: Record<string, unknown>
   return {
     key,
     kind: memory ? "recall_active" : "tool",
-    text: memory ? `Recalled on purpose: ${ask ?? name}` : ask ? `Tool: ${name} — ${ask}` : `Tool: ${name}`,
+    text: memory ? `Recalled on purpose: ${ask ?? name}${hits !== null ? ` → ${hits} found` : ""}` : ask ? `Tool: ${name} — ${ask}` : `Tool: ${name}`,
     detail: memory ? name : null,
     state,
     seconds: secs,
@@ -163,8 +179,8 @@ export function toolRow(key: string, name: string, args: Record<string, unknown>
   };
 }
 
-function recallRow(key: string, count: number, items: Array<{ graphId: string | null; title: string }>, state: ActivityState, secs: number | null): ActivityRow {
-  return {
+function recallRow(key: string, count: number, items: Array<{ graphId: string | null; title: string }>, state: ActivityState, secs: number | null, topicKeys: string[] = []): ActivityRow {
+  const row: ActivityRow = {
     key,
     kind: "recall_passive",
     text: state === "running" ? "Recalling…" : `Recalled passively: ${count} ${count === 1 ? "memory" : "memories"}`,
@@ -173,6 +189,19 @@ function recallRow(key: string, count: number, items: Array<{ graphId: string | 
     seconds: secs,
     open: state === "running" || items.length === 0 ? null : { type: "records", items },
   };
+  if (state === "done" && topicKeys.length) row.topicKeys = topicKeys;
+  return row;
+}
+
+/** The topics of recalled handles (each handle's served `topic` key), the one most of them are in
+ * first, ties by first seen; a handle in no topic (null) or one served without the field is left out. */
+export function rankTopicKeys(handles: ReadonlyArray<Record<string, unknown>>): string[] {
+  const counts = new Map<string, number>();
+  for (const h of handles) {
+    const k = typeof h.topic === "string" ? h.topic.trim() : "";
+    if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
 }
 
 function formedRow(key: string, kind: string, title: string, graphId: string | null, state: ActivityState): ActivityRow {
@@ -276,10 +305,14 @@ export function foldVisitTurn(records: readonly VisitLedgerRecord[], opts: { beg
       const model = str(payload.model) || str(result.model);
       if (node === REASON_NODE) {
         steps += 1;
+        // The loop's own position where served (runtime 1afbf68), else this turn's count.
+        const at = servedInt(payload.iteration, 1) ?? steps;
+        const cap = servedInt(payload.max_iterations, 1);
+        const step = cap !== null ? `Step ${at} of ${cap}` : `Step ${at}`;
         rows.push({
           key: id,
           kind: "thinking",
-          text: state === "running" ? `Step ${steps} · thinking…` : state === "failed" ? `Step ${steps} · the model call failed` : `Step ${steps} · thought`,
+          text: state === "running" ? `${step} · thinking…` : state === "failed" ? `${step} · the model call failed` : `${step} · thought`,
           detail: model || null,
           state,
           seconds: secs,
@@ -308,7 +341,7 @@ export function foldVisitTurn(records: readonly VisitLedgerRecord[], opts: { beg
         tools += 1;
         const outcome = (str(call.call_id) && outcomes.get(str(call.call_id))) || (done && !str(call.call_id) ? served[i] : undefined) || null;
         const callState: ActivityState = outcome ? (outcome.success === false ? "failed" : "done") : state === "done" ? "done" : state;
-        rows.push(toolRow(`${id}:${i}`, name, obj(call.arguments), callState, outcome ? { output: outcome.output, error: outcome.error } : null, secs));
+        rows.push(toolRow(`${id}:${i}`, name, obj(call.arguments), callState, outcome ? { output: outcome.output, error: outcome.error, hits: outcome.hits } : null, secs));
       });
       continue;
     }
@@ -316,7 +349,7 @@ export function foldVisitTurn(records: readonly VisitLedgerRecord[], opts: { beg
       const handles = list(result.handles).map(obj).filter((h) => str(h.admission) !== "self");
       if (done && !failed) recalled = handles.length;
       const items = handles.map((h) => ({ graphId: str(obj(h.provenance).record_id) || null, title: cleanTitle(str(h.title)) || str(h.kind) || "a memory" }));
-      rows.push(recallRow(id, handles.length, items, state, secs));
+      rows.push(recallRow(id, handles.length, items, state, secs, done && !failed ? rankTopicKeys(handles) : []));
       continue;
     }
     if (type === "memory_form") {
@@ -422,6 +455,40 @@ export function foldFlowTurn(view: ReplayView | null, envelopes: readonly Replay
   timed.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
   const rows = timed.flatMap((t) => t.rows);
   return { rows, steps: null, tools, recalled, formed, begun: rows.length > 0, complete: viewDone, seconds: null };
+}
+
+// ------------------------------------------------------------- topics
+
+/** How many topic titles a passive recall's row names. */
+export const TOPIC_TITLES_SHOWN = 3;
+
+/** Every topic key the turn's rows carry (to resolve), each once. */
+export function activityTopicKeys(a: TurnActivity): string[] {
+  const keys = new Set<string>();
+  for (const r of a.rows) for (const k of r.topicKeys ?? []) keys.add(k);
+  return [...keys];
+}
+
+/** The passive recall rows with the titles of their first TOPIC_TITLES_SHOWN topics that have one
+ * (`titles`: served key -> authored title; a key with none is skipped, never shown):
+ * "Recalled passively: 44 memories · Harbour work, The sea, Old letters". The same object when no
+ * row gains a title. */
+export function withTopicTitles(a: TurnActivity, titles: ReadonlyMap<string, string>): TurnActivity {
+  if (titles.size === 0) return a;
+  let changed = false;
+  const rows = a.rows.map((r) => {
+    if (!r.topicKeys?.length) return r;
+    const names: string[] = [];
+    for (const k of r.topicKeys) {
+      const t = titles.get(k);
+      if (t) names.push(t);
+      if (names.length === TOPIC_TITLES_SHOWN) break;
+    }
+    if (!names.length) return r;
+    changed = true;
+    return { ...r, text: `${r.text} · ${names.join(", ")}` };
+  });
+  return changed ? { ...a, rows } : a;
 }
 
 // ------------------------------------------------------------- words

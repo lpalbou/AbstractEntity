@@ -11,6 +11,12 @@
  *
  * The flow brain: the replay view the conversation hook already follows, and the memory stream.
  *
+ * The titles of the topics a recall touched (his visit's recall handles carry topic keys, runtime
+ * 1afbf68): one `GET .../communities` when a turn's recall names a topic whose title the drawer does
+ * not hold (the first such turn after the drawer mounts; later only when his topics changed or a
+ * title was still being written), at most one per turn, never polled. A failed read leaves the row
+ * as it reads without titles.
+ *
  * Rows are recomputed at most once per animation frame, and the panel gets the same object while
  * nothing changed (no re-render per envelope).
  */
@@ -18,7 +24,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReplayView } from "@abstractframework/panel-chat";
 
-import { NO_ACTIVITY, foldFlowTurn, foldVisitTurn, isVisitorTurnStart, visitTurnSlice, type TurnActivity } from "./live_activity";
+import type { CommunitiesRead } from "./communities";
+import { fetchCommunities } from "./communities_source";
+import { NO_ACTIVITY, activityTopicKeys, foldFlowTurn, foldVisitTurn, isVisitorTurnStart, visitTurnSlice, withTopicTitles, type TurnActivity } from "./live_activity";
 import { getVisitLedger, type VisitLedgerPage, type VisitLedgerRecord } from "./stream_source";
 import type { ReplayEnvelope } from "./stream_types";
 
@@ -115,6 +123,48 @@ export class VisitLedgerFollower {
   }
 }
 
+export type ReadTopics = () => Promise<CommunitiesRead>;
+
+const NO_TITLES: ReadonlyMap<string, string> = new Map();
+
+/**
+ * The titles of his topics by key, read from the topics route only when a turn names a key it does
+ * not hold a title for, at most once per turn (a key the answer leaves untitled, or a read that
+ * failed, is not asked again until the next turn). DOM-free; the hook drives it.
+ */
+export class TopicTitleReader {
+  private held: ReadonlyMap<string, string> = NO_TITLES;
+  /** The turn the last read was for (undefined: none yet). */
+  private readFor: string | null | undefined = undefined;
+
+  constructor(private readonly read: ReadTopics) {}
+
+  /** Key -> authored title (a title still being written, or none, is not held). */
+  get titles(): ReadonlyMap<string, string> {
+    return this.held;
+  }
+
+  /** This turn names a topic with no title held, and this turn has not been read for. */
+  wants(a: TurnActivity): boolean {
+    const turn = a.turnKey ?? null;
+    if (this.readFor !== undefined && this.readFor === turn) return false;
+    return activityTopicKeys(a).some((k) => !this.held.has(k));
+  }
+
+  /** One read for this turn. Resolves true when the titles changed. */
+  async load(a: TurnActivity): Promise<boolean> {
+    this.readFor = a.turnKey ?? null;
+    const read = await this.read();
+    if (read.kind !== "served") return false;
+    const next = new Map<string, string>();
+    for (const c of read.data.communities) if (c.title && !c.titlePending) next.set(c.key, c.title);
+    const same = next.size === this.held.size && [...next].every(([k, t]) => this.held.get(k) === t);
+    if (same) return false;
+    this.held = next;
+    return true;
+  }
+}
+
 /** Calls `fn` at most once per animation frame (a timer where there are no frames). */
 function frameScheduler(fn: () => void): { schedule(): void; cancel(): void } {
   let handle: number | ReturnType<typeof setTimeout> | null = null;
@@ -174,12 +224,14 @@ export interface LiveActivityInput {
   turnStartSeq: number;
   /** Test seam: the ledger read (defaults to the gateway). */
   readLedger?: ReadLedger;
+  /** Test seam: the topics read (defaults to the gateway's communities route). */
+  readTopics?: ReadTopics;
 }
 
 /** The newest turn's activity for the drawer: live while it runs, whole once it ended; null when
  * there is no turn to show. */
 export function useLiveActivity(input: LiveActivityInput): TurnActivity | null {
-  const { baseUrl, entity, brain, visitRunId, live, visible, flowView, flowActive, envelopes, turnStartSeq, readLedger } = input;
+  const { baseUrl, entity, brain, visitRunId, live, visible, flowView, flowActive, envelopes, turnStartSeq, readLedger, readTopics } = input;
   const [visit, setVisit] = useState<{ runId: string; activity: TurnActivity } | null>(null);
   const followerRef = useRef<{ runId: string; follower: VisitLedgerFollower } | null>(null);
   /** The turn already over when the current turn was sent (its key), so it is not shown as live. */
@@ -245,7 +297,29 @@ export function useLiveActivity(input: LiveActivityInput): TurnActivity | null {
   }, [flowOn, flowView, envelopes, turnStartSeq, flowFrame]);
   useEffect(() => () => flowFrame.cancel(), [flowFrame]);
 
-  if (brain === "driver") return shownVisitActivity(visit, visitRunId, live, staleTurn.current);
-  if (!flowOn) return null;
-  return flow && (flow.begun || live) ? flow : live ? NO_ACTIVITY : null;
+  const shown = brain === "driver" ? shownVisitActivity(visit, visitRunId, live, staleTurn.current) : !flowOn ? null : flow && (flow.begun || live) ? flow : live ? NO_ACTIVITY : null;
+
+  // The topics his recall touched, by title: read only when the shown turn names one not held.
+  const topicSource = `${baseUrl}\u0000${entity}`;
+  const topicRef = useRef<{ source: string; reader: TopicTitleReader } | null>(null);
+  const [titles, setTitles] = useState<{ source: string; titles: ReadonlyMap<string, string> }>({ source: topicSource, titles: NO_TITLES });
+  useEffect(() => {
+    if (!shown) return;
+    if (!topicRef.current || topicRef.current.source !== topicSource) {
+      topicRef.current = { source: topicSource, reader: new TopicTitleReader(readTopics ?? (() => fetchCommunities(baseUrl, entity))) };
+    }
+    const { reader } = topicRef.current;
+    if (!reader.wants(shown)) return;
+    reader.load(shown).then(
+      (changed) => {
+        // Kept even when the rows moved on meanwhile (the read is this turn's only one).
+        if (changed && topicRef.current?.reader === reader) setTitles({ source: topicSource, titles: reader.titles });
+      },
+      () => {
+        // A failed read: the row reads without titles; the next turn may ask again.
+      },
+    );
+  }, [shown, topicSource, baseUrl, entity, readTopics]);
+  const held = titles.source === topicSource ? titles.titles : NO_TITLES;
+  return useMemo(() => (shown ? withTopicTitles(shown, held) : shown), [shown, held]);
 }

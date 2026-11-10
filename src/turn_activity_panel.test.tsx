@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import fixture from "./fixtures/visit_turn_ledger.json";
-import { NO_ACTIVITY, foldVisitTurn, visitTurnSlice } from "./live_activity";
+import { withServedFields } from "./fixtures/visit_turn_fields";
+import { NO_ACTIVITY, foldVisitTurn, visitTurnSlice, withTopicTitles } from "./live_activity";
 import type { VisitLedgerRecord } from "./stream_source";
 import { LIVE_ROWS, TurnActivityPanel } from "./turn_pulse_bars";
 
@@ -65,6 +66,25 @@ describe("live", () => {
     for (const r of TOPICS) if (r.step_id) expect(html).not.toContain(r.step_id);
     expect(html).not.toContain("toolu_");
     expect(html).not.toContain("trace_");
+  });
+});
+
+describe("with the served fields (runtime 1afbf68)", () => {
+  const titles = new Map([
+    ["ex:community-aaaa1111har0", "Harbour work"],
+    ["ex:community-bbbb2222sea0", "The sea"],
+    ["ex:community-dddd4444let0", "Old letters"],
+  ]);
+  it("live: the recall's topics by title, the step of his loop's cap, what a search found; never a topic key", () => {
+    const html = renderToStaticMarkup(<TurnActivityPanel activity={withTopicTitles(fold(withServedFields(TOPICS).slice(0, 10)), titles)} live onOpenRecord={open} />);
+    expect(html).toContain("Recalled passively: 44 memories · Harbour work, The sea, Old letters");
+    expect(html).toContain("Step 2 of 50 · thinking…");
+    expect(html).toContain("Recalled on purpose: “main topics” → 7 found");
+    expect(html).not.toContain("ex:community-");
+  });
+  it("the folded line keeps the turn's counts", () => {
+    const html = renderToStaticMarkup(<TurnActivityPanel activity={withTopicTitles(fold(withServedFields(TOPICS)), titles)} live={false} onOpenRecord={open} />);
+    expect(html).toMatch(/Last turn: 2 steps · 2 memory searches · 44 memories came to mind · 1 formed · 56 s/);
   });
 });
 
