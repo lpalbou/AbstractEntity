@@ -329,30 +329,12 @@ body {
   min-height: calc(9px * var(--font-scale, 1));
 }
 
-/* The five signed tone channels under the bloom: the gauge's code row, kept inside the bloom's
- * box. The code keeps its light channel colour; the tier mark (· + ++ − −−) carries the sign in
- * the secondary text colour (readable contrast); the exact value is in the button's name. */
-.cm_tone_codes {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  padding: 0;
-  row-gap: 2px;
-}
-.cm_tone_codes .cm_gauge_code {
-  padding: 0;
-  letter-spacing: 0;
-}
+/* A tone channel's value (the names' list, .cm_tone_list): the secondary text colour, aligned digits. */
 .cm_tone_val {
   color: var(--text-secondary, #a6adc8);
-  font-weight: 600;
-}
-/* Touch: 44 px targets do not fit five across the bloom column; a 3 + 2 grid, never a lone code. */
-@media (pointer: coarse) {
-  .cm_tone_codes {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    justify-items: center;
-  }
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 /* Inline verbatim in the Detail tab (dm#28: the words, no button). */
 .ei_verbatim_inline {
@@ -407,6 +389,45 @@ body {
 .wm_source_text pre code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.cm_overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.cm_overlay_code {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  background: none;
+  border: none;
+  /* pointer on BOTH widgets' codes (operator dm#26: "the mouse must be
+   * consistent on the names") — both open the axis modal on click. */
+  cursor: pointer;
+  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  padding: 1px 2px;
+}
+.cm_overlay_num {
+  display: block;
+  margin-top: 1px;
+  padding: 0 2px;
+  border-radius: 3px;
+  /* readable even where a petal at the outer edge reaches its label */
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  font-size: max(calc(9px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  line-height: 1.1;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.cm_overlay_code:hover {
+  opacity: 1;
+  text-shadow: 0 0 8px currentColor;
 }
 
 /* One message group in the thread (context fold + card + badge). */
@@ -2861,10 +2882,36 @@ body {
    on the right. */
 .entity_timeline.et_grid {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) auto;
+  grid-template-columns: max-content minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 10px;
   row-gap: 2px;
+}
+/* Four columns (backlog 0036): the lanes' labels, the lanes and the bar, the monitor (empty when closed),
+ * the controls. Each item names its column, so the lanes never flow into the monitor's or the controls'
+ * cells. Live, Monitor and the position sit over the last two lanes' rows, the transport on the bar's. */
+.entity_timeline.et_grid > .et_lane_label {
+  grid-column: 1;
+}
+.entity_timeline.et_grid > .et_lane,
+.entity_timeline.et_grid > .et_track_wrap {
+  grid-column: 2;
+}
+.entity_timeline.et_grid > .et_right_top {
+  grid-column: 4;
+  grid-row: 4 / span 2;
+  align-self: end;
+  justify-self: end;
+}
+.entity_timeline.et_grid > .et_right {
+  grid-column: 4;
+  justify-self: end;
+}
+.et_right_top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
 }
 
 .et_lane_label {
@@ -4119,18 +4166,19 @@ body {
 .et_monitor_slot {
   grid-column: 3;
   min-width: 0;
-  align-self: center;
+  align-self: stretch;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
 }
-/* At most the lanes' own height (five 16 px rows and their 2 px gaps): opening it never grows the
- * timeline, whatever its state says (that is one short line; the reason is in its hover). */
+/* At most the block's own height (the lanes' five 16 px rows, the bar's row and their 2 px gaps):
+ * opening it never grows the timeline, whatever its state says (one short line; the reason in its
+ * hover). */
 .cw_panel.cw_compact {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
-  max-height: 88px;
+  max-height: 116px;
   overflow: hidden;
 }
 .cw_compact .cm_body,
@@ -4146,9 +4194,28 @@ body {
   border: none;
   background: none;
 }
-.cw_compact .cm_tone_codes {
-  width: 168px;
+/* The five channels by name (backlog 0036): a column, each name smaller than its value. */
+.cm_tone_list {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: baseline;
   flex: none;
+}
+.cm_tone_item {
+  display: contents;
+}
+.cm_tone_name {
+  /* Two px under the type floor (as the side tabs' labels): smaller than its value, still readable. */
+  font-size: max(10px, calc(var(--ent-type-floor, 12px) - 2px));
+  letter-spacing: 0.02em;
+  cursor: help;
+}
+.cm_tone_list .cm_tone_val {
+  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .cw_compact .cm_gauge_box {
   display: flex;
@@ -4231,18 +4298,10 @@ body {
   .entity_timeline.et_monitor_open .et_lane {
     display: none;
   }
-  /* The same one row in the lanes' place, a little smaller so it fits 400 px with the gauge
-   * (never a tall wrapped column). */
-  .cw_compact .cm_canvas_box {
-    width: 64px !important;
-  }
-  .cw_compact .cm_canvas_box canvas,
-  .cw_compact .cm_canvas_box .cm_reading_state {
-    width: 64px !important;
-    height: 64px !important;
-  }
-  .cw_compact .cm_tone_codes {
-    width: 150px;
+  /* The same one row in the lanes' place (its bloom the lanes' height, useMonitorBloomSize), never a
+   * tall wrapped column. */
+  .cw_panel.cw_compact {
+    max-height: 88px;
   }
   .cw_compact .cm_gauge_box {
     width: 104px;
@@ -4250,6 +4309,17 @@ body {
   .cw_panel.cw_compact,
   .cw_compact .cm_body {
     gap: 6px;
+  }
+  /* The controls: Live, Monitor and the position on their own row above the transport, at the right. */
+  .entity_timeline.et_grid > .et_right_top {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: stretch;
+    justify-content: flex-end;
+    padding-left: 0;
+  }
+  .et_right_top .et_pos {
+    margin-left: 0;
   }
 }
 /* --------------------------------------------- lessons + world panels */

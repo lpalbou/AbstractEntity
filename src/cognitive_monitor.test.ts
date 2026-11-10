@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { EMOTION_REGISTERS } from "@abstractframework/ui-kit";
 
 import * as monitor from "./cognitive_monitor";
-import { bloomScoresOf, CHANNEL_AXES, CONDUCT_AXES, dominantEmotion, EMOTION_AXES, radarValue, roundSim, simText } from "./cognitive_monitor";
+import { BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, CONDUCT_AXES, dominantEmotion, EMOTION_AXES, petalLabelTransform, radarValue, registerExplainer, roundSim, simText } from "./cognitive_monitor";
 import { CHANNELS } from "./vendor/cognition/core";
 
 describe("axis tables (drift pins against the kit contract)", () => {
@@ -114,5 +114,49 @@ describe("the radar: one fixed scale (−0.25 inner ring → +0.75 outer edge), 
     expect(simText(-0.001)).toBe("0.00");
     expect(roundSim(0.0996)).toBe(0.1);
     expect(simText(0.0996)).toBe("0.10");
+  });
+
+  it("every petal carries its number; a missing one reads —; the codes are labels, not buttons", async () => {
+    const React = (await import("react")).default;
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 200, height: 200, emotions: { joy: -0.02, fear: 0.59 } }));
+    // the number SHOWN beside each code
+    expect(html).toContain('<span class="cm_overlay_num">−0.02</span>');
+    expect(html).toContain('<span class="cm_overlay_num">0.59</span>');
+    expect(html).toContain('<span class="cm_overlay_num">—</span>');
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("title=");
+    expect(html.match(/tabindex="0"/g)?.length).toBe(9);
+  });
+
+  it("a register's card: what it measures, this reply's similarity and the scale; — when not read", () => {
+    const fear = EMOTION_AXES.find((a) => a.id === "fear")!;
+    expect(registerExplainer(fear, 0.0612)).toEqual({
+      code: "FEA",
+      name: fear.name,
+      color: fear.color,
+      summary: "How close his words are to threat language: danger, loss, being overwhelmed.",
+      facts: [{ label: "This reply", value: "0.06" }],
+      note: "Similarity, on one scale for every reply: −0.25 at the inner ring, +0.75 at the outer edge.",
+    });
+    expect(registerExplainer(fear, -0.001).facts[0].value).toBe("0.00");
+    expect(registerExplainer(fear, undefined)).toMatchObject({ facts: [{ label: "This reply", value: "—" }], note: "No similarity was read for this reply." });
+    expect(registerExplainer(fear, Number.NaN).facts[0].value).toBe("—");
+  });
+
+  it("petal labels stay centred on their anchor but never cross the centre line nor leave the box", async () => {
+    // the top petal (on the line) stays centred
+    expect(petalLabelTransform(81.5, 163)).toBe("translate(-50%, -50%)");
+    // left of the line: right edge at most 3 px short of it (x 57.6 → 81.5 − 3 − 57.6 = 20.9), left edge ≥ 0
+    expect(petalLabelTransform(57.6, 163)).toBe("translate(max(-57.6px, min(-50%, calc(20.9px - 100%))), -50%)");
+    // right of the line: left edge at least 3 px past it, right edge ≤ the box width
+    expect(petalLabelTransform(105.4, 163)).toBe("translate(min(calc(57.6px - 100%), max(-50%, -20.9px)), -50%)");
+    // every label gets its bounds; exactly one (the top petal) is plainly centred
+    const React = (await import("react")).default;
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(React.createElement(BloomAxisOverlay, { width: 163, height: 163, emotions: {} }));
+    expect(html.match(/transform:translate\(-50%, -50%\)/g)?.length).toBe(1);
+    expect(html.match(/transform:translate\(max\(/g)?.length).toBe(4);
+    expect(html.match(/transform:translate\(min\(calc/g)?.length).toBe(4);
   });
 });

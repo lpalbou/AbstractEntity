@@ -40,10 +40,10 @@ import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
 import { ExplainedCode, type ExplainerContent } from "./code_explainer";
-import { basisProvenanceNote, bloomScoresOf, CHANNEL_AXES, dominantEmotion, simText, ToneRow, TONE_POLES } from "./cognitive_monitor";
+import { basisProvenanceNote, BloomAxisOverlay, bloomScoresOf, CHANNEL_AXES, dominantEmotion, simText, ToneRow, TONE_POLES } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { EMBEDDINGS_UNCONFIGURED, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
-import { CognitionWaveInline, EmbeddingsUnconfiguredNote, type ReplyFeed } from "./cognition_wave_inline";
+import { CognitionWaveInline, EmbeddingsUnconfiguredNote, useMonitorBloomSize, type ReplyFeed } from "./cognition_wave_inline";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
 // The frozen basis is ~190 KB of numbers; lazy-load it so opening the
@@ -81,8 +81,6 @@ export type Phase =
   | { name: "error"; message: string; warnings: string[] }
   | { name: "unconfigured"; message: string };
 
-/** The bloom's side in the timeline (the monitor stays about 110 px tall). */
-export const MONITOR_BLOOM = 84;
 
 const FRAMING = "This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm.";
 
@@ -153,7 +151,7 @@ export function monitorAbout(provenance: string | null, calibration: string | nu
     color: "var(--text-dim)",
     summary: FRAMING,
     facts: CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => ({
-      label: `${a.code} ${a.name}`,
+      label: a.name,
       value: `${TONE_POLES[a.id].positive[0]} (+1) to ${TONE_POLES[a.id].negative[0]} (−1)`,
     })),
     note: ["The bloom: how close his words are to each register. The tone channels: each from −1 to +1.", provenance, calibration].filter(Boolean).join(" "),
@@ -283,6 +281,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
   // The ⓘ's hover: what this reads (never his inner state), and the basis it reads with.
   const about = useMemo(() => monitorAbout(provenance, calibration), [provenance, calibration]);
+  const bloom = useMonitorBloomSize();
 
   return (
     <div className="cw_panel cw_compact" data-reading-state={conversation ? "conversation" : phase.name}>
@@ -302,8 +301,10 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
         <div className="cm_body cw_reading">
           {/* Same input and labels as the conversation's reading: every register on the bloom (its
             * closest one in the hover), each tone channel with its signed score beside it. */}
-          <div className="cm_canvas_box" style={{ width: MONITOR_BLOOM }} title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}>
-            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={MONITOR_BLOOM} />
+          <div className="cm_canvas_box" style={{ width: bloom, height: bloom }} title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}>
+            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={bloom} />
+            {/* The tree's labels back (backlog 0036): each register's code at its petal, its number under it. */}
+            <BloomAxisOverlay width={bloom} height={bloom} emotions={current?.emotions ?? {}} />
           </div>
           <ToneRow scores={current?.scores} />
         </div>

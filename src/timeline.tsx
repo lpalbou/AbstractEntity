@@ -8,8 +8,9 @@
  *   label | lane of marks       |
  *   …     | …                   |
  *   time  | scrub bar + ticks   | transport ⏮ ◀ ▶/❚❚ ▶ ⏭ · speed · Live · Monitor · position
- * The Cognitive Monitor, when open, sits in the free space right of the lanes, above the transport
- * (backlog 0032); on a phone it takes the lanes' place.
+ * The Cognitive Monitor, when open, sits between the lanes and the controls, the block's full height
+ * (backlogs 0032, 0036); on a phone it takes the lanes' place. Live, the Monitor toggle and the
+ * position sit in their own row above the transport.
  * Position = envelope index (even pacing across the life), display =
  * journal seq. A mark is a memory he formed — a lived moment, a diary
  * entry, a lesson, a world-model revision, a dream — at the place it
@@ -215,8 +216,9 @@ export function Timeline(props: TimelineProps): React.ReactElement {
 
   return (
     <div className={`entity_timeline et_grid${props.monitor ? " et_monitor_open" : ""}`}>
-      {/* The monitor's place: the free space right of the lanes (their rows), above the transport. */}
-      <div className="et_monitor_slot" style={{ gridRow: `1 / span ${LANES.length}` }}>
+      {/* The monitor's place: between the lanes and the controls, the block's full height (the lanes'
+        * rows and the time row; backlog 0036). */}
+      <div className="et_monitor_slot" style={{ gridRow: `1 / span ${LANES.length + 1}` }}>
         {props.monitor}
       </div>
       {LANES.map((lane) => (
@@ -254,10 +256,40 @@ export function Timeline(props: TimelineProps): React.ReactElement {
           onChange={(e) => props.onScrub(Number(e.target.value))}
         />
       </div>
-      {/* Transport, all on the right (operator 2026-11-07): start · one
-        * event back · play/pause · one event forward · end, then speed,
-        * Live, the Monitor toggle and the position. Stepping or scrubbing while live leaves the
-        * tail (the parent's onScrub); ● Live snaps back to the head. */}
+      {/* Live, the Monitor toggle and the position: their own row above the transport (operator
+        * 2026-11-10 23:07, backlog 0036: "put the time and the 2 buttons above"), right-aligned. */}
+      <div className="et_right_top">
+        <button
+          className={`et_btn et_live ${live ? "et_live_on" : ""}`}
+          onClick={props.onToggleLive}
+          disabled={!liveAvailable}
+          title={liveAvailable ? "Follow the live journal" : "Live tail needs a gateway source"}
+        >
+          ● Live
+        </button>
+        {/* THE COGNITIVE MONITOR's toggle (operator 2026-11-10, backlogs 0018, 0032): pressed = the
+          * monitor is open in this panel, right of the lanes, following this replay and, live, each
+          * reply; the press is what reads his words. */}
+        <button
+          className="et_btn et_monitor"
+          aria-pressed={props.monitorOpen}
+          onClick={props.onToggleMonitor ?? undefined}
+          disabled={props.onToggleMonitor === null}
+          title={
+            props.onToggleMonitor === null
+              ? "Cognitive monitor: not shown beside the avatar view"
+              : "Cognitive monitor: how his words read at this point of the replay and, live, at each reply"
+          }
+        >
+          🧠 Monitor
+        </button>
+        <span className="et_pos" title="the time at the scrub position · event position / total (hover the bar's marks for each event)">
+          {scrubIndex >= 0 && current ? `${clockUtc(current.observed_at)} UTC` : "—"} · {scrubIndex + 1}/{envelopes.length}
+        </span>
+      </div>
+      {/* Transport, all on the right (operator 2026-11-07): start · one event back · play/pause · one
+        * event forward · end, then speed. Stepping or scrubbing while live leaves the tail (the
+        * parent's onScrub); ● Live snaps back to the head. */}
       <div className="et_right">
         <button className="et_btn" onClick={() => props.onScrub(-1)} title="Back to the beginning (leaves Live)" aria-label="Back to the beginning">
           <span className="et_icon_pair et_icon_back" aria-hidden="true">
@@ -299,33 +331,6 @@ export function Timeline(props: TimelineProps): React.ReactElement {
             minPopoverWidth={112}
             ariaLabel="Playback speed"
           />
-        </span>
-        <button
-          className={`et_btn et_live ${live ? "et_live_on" : ""}`}
-          onClick={props.onToggleLive}
-          disabled={!liveAvailable}
-          title={liveAvailable ? "Follow the live journal" : "Live tail needs a gateway source"}
-        >
-          ● Live
-        </button>
-        {/* THE COGNITIVE MONITOR's toggle (operator 2026-11-10, backlogs 0018, 0032): pressed = the
-          * monitor is open in this panel, right of the lanes, following this replay and, live, each
-          * reply; the press is what reads his words. */}
-        <button
-          className="et_btn et_monitor"
-          aria-pressed={props.monitorOpen}
-          onClick={props.onToggleMonitor ?? undefined}
-          disabled={props.onToggleMonitor === null}
-          title={
-            props.onToggleMonitor === null
-              ? "Cognitive monitor: not shown beside the avatar view"
-              : "Cognitive monitor: how his words read at this point of the replay and, live, at each reply"
-          }
-        >
-          🧠 Monitor
-        </button>
-        <span className="et_pos" title="the time at the scrub position · event position / total (hover the bar's marks for each event)">
-          {scrubIndex >= 0 && current ? `${clockUtc(current.observed_at)} UTC` : "—"} · {scrubIndex + 1}/{envelopes.length}
         </span>
       </div>
     </div>

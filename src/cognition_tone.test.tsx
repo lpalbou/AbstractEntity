@@ -150,19 +150,21 @@ describe("tone words: both poles, two strengths, anchor meanings", () => {
 describe("the tone row (what both mounts show under the bloom)", () => {
   const castorScores = { warmth: -0.9361, tension: -0.0714, reflection: -0.2463, structure: 0.6719, certainty: -0.848 };
 
-  it("the row is a named group of five focusable codes, never buttons, no click action, no native tooltip", () => {
+  it("the row is a named group of the five channels BY NAME, focusable, never buttons, no click action, no native tooltip, no 3-letter code (backlog 0036)", () => {
     const html = renderToStaticMarkup(<ToneRow scores={castorScores} />);
     expect(html).toContain('role="group"');
     expect(html).toContain('aria-label="Tone of the phrasing"');
     expect(html).not.toContain("<button");
     expect(html).not.toContain("title=");
-    expect(html.match(/<span class="cm_gauge_code cm_explained" style="color:[^"]+" tabindex="0">/g)?.length).toBe(5);
+    expect(html.match(/<span class="cm_tone_item cm_explained" style="color:[^"]+" tabindex="0">/g)?.length).toBe(5);
+    expect([...html.matchAll(/<span class="cm_tone_name">([^<]*)<\/span>/g)].map((m) => m[1])).toEqual(["warmth", "tension", "reflection", "structure", "certainty"]);
+    expect(html).not.toMatch(/\b(WAR|TSN|REF|STR|CER)\b/);
     expect(html).not.toContain("NaN");
   });
 
-  it("each code PRINTS its score under it, as the registers print theirs (no tier marks)", () => {
+  it("each channel PRINTS its score beside its name, as the registers print theirs (no tier marks)", () => {
     const html = renderToStaticMarkup(<ToneRow scores={castorScores} />);
-    const shown = [...html.matchAll(/<span class="cm_gauge_val cm_tone_val">([^<]*)<\/span>/g)].map((m) => m[1]);
+    const shown = [...html.matchAll(/<span class="cm_tone_val">([^<]*)<\/span>/g)].map((m) => m[1]);
     expect(shown).toEqual(["−0.94", "−0.07", "−0.25", "0.67", "−0.85"]);
     // never −0.00, never a tier mark
     const tiny = renderToStaticMarkup(<ToneRow scores={{ warmth: -0.001, tension: 0.999, reflection: -0.999, structure: 0, certainty: 0.004 }} />);
@@ -171,14 +173,15 @@ describe("the tone row (what both mounts show under the bloom)", () => {
 
   it("an unread channel shows —, never a number", () => {
     const html = renderToStaticMarkup(<ToneRow scores={{ warmth: Number.NaN }} />);
-    expect(html).toContain('<span class="cm_gauge_val cm_tone_val">—</span>');
+    expect(html).toContain('<span class="cm_tone_val">—</span>');
     expect(html).not.toContain("NaN");
   });
 
   it("a channel's card: what it measures, the printed value with its pole word, how the word is given", () => {
     const warmth = CHANNEL_AXES.find((a) => a.id === "warmth")!;
     expect(toneExplainer(warmth, -0.9361)).toEqual({
-      code: "WAR",
+      // The channel goes by its name: its card carries no 3-letter code (backlog 0036).
+      code: "",
       name: "warmth",
       color: warmth.color,
       summary: "Warm against discouraged phrasing, from −1 to +1.",

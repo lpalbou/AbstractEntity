@@ -22,6 +22,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AF_MEDIA,
+  useAfMedia,
   AfCognitionBloom,
   AfConductGauge,
   runningMedian,
@@ -32,7 +34,7 @@ import {
 } from "@abstractframework/ui-kit";
 
 import { isUsableVector, readingFromScore } from "./cognition_adapter";
-import { bloomScoresOf, CONDUCT_AXES, conductCell, conductExplainer, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
+import { BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, conductCell, conductExplainer, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
 import { ExplainedCode } from "./code_explainer";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
@@ -94,10 +96,16 @@ export function createReplyFeed(): ReplyFeed {
     },
   };
 }
-/** The squares inside the timeline (backlog 0032: the monitor stays about 110 px tall): the bloom,
- * and the conduct gauge with its code row under it. */
-const BLOOM = 84;
+/** The bloom inside the timeline (backlog 0036): as tall as the block allows, the lanes' place on a
+ * phone; the conduct gauge with its code row under it. */
+const BLOOM = 112;
+const BLOOM_PHONE = 84;
 const GAUGE = 56;
+
+/** The bloom's side for this screen (a phone's monitor sits in the lanes' place). */
+export function useMonitorBloomSize(): number {
+  return useAfMedia(AF_MEDIA.sm) ? BLOOM_PHONE : BLOOM;
+}
 
 interface ScoredText {
   scores: Record<string, number>;
@@ -316,6 +324,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   // sends all nine explicitly; a register the basis lacks sits on the inner ring, its label "—").
   const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
+  const bloom = useMonitorBloomSize();
   /** Each conduct code's value and reason: the row prints `short`, the hover card the rest. */
   const conduct = useMemo(() => Object.fromEntries(CONDUCT_AXES.map((a) => [a.id, conductCell(gaugeAxes.find((g) => g.id === a.id), effort, tools)])), [gaugeAxes, effort, tools]);
 
@@ -331,15 +340,18 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
       <div className="cm_body">
         <div
           className="cm_canvas_box"
-          style={{ width: BLOOM }}
+          style={{ width: bloom, height: bloom }}
           title={mood ? `closest to ${mood.axis.name} (${mood.axis.code} ${simText(mood.value)})` : undefined}
         >
           {status === "live" && current ? (
-            // Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
-            // similarity scale is not. The breathing stays.
-            <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={BLOOM} />
+            <>
+              {/* Edge tint off (operator 2026-11-07): the kit reads values as intensities, which a
+                * similarity scale is not. The breathing stays. */}
+              <AfCognitionBloom scores={bloomScores} options={{ labels: false, vignette: false }} size={bloom} />
+              <BloomAxisOverlay width={bloom} height={bloom} emotions={current.emotions} />
+            </>
           ) : (
-            <div role="status" className="cm_reading_state" style={{ width: BLOOM, height: BLOOM, display: "grid", placeItems: "center", textAlign: "center", boxSizing: "border-box" }}>
+            <div role="status" className="cm_reading_state" style={{ width: bloom, height: bloom, display: "grid", placeItems: "center", textAlign: "center", boxSizing: "border-box" }}>
               {status === "scoring" ? "reading…" : "not read"}
             </div>
           )}

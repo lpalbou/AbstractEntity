@@ -95,9 +95,9 @@ try {
   await live.waitFor();
   // The signed tone row: a named group of the five channels, each with its signed score.
   const row = page.getByRole("group",{name:"Tone of the phrasing"});
-  const codes = async () => (await row.locator(".cm_gauge_code").allTextContents()).map((t) => t.slice(0, 3));
+  const codes = async () => row.locator(".cm_tone_name").allTextContents();
   const values = () => row.locator(".cm_tone_val").allTextContents();
-  assert.deepEqual(await codes(),["WAR","TSN","REF","STR","CER"],"five tone channels in order");
+  assert.deepEqual(await codes(),["warmth","tension","reflection","structure","certainty"],"five tone channels by name, in order (no 3-letter code)");
   const neutralValues = await values();
   for (const v of neutralValues) assert.match(v,/^[−-]?\d\.\d\d$/,`a signed score, never a mark: ${v}`);
   pending[1].release();
@@ -135,7 +135,7 @@ try {
   await page.locator('.cm_panel[data-reading-state="unavailable"]').waitFor();
   await page.getByText("not read",{exact:true}).first().waitFor();
   assert.equal(await page.getByRole("group",{name:"Tone of the phrasing"}).count(),0,"mismatched model shows no tone row");
-  // Desktop and phone with touch (coarse pointer, 44 px targets): the row is a 3 + 2 grid inside the
+  // Desktop and phone with touch (coarse pointer, 44 px targets): the five named channels are a column inside the
   // bloom column (never a lone code), the page does not scroll sideways, the values keep a 4.5:1
   // contrast on the dock.
   for (const [width,touch] of [[1440,false],[400,true]]) {
@@ -151,11 +151,11 @@ try {
     });
     await phone.goto(`http://127.0.0.1:4189/${relative(root,temp)}/index.html`);
     await phone.getByRole("button",{name:"Joy",exact:true}).click();
-    await phone.locator('.cm_panel[data-reading-state="live"] .cm_tone_codes').waitFor();
+    await phone.locator('.cm_panel[data-reading-state="live"] .cm_tone_list').waitFor();
     await phone.waitForTimeout(400);
     const layout = await phone.evaluate(() => {
-      const rowEl = document.querySelector(".cm_tone_codes"), box = rowEl.parentElement.getBoundingClientRect();
-      const tops = [...rowEl.children].map(c => Math.round(c.getBoundingClientRect().top));
+      const rowEl = document.querySelector(".cm_tone_list"), box = document.querySelector(".cw_panel.cw_compact").getBoundingClientRect();
+      const tops = [...rowEl.querySelectorAll(".cm_tone_name")].map(c => Math.round(c.getBoundingClientRect().top));
       const perLine = [...new Set(tops)].map(t => tops.filter(x => x === t).length);
       const rgb = s => s.match(/[\d.]+/g).map(Number);
       const lum = ([r,g,b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b); };
@@ -163,16 +163,15 @@ try {
       const contrast = el => { const a = lum(rgb(getComputedStyle(el).color).slice(0,3)), b = lum(bg(el)); return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05); };
       const dockEl = document.querySelector(".et_monitor_slot");
       const monitorEl = document.querySelector(".cw_panel.cw_compact");
-      return { perLine, inside: [...rowEl.children].every(c => { const r = c.getBoundingClientRect(); return r.left >= box.left - 1 && r.right <= box.right + 1; }),
+      return { perLine, inside: [...rowEl.querySelectorAll(".cm_tone_name, .cm_tone_val")].every(c => { const r = c.getBoundingClientRect(); return r.left >= box.left - 1 && r.right <= box.right + 1 && r.bottom <= box.bottom + 1; }),
         scroll: document.documentElement.scrollWidth, inner: innerWidth, dockScroll: dockEl.scrollWidth, dockWidth: dockEl.clientWidth,
         monitorHeight: Math.round(monitorEl.getBoundingClientRect().height),
         valContrast: Math.min(...[...rowEl.querySelectorAll(".cm_tone_val")].map(contrast)) };
     });
-    console.log(`  ${width}${touch ? " touch" : ""}: codes per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
-    assert.ok(layout.inside, `the tone row stays inside the bloom column at ${width}`);
-    assert.ok(!layout.perLine.includes(1) || layout.perLine.length === 1, `no lone tone code at ${width}: ${layout.perLine}`);
-    if (touch) assert.deepEqual(layout.perLine,[3,2],"touch: a 3 + 2 grid");
-    if (width >= 768) assert.ok(layout.monitorHeight <= 110, `the monitor fits the timeline (${layout.monitorHeight} px) at ${width}`);
+    console.log(`  ${width}${touch ? " touch" : ""}: names per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
+    assert.ok(layout.inside, `the named channels stay inside the monitor at ${width}`);
+    assert.deepEqual(layout.perLine,[1,1,1,1,1],`one channel per line at ${width}: ${layout.perLine}`);
+    assert.ok(layout.monitorHeight <= (width >= 768 ? 116 : 88), `the monitor fits its place (${layout.monitorHeight} px) at ${width}`);
     assert.ok(layout.scroll <= layout.inner, `no sideways scroll at ${width}`);
     assert.ok(layout.dockScroll <= layout.dockWidth, `the monitor never scrolls sideways at ${width}`);
     assert.ok(layout.valContrast >= 4.5, `value contrast ${layout.valContrast.toFixed(2)} at ${width}`);
@@ -180,7 +179,7 @@ try {
     await ctx.close();
   }
   assert.deepEqual(errors,[]);
-  console.log("cognition browser (the monitor in the timeline): live reply reading, focus race, signed tone row, joy, replay mode, detached mismatch, 1440 + 400 touch layout (<= 110 px) and contrast passed");
+  console.log("cognition browser (the monitor in the timeline): live reply reading, focus race, the five named channels, joy, replay mode, detached mismatch, 1440 + 400 touch layout and contrast passed");
 } finally {
   await browser?.close(); await server.close(); rmSync(temp,{recursive:true,force:true});
 }

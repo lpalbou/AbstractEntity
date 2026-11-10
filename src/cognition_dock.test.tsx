@@ -36,6 +36,22 @@ describe("the timeline's Monitor toggle", () => {
     );
   const toggle = (html: string) => html.match(/<button[^>]*class="et_btn et_monitor"[^>]*>[^<]*<\/button>/)?.[0] ?? "";
 
+  it("Live, the Monitor toggle and the position: their own row above the transport (backlog 0036)", () => {
+    const html = render({});
+    const top = html.slice(html.indexOf('<div class="et_right_top">'), html.indexOf('<div class="et_right">'));
+    expect(top).toContain("● Live");
+    expect(top).toContain('class="et_btn et_monitor"');
+    expect(top).toContain('class="et_pos"');
+    const transport = html.slice(html.indexOf('<div class="et_right">'));
+    expect(transport).toContain('aria-label="Back to the beginning"');
+    expect(transport).toContain('aria-label="Playback speed"');
+    expect(transport).not.toMatch(/● Live|et_monitor|et_pos/);
+    // The CSS stacks them at the right: the controls' column, over the last two lanes' rows, then the bar's row.
+    expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_right_top \{\s*grid-column: 4;\s*grid-row: 4 \/ span 2;/);
+    expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_right \{\s*grid-column: 4;/);
+    expect(CSS).toMatch(/\.entity_timeline\.et_grid \{\s*display: grid;\s*grid-template-columns: max-content minmax\(0, 1fr\) auto auto;/);
+  });
+
   it("comes right after ● Live, labelled by what it opens, pressed = open (the label never changes)", () => {
     const off = render({});
     expect(off.indexOf("● Live")).toBeGreaterThan(-1);
@@ -73,13 +89,13 @@ describe("the timeline's Monitor toggle", () => {
     expect(monitorShown({ ...base, avatar: true })).toBe(false);
   });
 
-  it("the open monitor is in the timeline's free space (right of the lanes, over their rows) and absent when closed", () => {
+  it("the open monitor is between the lanes and the controls, the block's full height (the lanes' rows and the bar's), and absent when closed", () => {
     const closed = render({});
-    expect(closed).toContain('<div class="et_monitor_slot" style="grid-row:1 / span 5"></div>');
+    expect(closed).toContain('<div class="et_monitor_slot" style="grid-row:1 / span 6"></div>');
     expect(closed).not.toContain("et_monitor_open");
     const open = render({ monitorOpen: true, monitor: <span className="probe">the monitor</span> });
     expect(open).toContain('class="entity_timeline et_grid et_monitor_open"');
-    expect(open).toContain('<div class="et_monitor_slot" style="grid-row:1 / span 5"><span class="probe">the monitor</span></div>');
+    expect(open).toContain('<div class="et_monitor_slot" style="grid-row:1 / span 6"><span class="probe">the monitor</span></div>');
     // It is the grid's first item, so the lanes flow round it.
     expect(open.indexOf("et_monitor_slot")).toBeLessThan(open.indexOf("et_lane_label"));
   });
@@ -225,9 +241,9 @@ describe("the reply feed", () => {
 });
 
 describe("layout", () => {
-  it("in the timeline's third column over the lanes' rows, never taller than the lanes (88 px); the main area is never a grid for it", () => {
+  it("in the timeline's third column, the block's full height, never taller than the block (116 px); the main area is never a grid for it", () => {
     expect(CSS).toMatch(/\.et_monitor_slot \{\s*grid-column: 3;\s*min-width: 0;/);
-    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 88px;[^}]*overflow: hidden;/);
+    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 116px;[^}]*overflow: hidden;/);
     // Its state is one line, whatever it says (the reason in the hover).
     expect(CSS).toMatch(/\.cw_state \{[^}]*white-space: nowrap;/);
     // A phone keeps the one row (smaller squares), never a wrapped column.
@@ -236,8 +252,9 @@ describe("layout", () => {
     // In the lanes' exact place: their five 16 px rows and four 2 px gaps.
     expect(phone).toMatch(/\.et_monitor_slot \{[^}]*height: 88px;/);
     expect(phone).toMatch(/\.entity_timeline\.et_grid \.et_lane_label \{\s*height: 16px;\s*line-height: 16px;/);
-    // The tone row keeps its own width (it carries cm_gauge_codes too; only the gauge's codes span their box).
-    expect(CSS).toMatch(/\.cw_compact \.cm_tone_codes \{\s*width: 168px;/);
+    // The five channels: a column of names (smaller) and values; only the gauge's codes span their box.
+    expect(CSS).toMatch(/\.cm_tone_list \{\s*display: grid;\s*grid-template-columns: max-content max-content;/);
+    expect(CSS).toMatch(/\.cm_tone_name \{[^}]*font-size: max\(10px, calc\(var\(--ent-type-floor, 12px\) - 2px\)\);/);
     expect(CSS).not.toMatch(/\.cw_compact \.cm_gauge_codes \{/);
     expect(CSS).toMatch(/\.cw_compact \.cm_gauge_box \.cm_gauge_codes \{\s*width: 100%;/);
     expect(CSS).not.toMatch(/entity_monitor_dock|cw_dock|\.entity_main:has\(> \.entity/);
@@ -281,11 +298,11 @@ describe("the ⓘ names what the codes are (backlog 0032 review F4)", () => {
     const about = monitorAbout("basis v1.0.0 · generic registers", null);
     expect(about.summary).toBe("This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm.");
     expect(about.facts).toEqual([
-      { label: "WAR warmth", value: "warm (+1) to discouraged (−1)" },
-      { label: "TSN tension", value: "urgent (+1) to unhurried (−1)" },
-      { label: "REF reflection", value: "reflective (+1) to matter-of-fact (−1)" },
-      { label: "STR structure", value: "structured (+1) to loosely associative (−1)" },
-      { label: "CER certainty", value: "assured (+1) to hedging (−1)" },
+      { label: "warmth", value: "warm (+1) to discouraged (−1)" },
+      { label: "tension", value: "urgent (+1) to unhurried (−1)" },
+      { label: "reflection", value: "reflective (+1) to matter-of-fact (−1)" },
+      { label: "structure", value: "structured (+1) to loosely associative (−1)" },
+      { label: "certainty", value: "assured (+1) to hedging (−1)" },
     ]);
     expect(about.note).toContain("each from −1 to +1");
     expect(about.note).toContain("basis v1.0.0 · generic registers");
@@ -335,5 +352,14 @@ describe("no embeddings: said at once, his book never opened (backlog 0032 revie
     await new Promise((r) => setTimeout(r, 0));
     expect(keptCorpus(key)).toEqual({ name: "idle" });
     expect(startCorpusRead(key, async () => ({ name: "error", message: "x", warnings: [] }))).not.toBeNull();
+  });
+});
+
+describe("the bloom's tree is back (backlog 0036)", () => {
+  it("both readings draw the bloom with its petal labels, at the size the screen allows", () => {
+    expect(PANEL).toContain("<BloomAxisOverlay width={bloom} height={bloom} emotions={current?.emotions ?? {}} />");
+    expect(INLINE).toContain("<BloomAxisOverlay width={bloom} height={bloom} emotions={current.emotions} />");
+    expect(INLINE).toMatch(/const BLOOM = 112;\s*const BLOOM_PHONE = 84;/);
+    expect(INLINE).toContain("return useAfMedia(AF_MEDIA.sm) ? BLOOM_PHONE : BLOOM;");
   });
 });
