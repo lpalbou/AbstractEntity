@@ -254,6 +254,7 @@ describe("layout", () => {
     // A phone: the lanes' place at least, the names alone around its bloom (numbers in the cards).
     expect(phone).toMatch(/\.et_monitor_slot \{[^}]*min-height: 88px;/);
     expect(phone).toMatch(/\.et_monitor_slot:not\(:empty\) \{\s*min-width: 0;/);
+    expect(phone).toMatch(/\.cw_compact \.cw_state \{\s*max-width: 72px;\s*white-space: normal;/);
     expect(phone).toMatch(/\.cw_compact \.cm_overlay_num \{\s*display: none;/);
     // The five channels: a column of names (smaller) and values; the gauge's four names beside it.
     expect(CSS).toMatch(/\.cm_tone_list \{\s*display: grid;\s*grid-template-columns: max-content max-content;/);
@@ -362,7 +363,7 @@ describe("the bloom's tree is back, by name (backlog 0036)", () => {
     expect(PANEL).toContain("<NamedBloom size={bloom} scores={bloomScores} emotions={current?.emotions} />");
     expect(INLINE).toContain("<NamedBloom size={bloom} scores={bloomScores} emotions={current.emotions} />");
     expect(INLINE).toContain("<BloomAxisOverlay width={size.box} height={size.canvas} emotions={emotions ?? {}} />");
-    expect(INLINE).toMatch(/const BLOOM = \{ canvas: 150, box: 210 \};\s*const BLOOM_PHONE = \{ canvas: 120, box: 180 \};/);
+    expect(INLINE).toMatch(/const BLOOM = \{ canvas: 150, box: 210 \};\s*const BLOOM_PHONE = \{ canvas: 120, box: 160 \};/);
     expect(INLINE).toContain("return useAfMedia(AF_MEDIA.sm) ? BLOOM_PHONE : BLOOM;");
   });
 

@@ -4348,6 +4348,12 @@ body {
   .cw_compact .cm_overlay_num {
     display: none;
   }
+  /* Its state wraps in a narrow column beside the channels, so a long one ("no embeddings · set
+   * up") never adds a row. */
+  .cw_compact .cw_state {
+    max-width: 72px;
+    white-space: normal;
+  }
   .cw_panel.cw_compact,
   .cw_compact .cm_body {
     gap: 6px;

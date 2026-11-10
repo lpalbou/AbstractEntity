@@ -100,7 +100,7 @@ export function createReplyFeed(): ReplyFeed {
  * draws the petals within 0.38 of it, so a 150 px canvas is a ~114 px bloom) and a box wider than
  * tall for the register names around it. The conduct gauge with its names beside it. */
 const BLOOM = { canvas: 150, box: 210 };
-const BLOOM_PHONE = { canvas: 120, box: 180 };
+const BLOOM_PHONE = { canvas: 120, box: 160 };
 const GAUGE = 72;
 
 /** The bloom's canvas and box for this screen. */
