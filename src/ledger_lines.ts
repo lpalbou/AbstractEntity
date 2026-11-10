@@ -226,6 +226,9 @@ export interface LedgerLineFold {
   /** The topic versions seen so far: their graph id -> how many memories
    * each held (what "A topic changed" counts its change against). */
   topicSizes: TopicSizes;
+  /** The graph ids of every topic version seen so far (formed or closed):
+   * what tells a closed link between two versions of a topic (isTopicLink). */
+  topicIds: TopicIds;
 }
 
 /** Extend `prev` with the envelopes it has not covered yet, or rebuild
@@ -246,12 +249,21 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
   const lines = intact ? prev.lines.slice() : [];
   let rhythm = intact ? prev.rhythm : RHYTHM_START;
   let topicSizes: TopicSizes = intact ? prev.topicSizes : NO_TOPIC_SIZES;
+  let topicIds: TopicIds = intact ? prev.topicIds : NO_TOPIC_IDS;
   for (let i = from; i < envelopes.length; i++) {
     const env = envelopes[i];
     const step = rhythmStep(rhythm, env);
     rhythm = step.state;
     for (const b of step.lines) lines.push({ line: b, index: i, own: rhythm.ownTime });
-    lines.push({ line: ledgerLine(env, topicSizes), index: i, own: rhythm.ownTime });
+    // A topic version's link to the one before, closed with it, has no row:
+    // the topic's own rows say it changed ("A topic changed: …", and the
+    // audit line of its earlier version's closure, just before).
+    if (!isTopicLink(env, topicIds)) lines.push({ line: ledgerLine(env, topicSizes, topicIds), index: i, own: rhythm.ownTime });
+    const versionId = topicVersionId(env);
+    if (versionId !== null && !topicIds.has(versionId)) {
+      // A new set: the previous fold keeps its own (no shared mutation).
+      topicIds = new Set([...topicIds, versionId]);
+    }
     const version = topicVersionSize(env);
     if (version !== null) {
       // A new map: the previous fold keeps its own (no shared mutation).
@@ -260,7 +272,7 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
       topicSizes = next;
     }
   }
-  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes };
+  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes, topicIds };
 }
 
 /** What a ledger line about a topic opens: "topic:<its stable key>" — the
@@ -281,6 +293,33 @@ export function topicKeyOfTarget(target: string | null | undefined): string | nu
 export type TopicSizes = ReadonlyMap<string, number>;
 
 const NO_TOPIC_SIZES: TopicSizes = new Map();
+
+/** The graph ids of the topic versions seen on the stream (their bindings
+ * and closures; FoldState.community_graph_ids is the same set). */
+export type TopicIds = ReadonlySet<string>;
+
+const NO_TOPIC_IDS: TopicIds = new Set();
+
+/** A topic version's own envelope (its formation or its closure): its graph
+ * id, or null. */
+function topicVersionId(env: ReplayEnvelope): string | null {
+  if ((env.family !== "binding" && env.family !== "closure") || env.display?.kind !== COMMUNITY_RECORD_KIND) return null;
+  const gid = typeof env.display.graph_id === "string" ? env.display.graph_id.trim() : "";
+  if (gid) return gid;
+  const rid = env.family === "binding" ? String((env.payload as unknown as BindingPayload).record_id || "").trim() : "";
+  return rid || null;
+}
+
+/** A closed link between two versions of a topic: memory forms a version
+ * with one edge, `refines` to the version before, and closes that link row
+ * with the version (its display: kind "memory", the version's graph id).
+ * Structural, the stream_fold rule: the row names a topic version seen on
+ * the stream as its source — never its words. */
+export function isTopicLink(env: ReplayEnvelope, topicIds: TopicIds): boolean {
+  if (env.family !== "closure" || env.display?.kind === COMMUNITY_RECORD_KIND) return false;
+  const gid = typeof env.display?.graph_id === "string" ? env.display.graph_id.trim() : "";
+  return gid !== "" && topicIds.has(gid);
+}
 
 /** A topic version's formation on the stream: its graph id and size, or null. */
 function topicVersionSize(env: ReplayEnvelope): { id: string; size: number } | null {
@@ -395,8 +434,10 @@ export const LEDGER_PHASE_STAYS: Readonly<Record<string, string>> = {
 };
 
 /** `topicSizes`: the topic versions seen earlier on the stream (the
- * ledger's fold passes them, so a changed topic says by how much). */
-export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES): LedgerLine {
+ * ledger's fold passes them, so a changed topic says by how much);
+ * `topicIds`: their graph ids (a closed link between two of them is an
+ * audit line in words; the ledger's fold shows no row for it at all). */
+export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES, topicIds: TopicIds = NO_TOPIC_IDS): LedgerLine {
   const base = {
     seq: env.seq,
     family: env.family,
@@ -623,6 +664,7 @@ export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPI
     }
     case "closure": {
       if (env.display?.kind === COMMUNITY_RECORD_KIND) return topicClosedLine(env, base);
+      if (isTopicLink(env, topicIds)) return { ...base, title: "A topic's link to its earlier version was closed", detail: "a newer version replaced it", subject_id: null, tone: "quiet" };
       const p = env.payload as unknown as ClosurePayload;
       const name = displayTitle(env, tidy(p.assertion_id));
       return {

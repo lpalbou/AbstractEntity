@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 import { REVEAL_GRAPH, SideTabs } from "./drawer";
 import { foldLedgerLines, ledgerLine, lineTarget, topicKeyOfTarget, topicTarget, type LedgerLine } from "./ledger_lines";
 import { LedgerLineRow } from "./ledger_panel";
+import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { topicRequestStep } from "./topics_panel";
 
@@ -174,6 +175,62 @@ describe("a newer version of a topic: 'A topic changed', counted against the ver
     expect(gone.detail).toBe("it held 12 memories");
     expect(gone.subject_id).toBeNull();
     expect(gone.tone).toBe("revision");
+  });
+});
+
+describe("the link between two versions of a topic has no row (castor 2026-11-10: 17 'Belief revised the “refines” link — community ex:community-…')", () => {
+  // castor #105713 as served: closed right after its version (#105712), the
+  // version's `refines` link row — kind "memory", the version's graph id.
+  const link = (seq: number, of: ReplayEnvelope): ReplayEnvelope => {
+    const gid = String((of.payload as { record_id: string }).record_id);
+    return {
+      ...of,
+      seq,
+      family: "closure",
+      payload: { assertion_id: `row-${seq}`, kind: "supersede", reason: "community ex:community-k3: version 105702", replacement_ids: ["ex:community-v2"], observed_at: of.observed_at, actor: "system", provenance: {}, closure_id: `c${seq}`, seq },
+      display: { record_id: `row-${seq}`, kind: "memory", title: `${gid} refines`, token_estimate: 22, graph_id: gid },
+    } as unknown as ReplayEnvelope;
+  };
+  const v1 = version(10, "ex:community-a1", "ex:community-k3", 85, "Tending the twelve continuity bridges");
+  const v2 = version(20, "ex:community-a2", "ex:community-k3", 90, "Tending the twelve continuity bridges", "ex:community-a1");
+  const night = [v1, v2, closure(21, v1, "supersede", "community ex:community-k3: version 105702"), link(22, v1)];
+
+  it("the night reads: the topic took shape, it changed, its earlier version was closed (audit) — no link row, no key, no id", () => {
+    const fold = foldLedgerLines(null, night);
+    expect(fold.lines.map((l) => [l.line.seq, l.line.title])).toEqual([
+      [10, "🗺 A topic took shape: Tending the twelve continuity bridges"],
+      [20, "🗺 A topic changed: Tending the twelve continuity bridges (+5 memories)"],
+      [21, "A topic's earlier version was closed: Tending the twelve continuity bridges"],
+    ]);
+    const words = fold.lines.map((l) => `${l.line.title} ${l.line.detail}`).join(" ");
+    expect(words).not.toMatch(/Belief|refines|ex:community|version 105702/);
+    expect([...fold.topicIds]).toEqual(["ex:community-a1", "ex:community-a2"]);
+  });
+
+  it("the same graph-id rule as the graph's fold (stream_fold community_graph_ids)", () => {
+    expect(foldLedgerLines(null, night).topicIds).toEqual(foldEnvelopes(night).community_graph_ids);
+    // A version whose formation is before the loaded part: its own closure names it.
+    expect(foldLedgerLines(null, night.slice(2)).lines.map((l) => l.line.seq)).toEqual([21]);
+  });
+
+  it("a live append extends the ids; the earlier fold is left as it was", () => {
+    const first = foldLedgerLines(null, night.slice(0, 3));
+    const next = foldLedgerLines(first, night);
+    expect(next.lines.map((l) => l.line.seq)).toEqual([10, 20, 21]);
+    expect(first.topicIds).toEqual(next.topicIds);
+    const later = foldLedgerLines(first, [...night.slice(0, 3), version(30, "ex:community-a3", "ex:community-k4", 12, "New")]);
+    expect([...first.topicIds]).toEqual(["ex:community-a1", "ex:community-a2"]);
+    expect(later.topicIds.has("ex:community-a3")).toBe(true);
+  });
+
+  it("read alone, with the topic ids: an audit line in words; with nothing saying it is a topic's, it stays a belief's line (the rule never reads its words)", () => {
+    const quiet = ledgerLine(link(22, v1), undefined, new Set(["ex:community-a1"]));
+    expect(quiet).toMatchObject({ title: "A topic's link to its earlier version was closed", detail: "a newer version replaced it", tone: "quiet", subject_id: null });
+    expect(ledgerLine(link(22, v1)).title).toBe("Belief revised");
+    expect(foldLedgerLines(null, [link(22, v1)]).lines).toHaveLength(1);
+    // A memory's own link closed with it stays its line.
+    const memoryLink = { ...link(23, v1), display: { record_id: "row-23", kind: "memory", title: "ex:episode-0a1 refines", graph_id: "ex:episode-0a1" } } as unknown as ReplayEnvelope;
+    expect(foldLedgerLines(null, [...night, memoryLink]).lines.map((l) => l.line.seq)).toEqual([10, 20, 21, 23]);
   });
 });
 
