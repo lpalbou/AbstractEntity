@@ -160,6 +160,8 @@ function render(over: Partial<React.ComponentProps<typeof TopicsPanel>> = {}): s
       onToggle={() => {}}
       onFocus={() => {}}
       onOpenMember={() => {}}
+      onHoverRows={() => {}}
+      onFrameRows={() => {}}
       onRetry={() => {}}
       colorOf={() => "#fff"}
       {...over}

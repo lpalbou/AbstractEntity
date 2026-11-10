@@ -109,6 +109,8 @@ function render(view: TopicsView, over: Partial<React.ComponentProps<typeof Topi
       onToggle={() => {}}
       onFocus={() => {}}
       onOpenMember={() => {}}
+      onHoverRows={() => {}}
+      onFrameRows={() => {}}
       onRetry={() => {}}
       colorOf={() => "#fff"}
       {...over}

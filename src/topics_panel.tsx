@@ -409,6 +409,11 @@ export interface TopicsPanelProps {
   onOpenMember(node: NodeState): void;
   /** The topic the panel lights on the graph (topicHover), null to let go. */
   onHoverTopic?(key: string | null): void;
+  /** Light exactly these graph node ids on the canvas (a path, a memory
+   * type's memories); null lets go (the topic hover, if any, lights again). */
+  onHoverRows: (ids: string[] | null) => void;
+  /** The camera glides to frame these graph node ids. */
+  onFrameRows: (ids: string[]) => void;
   onRetry(): void;
   /** The memory's kind colour (the graph's). */
   colorOf(node: NodeState): string;
