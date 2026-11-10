@@ -8,34 +8,44 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 16 |
+| Planned | 25 |
 | Proposed | 6 |
 | Completed | 9 |
 | Deprecated | 0 |
 
-`planned/` holds 20 files: the 16 planned items and four completed records (0002-0005) whose move
+`planned/` holds 29 files: the 25 planned items and four completed records (0002-0005) whose move
 to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
 
-The operator's round-3 test of 0.12.0 (2026-11-10 17:45), three lanes, each in this order:
+The operator's round-4 test of 0.12.0 (2026-11-10 20:13), four lanes, each in this order:
 
-- **W1** (toolbar, timeline, pages): 0013 (status sentence never shifts the toolbar; Files, then
-  Settings), 0019 (filter chips row removed, the legend replaces it), 0018 (the cognitive monitor
-  moves to the timeline), 0022 (remove the blueprint page; root 1200).
-- **W2** (canvas frame and controls): 0020 (remove reset), 0021 (the hidden-records toggle says
-  "closed memories"; topic-version links are not nodes), 0017 (Topics panel floatable and
-  resizable, starting top right; folds in 0001).
-- **W3** (Topics panel rows): 0014 (one tinted card per topic), 0015 (paths most travelled:
-  hover and click), 0016 (memory types: one collapsed sub-panel).
+- **W1** (side tabs, toolbar, timeline): 0029 (side tabs reordered), 0030 (unpressing "topics"
+  clears the topic; the chip is one line), 0032 (the monitor opens in the timeline's empty space;
+  its explanatory block goes).
+- **W2** (canvas: lines, panel frame, motion buttons): 0028 (closed-memories toggle left of fit;
+  its removal waits for the operator's word), 0027 (Topics panel: opens top right, drags by its
+  head anywhere, resizes toward the corner dragged), 0025 (never-travelled lines dark grey,
+  travelled ones pop by use; hover still dims the rest).
+- **W3** (Topics panel rows): 0026 (a clicked topic card folds back).
+- **W4** (roster, World tab): 0024 (three entities per row on a desktop), 0031 (World tab: two
+  clear lines).
 
-Seam: 0017 (W2) and 0014-0016 (W3) touch the same panel; W2 owns the frame (`.gc_topics`, its head,
-placement and size), W3 the rows inside `.gc_tp_body`.
+Seams: 0027 (W2) and 0026 (W3) touch the same panel; as in round 3, W2 owns the frame
+(`.gc_topics`, its head, placement and size), W3 the rows inside `.gc_tp_body`. 0025, 0027 and
+0028 share `src/graph_canvas.tsx` (one lane, in order). 0029, 0030 and 0032 share
+`src/entity_view.tsx` (one lane). W1 and W4 both edit `src/entity.css`, in disjoint rules (the
+dock and timeline vs the roster and the World tab). 0030 (W1) drops one rule in W2's
+`src/graph_canvas.css` (`.gc_topic_chip_full`).
 
-After the round: 0006 needs an investigation first; 0012 follows root 1195. 0010 and 0011 have
-landed code (a82aa10, 036f874, 23570ed for 0010; 222e72e for 0011, shown on the identity card
-rather than in the Topics header) but their records are not closed: close them after the
-operator's check, with 0011's placement stated.
+Round 3 (0013-0022) is built on main and was what the operator tested in round 4; its records
+close after his check. Round 4 revisits three of them: 0027 follows 0017, 0028 follows 0021, 0032
+follows 0018.
+
+After the round: 0006 needs an investigation first; 0012 follows root 1195; 0023 (phone canvas
+height) is unlaned. 0010 and 0011 have landed code (a82aa10, 036f874, 23570ed for 0010; 222e72e for
+0011, shown on the identity card rather than in the Topics header) but their records are not
+closed: close them after the operator's check, with 0011's placement stated.
 
 ## Planned
 
@@ -57,6 +67,15 @@ operator's check, with 0011's placement stated.
 | 0021 | [Hidden-records toggle: closed memories](planned/0021_hidden_records_toggle_names_closed_memories.md) | S-M | W2 | |
 | 0022 | [Remove the blueprint page](planned/0022_remove_the_blueprint_page.md) | M | W1 | 1200 |
 | 0023 | [On a phone the graph and the ledger get at least half the screen](planned/0023_phone_canvas_chrome_height.md) | M | | |
+| 0024 | [Roster: at least three entities per row on a desktop](planned/0024_roster_three_entities_per_row.md) | S | W4 | |
+| 0025 | [Graph: never travelled dark grey, travelled pops by use; hover still dims](planned/0025_graph_edges_unvisited_grey_visited_pop.md) | M | W2 | |
+| 0026 | [A clicked topic card folds back](planned/0026_topic_cards_fold_back.md) | S | W3 | |
+| 0027 | [Topics panel: top right, drag by its head anywhere, resize toward the corner](planned/0027_topics_panel_top_right_drag_head_resize_corner.md) | M | W2 | |
+| 0028 | [Closed-memories toggle left of fit; its removal waits for the operator](planned/0028_closed_memories_toggle_left_of_fit.md) | XS (S if removed) | W2 | |
+| 0029 | [Side tabs: chat, card, health, book, world, lessons, detail, ledger](planned/0029_side_tabs_reordered.md) | XS | W1 | |
+| 0030 | [Unpressing "topics" clears the topic; the chip is one line](planned/0030_topics_off_clears_topic_chip_one_line.md) | XS-S | W1 | |
+| 0031 | [World tab: two clear lines on top](planned/0031_world_tab_intro_two_lines.md) | XS | W4 | |
+| 0032 | [The monitor opens in the timeline's empty space; its explanatory block goes](planned/0032_monitor_in_the_timeline_empty_space.md) | M | W1 | |
 
 ## Proposed (legacy names)
 
@@ -92,7 +111,7 @@ None.
 
 ## Process
 
-- A new item takes the next unused `NNNN_` prefix (next: 0023) and the template's sections
+- A new item takes the next unused `NNNN_` prefix (next: 0033) and the template's sections
   (metadata, ADR status, context or the operator's words, current code reality, scope, expected
   outcomes, validation, size).
 - Completing an item: set `Status: Completed` and `Completed: <date>`, add what was done and its
