@@ -18,6 +18,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
   and their titles dim further. Its title is placed first and its plate is tinted. Circles at rest
   are a little stronger, so topics read without a hover. The change eases in and out on the
   graph's usual half-second dim.
+- **Hovering a topic in the Topics panel lights it on the graph** (Entity backlog 0002). Rest the
+  pointer on a topic, its facts or one of its memories for 150 ms, or move to its row with the
+  keyboard, and the graph shows it as a spotlight and dims the rest; sweeping across the list
+  lights nothing, and leaving the list brings back the focused topic, if any. A touch never
+  hovers: a tap still focuses the topic.
 
 ## [0.12.0] - 2026-11-10
 

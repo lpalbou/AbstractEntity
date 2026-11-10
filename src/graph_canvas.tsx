@@ -671,6 +671,10 @@ export function GraphCanvas({
   /** Last frame time the recall drove the emphasis (ease-out pacing). */
   const recallDriveAtRef = useRef<number | null>(null);
   const hoverRef = useRef<string | null>(null);
+  /** The topic whose Topics-panel row the pointer (or the keyboard) rests
+   * on, after the panel's hover intent: the frame lights it (a ref, read by
+   * the RAF loop; no re-render). */
+  const hoverTopicRef = useRef<string | null>(null);
   /** The lit lines the LAST FRAME drew (null when the recall does not
    * drive the canvas): what a pointer resting on a line can be over. */
   const shownLinesRef = useRef<Map<string, TravelledLine> | null>(null);
@@ -1193,34 +1197,48 @@ export function GraphCanvas({
       // always kept — they are few and typed). The selection shows the
       // node's REAL closest company, not the whole graph lit up.
       const NEIGHBOR_CAP = 14;
-      let emphasis: Set<string> | null = null;
+      let emphasis: ReadonlySet<string> | null = null;
       const focus = hoverRef.current ?? selectedId;
+      // THE LIT TOPIC (graph_canvas_spotlight.ts): the topic whose panel row
+      // the pointer rests on (a preview; one with a circle on this graph)
+      // before the focused one.
+      const hoveredTopic = topicsOn && seated && hoverTopicRef.current !== null && (seated.rowsOf.get(hoverTopicRef.current)?.length ?? 0) > 0 ? hoverTopicRef.current : null;
+      const litKey = topicsOn && seated ? litTopicKey(hoveredTopic, picked) : null;
+      const litRows = litRowsOf(litKey, seated ? seated.rowsOf : null, pc.gen);
       // ONE mechanism, ordered triggers (recall_emphasis.emphasisDriver):
-      // lens/search/topic filter > hovered/selected node > current recall.
-      const driver = emphasisDriver({
-        filter: searchIds !== null,
-        hover: hoverRef.current !== null && layout.has(hoverRef.current),
-        selected: selectedId !== null && layout.has(selectedId),
-        recall: recall !== null,
-      });
-      if (driver === "filter") {
+      // a topic hovered in the panel > lens/search/topic filter >
+      // hovered/selected node > current recall. The hovered topic lights its
+      // memories as a filter does (its preview wins while the pointer rests).
+      const topicHover = hoveredTopic !== null && litRows !== null;
+      const driver = topicHover
+        ? "filter"
+        : emphasisDriver({
+            filter: searchIds !== null,
+            hover: hoverRef.current !== null && layout.has(hoverRef.current),
+            selected: selectedId !== null && layout.has(selectedId),
+            recall: recall !== null,
+          });
+      if (topicHover) {
+        emphasis = litRows;
+      } else if (driver === "filter") {
         emphasis = searchIds;
       } else if (driver === "recall" && recall) {
         emphasis = recall.ids;
       } else if (driver === "focus") {
         if (focus && layout.has(focus)) {
-          emphasis = new Set([focus]);
+          const near = new Set([focus]);
           const weighted: Array<{ id: string; w: number }> = [];
           for (const e of fold.edges.values()) {
             if (e.a === focus) weighted.push({ id: e.b, w: e.count });
             else if (e.b === focus) weighted.push({ id: e.a, w: e.count });
           }
           weighted.sort((x, y) => y.w - x.w);
-          for (const { id } of weighted.slice(0, NEIGHBOR_CAP)) emphasis.add(id);
+          for (const { id } of weighted.slice(0, NEIGHBOR_CAP)) near.add(id);
           for (const se of structuralResolved) {
-            if (se.a === focus) emphasis.add(se.b);
-            if (se.b === focus) emphasis.add(se.a);
+            if (se.a === focus) near.add(se.b);
+            if (se.b === focus) near.add(se.a);
           }
+          emphasis = near;
         }
       }
       // Dim TRANSITION (laurent 2026-07-17: "allow a 0.5 transition for
@@ -1281,8 +1299,6 @@ export function GraphCanvas({
       // activated topic was "barely" visible): the lit topic's circle is
       // tinted, ringed and glowing, its memories ringed in its colour, the
       // rest under a veil; each circle's gain eases on the dim ramp.
-      const litKey = topicsOn && seated ? litTopicKey(null, picked) : null;
-      const litRows = litRowsOf(litKey, seated ? seated.rowsOf : null, pc.gen);
       let litHalo: (typeof topicHalos)[number] | null = null;
       if (topicsOn && placement && seated) {
         for (const circle of placement.circles) {
@@ -2374,6 +2390,9 @@ export function GraphCanvas({
               focusTopic(key);
             }}
             onOpenMember={openMember}
+            onHoverTopic={(key) => {
+              hoverTopicRef.current = key;
+            }}
             onRetry={retryTopics}
             colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
           />

@@ -28,6 +28,12 @@
  * - Not served: ONE sentence instead of the list — his first sleep has not
  *   formed topics yet, or this gateway serves the old shape.
  *
+ * - The pointer resting on a topic (its row, its facts or one of its
+ *   memories) for HOVER_INTENT_MS, or the keyboard on its row, LIGHTS it on
+ *   the graph (the spotlight, graph_canvas_spotlight.ts) and dims the rest;
+ *   a sweep across the rows lights nothing; leaving the list lets go (the
+ *   focused topic, if any, is lit again). A touch never hovers.
+ *
  * Over the graph: open on a wide screen, folded on a phone (a real
  * disclosure: the head is a button with aria-expanded), so the graph keeps
  * its tap targets.
@@ -41,6 +47,7 @@ import type { FoldState, NodeState } from "./stream_fold";
 import { isDiaryNode, plainCardTitle } from "./hover_card";
 import { dayWords } from "./understanding";
 import { TITLE_BEING_WRITTEN } from "./untitled";
+import { hoverIntent, HOVER_INTENT_MS, type HoverIntentTimers } from "./hover_intent";
 
 /** What the panel shows: the answer being read, a failed read, or the read. */
 export type TopicsView = { kind: "loading" } | { kind: "error"; message: string } | { kind: "read"; read: CommunitiesRead };
@@ -224,6 +231,61 @@ export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<
   return out;
 }
 
+/** THE TOPIC HOVER (operator 2026-11-10, Entity backlog 0002): which topic
+ * the panel lights on the graph. A mouse or pen resting on a topic's rows
+ * (HOVER_INTENT_MS, hover_intent.ts: a sweep lights nothing), or the
+ * keyboard on one (a focus the keyboard made: :focus-visible, never a
+ * click's or a tap's), emits its key; a touch never does (a tap focuses).
+ * Moving to another topic keeps the lit one until the new one has rested;
+ * leaving the list (or the keyboard leaving it) emits null at once. */
+export interface TopicHover {
+  pointerOver(key: string | null, pointerType: string): void;
+  pointerLeave(pointerType: string): void;
+  focus(key: string | null): void;
+  blur(stillInside: boolean): void;
+  dispose(): void;
+}
+
+export function topicHover(emit: (key: string | null) => void, timers?: HoverIntentTimers): TopicHover {
+  let shown: string | null = null;
+  const show = (key: string | null) => {
+    if (key === shown) return;
+    shown = key;
+    emit(key);
+  };
+  const intent = hoverIntent((key) => show(key), HOVER_INTENT_MS, timers);
+  const letGo = () => {
+    intent.cancel();
+    show(null);
+  };
+  return {
+    pointerOver(key, pointerType) {
+      // Back on the lit topic, a pending other is forgotten (its rest re-emits nothing).
+      if (pointerType === "touch" || key === null) return;
+      intent.over(key);
+    },
+    pointerLeave(pointerType) {
+      if (pointerType !== "touch") letGo();
+    },
+    focus(key) {
+      if (key === null) return;
+      intent.over(key);
+    },
+    blur(stillInside) {
+      if (!stillInside) letGo();
+    },
+    dispose: letGo,
+  };
+}
+
+/** The topic a panel row belongs to (its content's data-tkey), from any
+ * element inside the row. */
+function rowTopicKey(target: EventTarget | null): string | null {
+  if (!(target instanceof Element)) return null;
+  const row = target.closest(".af-disclosure__row");
+  return row?.querySelector("[data-tkey]")?.getAttribute("data-tkey") ?? null;
+}
+
 export interface TopicsPanelProps {
   view: TopicsView;
   fold: FoldState;
@@ -237,13 +299,23 @@ export interface TopicsPanelProps {
   onToggle(open: boolean): void;
   onFocus(key: string | null): void;
   onOpenMember(node: NodeState): void;
+  /** The topic the panel lights on the graph (topicHover), null to let go. */
+  onHoverTopic?(key: string | null): void;
   onRetry(): void;
   /** The memory's kind colour (the graph's). */
   colorOf(node: NodeState): string;
 }
 
-export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onToggle, onFocus, onOpenMember, onRetry, colorOf }: TopicsPanelProps): React.ReactElement {
+export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onToggle, onFocus, onOpenMember, onHoverTopic, onRetry, colorOf }: TopicsPanelProps): React.ReactElement {
   const bodyId = useId();
+  const onHoverRef = useRef(onHoverTopic);
+  onHoverRef.current = onHoverTopic;
+  const hover = useMemo(() => topicHover((key) => onHoverRef.current?.(key)), []);
+  // Unmounted (the panel goes, topics off) or folded: nothing stays lit.
+  useEffect(() => () => hover.dispose(), [hover]);
+  useEffect(() => {
+    if (!open) hover.dispose();
+  }, [open, hover]);
   const listRef = useRef<DisclosureListHandle | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(focused ? [focused] : []));
   const [selection, setSelection] = useState<DisclosureSelection | null>(null);
@@ -287,7 +359,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
       const c = d.c;
       const summary = topicSummary(c);
       return (
-        <span className={`gc_tp_topic${focused === c.key ? " gc_tp_focused" : ""}`} data-topic={c.key} onClick={() => focus(c.key)}>
+        <span className={`gc_tp_topic${focused === c.key ? " gc_tp_focused" : ""}`} data-topic={c.key} data-tkey={c.key} onClick={() => focus(c.key)}>
           <i className="gc_tp_dot" style={{ background: topicColor(c.key) }} aria-hidden="true" />
           <span className={`gc_tp_title${c.titlePending ? " gc_tp_pending" : ""}`}>{row.textValue}</span>
           <AfChip size="sm" tone="muted" className="gc_tp_count">
@@ -300,7 +372,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     }
     if (d.kind === "facts") {
       return (
-        <span className="gc_tp_facts" data-facts={d.c.key}>
+        <span className="gc_tp_facts" data-facts={d.c.key} data-tkey={d.c.key}>
           {d.facts.map((f) =>
             f.kind === "paths" ? (
               <span key={f.kind} className="gc_tp_fact gc_tp_fact_paths">
@@ -325,13 +397,13 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     }
     if (d.kind === "unloaded") {
       return (
-        <span className="gc_tp_unloaded" data-unloaded={d.c.key}>
+        <span data-tkey={d.c.key} className="gc_tp_unloaded" data-unloaded={d.c.key}>
           {d.text}
         </span>
       );
     }
     return (
-      <span className="gc_tp_member" data-member={d.node.id} onClick={() => onOpenMember(d.node)}>
+      <span className="gc_tp_member" data-member={d.node.id} data-tkey={d.c.key} onClick={() => onOpenMember(d.node)}>
         <i className="gc_tp_kdot" style={{ background: colorOf(d.node) }} aria-hidden="true" />
         <span className="gc_tp_mtitle">{row.textValue}</span>
         {d.provisional ? (
@@ -350,7 +422,15 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
         <span className="gc_tp_head_count">{communities.length}</span>
         {pending > 0 ? <span className="gc_tp_head_pending">{pending} being written</span> : null}
       </button>
-      <div className="gc_tp_body" id={bodyId} hidden={!open}>
+      <div
+        className="gc_tp_body"
+        id={bodyId}
+        hidden={!open}
+        onPointerOver={(e) => hover.pointerOver(rowTopicKey(e.target), e.pointerType)}
+        onPointerLeave={(e) => hover.pointerLeave(e.pointerType)}
+        onFocus={(e) => hover.focus(e.target instanceof Element && e.target.matches(":focus-visible") ? rowTopicKey(e.target) : null)}
+        onBlur={(e) => hover.blur(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))}
+      >
         <DisclosureList<TopicRowData>
           ref={listRef}
           className="gc_tp_list"
