@@ -91,11 +91,21 @@ describe("the legend's markup", () => {
     for (const w of ["identity", "memory", "diary", "feeling", "scar", "bond", "summary", "dream", "world"]) expect(kinds).toContain(`${w}</button>`);
     const lines = html.slice(html.indexOf("gc_lg_row_lines"));
     expect(lines).toContain("rarely used → most used");
+    // The amber flash of a line just travelled (Q2: the canvas drew it, the legend never said it).
+    expect(lines).toMatch(/<span class="lg_edge" title="An amber line: two memories he used together a moment ago\. It fades as he goes on\."><i class="gc_lg_flash" aria-hidden="true"><\/i>just travelled<\/span>/);
+    expect(lines.indexOf("just travelled")).toBeGreaterThan(lines.indexOf("rarely used → most used"));
     expect(lines).toContain("last selection 2h ago");
     expect(lines).toContain("written_amid</button>");
   });
 
-  it("every memory item and relation type is a pressed toggle; the usage key and the age are not", () => {
+  it("the amber swatch is the canvas's flash colour (the accent it resolves for a line just used)", () => {
+    expect(CSS).toMatch(/\.gc_lg_flash \{[^}]*background: var\(--ea-accent\);/);
+    const canvas = read("graph_canvas.tsx");
+    expect(canvas).toContain('assign("accent", "--ea-accent");');
+    expect(canvas).toContain("ctx.strokeStyle = rgbaOf(CANVAS_THEME.accent, 0.18 + recent * 0.45);");
+  });
+
+  it("every memory item and relation type is a pressed toggle; the usage key, the amber line and the age are not", () => {
     const html = render(null);
     expect([...html.matchAll(/<button[^>]*aria-pressed="false"/g)]).toHaveLength(6 + 3 + 2);
     expect(html).not.toMatch(/<button[^>]*>[^<]*<i class="gc_rl_scale"/);

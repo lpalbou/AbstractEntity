@@ -187,6 +187,17 @@
   border-left: 6px solid var(--adm-stimulus);
 }
 
+/* The legend's amber line (graph_canvas_legend.tsx "just travelled"): the
+ * accent the canvas flashes a line in when he has just used its two
+ * memories together (CANVAS_THEME.accent, resolved from --ea-accent). */
+.gc_lg_flash {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ea-accent);
+}
+
 /* The usage scale: dark grey -> muted grey-green, then the top tenth's
  * step to green (graph_usage.usageMix; the canvas resolves the same two
  * ends: coldOf(--bg, --text) and --adm-both). */

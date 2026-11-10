@@ -5,8 +5,8 @@
  *
  * - Two rows, never more: what the memories are (identity, memory, diary,
  *   feeling, scar, bond, then the kinds this life holds) and what the lines
- *   and colours mean (the usage scale, how old the last selection is, the
- *   born-linked relation types). Each row is one line that scrolls sideways
+ *   and colours mean (the usage scale, the amber of a line just travelled,
+ *   how old the last selection is, the born-linked relation types). Each row is one line that scrolls sideways
  *   when it holds more than the canvas is wide; a phone-width canvas keeps
  *   its one scrollable row.
  * - Every memory item and every relation type is a pressed toggle: a click
@@ -160,6 +160,13 @@ export function GraphLegend({ extraKinds, relationTypes, warmthAge, picked, onPi
         <span className="lg_edge" title={USAGE_TITLE}>
           <i className="gc_rl_scale" aria-hidden="true" />
           {USAGE_LOW} → {USAGE_HIGH}
+        </span>
+        {/* THE AMBER FLASH (Q2's gap): a line of two memories he used
+          * together in his last moments (the canvas's recency window) flashes
+          * in the accent and fades. */}
+        <span className="lg_edge" title="An amber line: two memories he used together a moment ago. It fades as he goes on.">
+          <i className="gc_lg_flash" aria-hidden="true" />
+          just travelled
         </span>
         {warmthAge ? (
           <span className="lg_edge lg_stale" title="How long ago he last used a memory. The colours rank his use within his life; they do not fade while nothing runs.">
