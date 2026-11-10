@@ -21,7 +21,8 @@
  *   it was, nothing else changed (operator 2026-11-10 20:13, Entity backlog
  *   0026: "we can't refold the topic as they were before clicking"): it
  *   stays focused — the filter chip on the graph lets it go — and the next
- *   click unfolds it again.
+ *   click unfolds it again. Focusing another topic (here or on the graph)
+ *   folds the one unfolded before: one unfolded topic at a time.
  * - ITS MEMORY TYPES (operator 2026-11-10, Entity backlog 0016): one
  *   sub-panel "Memory types" in its card, folded by default (a disclosure
  *   whose mark says its state). Unfolded, one row per type with how many of
@@ -752,6 +753,13 @@ export function topicClick(key: string, expanded: ReadonlySet<string>, focused: 
   return focused === key ? "unfold" : "focus";
 }
 
+/** The topics unfolded once `focused` is focused: that one alone — the one
+ * unfolded before folds back to its card (backlog 0026: "as they were
+ * before clicking"). The same set when it already is. */
+export function foldsOnFocus(expanded: ReadonlySet<string>, focused: string): ReadonlySet<string> {
+  return expanded.size === 1 && expanded.has(focused) ? expanded : new Set([focused]);
+}
+
 /** The topic whose own row `target` is (the row itself, as the keyboard
  * focuses it), else null. */
 export function topicRowOf(target: EventTarget | null): string | null {
@@ -903,12 +911,12 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
   // Another topic focused (or none): the clicked path lets go.
   useEffect(() => lights.unpin(), [focused, lights]);
   const listRef = useRef<DisclosureListHandle | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(focused ? [focused] : []));
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(focused ? [focused] : []));
   const [selection, setSelection] = useState<DisclosureSelection | null>(null);
-  // A topic focused (here, or by its title on the graph) unfolds and is marked.
+  // A topic focused (here, or by its title on the graph) unfolds alone and is marked.
   useEffect(() => {
     if (!focused) return;
-    setExpanded((prev) => (prev.has(focused) ? prev : new Set([...prev, focused])));
+    setExpanded((prev) => foldsOnFocus(prev, focused));
     setSelection({ entityId: focused, rowKey: topicRowKey(focused) });
     const t = window.setTimeout(() => listRef.current?.scrollToRow(topicRowKey(focused), "nearest"), 60);
     return () => window.clearTimeout(t);

@@ -34,6 +34,7 @@ import {
   TOPICS_LOADING,
   topicFacts,
   topicRows,
+  foldsOnFocus,
   TopicsPanel,
   typesRowKey,
   groupRowKey,
@@ -593,5 +594,41 @@ describe("the paths most travelled: one row each, lit and framed from the panel 
     expect(css).toMatch(/\.gc_topics \.gc_tp_path_end \{[^}]*overflow: hidden;[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
     expect(css).toMatch(/\.gc_topics \.gc_tp_path_count \{[^}]*flex: none;/);
     expect(css).toMatch(/\.gc_topics \.gc_tp_path_lit \.gc_tp_path_end \{[^}]*white-space: normal;/);
+  });
+});
+
+// ------------------------------------------------------------ one unfolded topic at a time (backlog 0026, review F5)
+
+describe("focusing another topic folds the one unfolded before (backlog 0026)", () => {
+  if (READ_FACTS.kind !== "served") throw new Error("fixture");
+  const DATA = READ_FACTS.data;
+  const rowsOf = membershipOf(FOLD, DATA).rowsOf;
+  /** Each topic's rows: its own and what it unfolds. */
+  const shape = (expanded: ReadonlySet<string>) => {
+    const out: Record<string, string[]> = {};
+    for (const r of topicRows(DATA.communities, expanded, rowsOf, FOLD, { nowMs: NOW })) {
+      const d = r.data!;
+      (out[d.c.key] ??= []).push(d.kind);
+    }
+    return out;
+  };
+
+  it("harbour focused (unfolded), then tides focused: harbour is back to its card, tides alone unfolded", () => {
+    const a = foldsOnFocus(new Set(), "harbour");
+    expect(shape(a).harbour.length).toBeGreaterThan(1);
+    expect(shape(a).tides).toEqual(["topic"]);
+    const b = foldsOnFocus(a, "tides");
+    expect([...b]).toEqual(["tides"]);
+    expect(shape(b).harbour).toEqual(["topic"]);
+    expect(shape(b).tides.length).toBeGreaterThan(1);
+    // A topic unfolded by its chevron folds too when another is focused; the focused one already alone keeps its set.
+    expect([...foldsOnFocus(new Set(["harbour", "tides"]), "tides")]).toEqual(["tides"]);
+    expect(foldsOnFocus(b, "tides")).toBe(b);
+  });
+
+  it("the panel unfolds a focused topic through it (here, or by its title on the graph)", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "topics_panel.tsx"), "utf8");
+    expect(src).toMatch(/useEffect\(\(\) => \{\n\s+if \(!focused\) return;\n\s+setExpanded\(\(prev\) => foldsOnFocus\(prev, focused\)\);/);
+    expect(src).not.toContain("new Set([...prev, focused])");
   });
 });
