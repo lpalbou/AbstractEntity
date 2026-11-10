@@ -49,7 +49,6 @@ import {
   type ChatAvatarLook,
   type ChatMention,
   type ChatMentionCandidate,
-  type ChatMentionKind,
   type ChatMentionSent,
   type MentionResend,
 } from "@abstractframework/panel-chat";
@@ -91,13 +90,6 @@ export function mentionBody(text: string, mention: ChatMentionSent, repeatOf: st
 /** The `GET /entities` row slice a mention list reads. */
 export type MentionableEntity = { name: string; slug: string; entity_id?: string; avatar?: ChatAvatarLook | null };
 
-/** The sentence under a chip the first time its name is picked in this conversation; none for the
- * session agent (it is already in this conversation). */
-export function mentionNotice(candidate: Pick<ChatMentionCandidate, "name"> & { kind?: ChatMentionKind }): string | null {
-  if (candidate.kind === "agent") return null;
-  return `${candidate.name} will read this conversation's history`;
-}
-
 /** The reserved slug that addresses the session agent in `mentions` (no entity can be named so). */
 export const AGENT_MENTION_SLUG = "agent";
 
@@ -118,14 +110,6 @@ export function withSessionAgent(entities: readonly ChatMentionCandidate[], agen
 /** The mentions the mentions door asks (`POST /sessions/{id}/mentions`): the entity chips only. */
 export function entityMentions<M extends Pick<ChatMentionSent, "kind">>(mentions: readonly M[]): M[] {
   return mentions.filter((m) => m.kind === "entity");
-}
-
-/** The one line while the chips name entities and not the session agent: it stays out of this
- * message (the gateway does not run it). Null with no chips, or with the agent's chip. */
-export function agentStaysOutLine(chips: readonly Pick<ChatMention, "kind">[], agentName: string | null | undefined): string | null {
-  if (!chips.some((c) => c.kind === "entity") || chips.some((c) => c.kind === "agent")) return null;
-  const name = String(agentName ?? "").trim();
-  return name ? `${name} stays out of this message.` : "The agent stays out of this message.";
 }
 
 /**
@@ -390,24 +374,24 @@ export type VisitMentionState = {
   onChipsChange(next: ChatMention[]): void;
   /** `MENTIONS_UNAVAILABLE` once the gateway is known to have no mentions route. */
   unavailable: string | null;
-  /** The sentences about the last send. */
+  /** The sentences about the last send (outcomes and refusals). */
   status: string | null;
-  /** The flow lane's one line while the chips name entities only (agentStaysOutLine). */
-  agentOut?: string | null;
 };
 
-/** The composer's mention props: the kit's `@` list with controlled chips, the first-use notice,
- * the outcome line (with, after it, the agent's stays-out line) and the older-gateway sentence.
- * Without a session: none (today's composer). */
-export function visitMentionProps(s: VisitMentionState): Pick<ChatComposerProps, "mentionCandidates" | "mentions" | "onMentionsChange" | "mentionNotice" | "mentionSessionKey" | "mentionsUnavailable" | "mentionStatus"> {
+/** The composer's mention props: the kit's `@` list with controlled chips, the last send's outcome
+ * line and the older-gateway sentence. No informational row above the typed text (operator
+ * 2026-11-10 23:02: "do not add the text above… remove that"): no first-use notice ("… will read
+ * this conversation's history"), no "… stays out of this message" line; what they described is
+ * unchanged (the gateway skips the session agent for an entities-only message; a mentioned entity
+ * reads the history). Without a session: none (today's composer). */
+export function visitMentionProps(s: VisitMentionState): Pick<ChatComposerProps, "mentionCandidates" | "mentions" | "onMentionsChange" | "mentionSessionKey" | "mentionsUnavailable" | "mentionStatus"> {
   if (!s.sessionKey) return {};
   return {
     mentionCandidates: s.candidates,
     mentions: s.chips,
     onMentionsChange: s.onChipsChange,
-    mentionNotice,
     mentionSessionKey: s.sessionKey,
     mentionsUnavailable: s.unavailable,
-    mentionStatus: [s.status, s.agentOut].filter((line) => line && line.trim()).join(" ") || null,
+    mentionStatus: s.status && s.status.trim() ? s.status : null,
   };
 }

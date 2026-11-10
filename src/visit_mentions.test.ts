@@ -21,7 +21,6 @@ import {
   mentionId,
   mentionMessageKey,
   mentionMirrors,
-  mentionNotice,
   mentionOutcome,
   mentionResendPlan,
   mintMessageId,
@@ -73,8 +72,9 @@ describe("the @ list", () => {
     expect(mentionCandidatesFor([{ name: "Ghost", slug: "" }, { name: "", slug: "vega" }], "nerin", "")).toEqual([{ id: "vega", name: "vega", kind: "entity" }]);
   });
 
-  it("the first-use notice names who will read the conversation", () => {
-    expect(mentionNotice({ name: "Castor" })).toBe("Castor will read this conversation's history");
+  it("no first-use notice above the typed text (operator 2026-11-10 23:02: \"remove that\")", () => {
+    const props = visitMentionProps({ sessionKey: "visit:s-1", candidates: async () => [], chips: [], onChipsChange: () => undefined, unavailable: null, status: null });
+    expect(props).not.toHaveProperty("mentionNotice");
   });
 });
 
@@ -409,7 +409,7 @@ describe("the composer's mention props", () => {
     expect(visitMentionProps({ sessionKey: null, candidates: async () => [], chips: [], onChipsChange: () => undefined, unavailable: null, status: null })).toEqual({});
   });
 
-  it("with a session: the list, controlled chips, the notice, the key, the sentences", () => {
+  it("with a session: the list, controlled chips, the key, the sentences (no notice)", () => {
     const candidates = async () => [];
     const onChipsChange = () => undefined;
     const props = visitMentionProps({ sessionKey: "visit:s-1", candidates, chips: [], onChipsChange, unavailable: MENTIONS_UNAVAILABLE, status: "Castor is in another conversation." });
@@ -417,7 +417,7 @@ describe("the composer's mention props", () => {
     expect(props.onMentionsChange).toBe(onChipsChange);
     expect(props.mentions).toEqual([]);
     expect(props.mentionSessionKey).toBe("visit:s-1");
-    expect(props.mentionNotice?.({ id: "castor", name: "Castor", kind: "entity" })).toBe("Castor will read this conversation's history");
+    expect(props).not.toHaveProperty("mentionNotice");
     expect(props.mentionsUnavailable).toBe(MENTIONS_UNAVAILABLE);
     expect(props.mentionStatus).toBe("Castor is in another conversation.");
   });

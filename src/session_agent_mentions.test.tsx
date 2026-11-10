@@ -2,8 +2,8 @@
  * The session agent and entity mentions (operator 2026-11-10, flow lane only): a message that
  * carries entity mentions does not reach the session agent (the gateway skips his run unless
  * `mentions` holds the reserved slug "agent"); the `@` list offers the agent himself as a chip
- * (kind "agent", his display name, sent as "agent" in pick order); with entity chips only, one
- * line says he stays out of this message. A skipped turn is read from the gateway's markers, never
+ * (kind "agent", his display name, sent as "agent" in pick order); no line above the typed text says
+ * so (operator 2026-11-10 23:02: "do not add the text above… remove that"). A skipped turn is read from the gateway's markers, never
  * from a missing run: the summon's `agent: "not_addressed"` (live) and the turn row's
  * `agent_addressed: false` (a followed run): no wait, no bubble, no "served no readable answer".
  */
@@ -20,13 +20,11 @@ import { ChatComposer } from "./vendor/abstractchat/conversation";
 import {
   AGENT_MENTION_SLUG,
   agentMentionCandidate,
-  agentStaysOutLine,
   entityMentions,
   heldAfterRun,
   mentionBody,
   mentionCandidatesFor,
   mentionMessageKey,
-  mentionNotice,
   mentionResendPlan,
   runMentions,
   visitMentionProps,
@@ -59,9 +57,9 @@ describe("the @ list of the flow lane offers the session agent", () => {
     expect(withSessionAgent(leo, "Castor", "le").map((c) => c.id)).toEqual(["leo"]);
   });
 
-  it("his chip gets no 'will read this conversation's history' notice (he is already in it)", () => {
-    expect(mentionNotice({ name: "Castor", kind: "agent" })).toBeNull();
-    expect(mentionNotice({ name: "Leo", kind: "entity" })).toBe("Leo will read this conversation's history");
+  it("no chip gets a notice above the typed text, his or an entity's (operator 2026-11-10 23:02)", () => {
+    const props = visitMentionProps({ sessionKey: "flow:s-1", candidates: async () => [], chips: [], onChipsChange: () => undefined, unavailable: null, status: null });
+    expect(props).not.toHaveProperty("mentionNotice");
   });
 
   it("the drawer: the flow lane adds him, the visit lane (no session agent) does not", () => {
@@ -119,41 +117,33 @@ describe("the mentions door asks entities only (the agent's chip rode the summon
   });
 });
 
-describe("the hint: he stays out of a message for entities only", () => {
-  it("shown only when the chips name entities and not him", () => {
-    expect(agentStaysOutLine([chip("entity", "leo", "Leo")], "Castor")).toBe("Castor stays out of this message.");
-    expect(agentStaysOutLine([chip("entity", "leo", "Leo"), chip("entity", "mia", "Mia")], "")).toBe("The agent stays out of this message.");
-    expect(agentStaysOutLine([chip("entity", "leo", "Leo"), chip("agent", "agent", "Castor")], "Castor")).toBeNull();
-    expect(agentStaysOutLine([chip("agent", "agent", "Castor")], "Castor")).toBeNull();
-    expect(agentStaysOutLine([], "Castor")).toBeNull();
-  });
-
+describe("no informational row above the typed text (operator 2026-11-10 23:02: \"remove that\")", () => {
   const props = (over: Partial<Parameters<typeof visitMentionProps>[0]>) =>
     visitMentionProps({ sessionKey: "flow:s-1", candidates: async () => [], chips: [], onChipsChange: () => undefined, unavailable: null, status: null, ...over });
   const composer = (extra: object) => renderToStaticMarkup(<ChatComposer value="hello" onChange={() => undefined} onSend={() => undefined} {...extra} />);
 
-  it("one line in the composer's status slot, after the last send's sentence", () => {
-    const chips = [chip("entity", "leo", "Leo")];
-    const html = composer(props({ chips, agentOut: agentStaysOutLine(chips, "Castor") }));
-    expect(html.match(/pc-mention-notice--status/g)?.length).toBe(1);
-    expect(html).toContain("<span>Castor stays out of this message.</span>");
-    expect(props({ status: "Mia is in another conversation.", agentOut: "Castor stays out of this message." }).mentionStatus).toBe("Mia is in another conversation. Castor stays out of this message.");
-    expect(props({ agentOut: null }).mentionStatus).toBeNull();
-  });
-
-  it("with his chip, or without chips, no hint", () => {
-    // The kit draws a chip inline, where its "@Name" sits in the text (panel-chat 0.9.12).
-    const withAgent = [{ ...chip("entity", "leo", "Leo"), start: 0 }, { ...chip("agent", "agent", "Castor"), start: 5 }];
-    const html = composer({ ...props({ chips: withAgent, agentOut: agentStaysOutLine(withAgent, "Castor") }), value: "@Leo @Castor hello" });
-    expect(html).toContain("@Castor");
+  it("entity chips only: no 'stays out of this message' line, no status row", () => {
+    const chips = [{ ...chip("entity", "leo", "Leo"), start: 0 }];
+    const html = composer({ ...props({ chips }), value: "@Leo hello" });
     expect(html).toContain("pc-mention-chip--inline");
     expect(html).not.toContain("stays out of this message");
-    expect(composer(props({ agentOut: agentStaysOutLine([], "Castor") }))).not.toContain("pc-mention-notice--status");
+    expect(html).not.toContain("pc-mention-notice");
+    expect(props({ chips }).mentionStatus).toBeNull();
   });
 
-  it("the drawer gives it in the flow lane only", () => {
+  it("the last send's outcome (a refusal, another conversation) still shows, alone", () => {
+    const html = composer(props({ status: "Mia is in another conversation." }));
+    expect(html.match(/pc-mention-notice--status/g)?.length).toBe(1);
+    expect(html).toContain("<span>Mia is in another conversation.</span>");
+    expect(props({ status: "  " }).mentionStatus).toBeNull();
+  });
+
+  it("the drawer passes the outcome only, in both lanes", () => {
     const src = fs.readFileSync(path.join(__dirname, "chat_drawer.tsx"), "utf8");
-    expect(src).toContain('agentOut: brain === "flow" ? agentStaysOutLine(mentionChips, entityName) : null');
+    expect(src).toContain("unavailable: mentionsUnavailable, status: mentionStatus })}");
+    expect(src).not.toMatch(/agentStaysOutLine|agentOut|stays out of this message|will read this conversation/);
+    const lib = fs.readFileSync(path.join(__dirname, "visit_mentions.ts"), "utf8");
+    expect(lib).not.toMatch(/export function (mentionNotice|agentStaysOutLine)/);
   });
 });
 

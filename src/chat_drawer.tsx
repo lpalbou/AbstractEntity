@@ -27,7 +27,7 @@ import { entityReadAloudInput } from "./read_aloud";
 
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatNotice } from "./vendor/abstractchat/conversation";
 import { VISIT_CLOSE_KIND, noticesField, openNotice as openNoticeIn } from "./turn_notices";
-import { MENTIONS_UNAVAILABLE, agentStaysOutLine, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity } from "./visit_mentions";
+import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -1568,7 +1568,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             value={draft}
             onChange={(text) => { if (avatarMode) stopTtsRef.current(); setDraft(text); }}
             onSend={(s) => send(s.mentions)}
-            {...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus, agentOut: brain === "flow" ? agentStaysOutLine(mentionChips, entityName) : null })}
+            {...visitMentionProps({ sessionKey: mentionSessionKey, candidates: mentionCandidates, chips: mentionChips, onChipsChange: setMentionChips, unavailable: mentionsUnavailable, status: mentionStatus })}
             placeholder={`talk with ${entityName}…  (drop or attach files)`}
             busy={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy === "turn"}
             disabled={avatarMode ? replyPending || busy === "opening" || busy === "closing" : busy !== "idle"}
