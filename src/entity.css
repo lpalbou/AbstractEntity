@@ -5917,17 +5917,19 @@ body {
   --gc-topics-floor: calc(var(--tap-min, 32px) + 2 * var(--gc-tp-row) + 11px);
 }
 
-/* A wide canvas with the Topics panel open at the bottom-right: the kinds
- * legend ends before it. */
+/* A wide canvas with the Topics panel docked open at the top right: the
+ * kinds legend ends before it, whatever width it was resized to (the canvas
+ * sets --gc-tp-reserve on this wrap: the docked panel's width and its gaps,
+ * 0 while it is moved, folded or absent; overlay_stack legendReserve). */
 @container entity-canvas (min-width: 860px) {
   .entity_canvas_wrap:has(.gc_topics) > .entity_legend {
-    max-width: calc(100% - min(320px, calc(100% - 32px)) - 40px);
+    max-width: min(calc(100% - 200px), calc(100% - var(--gc-tp-reserve, 0px) - 20px));
   }
   /* The motion buttons stay inside the 200 px the lens row leaves them
-   * (.entity_graph_overlay right: 200px): the plain layout's four (freeze,
-   * settle, reset, fit — ~260 px in one row) wrap two by two, so the lens
-   * bar's box never lies over "freeze" and a click on it lands (1440 × 900,
-   * 2026-11-10). Served topics leave two, one row. */
+   * (.entity_graph_overlay right: 200px): the plain layout's three (freeze,
+   * settle, fit) and the served row (fit and the closed-memories toggle)
+   * wrap inside it, so the lens bar's box never lies over "freeze" and a
+   * click on it lands (1440 × 900, 2026-11-10). */
   .gc_motion_controls {
     max-width: 180px;
     flex-wrap: wrap;

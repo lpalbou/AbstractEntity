@@ -11,11 +11,11 @@
   position: absolute;
   top: 48px;
   /* Centred in the width the docked Topics panel leaves it (overlay_stack
-   * panelVars --gc-tp-reserve: its width and gaps; none while it is moved
-   * or absent). */
-  left: calc((100% - var(--gc-tp-reserve, 0px)) / 2);
+   * panelVars --gc-tp-top-reserve: its width and gaps; none while it is
+   * moved or absent). */
+  left: calc((100% - var(--gc-tp-top-reserve, 0px)) / 2);
   transform: translateX(-50%);
-  max-width: min(760px, calc(100% - var(--gc-tp-reserve, 0px) - 32px));
+  max-width: min(760px, calc(100% - var(--gc-tp-top-reserve, 0px) - 32px));
   padding: 4px 10px;
   background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
   border: 1px solid var(--line);
@@ -457,16 +457,10 @@
   cursor: pointer;
 }
 
-.gc_tp_dot,
 .gc_tp_kdot {
   flex: none;
   align-self: center;
   border-radius: 50%;
-}
-
-.gc_tp_dot {
-  width: 9px;
-  height: 9px;
 }
 
 .gc_tp_kdot {
@@ -584,12 +578,6 @@
   color: var(--text);
   font-weight: 600;
   font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-
-.gc_tp_fact_paths {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
 }
 
 .gc_tp_path {

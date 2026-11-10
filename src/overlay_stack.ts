@@ -125,18 +125,32 @@ export function serializePanelFloat(f: PanelFloat): string {
   return JSON.stringify({ at: f.at, w: f.w, h: f.h });
 }
 
+/** The panel's width: as resized, else the docked default. */
+function panelWidth(f: PanelFloat): string {
+  return f.w !== null ? `${f.w}px` : "min(320px, calc(100% - 32px))";
+}
+
 /** The panel's custom properties (the stylesheet clamps them to the canvas
  * when it shrinks): its top, its left (docked: none, it keeps right), its
  * width, its height while open on its list, and the room the Context legend
  * leaves it at the top (docked only). `dockTop`: under the motion buttons. */
 export function panelVars(f: PanelFloat, dockTop: number): Record<string, string> {
-  const w = f.w !== null ? `${f.w}px` : "min(320px, calc(100% - 32px))";
+  const w = panelWidth(f);
   return {
     "--gc-tp-top": f.at ? `max(${PANEL_TOP_MIN}px, min(${f.at.y}px, calc(100% - ${PANEL_HEAD_H}px)))` : `${dockTop}px`,
     "--gc-tp-left": f.at ? `max(0px, min(${f.at.x}px, calc(100% - ${w})))` : "auto",
     "--gc-tp-right": f.at ? "auto" : "10px",
     "--gc-tp-w": w,
     "--gc-tp-h": f.h !== null ? `${f.h}px` : "auto",
-    "--gc-tp-reserve": f.at ? "0px" : `calc(${w} + 20px)`,
+    "--gc-tp-top-reserve": f.at ? "0px" : `calc(${w} + 20px)`,
   };
+}
+
+/** The room the kinds legend (at the canvas's foot) leaves the panel
+ * (entity.css reads --gc-tp-reserve on the canvas's wrap): the docked panel
+ * open on its list, its width and gaps; none while it is moved (anywhere,
+ * the viewer's choice), folded (its head, at the top) or absent. A phone's
+ * stack never meets the rule (wide canvases only). */
+export function legendReserve(f: PanelFloat | null, openList: boolean): string {
+  return f && f.at === null && openList ? `calc(${panelWidth(f)} + 20px)` : "0px";
 }

@@ -79,7 +79,7 @@ import {
   type SeatedFold,
 } from "./topic_layout";
 import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
-import { movePanel, overlayStack, PANEL_DOCKED, PANEL_STORAGE_KEY, PANEL_TOP_MIN, PANEL_GAP, panelVars, parsePanelFloat, resizePanel, serializePanelFloat, type PanelFloat } from "./overlay_stack";
+import { legendReserve, movePanel, overlayStack, PANEL_DOCKED, PANEL_STORAGE_KEY, PANEL_TOP_MIN, PANEL_GAP, panelVars, parsePanelFloat, resizePanel, serializePanelFloat, type PanelFloat } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -2450,6 +2450,18 @@ export function GraphCanvas({
     !panelView ? "none" : topicsOpen && topicsNote(panelView) === null ? "open" : "line",
     !(recallShown && recall) ? "none" : legendOpen ? "open" : "folded",
   );
+  // THE KINDS LEGEND'S ROOM (review F2): the legend is the canvas wrap's
+  // child, not the stack's, so the docked panel's width reaches it as a
+  // custom property on the wrap (entity.css reads --gc-tp-reserve there).
+  const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet");
+  useEffect(() => {
+    const wrap = canvasRef.current?.parentElement;
+    if (!wrap) return;
+    wrap.style.setProperty("--gc-tp-reserve", footReserve);
+    return () => {
+      wrap.style.removeProperty("--gc-tp-reserve");
+    };
+  }, [footReserve]);
 
   return (
     <>

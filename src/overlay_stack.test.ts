@@ -13,6 +13,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  legendReserve,
   movePanel,
   overlayStack,
   PANEL_DOCKED,
@@ -147,8 +148,8 @@ describe("the stylesheet", () => {
     expect(decl(rule(wide, '.gc_topics_float[data-sized="true"][data-list="true"] > .gc_topics'), "height")).toBe("var(--gc-tp-h)");
     // The Context legend is centred in the width the docked panel leaves.
     const legend = rule(CANVAS_CSS, ".gc_recall_legend");
-    expect(decl(legend, "left")).toBe("calc((100% - var(--gc-tp-reserve, 0px)) / 2)");
-    expect(decl(legend, "max-width")).toBe("min(760px, calc(100% - var(--gc-tp-reserve, 0px) - 32px))");
+    expect(decl(legend, "left")).toBe("calc((100% - var(--gc-tp-top-reserve, 0px)) / 2)");
+    expect(decl(legend, "max-width")).toBe("min(760px, calc(100% - var(--gc-tp-top-reserve, 0px) - 32px))");
   });
 
   it("a phone keeps the stack: the float box draws nothing, its grip and corner are gone", () => {
@@ -308,19 +309,42 @@ describe("the floating panel (backlog 0017)", () => {
       "--gc-tp-right": "10px",
       "--gc-tp-w": "min(320px, calc(100% - 32px))",
       "--gc-tp-h": "auto",
-      "--gc-tp-reserve": "calc(min(320px, calc(100% - 32px)) + 20px)",
+      "--gc-tp-top-reserve": "calc(min(320px, calc(100% - 32px)) + 20px)",
     });
     const moved = panelVars({ at: { x: 310, y: 176 }, w: 420, h: 350 }, 76);
     expect(moved["--gc-tp-left"]).toBe("max(0px, min(310px, calc(100% - 420px)))");
     expect(moved["--gc-tp-top"]).toBe(`max(${PANEL_TOP_MIN}px, min(176px, calc(100% - ${PANEL_HEAD_H}px)))`);
     expect(moved["--gc-tp-right"]).toBe("auto");
     expect(moved["--gc-tp-h"]).toBe("350px");
-    expect(moved["--gc-tp-reserve"]).toBe("0px");
+    expect(moved["--gc-tp-top-reserve"]).toBe("0px");
     // The clamps, evaluated: a canvas that shrank to 600 x 300 keeps it inside.
     expect(evalCss(moved["--gc-tp-left"].replace("100%", "600px"), {}, 0)).toBe(180);
     expect(evalCss(moved["--gc-tp-top"], {}, 150)).toBe(150 - PANEL_HEAD_H);
     expect(evalCss(moved["--gc-tp-top"], {}, 80)).toBe(PANEL_TOP_MIN);
     expect(evalCss(moved["--gc-tp-top"], {}, 666)).toBe(176);
+  });
+
+  it("the kinds legend at the canvas's foot ends before a docked panel open on its list, at any width it was resized to (review F2)", () => {
+    expect(legendReserve(PANEL_DOCKED, true)).toBe("calc(min(320px, calc(100% - 32px)) + 20px)");
+    expect(legendReserve({ at: null, w: 560, h: 592 }, true)).toBe("calc(560px + 20px)");
+    // Folded (its head at the top), moved (the viewer's choice) or absent: no room taken.
+    expect(legendReserve({ at: null, w: 560, h: 592 }, false)).toBe("0px");
+    expect(legendReserve({ at: { x: 200, y: 300 }, w: 560, h: 592 }, true)).toBe("0px");
+    expect(legendReserve(null, true)).toBe("0px");
+    // entity.css: the rule reads it on the wrap; at 1440 x 900 (canvas 1040 px) the legend ends before the 560 px panel.
+    const wide = block(CSS, "@container entity-canvas (min-width: 860px)");
+    const maxW = decl(rule(wide, ".entity_canvas_wrap:has(.gc_topics) > .entity_legend"), "max-width");
+    expect(maxW).toBe("min(calc(100% - 200px), calc(100% - var(--gc-tp-reserve, 0px) - 20px))");
+    const W = 1040;
+    const at = (reserve: number) => evalCss(maxW.replace(/100%/g, `${W}px`), { "--gc-tp-reserve": reserve }, 0);
+    const panelLeft = W - 10 - 560;
+    expect(12 + at(560 + 20)).toBeLessThan(panelLeft);
+    expect(12 + at(evalCss("min(320px, calc(1040px - 32px)) + 20px", {}, 0))).toBeLessThan(W - 10 - 320);
+    // Nothing reserved: the legend's own cap (the motion buttons' 200 px).
+    expect(at(0)).toBe(W - 200);
+    // The canvas writes it on its wrap (the legend is the wrap's child, not the stack's).
+    expect(CANVAS).toContain('const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet");');
+    expect(CANVAS).toContain('wrap.style.setProperty("--gc-tp-reserve", footReserve);');
   });
 
   it("the canvas measures its docked top under the motion buttons, moves it by its grip, puts it back with one control (never a double-click on the fold head)", () => {
