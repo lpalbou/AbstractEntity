@@ -419,10 +419,13 @@ describe("a topic's count says what it holds and what the graph has loaded — t
 
 describe("one card per topic, tinted with its colour (backlog 0014)", () => {
   const CARD_CSS = fs.readFileSync(path.resolve(__dirname, "topics_panel.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-  const rule = (selector: string) => {
-    const at = CARD_CSS.indexOf(`${selector} {`);
-    return at < 0 ? "" : CARD_CSS.slice(at, CARD_CSS.indexOf("}", at));
-  };
+  /** The declarations of every rule whose selector list (one selector a line) names `selector` exactly. */
+  const rule = (selector: string) =>
+    CARD_CSS.split("}")
+      .map((block) => block.split("{"))
+      .filter(([sel, body]) => body !== undefined && sel.split(/,\s*\n/).some((one) => one.trim() === selector))
+      .map(([, body]) => body)
+      .join("\n");
   /** Every row's content in order: its class and the colour it carries. */
   const cards = (html: string) => [...html.matchAll(/<span (?:data-tkey="[^"]+" )?class="(gc_tp_\w+) gc_tp_card[^"]*" style="--gc-tp-color:([^"]+)"[^>]*data-tkey="([^"]+)"|<span data-tkey="([^"]+)" class="(gc_tp_\w+) gc_tp_card[^"]*" style="--gc-tp-color:([^"]+)"/g)].map((m) => (m[1] ? { cls: m[1], color: m[2], tkey: m[3] } : { cls: m[5], color: m[6], tkey: m[4] }));
 
@@ -461,6 +464,9 @@ describe("one card per topic, tinted with its colour (backlog 0014)", () => {
     expect(rule('.gc_topics .gc_tp_list .af-disclosure__row[data-depth]:is(:last-child, :has(+ .af-disclosure__row[data-depth="0"])) .gc_tp_card::before')).toContain("border-bottom: 1px solid");
     // The kit's selection ring stays visible over the card (an outline, not the border the card removed).
     expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth]")).toContain("outline: 1px solid var(--accent-border);");
+    // …and keeps its card's hue (its topic's colour, stronger), never the kit's accent wash.
+    expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth]")).toContain("background: none;");
+    expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] .gc_tp_card::before")).toContain("color-mix(in srgb, var(--gc-tp-color) 18%, transparent)");
     // No colour of its own: the tint is the topic's, in every theme.
     expect(CARD_CSS).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
