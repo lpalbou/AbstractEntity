@@ -79,7 +79,7 @@ import {
   type SeatedFold,
 } from "./topic_layout";
 import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
-import { overlayStack } from "./overlay_stack";
+import { movePanel, overlayStack, PANEL_DOCKED, PANEL_STORAGE_KEY, PANEL_TOP_MIN, PANEL_GAP, panelVars, parsePanelFloat, resizePanel, serializePanelFloat, type PanelFloat } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -452,6 +452,23 @@ function topicOffsetsStorageKey(key: string): string {
   return `abstractentity_topic_offsets_v2:${key}`;
 }
 
+/** Where the viewer put the Topics panel and its size (overlay_stack
+ * PanelFloat; one key for every life: it is the viewer's, not his). */
+function readPanelFloat(): PanelFloat {
+  try {
+    return parsePanelFloat(localStorage.getItem(PANEL_STORAGE_KEY)) ?? PANEL_DOCKED;
+  } catch {
+    return PANEL_DOCKED;
+  }
+}
+function writePanelFloat(f: PanelFloat): void {
+  try {
+    localStorage.setItem(PANEL_STORAGE_KEY, serializePanelFloat(f));
+  } catch {
+    // presentation only: the panel stays where it is for this view
+  }
+}
+
 /** SPATIAL MEMORY MIGRATION (repo split 2026-07-12): this app used to ship
  * inside abstractobserver and — served on the same origin (the entity
  * launcher's port) — its saved layouts live under the old spelling. Layout
@@ -552,9 +569,10 @@ export const FREE_MIN_H = 40;
 
 /** Where a framed topic goes on screen: the centre of the largest part of
  * the canvas below the lens row that the Topics panel leaves free — left of
- * it (a wide canvas), above it or below it (a phone: under the folded head)
- * — among the parts at least FREE_MIN_W wide and FREE_MIN_H tall; none: the
- * whole canvas below the lens row. In canvas px. */
+ * it (a wide canvas, docked), right of it (moved), above it or below it (a
+ * phone: under the folded head) — among the parts at least FREE_MIN_W wide
+ * and FREE_MIN_H tall; none: the whole canvas below the lens row. In canvas
+ * px. */
 export function freeCentre(canvas: { w: number; h: number }, panel: Rect | null, top: number = LENS_BAND): { x: number; y: number; w: number; h: number } {
   const h = Math.max(0, canvas.h - top);
   const whole = { x: canvas.w / 2, y: top + h / 2, w: canvas.w, h };
@@ -562,6 +580,7 @@ export function freeCentre(canvas: { w: number; h: number }, panel: Rect | null,
   const belowTop = Math.max(top, panel.y + panel.h);
   const parts = [
     { x: Math.max(0, panel.x) / 2, y: top + h / 2, w: Math.max(0, panel.x), h },
+    { x: (panel.x + panel.w + canvas.w) / 2, y: top + h / 2, w: Math.max(0, canvas.w - panel.x - panel.w), h },
     { x: canvas.w / 2, y: top + Math.max(0, panel.y - top) / 2, w: canvas.w, h: Math.max(0, panel.y - top) },
     { x: canvas.w / 2, y: belowTop + Math.max(0, canvas.h - belowTop) / 2, w: canvas.w, h: Math.max(0, canvas.h - belowTop) },
   ].filter((p) => p.w >= FREE_MIN_W && p.h >= FREE_MIN_H);
@@ -703,6 +722,32 @@ export function GraphCanvas({
   }, [topicsPending]);
   // The Topics panel: open on a wide screen, folded on a phone.
   const [topicsOpen, setTopicsOpen] = useState(() => !narrowViewport());
+  // THE FLOATING PANEL (overlay_stack.ts PanelFloat; backlog 0017): a wide
+  // canvas starts it docked top-right under the motion buttons; its grip
+  // moves it, its corner resizes it, a double-click on its head docks it.
+  const [panelFloat, setPanelFloatState] = useState<PanelFloat>(readPanelFloat);
+  const panelFloatRef = useRef(panelFloat);
+  panelFloatRef.current = panelFloat;
+  const setPanelFloat = (f: PanelFloat) => {
+    setPanelFloatState(f);
+    writePanelFloat(f);
+  };
+  /** Its docked top: under the motion buttons (measured: one row or two). */
+  const [dockTop, setDockTop] = useState(PANEL_TOP_MIN);
+  const dockTopRef = useRef(dockTop);
+  dockTopRef.current = dockTop;
+  const stackRef = useRef<HTMLDivElement | null>(null);
+  const floatRef = useRef<HTMLDivElement | null>(null);
+  const motionRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = motionRef.current;
+    if (!el) return;
+    const measure = () => setDockTop(Math.round(el.offsetTop + el.offsetHeight + PANEL_GAP));
+    measure();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, []);
   /** Last frame time the recall drove the emphasis (ease-out pacing). */
   const recallDriveAtRef = useRef<number | null>(null);
   const hoverRef = useRef<string | null>(null);
@@ -2267,6 +2312,54 @@ export function GraphCanvas({
     const pose = framePointsPose(points, { w: rect.width, h: rect.height }, freeCentre({ w: rect.width, h: rect.height }, panel));
     if (pose) moveCamera(pose);
   };
+  /** A press on the panel's grip (move) or its corner (size): the panel
+   * follows the pointer (mouse, pen or touch: pointer capture), clamped to
+   * the canvas (overlay_stack movePanel / resizePanel); written straight on
+   * the stack's custom properties while it moves (no re-render per move),
+   * kept and remembered when it is let go. */
+  const startPanelDrag = (ev: React.PointerEvent<HTMLElement>, mode: "move" | "size") => {
+    if (ev.pointerType === "mouse" && ev.button !== 0) return;
+    const wrap = floatRef.current;
+    const stackEl = stackRef.current;
+    const host = wrap?.offsetParent;
+    if (!wrap || !stackEl || !(host instanceof HTMLElement)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const hr = host.getBoundingClientRect();
+    const br = wrap.getBoundingClientRect();
+    const start = { x: br.left - hr.left, y: br.top - hr.top, w: br.width, h: br.height };
+    const area = { w: hr.width, h: hr.height };
+    const mr = motionRef.current?.getBoundingClientRect();
+    const buttons = mr && mr.width > 0 ? { x: mr.left - hr.left, y: mr.top - hr.top, w: mr.width, h: mr.height } : null;
+    const from = panelFloatRef.current;
+    const docked = from.at === null;
+    const handle = ev.currentTarget;
+    const pointer = ev.pointerId;
+    const x0 = ev.clientX;
+    const y0 = ev.clientY;
+    let next = from;
+    handle.setPointerCapture(pointer);
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      if (mode === "move") {
+        next = { ...from, at: movePanel(start, e.clientX - x0, e.clientY - y0, area, buttons) };
+      } else {
+        const r = resizePanel(start, e.clientX - x0, e.clientY - y0, area, docked);
+        next = { at: docked ? null : { x: r.x, y: start.y }, w: r.w, h: r.h };
+      }
+      for (const [k, v] of Object.entries(panelVars(next, dockTopRef.current))) stackEl.style.setProperty(k, v);
+    };
+    const onEnd = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onEnd);
+      handle.removeEventListener("pointercancel", onEnd);
+      if (next !== from) setPanelFloat(next);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onEnd);
+    handle.addEventListener("pointercancel", onEnd);
+  };
   const focusTopicRef = useRef(focusTopic);
   focusTopicRef.current = focusTopic;
   // A LEDGER ROW ABOUT A TOPIC (ledger_lines.topicTarget): the panel opens,
@@ -2493,8 +2586,16 @@ export function GraphCanvas({
         * the Context legend and the Topics panel are one column — the legend
         * on top, never under the panel; open, the panel takes its slot and
         * the legend steps aside. A wide canvas draws no box (display:
-        * contents): each keeps its own place. */}
-      <div className="gc_overlay_stack" data-legend={stack.legend} data-topics={stack.topics}>
+        * contents): each keeps its own place, the panel floating where its
+        * custom properties put it (and the Context legend leaving it room
+        * while it is docked). */}
+      <div
+        ref={stackRef}
+        className="gc_overlay_stack"
+        data-legend={stack.legend}
+        data-topics={stack.topics}
+        style={panelView ? (panelVars(panelFloat, dockTop) as React.CSSProperties) : undefined}
+      >
         {recallShown && recall ? (
           // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what
           // each colour means, the lit lines and the grey-to-green fill.
@@ -2502,7 +2603,19 @@ export function GraphCanvas({
         ) : null}
         {panelView ? (
           // THE TOPICS PANEL (topics_panel.tsx): the drill-down, or the one
-          // sentence while his topics are not served.
+          // sentence while his topics are not served. On a wide canvas it
+          // floats (its grip, its corner; a double-click on its head docks
+          // it top-right); on a phone this box draws nothing.
+          <div
+            ref={floatRef}
+            className="gc_topics_float"
+            data-docked={panelFloat.at === null ? "true" : "false"}
+            data-sized={panelFloat.h !== null ? "true" : "false"}
+            data-list={stack.topics === "sheet" ? "true" : "false"}
+            onDoubleClick={(ev) => {
+              if (ev.target instanceof Element && ev.target.closest(".gc_tp_head, .gc_tp_grip") && panelFloatRef.current.at !== null) setPanelFloat({ ...panelFloatRef.current, at: null });
+            }}
+          >
           <TopicsPanel
             view={panelView}
             fold={fold}
@@ -2531,13 +2644,20 @@ export function GraphCanvas({
             onRetry={retryTopics}
             colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
           />
+          <div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel · double-click its head to put it back top right" onPointerDown={(ev) => startPanelDrag(ev, "move")}>
+            ⠿
+          </div>
+          {stack.topics === "sheet" ? (
+            <div className="gc_tp_resize" aria-hidden="true" title="Drag to resize the panel" onPointerDown={(ev) => startPanelDrag(ev, "size")} />
+          ) : null}
+          </div>
         ) : null}
       </div>
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the
         * bare 🌊⚓♻️🎯 emoji row read as mystery meat). aria-pressed marks
         * the freeze toggle's state. Served topics place every memory (no
         * simulation): freeze and settle have nothing to do then. */}
-      <div className="gc_motion_controls">
+      <div ref={motionRef} className="gc_motion_controls">
         {served ? null : (
           <>
         <button

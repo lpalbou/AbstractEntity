@@ -10,9 +10,12 @@
 .gc_recall_legend {
   position: absolute;
   top: 48px;
-  left: 50%;
+  /* Centred in the width the docked Topics panel leaves it (overlay_stack
+   * panelVars --gc-tp-reserve: its width and gaps; none while it is moved
+   * or absent). */
+  left: calc((100% - var(--gc-tp-reserve, 0px)) / 2);
   transform: translateX(-50%);
-  max-width: min(760px, calc(100% - 32px));
+  max-width: min(760px, calc(100% - var(--gc-tp-reserve, 0px) - 32px));
   padding: 4px 10px;
   background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
   border: 1px solid var(--line);
@@ -217,18 +220,39 @@
 }
 
 /* THE TOPICS PANEL (topics_panel.tsx): his topics, biggest first, a click
- * focuses one and lists its memories. Bottom-right over the graph on a wide
- * canvas (the Context legend owns the top centre, the motion buttons the top
- * right); it scrolls inside. Not served, it is one line: the sentence. */
-.gc_topics {
+ * focuses one and lists its memories; it scrolls inside. Not served, it is
+ * one line: the sentence. On a wide canvas it FLOATS (backlog 0017,
+ * overlay_stack.ts PanelFloat): its box (.gc_topics_float) starts docked
+ * top-right under the motion buttons and grows downward (58 % of the canvas
+ * at most, as tall as its list); the grip on its head moves it anywhere in
+ * the canvas, its bottom-right corner resizes it (240-560 px wide, as tall
+ * as the canvas), a double-click on its head docks it again. The custom
+ * properties come from panelVars on the overlay stack; the clamps here keep
+ * it inside a canvas that shrank since. Nothing of it moves the graph. */
+.gc_topics_float {
   position: absolute;
-  right: 10px;
-  bottom: 12px;
+  top: var(--gc-tp-top, 48px);
+  left: var(--gc-tp-left, auto);
+  right: var(--gc-tp-right, 10px);
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(320px, calc(100% - 32px));
-  max-height: 58%;
+  width: var(--gc-tp-w, min(320px, calc(100% - 32px)));
+  max-height: calc(100% - var(--gc-tp-top, 48px) - 8px);
+}
+
+.gc_topics_float[data-docked="true"][data-sized="false"] {
+  max-height: min(58%, calc(100% - var(--gc-tp-top, 48px) - 12px));
+}
+
+.gc_topics {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  width: 100%;
   box-sizing: border-box;
   /* Opaque: the kit's surface (--bg-secondary). At 90 % the Context
    * legend's words showed through it on a phone (castor, 2026-11-10). */
@@ -238,6 +262,63 @@
   color: var(--text);
   font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   line-height: 1.35;
+}
+
+/* The grip on its head (it moves the panel) and its resize corner: pointer
+ * affordances of a wide canvas (aria-hidden; the panel works where it is
+ * docked without them). The head leaves the grip its room. */
+.gc_tp_grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: var(--tap-min, 32px);
+  height: var(--tap-min, 32px);
+  border-radius: 0 10px 0 6px;
+  color: var(--text-dim);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.gc_tp_grip:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.gc_tp_grip:active {
+  cursor: grabbing;
+}
+
+.gc_topics_float .gc_tp_head {
+  padding-right: calc(var(--tap-min, 32px) + 4px);
+}
+
+.gc_tp_resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  border-bottom-right-radius: 10px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 0 52%, var(--text-dim) 52% 58%, transparent 58% 70%, var(--text-dim) 70% 76%, transparent 76%);
+  opacity: 0.75;
+}
+
+.gc_tp_resize:hover {
+  opacity: 1;
+}
+
+@container entity-canvas (min-width: 860px) {
+  /* Resized, it keeps its height while it is open on its list (folded, it is
+   * its head). */
+  .gc_topics_float[data-sized="true"][data-list="true"] > .gc_topics {
+    height: var(--gc-tp-h);
+  }
 }
 
 .gc_topics_note {
@@ -574,6 +655,17 @@
   }
   .gc_overlay_stack[data-legend="aside"] > .gc_recall_legend {
     display: none;
+  }
+  /* The floating box draws nothing on a phone: the panel is the column's foot. */
+  .gc_topics_float {
+    display: contents;
+  }
+  .gc_tp_grip,
+  .gc_tp_resize {
+    display: none;
+  }
+  .gc_topics_float .gc_tp_head {
+    padding-right: 10px;
   }
   .gc_topics {
     position: relative;

@@ -114,7 +114,7 @@ describe("the live marker and the focus reach the graph", () => {
   });
 
   it("the motion buttons keep fit and have no reset (backlog 0020: \"remove 'reset', keep 'fit'\")", () => {
-    const at = CANVAS.indexOf('<div className="gc_motion_controls">');
+    const at = CANVAS.indexOf('<div ref={motionRef} className="gc_motion_controls">');
     expect(at).toBeGreaterThan(0);
     const controls = CANVAS.slice(at);
     expect(controls).toContain('⛶ <span className="gc_btn_word">fit</span>');
