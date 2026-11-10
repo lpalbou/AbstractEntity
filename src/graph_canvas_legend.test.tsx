@@ -124,11 +124,11 @@ describe("the view lights a pick and frames it", () => {
   it("the pick is one more intersecting emphasis source, its ids once per fold", () => {
     expect(VIEW).toContain("const legendSet = useMemo(() => (legendPick ? legendIds(fold, legendPick) : null), [fold, legendPick]);");
     expect(VIEW).toContain("if (legendSet !== null) sources.push(legendSet);");
-    expect(VIEW).toContain("}, [fold, temporal, lens, searchIds, topicFilter, legendSet]);");
+    expect(VIEW).toContain("}, [searchIds, topicFilter, legendSet]);");
   });
 
-  it("a pick frames what it lights, like a lens", () => {
-    expect(VIEW).toContain('const focusToken = lens === "all" && !debouncedSearch && !legendToken ? "" : `${lens}|${debouncedSearch}|${legendToken}`;');
+  it("a pick frames what it lights", () => {
+    expect(VIEW).toContain('const focusToken = !debouncedSearch && !legendToken ? "" : `${debouncedSearch}|${legendToken}`;');
   });
 
   it("the view renders the legend component (no inline legend left)", () => {

@@ -56,3 +56,29 @@ describe("wiring: the toggle is the one control of the recall highlight", () => 
     expect(canvas).not.toMatch(/showContext\s*=|setContext/);
   });
 });
+
+describe("the graph's top row (backlog 0019: the clickable legend replaces the filter chips)", () => {
+  const view = fs.readFileSync(path.join(__dirname, "entity_view.tsx"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
+  const row = view.slice(view.indexOf('<div className="entity_lens_bar">'), view.indexOf("<GraphCanvas"));
+
+  it("holds search, topics, Context and a focused topic's chip, in that order, and nothing else", () => {
+    const at = ["🔍<span className=\"lens_search_label\">search</span>", "🗺<span className=\"lens_search_label\">topics</span>", "<ContextToggle", "onClick={() => setTopicFilter(null)}"].map((s) => row.indexOf(s));
+    expect(at.every((i) => i > -1)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(row.match(/<button\b/g)).toHaveLength(3);
+  });
+
+  it("the lens chips and the emphasized count are gone, with their state", () => {
+    expect(view).not.toMatch(/LENSES|lensIds|GraphLens|setLens|"\.\/graph_lenses"/);
+    expect(view).not.toMatch(/entity_lenses|lens_count|emphasized`/);
+    expect(css).not.toMatch(/\.entity_lenses\b|\.lens_count\b/);
+  });
+
+  it("the emphasis is search ∩ the focused topic ∩ the legend's pick, framed by a search or a pick", () => {
+    expect(view).toContain("if (searchIds !== null) sources.push(searchIds);");
+    expect(view).toContain("if (topicFilter !== null && topicFilter.ids.size > 0) sources.push(topicFilter.ids);");
+    expect(view).toContain("if (legendSet !== null) sources.push(legendSet);");
+    expect(view).toContain("searchIds={emphasisIds}");
+  });
+});

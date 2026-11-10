@@ -60,7 +60,6 @@ const LIVE_CHECK_MS = 20_000;
 const LIVE_STALL_MS = 15_000;
 /** The strip's sentence when the loop stopped itself after failed ticks (the status line). */
 const TICK_FAILURE_NOTE = "his own time stopped after repeated tick failures — restart when ready";
-import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
 import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi, type PhaseNote, type PhaseWriteOutcome } from "./phase_bar";
@@ -340,8 +339,8 @@ export function EntityView(): React.ReactElement {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [appearance, setAppearance] = useAppearanceSettings("abstractentity", { defaults: { theme: "observer-night" } });
   // The floating search-memory overlay (operator 2026-07-15 (h)): search is
-  // a first-class bar over the lens pills, opened from a prominent control,
-  // not lost among stats.
+  // a first-class bar over the graph's top row, opened from a prominent
+  // control, not lost among stats.
   const [searchOpen, setSearchOpen] = useState(false);
   const [loopStatus, setLoopStatus] = useState<LoopStatus | null>(null);
   /** THE PHASE BAR (operator ruling 2026-11-08, phase_bar.ts): the served life_state (phase,
@@ -1580,11 +1579,9 @@ export function EntityView(): React.ReactElement {
     return matches;
   }, [fold, searchText]);
 
-  // LENSES (graph-access wave, 2026-07-12): one-click semantic filters —
-  // identity / recent / warm / feelings / diary / dreams / questions.
-  // Search text INTERSECTS the active lens ("questions about tolstoy");
-  // either alone emphasizes on its own.
-  const [lens, setLens] = useState<GraphLens>("all");
+  // THE EMPHASIS: search text, a focused topic and the legend's pick
+  // INTERSECT; any one alone emphasizes on its own. (The lens chips went,
+  // operator 2026-11-10, backlog 0019: the clickable legend replaces them.)
   // TOPIC filter (2026-07-17): a focused topic (its title on the graph,
   // the Topics panel) lights its members — same emphasis mechanism, one
   // more intersecting source. Keyed by the community's STABLE key, so a
@@ -1609,8 +1606,6 @@ export function EntityView(): React.ReactElement {
   const contextView = useMemo(() => contextToggleView(contextAvailability(fold, scrubSeq), contextOn), [fold, scrubSeq, contextOn]);
   const emphasisIds = useMemo(() => {
     const sources: Array<Set<string>> = [];
-    const fromLens = lensIds(fold, temporal, lens);
-    if (fromLens !== null) sources.push(fromLens);
     if (searchIds !== null) sources.push(searchIds);
     // A focused topic none of whose memories the graph has loaded lights
     // nothing and dims nothing (its panel row says why: review S1).
@@ -1624,26 +1619,23 @@ export function EntityView(): React.ReactElement {
       acc = both;
     }
     return acc;
-  }, [fold, temporal, lens, searchIds, topicFilter, legendSet]);
+  }, [searchIds, topicFilter, legendSet]);
 
-  // Camera-fit trigger: OPERATOR intent only (lens clicks + debounced search
-  // commits) — never fold-driven membership drift, which would hijack the
+  // Camera-fit trigger: OPERATOR intent only (debounced search commits and
+  // legend picks) — never fold-driven membership drift, which would hijack the
   // camera on every live envelope (adversary P0).
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(searchText.trim()), 450);
     return () => window.clearTimeout(t);
   }, [searchText]);
-  // A legend pick frames what it lights, like a lens.
+  // A legend pick frames what it lights.
   const legendToken = legendPick ? pickKey(legendPick) : "";
-  const focusToken = lens === "all" && !debouncedSearch && !legendToken ? "" : `${lens}|${debouncedSearch}|${legendToken}`;
+  const focusToken = !debouncedSearch && !legendToken ? "" : `${debouncedSearch}|${legendToken}`;
 
-  // A lens is a per-life question — switching entities resets it (a sticky
-  // "Dreams" lens on a fresh life opened pre-dimmed with no explanation).
-  // The search query is the same class of per-life state: a stale query
-  // would invisibly dim the next entity's graph (func review P1).
+  // The search query is per-life state: a stale query would invisibly dim
+  // the next entity's graph (func review P1) — switching entities resets it.
   useEffect(() => {
-    setLens("all");
     setSearchText("");
     setSearchOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2103,12 +2095,13 @@ export function EntityView(): React.ReactElement {
 
       <div className="entity_main" style={gatewayLocked || (indexBase !== null && !entityName) ? { display: "none" } : undefined}>
         <div className="entity_canvas_wrap">
-          {/* SEARCH + LENSES (operator 2026-07-15 (h)): search is a
-            * first-class flying bar pinned to the graph's width, directly
-            * ABOVE the lens pills (one absolute column, top-left of the
-            * graph). Search opens from a prominent 🔍 control on the lens
-            * row; Escape clears then closes. No longer lost in a stats
-            * navbar. */}
+          {/* SEARCH, TOPICS, CONTEXT (operator 2026-07-15 (h); 2026-11-10, backlog
+            * 0019: the filter chips went, the clickable legend replaces them):
+            * search is a first-class flying bar pinned to the graph's width,
+            * directly ABOVE this row (one absolute column, top-left of the
+            * graph), opened from its 🔍 control; Escape clears then closes.
+            * The topic chip stays: with the Topics panel hidden it is the one
+            * way to let a focused topic go. */}
           <div className="entity_graph_overlay">
             {searchOpen ? (
               <div className="entity_search_overlay">
@@ -2187,26 +2180,6 @@ export function EntityView(): React.ReactElement {
                   🗺 {topicFilter.label} ✕
                 </button>
               ) : null}
-              <div className="entity_lenses" role="group" aria-label="Graph lenses">
-                {LENSES.map((l) => (
-                  <button
-                    key={l.id}
-                    className={`lens_chip ${lens === l.id ? "active" : ""}`}
-                    title={l.hint}
-                    aria-pressed={lens === l.id}
-                    onClick={() => setLens((prev) => (prev === l.id ? "all" : l.id))}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-                {emphasisIds !== null ? (
-                  <span className="lens_count">
-                    {emphasisIds.size === 0
-                      ? `nothing matches${lens !== "all" ? ` "${lens}"` : ""} here`
-                      : `${emphasisIds.size} emphasized`}
-                  </span>
-                ) : null}
-              </div>
             </div>
           </div>
           <GraphCanvas

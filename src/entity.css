@@ -5419,12 +5419,12 @@ body {
 }
 
 /* ------------------------------------------------------------
-   GRAPH LENSES (2026-07-12 graph-access wave): one-click semantic
-   filters over the memory graph; active lens dims everything else.
+   THE GRAPH'S TOP ROW: search, topics, Context and a focused topic's chip
+   (the lens chips went, backlog 0019: the clickable legend replaces them).
    ------------------------------------------------------------ */
 /* The overlay column pinned to the top-left of the graph: the search bar
- * (when open) sits ABOVE the lens row, both sharing the same left edge and
- * width (operator (h): search is a first-class bar above the pills). */
+ * (when open) sits ABOVE the row, both sharing the same left edge and
+ * width (operator (h): search is a first-class bar above the row). */
 .entity_graph_overlay {
   position: absolute;
   top: 10px;
@@ -5468,7 +5468,7 @@ body {
 }
 /* The "Context" toggle (kit AfChipButton, pressed = the recall highlight is
  * on the graph): sized like its neighbours; off reads like an unpressed
- * lens toggle so the pressed state is the one that stands out. */
+ * search toggle so the pressed state is the one that stands out. */
 .lens_context_toggle.af-chip {
   padding: 3px 9px;
   flex-shrink: 0;
@@ -5505,12 +5505,7 @@ body {
   border-radius: 999px;
   padding: 0 5px;
 }
-.entity_lenses {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
+/* A focused topic's chip (pressed; a click lets the topic go). */
 .lens_chip {
   padding: 3px 10px;
   border-radius: 999px;
@@ -5525,14 +5520,6 @@ body {
   color: var(--ea-accent);
   border-color: var(--ea-accent);
   background: color-mix(in srgb, var(--ea-accent) 14%, transparent);
-}
-.lens_count {
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  border: 1px solid var(--line);
 }
 
 /* The flying search bar — full width of the overlay column, above the
@@ -6060,13 +6047,9 @@ body {
   .entity_lens_bar::-webkit-scrollbar {
     display: none;
   }
-  .entity_lenses {
-    flex-wrap: nowrap;
-  }
   .lens_chip,
   .lens_search_toggle,
-  .lens_context_toggle,
-  .lens_count {
+  .lens_context_toggle {
     flex: none;
     white-space: nowrap;
   }
@@ -6603,7 +6586,6 @@ body {
     min-height: var(--tap-min, 44px);
   }
   /* Comfortable spacing between adjacent targets. */
-  .entity_lenses,
   .entity_lens_bar,
   .eix_head_actions,
   .gc_motion_controls,
