@@ -157,6 +157,14 @@ describe("the stylesheet", () => {
     expect(narrow).not.toContain("--gc-tp-");
   });
 
+  it("the grip and the corner are over the panel (it is z 1 in the float box), so a press lands on them", () => {
+    expect(decl(rule(CANVAS_CSS, ".gc_topics"), "z-index")).toBe("1");
+    expect(Number(decl(rule(CANVAS_CSS, ".gc_tp_grip"), "z-index"))).toBeGreaterThan(1);
+    expect(Number(decl(rule(CANVAS_CSS, ".gc_tp_resize"), "z-index"))).toBeGreaterThan(1);
+    expect(decl(rule(CANVAS_CSS, ".gc_tp_grip"), "touch-action")).toBe("none");
+    expect(decl(rule(CANVAS_CSS, ".gc_tp_resize"), "touch-action")).toBe("none");
+  });
+
   it("the panel is opaque: the kit's surface, never a see-through mix", () => {
     expect(decl(rule(CANVAS_CSS, ".gc_topics"), "background")).toBe("var(--bg-panel)");
     expect(decl(rule(CSS, ":root"), "--bg-panel")).toBe("var(--bg-secondary, #10161e)");
