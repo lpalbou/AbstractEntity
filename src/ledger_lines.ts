@@ -60,14 +60,21 @@ export interface LedgerLine {
   run_id?: string | null;
   /** The step's tool use (the gateway's step_tools marker), on the one row
    * that stands for the step (foldLedgerLines). Absent: no marker came. */
-  tools?: { tools: number; filesRead: number; filesWritten: number };
+  tools?: { tools: number; filesRead: number; filesWritten: number; names?: string[] };
 }
 
-/** A step's tool use in words, the parts above 0 only ("12 tools used · 3
- * files read · 1 file written"); "" when all are 0. */
-export function stepToolsWords(t: { tools: number; filesRead: number; filesWritten: number }): string {
+/** A step's tool use in words, the parts above 0 only ("4 tools used:
+ * web_search, read_file ×2, write_file · 2 files read · 1 file written",
+ * the tools named when the marker lists them, each once with its count, in
+ * the order first called); "" when all are 0. */
+export function stepToolsWords(t: { tools: number; filesRead: number; filesWritten: number; names?: string[] }): string {
   const parts: string[] = [];
-  if (t.tools > 0) parts.push(`${t.tools} ${t.tools === 1 ? "tool" : "tools"} used`);
+  if (t.tools > 0) {
+    const used = `${t.tools} ${t.tools === 1 ? "tool" : "tools"} used`;
+    const counts = new Map<string, number>();
+    for (const n of t.names ?? []) counts.set(n, (counts.get(n) ?? 0) + 1);
+    parts.push(counts.size > 0 ? `${used}: ${[...counts].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ")}` : used);
+  }
   if (t.filesRead > 0) parts.push(`${t.filesRead} ${t.filesRead === 1 ? "file" : "files"} read`);
   if (t.filesWritten > 0) parts.push(`${t.filesWritten} ${t.filesWritten === 1 ? "file" : "files"} written`);
   return parts.join(" · ");
@@ -290,7 +297,7 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
     if (used) {
       const at = stepRowIndex(lines, used.runId, used.turnId);
       if (at === null) sayUnknownStep(env.seq, used.runId, used.turnId);
-      else lines[at] = { ...lines[at], line: { ...lines[at].line, tools: { tools: used.tools, filesRead: used.filesRead, filesWritten: used.filesWritten } } };
+      else lines[at] = { ...lines[at], line: { ...lines[at].line, tools: { tools: used.tools, filesRead: used.filesRead, filesWritten: used.filesWritten, names: used.names } } };
       closing = null;
       continue;
     }

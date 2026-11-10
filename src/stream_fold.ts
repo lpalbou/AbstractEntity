@@ -1068,6 +1068,9 @@ export interface StepTools {
   tools: number;
   filesRead: number;
   filesWritten: number;
+  /** The calls' tool names, in call order (the marker's `tools`; empty when
+   * it lists none). */
+  names: string[];
 }
 
 /** The key a step is known by: its run and its turn. */
@@ -1096,7 +1099,8 @@ export function stepToolsOf(env: ReplayEnvelope): StepTools | null {
     }
     return null;
   }
-  return { runId, turnId, tools, filesRead, filesWritten };
+  const names = Array.isArray(p.tools) ? p.tools.filter((n): n is string => typeof n === "string" && n.trim() !== "").map((n) => n.trim()) : [];
+  return { runId, turnId, tools, filesRead, filesWritten, names };
 }
 
 function applyHost(state: FoldState, env: ReplayEnvelope): void {

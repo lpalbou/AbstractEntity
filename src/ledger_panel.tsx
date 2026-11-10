@@ -367,7 +367,7 @@ export interface LedgerLineRowProps {
  * the row's meta colour (an indicator, never a button): ⚙ N · 📄 N · ✎ N,
  * each part only above 0, the words on hover and for a screen reader. Nothing
  * when every part is 0. */
-export function StepToolsGroup({ tools }: { tools: { tools: number; filesRead: number; filesWritten: number } }): React.ReactElement | null {
+export function StepToolsGroup({ tools }: { tools: { tools: number; filesRead: number; filesWritten: number; names?: string[] } }): React.ReactElement | null {
   const words = stepToolsWords(tools);
   if (!words) return null;
   const parts: Array<{ icon: "wrench" | "file" | "edit"; n: number }> = [
