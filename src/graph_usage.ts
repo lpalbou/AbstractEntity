@@ -39,6 +39,8 @@ export interface UsageScale {
   nodes: Map<string, number>;
   /** co-use edge key ("a|b") -> place on the scale, 0 .. 1. */
   edges: Map<string, number>;
+  /** Where the trails turn green and bright for this many trails (edgeTiers). */
+  edgeTiers: EdgeTiers;
 }
 
 export interface UsageItem<K> {
@@ -92,7 +94,7 @@ export function usageScale(fold: FoldState, temporal: Pick<TemporalActivation, "
   for (const [id, t] of quantileRanks(nodeItems)) nodes.set(id, t);
   const edgeItems: Array<UsageItem<string>> = [];
   for (const e of fold.edges.values()) edgeItems.push({ id: e.key, count: e.count, warmth: temporal.pairs.get(e.key) ?? 0 });
-  return { nodes, edges: quantileRanks(edgeItems) };
+  return { nodes, edges: quantileRanks(edgeItems), edgeTiers: edgeTiers(edgeItems.length) };
 }
 
 /** The top decile: above this place the scale turns bright green. */
@@ -122,14 +124,56 @@ export function usageRgb(mix: number, cold: Rgb, warm: Rgb): Rgb {
   ];
 }
 
-/** A line's opacity at its place on the scale: below the top decile a
- * whisper (a dense life draws thousands of lines: 2 305 on Castor), the top
- * decile clearly drawn, its very top the strongest. */
-export function usageEdgeAlpha(t: number): number {
-  if (!(t > 0)) return 0.03;
-  if (t > TOP_DECILE) return 0.2 + 0.42 * Math.pow(Math.min(1, (t - TOP_DECILE) / (1 - TOP_DECILE)), 1.5);
-  return 0.03 + 0.08 * Math.pow(t / TOP_DECILE, 2);
+/**
+ * THE LINES (operator 2026-11-10 20:13, backlog 0025: "edges were supposed
+ * to be dark grey if not visited? here nothing really pops up"). Castor's
+ * life draws 3 999 born-linked lines and 2 368 co-use trails; at 0.16 and up
+ * to 0.11 they summed to a pale grey-green haze. Now:
+ * - every line he has not walked much is ONE dark grey near the background
+ *   (EDGE_QUIET_ALPHA of the topology grey): the born-linked lines and the
+ *   trails up to the upper third of the ranks;
+ * - the upper third turns green on a steep curve (the square of the way
+ *   through it), still faint;
+ * - the top tenth is bright and wider, its very top the strongest, never
+ *   above EDGE_ALPHA_CEILING.
+ * Both tiers are also capped in COUNT (EDGE_GREEN_MAX, EDGE_BRIGHT_MAX): the
+ * ranks are relative, so a life of 25 000 trails would otherwise light 2 500
+ * of them bright and turn into a green blob; past those counts the tiers
+ * narrow to the most used trails.
+ */
+export const EDGE_QUIET_ALPHA = 0.07;
+export const EDGE_ALPHA_CEILING = 0.75;
+export const EDGE_GREEN_FROM = 2 / 3;
+export const EDGE_GREEN_MAX = 1000;
+export const EDGE_BRIGHT_MAX = 300;
+
+/** The ranks above which the trails turn green (`green`) and bright
+ * (`bright`) for a life of `n` trails. */
+export interface EdgeTiers {
+  green: number;
+  bright: number;
 }
+
+export function edgeTiers(n: number): EdgeTiers {
+  if (n <= 0) return { green: EDGE_GREEN_FROM, bright: TOP_DECILE };
+  return { green: Math.max(EDGE_GREEN_FROM, 1 - EDGE_GREEN_MAX / n), bright: Math.max(TOP_DECILE, 1 - EDGE_BRIGHT_MAX / n) };
+}
+
+/** A co-use trail's look at its place on the scale: its position on the
+ * grey->green ramp, its opacity and its width (px). */
+export function usageEdgeStyle(t: number, tiers: EdgeTiers): { mix: number; alpha: number; width: number } {
+  if (!(t > tiers.green)) return { mix: 0, alpha: EDGE_QUIET_ALPHA, width: 0.8 };
+  if (t <= tiers.bright) {
+    const u = (t - tiers.green) / (tiers.bright - tiers.green);
+    return { mix: 0.55 * u * u, alpha: EDGE_QUIET_ALPHA + 0.13 * u * u, width: 0.8 + 0.5 * u };
+  }
+  const v = Math.min(1, (t - tiers.bright) / (1 - tiers.bright));
+  return { mix: 0.85 + 0.15 * v, alpha: Math.min(EDGE_ALPHA_CEILING, 0.45 + 0.3 * Math.pow(v, 1.5)), width: 1.4 + 1.2 * v };
+}
+
+/** A lit line under a hover or a selection (the focus driver): at least this
+ * opacity, so the hovered memory's lines show against the dark rest. */
+export const FOCUS_EDGE_FLOOR = 0.4;
 
 /** The dark end: a grey a little lifted from the background toward the
  * text colour (dark grey on the dark themes, a quiet grey on light ones). */

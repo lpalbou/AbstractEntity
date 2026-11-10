@@ -42,7 +42,7 @@ import {
 } from "./recall_emphasis";
 import { ContextLegend } from "./context_legend";
 import { hoverIntent } from "./hover_intent";
-import { coldOf, TOP_DECILE, usageEdgeAlpha, usageMix, usageRgb, usageScale } from "./graph_usage";
+import { coldOf, EDGE_QUIET_ALPHA, FOCUS_EDGE_FLOOR, TOP_DECILE, usageEdgeStyle, usageMix, usageRgb, usageScale } from "./graph_usage";
 import "./graph_canvas.css";
 import {
   canvasLabel,
@@ -1488,6 +1488,10 @@ export function GraphCanvas({
         const a = toScreen(la.x, la.y);
         const b = toScreen(lb.x, lb.y);
         const dim = edgeDim(se.a, se.b, null);
+        // The hovered or selected memory's own born-linked lines show; every
+        // other one is the one dark grey (graph_usage EDGE_QUIET_ALPHA; was
+        // 0.16, Castor's 3 999 lines made a haze: backlog 0025).
+        const seLit = driver === "focus" && emphasis !== null && emphasis.has(se.a) && emphasis.has(se.b);
         ctx.globalAlpha = dim;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -1495,7 +1499,7 @@ export function GraphCanvas({
         // Uniform faint SOLID line — the type no longer rides a dash
         // pattern (indistinguishable at this alpha); it rides the glyph.
         ctx.setLineDash([]);
-        ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, 0.16);
+        ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, seLit ? FOCUS_EDGE_FLOOR : EDGE_QUIET_ALPHA);
         ctx.lineWidth = 1;
         ctx.stroke();
 
@@ -1514,7 +1518,7 @@ export function GraphCanvas({
           ctx.rotate(Math.atan2(dy, dx));
           ctx.beginPath();
           traceRelationGlyph(ctx, relationGlyph(se.relation));
-          ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, 0.55 * dim);
+          ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, (seLit ? 0.55 : 0.22) * dim);
           ctx.lineWidth = 1.1;
           ctx.stroke();
           ctx.restore();
@@ -1524,15 +1528,16 @@ export function GraphCanvas({
       }
       ctx.setLineDash([]);
 
-      // THE USAGE SCALE on the co-use lines (operator 2026-11-09): colour
-      // and opacity follow the line's rank in this life (graph_usage.ts) —
-      // a rarely used trail is a dark-grey whisper, his most used tenth is
-      // a clear green; width stays the lifetime co-use depth. Under the
-      // recall a TRAVELLED path takes its ring's colour at full strength
-      // and every other line dims (edgeDim). The amber flash stays the
-      // "just traveled" overlay.
+      // THE USAGE SCALE on the co-use lines (operator 2026-11-09, backlog
+      // 0025): colour, opacity and width follow the line's rank in this
+      // life (graph_usage usageEdgeStyle) — the trails he has not walked
+      // much are the born-linked lines' one dark grey, the upper third
+      // turns green on a steep curve, his most used tenth is bright and
+      // wider. Under the recall a TRAVELLED path takes its ring's colour at
+      // full strength and every other line dims (edgeDim). The amber flash
+      // stays the "just traveled" overlay.
       const usageStroke = (mix: number, alpha: number) => {
-        const c = usageRgb(mix, CANVAS_THEME.cold, CANVAS_THEME.warm);
+        const c = usageRgb(mix, CANVAS_THEME.dim, CANVAS_THEME.warm);
         return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`;
       };
       for (const e of fold.edges.values()) {
@@ -1546,7 +1551,7 @@ export function GraphCanvas({
         const recent = age >= 0 && age <= pulseWindow ? 1 - age / pulseWindow : 0;
         const path = travelled?.get(e.key);
         const place = usage.edges.get(e.key) ?? 0;
-        const mix = usageMix(place);
+        const look = usageEdgeStyle(place, usage.edgeTiers);
         ctx.globalAlpha = edgeDim(e.a, e.b, e.key);
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -1588,8 +1593,8 @@ export function GraphCanvas({
           ctx.beginPath();
         } else {
           const focusLit = driver === "focus" && emphasis !== null && emphasis.has(e.a) && emphasis.has(e.b);
-          ctx.strokeStyle = usageStroke(mix, Math.min(1, usageEdgeAlpha(place) * (focusLit ? FOCUS_LIT_GAIN : 1)));
-          ctx.lineWidth = 0.8 + Math.log1p(e.count) * 0.4;
+          ctx.strokeStyle = usageStroke(look.mix, focusLit ? Math.min(1, Math.max(FOCUS_EDGE_FLOOR, look.alpha * FOCUS_LIT_GAIN)) : look.alpha);
+          ctx.lineWidth = look.width;
         }
         ctx.stroke();
         if (recent > 0) {

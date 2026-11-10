@@ -10,14 +10,24 @@ import { describe, expect, it } from "vitest";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 import { computeTemporalActivation } from "./temporal_activation";
+import fs from "node:fs";
+import path from "node:path";
+
 import {
   coldOf,
+  EDGE_ALPHA_CEILING,
+  EDGE_BRIGHT_MAX,
+  EDGE_GREEN_FROM,
+  EDGE_GREEN_MAX,
+  EDGE_QUIET_ALPHA,
+  edgeTiers,
+  FOCUS_EDGE_FLOOR,
   quantileRanks,
   TOP_DECILE,
   USAGE_HIGH,
   USAGE_LOW,
   USAGE_TITLE,
-  usageEdgeAlpha,
+  usageEdgeStyle,
   usageMix,
   usageRgb,
   usageScale,
@@ -161,11 +171,59 @@ describe("the ramp: dark grey -> green, the top decile pops", () => {
     }
   });
 
-  it("a line below the top decile is a whisper; the top decile is clearly drawn", () => {
-    expect(usageEdgeAlpha(0)).toBeCloseTo(0.03, 10);
-    expect(usageEdgeAlpha(TOP_DECILE)).toBeLessThan(0.12);
-    expect(usageEdgeAlpha(TOP_DECILE + 1e-9)).toBeGreaterThanOrEqual(0.2);
-    expect(usageEdgeAlpha(1)).toBeCloseTo(0.62, 10);
+  it("a trail he has not walked much is the one dark grey; the upper third turns green steeply; the top tenth is bright and wider (backlog 0025)", () => {
+    const tiers = edgeTiers(2368); // castor's trails
+    expect(tiers).toEqual({ green: EDGE_GREEN_FROM, bright: TOP_DECILE });
+    // Bottom two thirds: one dark grey, thin, never green.
+    for (const t of [0, 0.01, 0.3, 0.5, EDGE_GREEN_FROM]) expect(usageEdgeStyle(t, tiers)).toEqual({ mix: 0, alpha: EDGE_QUIET_ALPHA, width: 0.8 });
+    expect(EDGE_QUIET_ALPHA).toBeGreaterThanOrEqual(0.06);
+    expect(EDGE_QUIET_ALPHA).toBeLessThanOrEqual(0.08);
+    // The upper third climbs on a square: half way through it, a quarter of its rise.
+    const half = usageEdgeStyle((EDGE_GREEN_FROM + TOP_DECILE) / 2, tiers);
+    expect(half.mix).toBeCloseTo(0.55 / 4, 6);
+    expect(half.alpha).toBeLessThan(0.11);
+    expect(usageEdgeStyle(TOP_DECILE, tiers).alpha).toBeCloseTo(0.2, 6);
+    // The top tenth steps up: bright, wider, never past the ceiling.
+    const step = usageEdgeStyle(TOP_DECILE + 1e-9, tiers);
+    expect(step.alpha).toBeGreaterThanOrEqual(0.45);
+    expect(step.mix).toBeGreaterThanOrEqual(0.85);
+    expect(step.width).toBeGreaterThan(1.3);
+    const top = usageEdgeStyle(1, tiers);
+    expect(top.mix).toBe(1);
+    expect(top.alpha).toBe(EDGE_ALPHA_CEILING);
+    expect(top.width).toBeCloseTo(2.6, 9);
+    // Monotone in all three.
+    let prev = { mix: -1, alpha: -1, width: -1 };
+    for (let t = 0; t <= 1.0001; t += 0.005) {
+      const cur = usageEdgeStyle(Math.min(1, t), tiers);
+      expect(cur.mix).toBeGreaterThanOrEqual(prev.mix);
+      expect(cur.alpha).toBeGreaterThanOrEqual(prev.alpha);
+      expect(cur.width).toBeGreaterThanOrEqual(prev.width);
+      prev = cur;
+    }
+  });
+
+  it("the tiers are capped in count: a life of 25 000 trails lights at most 300 bright and 1 000 in green, its mean opacity stays low", () => {
+    const tiers = edgeTiers(25000);
+    const looks = Array.from({ length: 25000 }, (_, i) => usageEdgeStyle((i + 1) / 25000, tiers));
+    expect(looks.filter((x) => x.alpha >= 0.45)).toHaveLength(EDGE_BRIGHT_MAX);
+    expect(looks.filter((x) => x.mix > 0)).toHaveLength(EDGE_GREEN_MAX);
+    const mean = looks.reduce((a, x) => a + x.alpha, 0) / looks.length;
+    expect(mean).toBeLessThan(0.08);
+    // A small life keeps the relative tiers (upper third, top tenth).
+    expect(edgeTiers(600)).toEqual({ green: EDGE_GREEN_FROM, bright: TOP_DECILE });
+    expect(edgeTiers(0)).toEqual({ green: EDGE_GREEN_FROM, bright: TOP_DECILE });
+  });
+
+  it("the canvas draws both line kinds with it: born-linked lines and quiet trails the same dark grey, a hovered memory's lines lit to a floor", () => {
+    const canvas = fs.readFileSync(path.resolve(__dirname, "graph_canvas.tsx"), "utf8");
+    expect(canvas).toContain("ctx.strokeStyle = rgbaOf(CANVAS_THEME.dim, seLit ? FOCUS_EDGE_FLOOR : EDGE_QUIET_ALPHA);");
+    expect(canvas).toContain("const c = usageRgb(mix, CANVAS_THEME.dim, CANVAS_THEME.warm);");
+    expect(canvas).toContain("const look = usageEdgeStyle(place, usage.edgeTiers);");
+    expect(canvas).toContain("ctx.strokeStyle = usageStroke(look.mix, focusLit ? Math.min(1, Math.max(FOCUS_EDGE_FLOOR, look.alpha * FOCUS_LIT_GAIN)) : look.alpha);");
+    expect(canvas).toContain("ctx.lineWidth = look.width;");
+    expect(canvas).not.toContain("rgbaOf(CANVAS_THEME.dim, 0.16)");
+    expect(FOCUS_EDGE_FLOOR).toBeGreaterThan(EDGE_QUIET_ALPHA * 4);
   });
 
   it("the ends: dark grey on a dark theme, green at the top", () => {
