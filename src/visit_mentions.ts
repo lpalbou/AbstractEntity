@@ -50,6 +50,7 @@ import {
   type ChatMention,
   type ChatMentionCandidate,
   type ChatMentionSent,
+  type ChatMessageMention,
   type MentionResend,
 } from "@abstractframework/panel-chat";
 
@@ -89,6 +90,26 @@ export function mentionBody(text: string, mention: ChatMentionSent, repeatOf: st
 
 /** The `GET /entities` row slice a mention list reads. */
 export type MentionableEntity = { name: string; slug: string; entity_id?: string; avatar?: ChatAvatarLook | null };
+
+/** The mentions a sent message shows as chips in its bubble (panel-chat 0.9.13 `ChatMessage.mentions`):
+ * every chip the composer's send carried (`picked`: id, name, kind, index, start), with `start` moved
+ * onto the words the drawer sends (`typed` is sent trimmed, so its leading spaces go) and the look its
+ * composer chip had (`chips`, by kind and id), so the bubble's chip shows the same orb. The kit
+ * places each by `start` and never reads the text for "@". */
+export function sentMessageMentions(typed: string, picked: readonly ChatMentionSent[], chips: readonly ChatMention[]): ChatMessageMention[] {
+  const lead = typed.length - typed.trimStart().length;
+  return picked.map((m): ChatMessageMention => {
+    const look = chips.find((c) => c.kind === m.kind && c.id === m.id)?.avatar;
+    return {
+      id: m.id,
+      name: m.name,
+      kind: m.kind,
+      index: m.index,
+      ...(typeof m.start === "number" ? { start: m.start - lead } : {}),
+      ...(look ? { avatar: look } : {}),
+    };
+  });
+}
 
 /** The reserved slug that addresses the session agent in `mentions` (no entity can be named so). */
 export const AGENT_MENTION_SLUG = "agent";

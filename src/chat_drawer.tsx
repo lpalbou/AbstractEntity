@@ -25,9 +25,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { READ_ALOUD_INITIAL, readAloudStep } from "@abstractframework/panel-chat";
 import { entityReadAloudInput } from "./read_aloud";
 
-import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatNotice } from "./vendor/abstractchat/conversation";
+import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatMessageMention, type ChatNotice } from "./vendor/abstractchat/conversation";
 import { VISIT_CLOSE_KIND, noticesField, openNotice as openNoticeIn } from "./turn_notices";
-import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity } from "./visit_mentions";
+import { mentionEntityCard } from "./mention_entity_card";
+import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, sentMessageMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -919,6 +920,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     }
     // The chips as picked (for their looks), cleared from the composer like the words.
     const sentChips = mentionsSent.length ? chipsToRestore(mentionChipsRef.current, mentionsSent) : [];
+    // The message shows the same chips in its bubble (panel-chat 0.9.13): every chip the send
+    // carried, placed by its `start` in the sent words, with its composer look.
+    const shownMentions = sentMessageMentions(draft, picked, mentionChipsRef.current);
+    const mentionsField = shownMentions.length ? { mentions: shownMentions } : {};
     const chipsBack = () => { if (sentChips.length) setMentionChips((cur) => (cur.length ? cur : sentChips)); };
     setMentionStatus(null);
     if (sentChips.length) setMentionChips([]);
@@ -939,7 +944,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
         return;
       }
       setDraft("");
-      push({ role: "user", content: flowText });
+      push({ role: "user", content: flowText, ...mentionsField });
       // The summon carries the chips as `mentions`: he answers only what is addressed to him.
       void sendFlow(flowText, { mentions: flowMentionSlugs(mentionsSent) }).then(({ landed, sessionId, runId: turnRunId }) => {
         if (!mentionsSent.length) return;
@@ -967,7 +972,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     setRefusal(null);
     setNote(null);
     const chips = attachmentChips(sentFiles);
-    const sentId = push({ role: "user", content: text, ...(chips.length ? { attachments: chips } : {}) });
+    const sentId = push({ role: "user", content: text, ...(chips.length ? { attachments: chips } : {}), ...mentionsField });
     // A turn that did not run hands its words AND its files back (retry is
     // one click, never a retype or a re-drop) — unless newer typing already
     // claimed the composer.
@@ -1150,6 +1155,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       }),
     [messages, avatarMode, onOpenRecord],
   );
+
+  /** A mention chip's card in the thread: the mentioned entity's card from the rows the `@` list
+   * read (none for the agent's chip or a name they do not hold). */
+  const renderMentionCard = useCallback((mention: ChatMessageMention) => mentionEntityCard(mention, mentionRowsReadRef.current, baseUrl), [baseUrl]);
 
   const foreignVisit = status?.open && !runId;
 
@@ -1437,6 +1446,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             }}
             messageProps={{
               onNoticeOpen: openNotice,
+              renderMentionCard,
               ...(voice.tts_supported ? {
                 onSpeakToggle: (m: ChatMessage) => void voice.toggle_tts(String(m.id || ""), m.content),
                 getSpeakState: (m: ChatMessage) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle"),
@@ -1450,6 +1460,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             getSpeakState={voice.tts_supported ? (m) => (voice.tts_playback.key === String(m.id || "") ? voice.tts_playback.status : "idle") : undefined}
             onFocusMessage={setFocusMid}
             onNoticeOpen={openNotice}
+            renderMentionCard={renderMentionCard}
             closing={busy === "closing" ? closingActivity : null}
           />}
           {detailTurn ? <TurnDetailModal turn={detailTurn.turn} initialTab={detailTurn.tab} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}

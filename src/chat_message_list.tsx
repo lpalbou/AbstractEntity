@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMessageCard, type ChatMessage, type ChatNotice } from "@abstractframework/panel-chat";
+import { ChatMessageCard, type ChatMessage, type ChatMessageMention, type ChatNotice } from "@abstractframework/panel-chat";
 
 import { ClosingNotice } from "./closing_notice";
 import type { LedgerLine } from "./ledger_lines";
@@ -81,9 +81,12 @@ export function ChatMessageList({
   onFocusMessage,
   onNoticeOpen,
   onOpenRecord,
+  renderMentionCard,
   closing,
 }: {
   messages: DrawerMessage[];
+  /** A mention chip's card in a message's words (panel-chat 0.9.13): shown after a rest on it. */
+  renderMentionCard?: (mention: ChatMessageMention) => React.ReactNode | null;
   /** While the visit closes: the reflection's acts so far. The closing notice is then the thread's
    * last row, in the messages' column (never a card floating over them). Null: no close running. */
   closing?: LedgerLine[] | null;
@@ -171,6 +174,7 @@ export function ChatMessageList({
                 onSpeakToggle={onSpeakToggle}
                 getSpeakState={getSpeakState}
                 onNoticeOpen={onNoticeOpen}
+                renderMentionCard={renderMentionCard}
                 renderFooter={m.detail ? () => <TurnFactsRow chips={turnFactChips(m.detail!)} authorKind={m.author?.kind} onOpen={(chip) => openTurnFact(chip, m.detail!, { onDetail, onOpenRecord })} /> : undefined}
                 {...NO_IMAGE_PROPS}
               />
