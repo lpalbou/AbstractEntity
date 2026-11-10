@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 15 |
+| Planned | 16 |
 | Proposed | 6 |
 | Completed | 9 |
 | Deprecated | 0 |
 
-`planned/` holds 19 files: the 15 planned items and four completed records (0002-0005) whose move
+`planned/` holds 20 files: the 16 planned items and four completed records (0002-0005) whose move
 to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -56,6 +56,7 @@ operator's check, with 0011's placement stated.
 | 0020 | [Remove reset, keep fit](planned/0020_remove_reset_keep_fit.md) | XS | W2 | |
 | 0021 | [Hidden-records toggle: closed memories](planned/0021_hidden_records_toggle_names_closed_memories.md) | S-M | W2 | |
 | 0022 | [Remove the blueprint page](planned/0022_remove_the_blueprint_page.md) | M | W1 | 1200 |
+| 0023 | [On a phone the graph and the ledger get at least half the screen](planned/0023_phone_canvas_chrome_height.md) | M | | |
 
 ## Proposed (legacy names)
 
