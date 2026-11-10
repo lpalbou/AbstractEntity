@@ -8,8 +8,8 @@
  * codex-fork monitor reads, but with the WHY visible.
  */
 
-import { classifyBookkeeping, cleanTitle, consideredCount, relationPredicate } from "./stream_fold";
-import { displaySaysTitlePending, untitledWords } from "./untitled";
+import { classifyBookkeeping, cleanTitle, COMMUNITY_RECORD_KIND, consideredCount, relationPredicate } from "./stream_fold";
+import { displaySaysTitlePending, TITLE_BEING_WRITTEN, untitledWords } from "./untitled";
 import type {
   BindingPayload,
   ClosurePayload,
@@ -223,6 +223,9 @@ export interface LedgerLineFold {
   first: ReplayEnvelope | null;
   tail: ReplayEnvelope | null;
   rhythm: RhythmState;
+  /** The topic versions seen so far: their graph id -> how many memories
+   * each held (what "A topic changed" counts its change against). */
+  topicSizes: TopicSizes;
 }
 
 /** Extend `prev` with the envelopes it has not covered yet, or rebuild
@@ -242,14 +245,105 @@ export function foldLedgerLines(prev: LedgerLineFold | null, envelopes: ReplayEn
   const from = intact ? prev.count : 0;
   const lines = intact ? prev.lines.slice() : [];
   let rhythm = intact ? prev.rhythm : RHYTHM_START;
+  let topicSizes: TopicSizes = intact ? prev.topicSizes : NO_TOPIC_SIZES;
   for (let i = from; i < envelopes.length; i++) {
     const env = envelopes[i];
     const step = rhythmStep(rhythm, env);
     rhythm = step.state;
     for (const b of step.lines) lines.push({ line: b, index: i, own: rhythm.ownTime });
-    lines.push({ line: ledgerLine(env), index: i, own: rhythm.ownTime });
+    lines.push({ line: ledgerLine(env, topicSizes), index: i, own: rhythm.ownTime });
+    const version = topicVersionSize(env);
+    if (version !== null) {
+      // A new map: the previous fold keeps its own (no shared mutation).
+      const next = new Map(topicSizes);
+      next.set(version.id, version.size);
+      topicSizes = next;
+    }
   }
-  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm };
+  return { lines, count: envelopes.length, first, tail: envelopes.length > 0 ? envelopes[envelopes.length - 1] : null, rhythm, topicSizes };
+}
+
+/** What a ledger line about a topic opens: "topic:<its stable key>" — the
+ * Topics panel, focused on it (entity_view reads it with topicKeyOfTarget). */
+export const TOPIC_TARGET = "topic:";
+
+export function topicTarget(key: string): string {
+  return `${TOPIC_TARGET}${key}`;
+}
+
+/** The topic key a line target names, or null when it names no topic. */
+export function topicKeyOfTarget(target: string | null | undefined): string | null {
+  const t = String(target || "");
+  return t.startsWith(TOPIC_TARGET) && t.length > TOPIC_TARGET.length ? t.slice(TOPIC_TARGET.length) : null;
+}
+
+/** Topic versions by graph id -> how many memories each held. */
+export type TopicSizes = ReadonlyMap<string, number>;
+
+const NO_TOPIC_SIZES: TopicSizes = new Map();
+
+/** A topic version's formation on the stream: its graph id and size, or null. */
+function topicVersionSize(env: ReplayEnvelope): { id: string; size: number } | null {
+  if (env.family !== "binding" || env.display?.kind !== COMMUNITY_RECORD_KIND) return null;
+  const id = String((env.payload as unknown as BindingPayload).record_id || "");
+  const size = env.display.size;
+  return id && typeof size === "number" && Number.isFinite(size) ? { id, size } : null;
+}
+
+function memoriesWord(n: number): string {
+  return `${n} ${n === 1 ? "memory" : "memories"}`;
+}
+
+/** A topic named in a ledger title: ": <its title>", " (title being
+ * written…)" while the stream says so, else " (untitled)" — never its key. */
+function topicNamed(display: ReplayEnvelope["display"]): string {
+  const title = tidy(cleanTitle(String(display?.title || "")));
+  if (title) return `: ${title}`;
+  return displaySaysTitlePending(display) ? ` (${TITLE_BEING_WRITTEN})` : " (untitled)";
+}
+
+/** A topic version formed (memory's `community` records, formed in his
+ * sleep; castor's first topics night 2026-11-10 showed each as "Memory
+ * formed — title being written…"): its own row kind, never "Memory formed".
+ * A first version "took shape"; a version that refines an earlier one (its
+ * binding's `refines` edge) "changed", counted against the earlier
+ * version's size when the ledger has seen it. Clicking opens the Topics
+ * panel focused on it (by its stable key). */
+function topicFormedLine(env: ReplayEnvelope, base: Pick<LedgerLine, "seq" | "family" | "observed_at" | "trace_id" | "turn_id">, sizes: TopicSizes): LedgerLine {
+  const d = env.display ?? {};
+  const key = typeof d.community_key === "string" ? d.community_key.trim() : "";
+  const size = typeof d.size === "number" && Number.isFinite(d.size) ? d.size : null;
+  const refines = (d.edges ?? []).find((e) => e?.relation === "refines" && typeof e.target_graph_id === "string" && e.target_graph_id);
+  const named = topicNamed(d);
+  let title = `🗺 A topic took shape${named}`;
+  if (refines) {
+    const before = sizes.get(String(refines.target_graph_id));
+    const delta = size !== null && before !== undefined ? size - before : 0;
+    const change = delta > 0 ? ` (+${memoriesWord(delta)})` : delta < 0 ? ` (−${memoriesWord(-delta)})` : "";
+    title = `🗺 A topic changed${named}${change}`;
+  }
+  return { ...base, title, detail: size !== null ? memoriesWord(size) : "", subject_id: key ? topicTarget(key) : null, tone: "formation" };
+}
+
+/** A topic version closed: the earlier version a new one replaced (audit:
+ * its "A topic changed" row says it), or a topic that dissolved. */
+function topicClosedLine(env: ReplayEnvelope, base: Pick<LedgerLine, "seq" | "family" | "observed_at" | "trace_id" | "turn_id">): LedgerLine {
+  const p = env.payload as unknown as ClosurePayload;
+  const d = env.display ?? {};
+  const key = typeof d.community_key === "string" ? d.community_key.trim() : "";
+  const named = topicNamed(d);
+  if (p.kind === "supersede") {
+    return { ...base, title: `A topic's earlier version was closed${named}`, detail: "a newer version replaced it", subject_id: key ? topicTarget(key) : null, tone: "quiet" };
+  }
+  const size = typeof d.size === "number" && Number.isFinite(d.size) ? d.size : null;
+  const reason = tidy(p.reason ?? "");
+  return {
+    ...base,
+    title: reason === "dissolved" ? `🗺 A topic dissolved${named}` : `🗺 A topic was closed${named}`,
+    detail: [size !== null ? `it held ${memoriesWord(size)}` : "", reason && reason !== "dissolved" ? reason : ""].filter(Boolean).join(" — "),
+    subject_id: null,
+    tone: "revision",
+  };
 }
 
 /** What a ledger line opens in the Detail tab: the memory it is about, or
@@ -300,7 +394,9 @@ export const LEDGER_PHASE_STAYS: Readonly<Record<string, string>> = {
   stopped: "stays stopped",
 };
 
-export function ledgerLine(env: ReplayEnvelope): LedgerLine {
+/** `topicSizes`: the topic versions seen earlier on the stream (the
+ * ledger's fold passes them, so a changed topic says by how much). */
+export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPIC_SIZES): LedgerLine {
   const base = {
     seq: env.seq,
     family: env.family,
@@ -312,6 +408,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
   switch (env.family) {
     case "binding": {
       const p = env.payload as unknown as BindingPayload;
+      if (p.source === "remember" && env.display?.kind === COMMUNITY_RECORD_KIND) return topicFormedLine(env, base, topicSizes);
       let name = displayTitle(env, tidy(p.record_id));
       if (p.source === "remember") {
         // Narrative per kind (maintainer 16:31: the ledger must SAY what
@@ -525,6 +622,7 @@ export function ledgerLine(env: ReplayEnvelope): LedgerLine {
       return { ...base, title: `A bond broke — ${target}`, detail: tidy(p.reason ?? ""), subject_id: p.target_id, tone: "feeling" };
     }
     case "closure": {
+      if (env.display?.kind === COMMUNITY_RECORD_KIND) return topicClosedLine(env, base);
       const p = env.payload as unknown as ClosurePayload;
       const name = displayTitle(env, tidy(p.assertion_id));
       return {

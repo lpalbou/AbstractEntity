@@ -92,6 +92,13 @@ export interface DisplayBlock {
    * — `title: true` while its title is pending (its `title` is then null).
    * Absent when nothing is pending. */
   pending?: { title?: unknown; summary?: unknown; since?: unknown; attempts?: unknown } | null;
+  /** A topic version (kind "community", AbstractMemory replay.py COMMUNITIES):
+   * the topic's stable key across versions, the journal seq its version read
+   * the home at, and how many memories it holds. Members never ride the
+   * stream (they are the `communities` read). Absent when unknown. */
+  community_key?: string;
+  version_seq?: number;
+  size?: number;
 }
 
 export interface ReplayEnvelope {

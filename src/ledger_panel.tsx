@@ -13,7 +13,7 @@ import { AF_MEDIA, AfMemoryHintChip, useAfMedia } from "@abstractframework/ui-ki
 
 import { isDiaryGraphId } from "./stream_fold";
 
-import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, type IndexedLine, type LedgerLine, type LedgerLineFold } from "./ledger_lines";
+import { clockUtc, dayLabelUtc, dayUtc, foldLedgerLines, lineTarget, rowHint, topicKeyOfTarget, type IndexedLine, type LedgerLine, type LedgerLineFold } from "./ledger_lines";
 import { recallHoverHandlers } from "./recall_emphasis";
 import type { ReplayEnvelope } from "./stream_types";
 import { fromLink, WordsLine } from "./words_line";
@@ -397,9 +397,11 @@ export function LedgerLineRow(props: LedgerLineRowProps): React.ReactElement {
         target
           ? target.startsWith("beat:")
             ? "Open what came to mind at this moment"
-            : isDiaryGraphId(target)
-              ? "Show this entry in his Book, marked (reading its words there is a separate click, recorded in his biography)"
-              : "Open this memory in Detail"
+            : topicKeyOfTarget(target) !== null
+              ? "Open this topic in the Topics panel"
+              : isDiaryGraphId(target)
+                ? "Show this entry in his Book, marked (reading its words there is a separate click, recorded in his biography)"
+                : "Open this memory in Detail"
           : // nothing to open: the whole text is at least on hover (the row clamps it)
             [line.title, line.detail].filter(Boolean).join("\n")
       }

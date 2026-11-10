@@ -29,11 +29,26 @@ Highlights:
   the pointer to rest.
 - **His topics.** The topics his memory forms in his sleep, with their authored titles, are the
   graph's layout, and a Topics panel lists them with what his memory knows of each.
-- **Fixes** from live use: playback no longer freezes the graph, the ledger names phase changes,
-  older records whose summary was cut say so, and the Context box and Topics panel keep
-  their room on short phone screens.
+- **Fixes** from live use: playback no longer freezes the graph, the ledger names phase changes
+  and his topics, older records whose summary was cut say so, the Context box and Topics panel keep
+  their room on short phone screens, and the time panel's lanes no longer overlap on a phone.
 
 ### Details
+
+- **His topics have their own rows in the ledger.** When his memory forms or changes a topic in
+  his sleep, the ledger says "A topic took shape: <its title>" ("A topic took shape (title being
+  written…)" while memory is still writing it), "A topic changed: <its title> (+5 memories)" for a
+  newer version (counted against the version before it when the ledger holds that one), or "A
+  topic dissolved: <its title>", each with how many memories the topic holds. They used to read
+  "Memory formed — title being written…" (twelve of them after castor's first topics night), and a
+  topic's replaced version read "Belief revised" with its key. A click on such a row turns
+  "topics" on and opens the Topics panel on that topic, focused; on a phone the drawer closes so
+  the graph shows. The line closing a replaced version is an audit line (shown with "audit
+  lines"), and a closed topic version no longer adds a faded node to the graph.
+- **The time panel's lanes no longer overlap on a phone.** On a touch screen every mark of the
+  moments, diary, lessons, world and dreams lanes was stretched to a 44 px block (the touch-target
+  size every button gets), so the marks covered the lanes below them. They keep their drawn size
+  on their own lane; the scrub bar and the ledger stay the touch path to an event.
 
 - **A topic's count matches its list, and a topic whose memories are not in the graph says so.**
   Each topic in the Topics panel shows how many memories it holds (his memory's count, plus those

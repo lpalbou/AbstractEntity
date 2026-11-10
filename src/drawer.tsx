@@ -39,6 +39,11 @@ const MAX_WIDTH = 900;
  * entity.css is chosen against it (see responsive_css.test.ts). */
 export const DEFAULT_WIDTH = 380;
 
+/** A parent request (`activeTab`) for the graph itself, not a tab: the
+ * overlay drawer (below 1024 px, where it covers the graph) closes; the
+ * docked panel stays as it is (a ledger row that opens a topic). */
+export const REVEAL_GRAPH = "~graph";
+
 export interface SideTabsProps {
   tabs: SideTab[];
   defaultTab?: string;
@@ -85,7 +90,9 @@ export function SideTabs({ tabs, defaultTab, activeTab: controlledTab, emphasize
     if (controlledTab !== undefined && controlledTab !== lastRequestRef.current) {
       lastRequestRef.current = controlledTab;
       const tabId = controlledTab ? controlledTab.split("#", 1)[0] : null;
-      if (tabId && tabs.some((t) => t.id === tabId)) dispatch({ type: "request", id: tabId, narrow });
+      if (tabId === REVEAL_GRAPH) {
+        if (narrow) dispatch({ type: "close", narrow });
+      } else if (tabId && tabs.some((t) => t.id === tabId)) dispatch({ type: "request", id: tabId, narrow });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledTab, tabs]);

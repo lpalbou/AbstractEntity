@@ -17,7 +17,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EntityMark } from "./brand_mark";
 import { ChatDrawer } from "./chat_drawer";
 import { SettingsPanel } from "./workspace_panel";
-import { SideTabs, type SideTab } from "./drawer";
+import { REVEAL_GRAPH, SideTabs, type SideTab } from "./drawer";
+import { topicKeyOfTarget } from "./ledger_lines";
 import { EntitiesIndex } from "./entities_index";
 import { FleetView } from "./fleet_view";
 import { MeetConsole } from "./meet_console";
@@ -1603,6 +1604,8 @@ export function EntityView(): React.ReactElement {
   // more intersecting source. Keyed by the community's STABLE key, so a
   // nightly revision keeps the focus (the graph re-emits its new members).
   const [topicFilter, setTopicFilter] = useState<{ key: string; ids: Set<string>; label: string } | null>(null);
+  // A ledger row about a topic asks the graph to open the Topics panel on it.
+  const [topicRequest, setTopicRequest] = useState<{ key: string; nonce: number } | null>(null);
   // Topics are the graph's NATURAL layout (operator 2026-11-07: "all the
   // memory nodes should have been naturally grouped by topics"): the
   // "topics" toggle only shows their circles, titles and the Topics panel
@@ -2221,6 +2224,7 @@ export function EntityView(): React.ReactElement {
             showContext={contextOn}
             onPickTopic={(pick) => setTopicFilter(pick ? { key: pick.key, ids: pick.rowIds, label: pick.label } : null)}
             pickedTopic={topicFilter?.key ?? null}
+            topicRequest={topicRequest}
             communitiesMarker={communitiesMarker}
             communitiesPlaced={communitiesPlaced}
           />
@@ -2439,6 +2443,16 @@ export function EntityView(): React.ReactElement {
                         const nonce = Date.now();
                         setBookFocus({ id, nonce });
                         setRequestedTab({ tab: "book", nonce });
+                        return;
+                      }
+                      // A topic's row opens the Topics panel focused on it
+                      // (topics on; a phone's drawer gives the graph back).
+                      const topicKey = topicKeyOfTarget(id);
+                      if (topicKey !== null) {
+                        const nonce = Date.now();
+                        setShowTopics(true);
+                        setTopicRequest({ key: topicKey, nonce });
+                        setRequestedTab({ tab: REVEAL_GRAPH, nonce });
                         return;
                       }
                       setSelectedId(id);

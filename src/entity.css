@@ -6550,6 +6550,14 @@ body {
   #root button {
     min-width: var(--tap-min, 44px);
   }
+  /* The time panel's marks keep their drawn size (3 px ticks on their own
+   * lane): the 44 px floor above made each a 44 px block over the other
+   * lanes (castor's topics night, 400 px). The scrub bar and the ledger are
+   * the touch paths to an event. */
+  #root .et_mark {
+    min-width: 0;
+    min-height: 0;
+  }
   #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   #root textarea {
     font-size: max(16px, 1em);

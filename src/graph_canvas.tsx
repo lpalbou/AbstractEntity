@@ -77,7 +77,7 @@ import {
   type CommunityPlacement,
   type SeatedFold,
 } from "./topic_layout";
-import { memberOpensIn, topicCountWords, TopicsPanel, type TopicsView } from "./topics_panel";
+import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, type TopicsView } from "./topics_panel";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -129,6 +129,9 @@ export interface GraphCanvasProps {
   onPickTopic(pick: { key: string; rowIds: Set<string>; label: string } | null): void;
   /** The focused topic's key (the topic filter's). */
   pickedTopic: string | null;
+  /** A ledger row about a topic was clicked: open the Topics panel focused
+   * on it (once per nonce, as soon as his topics are read). */
+  topicRequest?: { key: string; nonce: number } | null;
   /** A diary entry's card action: open the Book at that entry (its words
    * are read there, on their own click — never from the graph). */
   onShowInBook(graphId: string): void;
@@ -583,6 +586,7 @@ export function GraphCanvas({
   showContext,
   onPickTopic,
   pickedTopic,
+  topicRequest,
   onShowInBook,
   height,
 }: GraphCanvasProps): React.ReactElement {
@@ -2054,6 +2058,18 @@ export function GraphCanvas({
   };
   const focusTopicRef = useRef(focusTopic);
   focusTopicRef.current = focusTopic;
+  // A LEDGER ROW ABOUT A TOPIC (ledger_lines.topicTarget): the panel opens,
+  // focused on it, once the topics are read (topicRequestStep); each
+  // request once.
+  const topicRequestDoneRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!topicRequest || topicRequestDoneRef.current === topicRequest.nonce || !showTopics) return;
+    const step = topicRequestStep(topicsView, membership !== null && communityByKey.has(topicRequest.key));
+    if (step === "wait") return;
+    topicRequestDoneRef.current = topicRequest.nonce;
+    setTopicsOpen(true);
+    if (step === "focus") focusTopicRef.current(topicRequest.key);
+  }, [topicRequest, showTopics, topicsView, membership, communityByKey]);
   // LIVE: a new version keeps the focused topic (by its stable key) with
   // its new members; a topic that dissolved lets go. Emitted only when the
   // members present changed.

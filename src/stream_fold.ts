@@ -994,6 +994,9 @@ function applyValence(state: FoldState, env: ReplayEnvelope): void {
 function applyClosure(state: FoldState, env: ReplayEnvelope): void {
   const p = env.payload as unknown as ClosurePayload;
   const display = displayOf(env);
+  // A topic version closed (replaced by a newer one, or dissolved): never a
+  // node either (the binding's ghost guard; a closure would mint one).
+  if (display.kind === COMMUNITY_RECORD_KIND) return;
   const rid = String(p.assertion_id || "");
   if (!rid) return;
   const node = resolveUsageNode(state, rid, display, env.seq);

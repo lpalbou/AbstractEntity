@@ -60,6 +60,16 @@ export function topicsNote(view: TopicsView): { text: string; error: boolean } |
   return null;
 }
 
+/** A request to open the panel on a topic (a ledger row about it,
+ * ledger_lines.topicTarget), once the topics are known: "wait" while they
+ * are being read; then "focus" when this topic is among them, else "open"
+ * (the panel opens on its list or its one sentence — a topic that has
+ * dissolved since, a read that failed). */
+export function topicRequestStep(view: TopicsView | null, known: boolean): "wait" | "focus" | "open" {
+  if (view?.kind === "loading") return "wait";
+  return known ? "focus" : "open";
+}
+
 /** "84 memories" (the served count). */
 export function memoriesWord(n: number): string {
   return `${n} ${n === 1 ? "memory" : "memories"}`;

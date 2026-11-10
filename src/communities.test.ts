@@ -353,4 +353,23 @@ describe("the fold's ghost guard", () => {
     expect([...fold.nodes.keys()]).toEqual(["ex:episode-1"]);
     expect(fold.structural_edges.size).toBe(1); // the episode's own edge only
   });
+
+  it("a topic version's closure (replaced, dissolved) mints no node either; a memory's still closes it", () => {
+    const closure = (seq: number, id: string, kind: string, closureKind: string): ReplayEnvelope =>
+      ({
+        ...binding(seq, id, kind),
+        family: "closure",
+        payload: { assertion_id: id, kind: closureKind, reason: closureKind === "supersede" ? "community ex:community-k: version 9" : "dissolved", replacement_ids: [], closure_id: `c${seq}`, seq },
+        display: { record_id: id, kind, title: `t ${id}`, graph_id: id, community_key: "ex:community-k", size: 12 },
+      }) as unknown as ReplayEnvelope;
+    const fold = foldEnvelopes([
+      binding(1, "ex:episode-1", "episode"),
+      binding(2, "ex:community-v1", "community"),
+      closure(3, "ex:community-v1", "community", "supersede"),
+      closure(4, "ex:community-gone", "community", "retract"),
+      closure(5, "ex:episode-1", "episode", "retract"),
+    ]);
+    expect([...fold.nodes.keys()]).toEqual(["ex:episode-1"]);
+    expect(fold.nodes.get("ex:episode-1")?.closed?.kind).toBe("retract");
+  });
 });
