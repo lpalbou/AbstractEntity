@@ -409,10 +409,13 @@ export interface TopicsPanelProps {
   onOpenMember(node: NodeState): void;
   /** The topic the panel lights on the graph (topicHover), null to let go. */
   onHoverTopic?(key: string | null): void;
-  /** Light exactly these graph node ids on the canvas (a path, a memory
-   * type's memories); null lets go (the topic hover, if any, lights again). */
+  /** Light exactly these nodes on the canvas (a path's two memories, a
+   * memory type's memories in a topic); null lets go (the topic hover, if
+   * any, lights again). The ids are the canvas's node ids: NodeState.id,
+   * the fold's rows as `rowsOf` lists them (a served record id is resolved
+   * through fold.graph_to_row before it is handed here). */
   onHoverRows: (ids: string[] | null) => void;
-  /** The camera glides to frame these graph node ids. */
+  /** The camera glides to frame these nodes (the same ids as onHoverRows). */
   onFrameRows: (ids: string[]) => void;
   onRetry(): void;
   /** The memory's kind colour (the graph's). */
