@@ -9,6 +9,11 @@ All notable changes to `@abstractframework/entity` are recorded here.
 - **Files, beside Settings.** A folder button next to Settings opens his files: the Settings →
   Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
   its own, a full-height sheet on a phone.
+- **What he knows about, at a glance.** The identity card (the Card tab) shows his self-knowledge
+  brief right under its header: his topics with one line each and his main trails of thought, as
+  his last sleep wrote them, with "written … ago · version N". Before his first brief: "His brief
+  forms at his next sleep."; a gateway without the route: "This gateway does not serve his brief
+  yet." Needs AbstractGateway's `GET /entities/{name}/self-brief`.
 
 ### Changed
 

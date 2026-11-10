@@ -20,6 +20,7 @@ import { fetchDiaryEntry, gatewayReadHeaders } from "./stream_source";
 import { getCachedText, putCachedText, textCacheKey } from "./text_cache";
 import { CUT_SUMMARY_LINE } from "./understanding";
 import { WordsLine } from "./words_line";
+import { SelfBriefSection } from "./self_brief";
 import { shapeLabel } from "./node_label";
 import { AfChip, joinBaseUrl } from "@abstractframework/ui-kit";
 
@@ -486,10 +487,32 @@ export function IdentityCardContent({
       </div>
     );
   }
-  return <CardBody card={state.card} fold={fold} baseUrl={baseUrl} entity={entity} />;
+  return (
+    <CardBody
+      card={state.card}
+      fold={fold}
+      baseUrl={baseUrl}
+      entity={entity}
+      // His brief (self_brief.tsx, operator test round 2, 2026-11-10): its own read, under the header.
+      brief={<SelfBriefSection baseUrl={baseUrl} entity={entity} revision={revision} shown={shown} />}
+    />
+  );
 }
 
-export function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fold: FoldState | null; baseUrl: string; entity: string }): React.ReactElement {
+export function CardBody({
+  card,
+  fold,
+  baseUrl,
+  entity,
+  brief = null,
+}: {
+  card: EntityCard;
+  fold: FoldState | null;
+  baseUrl: string;
+  entity: string;
+  /** "What he knows about, at a glance" (self_brief.tsx), right under the header. */
+  brief?: React.ReactNode;
+}): React.ReactElement {
   const born = card.born ? new Date(card.born) : null;
   const substrate = card.mind_substrate;
   // Canonical compositor sections first; older gateway shapes as fallback.
@@ -564,6 +587,8 @@ export function CardBody({ card, fold, baseUrl, entity }: { card: EntityCard; fo
           ) : null}
         </div>
       </div>
+
+      {brief}
 
       {card.identity?.values?.length ? (
         <Section title="Values">

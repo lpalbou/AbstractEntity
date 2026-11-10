@@ -1,0 +1,10 @@
+/* His brief on the identity card (self_brief.tsx): the card's section, its date line, then his words. */
+.ic_brief_when {
+  margin: 0 0 6px;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+.ic_brief_text {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
