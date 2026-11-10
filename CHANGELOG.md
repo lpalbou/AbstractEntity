@@ -4,104 +4,16 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
-### Added
-
-- **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
-  root 1196; it replaces the turns / recall / recall-tokens bars and the five ledger lines under
-  them). While a turn runs, the chat shows one row per thing he does, newest at the bottom, the
-  running ones in bold: "Recalled passively: 44 memories" (his identity is not counted; open it for
-  the list, each memory opens in Detail), "Step 2 · thinking…" with the model and how long each
-  step took, "Recalled on purpose: “main topics”" for his memory tools (search, read, recent,
-  topics, book, feelings), "Tool: read_file — notes/plan.md" for the others (what it asked, in plain
-  words; open it for what it returned), "Writing this moment's title and summary…", then "Formed a
-  memory: …" or "Wrote in his book: …" (opens in Detail). Past five rows the earlier ones fold
-  into "N earlier". Once the turn is over the rows fold into one line above the composer ("Last
-  turn: 2 steps · 2 memory searches · 44 memories came to mind · 1 formed · 56 s") that opens them
-  again; a reload rebuilds it from the same record. His own visits read the visit run's ledger
-  (`GET /entities/{name}/visit/{run}/ledger`: once a second while a turn runs, only the new
-  records; nothing between turns); the flow brain reads its run's view and the memory stream.
-  Where his visit's record says more (AbstractRuntime's visit ledger fields), the rows do too:
-  "Recalled passively: 44 memories · Harbour work, The sea, Old letters" (the topics most of them
-  are in, by title; one topics read when a turn names a topic whose title the chat does not hold,
-  at most one per turn), "Step 2 of 50 · thinking…", and "Recalled on purpose: “main topics” → 7
-  found". A record without them reads as before (never "of ?" or "0 found"). A row's words are
-  plain text (a web address in a row is no second control inside it); a tool's nested arguments
-  read by their size ("headers: an object with 2 fields", "a list of 3 items"), here and in the
-  turn panel, never as JSON.
-- **Files, beside Settings.** A folder button next to Settings opens his files: the Settings →
-  Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
-  its own, a full-height sheet on a phone.
-- **What he knows about, at a glance.** The identity card (the Card tab) shows his self-knowledge
-  brief right under its header: his topics with one line each and his main trails of thought, as
-  his last sleep wrote them, with "written … ago · version N". Before his first brief: "His brief
-  forms at his next sleep."; a gateway without the route: "This gateway does not serve his brief
-  yet." Needs AbstractGateway's `GET /entities/{name}/self-brief`.
-
-### Changed
-
-- Relocked on the published kit: `@abstractframework/ui-kit` ^0.9.28 and `@abstractframework/panel-chat` ^0.9.12 from npm; the vendored conversation bundle re-exported from panel-chat 0.9.12 (inline `@` chips).
-- **Every entity card is the shared card, and it acts** (operator test round 2, 2026-11-10). The
-  "Summoned entities" grid draws each entity with ui-kit's `EntityCard`, the card every app uses,
-  over the entity's tile (`GET /entities/{name}/tile`, about 2 KB, in place of the full identity
-  card read). **Watch** is now a clear button in the card's head (it opens his page, where the
-  conversation starts). When his own time stopped unexpectedly, the card says the gateway's
-  sentence, why ("It stopped after repeated failures (Aug 4); its memory is intact.") and offers
-  **Retry**; when he is stopped, it says so and offers **Resume** (both through
-  `POST /entities/{name}/lifecycle`; "Retrying…" / "Resuming…" while they run, and a refusal in the
-  gateway's words under the button). The phase bar stays at the bottom of each card and no longer
-  repeats what the card says. Needs ui-kit 0.9.28.
-
-- **The closing notice is one line shorter.** While a visit closes, the notice says his reflection
-  runs and lists his acts as they land ("He wrote in his book", feelings moved); before any lands,
-  nothing more ("watching his stream for the reflection's acts… (the Ledger tab keeps the full
-  record)" is gone).
-- **A focused topic is a spotlight on the graph** (operator's test round 2, 2026-11-10: "today
-  barely" visible). Its circle is tinted, ringed at full strength and glows; each of its memories
-  carries a ring in the topic's colour; everything else sits under a veil, and the other circles
-  and their titles dim further. Its title is placed first and its plate is tinted. Circles at rest
-  are a little stronger, so topics read without a hover. The change eases in and out on the
-  graph's usual half-second dim.
-- **Hovering a topic in the Topics panel lights it on the graph** (Entity backlog 0002). Rest the
-  pointer on a topic, its facts or one of its memories for 150 ms, or move to its row with the
-  keyboard, and the graph shows it as a spotlight and dims the rest; sweeping across the list
-  lights nothing, and leaving the list brings back the focused topic, if any. A touch never
-  hovers: a tap still focuses the topic.
-- **The camera glides to a topic** (Entity backlog 0003). Clicking a topic still unfolds it and
-  frames its circle, now as a 300 ms eased move instead of a jump; Fit view and a lens or search
-  framing what it lights glide the same way. Your own pan or zoom during the move takes over at
-  once; with reduced motion the camera moves in one step.
-- **A topic says what it holds by memory type** (Entity backlog 0005). An unfolded topic says,
-  right under its title and before its summary, "118 episodes · 29 diary entries · 17 summaries ·
-  10 interests · 3 world models" (memory's own counts) and "last formed 11 hours ago · since 8 Jul
-  2026", so both show the moment it unfolds, on a phone too (they used to sit below a long summary,
-  out of view). Its memories are listed by type, one line per type with how many are listed ("118
-  episodes"), newest first inside each, open by default.
-- **The records outside his topics are hidden until you ask for them** (operator test round 2:
-  "why so many isolated nodes sit on the periphery arc?"). On castor's life that ring held 151
-  records, none of them a memory waiting for a topic: 149 closed ones (mostly near-identical
-  episodes merged on 2026-07-13, and old readings replaced) and 2 engine records. Memory never
-  puts these in a topic, so the graph no longer draws them by default. A pressed toggle after
-  **fit**, "◌ 151 outside topics" ("◌ 151" on a phone), shows them on their ring; a record you open
-  from the ledger still shows. Fit view frames what is drawn. The Topics panel's "newer memories
-  join a topic at his next sleep" line no longer counts engine records.
-- **The graph's legend is two lines and you can click it** (Entity backlog 0004: "at most 2 lines
-  at the bottom, never more; interactive"). The first line names what the memories are (identity,
-  memory, diary, feeling, scar, bond, then the kinds this life holds); the second line explains
-  the lines and colours (the usage scale, how old the last selection is, the link types). If a
-  line holds more than fits, it scrolls sideways instead of wrapping onto a third line; a phone
-  keeps its one scrollable row. Click a memory type or a link type and the graph lights where
-  those memories (or both ends of those links) are, dims the rest and frames them. Click again, or
-  press Escape, to let go.
-
 ## [0.12.0] - 2026-11-10
 
-On `@abstractframework/ui-kit` ^0.9.27 and `@abstractframework/panel-chat` ^0.9.11, both installed
-from npm (the app no longer bundles a package file of the chat kit). Needs AbstractGateway 0.21.0:
-the five-state phase bar, Stop and Resume, Settings → Mind (with Sleep), `@` mentions, reply
-badges, his topics and the cut-summary lines all read routes and fields that gateway serves. With
-an older gateway, the phase bar, Settings → Mind, mentions and topics each say in one sentence that
-the gateway does not serve them yet, reply badges and cut-summary lines do not appear, and the rest
-of the app works as before.
+On `@abstractframework/ui-kit` ^0.9.28 and `@abstractframework/panel-chat` ^0.9.12, both installed
+from npm (the app no longer bundles a package file of the chat kit; a mention picked with `@` now
+sits as a chip inside your sentence). Needs AbstractGateway 0.21.0: the five-state phase bar, Stop
+and Resume, Settings → Mind (with Sleep), `@` mentions, reply badges, his topics, his brief on the
+Card tab and the cut-summary lines all read routes and fields that gateway serves. With an older
+gateway, the phase bar, Settings → Mind, mentions, topics and his brief each say in one sentence
+that the gateway does not serve them yet, reply badges and cut-summary lines do not appear, and the
+rest of the app works as before.
 
 Highlights:
 
@@ -115,10 +27,22 @@ Highlights:
 - **What a reply kept, as badges** under his words (diary, lesson, interest, question,
   realization), each opening its record.
 - **The memory graph.** One grey-to-green usage scale, the paths he travelled to each recalled
-  memory (with their direction and meaning on hover), a Context legend, and hover that waits for
-  the pointer to rest.
+  memory (with their direction and meaning on hover), a Context legend, a two-line legend you click
+  to see where a kind of memory or link sits (it replaces the filter chips), and hover that waits
+  for the pointer to rest. Closed memories stay hidden until you ask for them.
 - **His topics.** The topics his memory forms in his sleep, with their authored titles, are the
-  graph's layout, and a Topics panel lists them with what his memory knows of each.
+  graph's layout. The Topics panel opens at the top right, and you can move and resize it; each
+  topic is a card in its circle's colour, with what his memory knows of it, its memory types and
+  the paths he travelled most, and a topic you point at is a spotlight on the graph.
+- **What he is doing, live.** While a turn runs, the chat shows each thing he does, row by row,
+  then folds the turn into one line above the message box.
+- **The Cognitive Monitor beside the timeline.** **Monitor**, after **Live** in the timeline's
+  controls, opens it under the graph; it follows the replay, and live, the reply in view.
+- **Entity cards that act, and simpler controls.** Each entity on the home page is the shared
+  card, with **Watch**, **Retry** when his own time stopped unexpectedly and **Resume** when he is
+  stopped. On his page, one status line that never moves the buttons, **Files** beside
+  **Settings**, and his self-knowledge brief on the Card tab. The blueprint page, the Wave tab, the
+  graph's filter chips and its reset button are gone.
 - **Fixes** from live use: playback no longer freezes the graph, the ledger names phase changes
   and his topics, older records whose summary was cut say so, the Context box and Topics panel keep
   their room on short phone screens and never cover each other, the open Topics panel lists
@@ -167,11 +91,11 @@ Highlights:
   panel lists several topics.** After castor's second topics night the open Topics panel showed
   about one topic at a time at 400 px and sat over the Context box, whose words showed through
   it. On a phone-width graph the Context box and the Topics panel now stand in one column under
-  the filter row, the Context box on top and the Topics line below it, whichever of them is open.
-  Opened, the Topics panel takes the Context box's place, from under the filter row down to the
+  the graph's toolbar, the Context box on top and the Topics line below it, whichever of them is open.
+  Opened, the Topics panel takes the Context box's place, from under the toolbar down to the
   bottom of the graph (the Context box comes back, as you left it, when the panel is folded); on a
-  graph too short for its heading and two topics under the filter row (a 400 × 700 phone) it also
-  covers the filter row until it is folded. A topic in the phone list shows its title (two lines
+  graph too short for its heading and two topics under the toolbar (a 400 × 700 phone) it also
+  covers the toolbar until it is folded. A topic in the phone list shows its title (two lines
   at most) and how many memories it holds; its summary shows once you select it. The open panel
   now lists at least two topics on a 400 × 700 phone and four on 400 × 860 (it was one, partly cut
   off). The panel's background is solid everywhere, so nothing under it shows through. The
@@ -192,9 +116,9 @@ Highlights:
   panel opened with nothing under its heading (its list was 0 px tall). Open, it now keeps its
   heading plus one topic row, reaching down over the motion buttons until it is folded again;
   taller screens are unchanged.
-- **"freeze" can be clicked again.** On a wide graph without topics, the lens row's box lay over
-  the four motion buttons, so a click on "freeze" did nothing. The buttons now wrap two by two
-  inside the room the lens row leaves them.
+- **"freeze" can be clicked again.** On a wide graph without topics, the toolbar's box lay over
+  the layout buttons, so a click on "freeze" did nothing. The buttons now wrap inside the room the
+  toolbar leaves them.
 - **Topic titles on the graph no longer re-measure the page every frame.** The rectangles of the
   panels over the graph are re-read only when one of them resizes, appears or changes, and the
   titles are placed again only when the view moves, the canvas or a panel changes, or the topics
@@ -231,7 +155,7 @@ Highlights:
   plain layout). A memory placed in a topic since his last sleep sits at its circle's rim with the
   badge "placed until his next sleep"; a newer memory no topic lists yet waits on a ring outside.
   You can drag a topic by its title: its circle moves, the circles it meets are pushed aside and
-  stay there (never pulled back), and the app remembers where you put them ("reset" forgets it).
+  stay there (never pulled back), and the app remembers where you put them.
   - **Titles are his, never the app's.** Each circle carries the topic's authored title, or "title
     being written…" while memory is still writing it. The keyword labels ("isabella-cognita,
     abstract-hand, last-turn") and the client-side topic layout are gone.
@@ -299,7 +223,7 @@ Highlights:
   21:40"), never its id and never a title the app makes up.
 - **The Context box on a short phone screen.** On a 400 × 700 screen the Context box kept a
   10-pixel sliver over the graph and a tap on it landed on "freeze". It now always keeps its
-  summary line, the graph's freeze, settle, reset and fit buttons move below it when the graph is
+  summary line, the graph's layout buttons (freeze, settle, fit) move below it when the graph is
   short, and a tap on the summary opens it. Its fold control is a real disclosure button for
   screen readers (expanded or not), and the count is announced once when the scrub stops, not at
   every step. Each row of the box says what it means in words, not only in a tooltip.
@@ -344,8 +268,8 @@ Highlights:
   ring, and the rest is dimmed. The Context box now explains the rings: present by right (memories
   he always keeps in mind), continuity (memories that followed from the last ones) and matched
   (memories found for this message), plus the lit lines and the grey-to-green scale. It is open on
-  a wide screen and folded on a phone; opened on a phone, it ends above the graph's freeze, settle,
-  reset and fit buttons and scrolls inside, so it never hides them.
+  a wide screen and folded on a phone; opened on a phone, it ends above the graph's layout
+  buttons and scrolls inside, so it never hides them.
 - **Hover a recall in the ledger to see it in the graph.** Resting the mouse on "He holds these in
   mind" (or its recall line) lights those memories in the graph and dims the rest, as a click
   does; moving away brings back what was lit. On a touch screen a tap still selects it.
@@ -596,6 +520,64 @@ Highlights:
 
 ### Added
 
+- **Move and resize the Topics panel** (backlog 0017 and 0001). On a wide graph the panel opens
+  at the top right, under the layout buttons, and grows downward. Drag the grip on its head to
+  move it anywhere on the graph, and its bottom-right corner to resize it (240 to 560 px wide, up
+  to the graph's height). A moved panel shows **put back** on its head, which docks it at the top
+  right again with its size kept. Your browser remembers where you left it. A topic you click is
+  framed in the part of the graph the panel leaves free, wherever the panel is, and the legend
+  under the graph ends before the docked panel. On a phone the panel stays a sheet; open, the sheet
+  now fills its column and only its list scrolls.
+- **The paths most travelled light up** (backlog 0015). In a topic's facts, each pair of memories
+  he used most together (up to five) is a row. Rest the pointer on it, or reach it with the
+  keyboard, and it shows the whole pair while the graph lights the two memories; click, tap or
+  press Enter to frame them, and they stay lit until you click the row again, pick another path,
+  change topic or fold the panel. On a phone a tapped path frames the pair and folds the panel so
+  you can see them.
+- **Memory types, one fold per topic** (backlog 0016). Each topic's card holds a **Memory types**
+  fold, closed by default. Open, it lists each type with its count, in that type's colour on the
+  graph. Rest on a type, or reach it with the keyboard, to light those memories on the graph;
+  click it (or press Enter or →) to unfold its memories, newest first, and the panel scrolls to
+  show them.
+- **The Cognitive Monitor opens from the timeline** (backlog 0018). **🧠 Monitor**, after **Live**
+  in the timeline's controls, opens the monitor under the graph, above the timeline, and closes it
+  again. It follows the timeline: while you replay, his words at the timeline's position (press
+  **read his words** to score them); live with his conversation open, the reply in view, with its
+  conduct gauge. The side panel keeps its full height beside it, and the monitor takes at most
+  38 % of the screen's height, scrolling inside. On a phone it takes the graph's place until you
+  close it. A closed monitor reads nothing.
+- **"just travelled" in the legend.** The legend's second line names the amber line: two memories
+  he used together a moment ago. It fades as he goes on.
+- **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
+  root 1196; it replaces the turns / recall / recall-tokens bars and the five ledger lines under
+  them). While a turn runs, the chat shows one row per thing he does, newest at the bottom, the
+  running ones in bold: "Recalled passively: 44 memories" (his identity is not counted; open it for
+  the list, each memory opens in Detail), "Step 2 · thinking…" with the model and how long each
+  step took, "Recalled on purpose: “main topics”" for his memory tools (search, read, recent,
+  topics, book, feelings), "Tool: read_file — notes/plan.md" for the others (what it asked, in plain
+  words; open it for what it returned), "Writing this moment's title and summary…", then "Formed a
+  memory: …" or "Wrote in his book: …" (opens in Detail). Past five rows the earlier ones fold
+  into "N earlier". Once the turn is over the rows fold into one line above the composer ("Last
+  turn: 2 steps · 2 memory searches · 44 memories came to mind · 1 formed · 56 s") that opens them
+  again; a reload rebuilds it from the same record. His own visits read the visit run's ledger
+  (`GET /entities/{name}/visit/{run}/ledger`: once a second while a turn runs, only the new
+  records; nothing between turns); the flow brain reads its run's view and the memory stream.
+  Where his visit's record says more (AbstractRuntime's visit ledger fields), the rows do too:
+  "Recalled passively: 44 memories · Harbour work, The sea, Old letters" (the topics most of them
+  are in, by title; one topics read when a turn names a topic whose title the chat does not hold,
+  at most one per turn), "Step 2 of 50 · thinking…", and "Recalled on purpose: “main topics” → 7
+  found". A record without them reads as before (never "of ?" or "0 found"). A row's words are
+  plain text (a web address in a row is no second control inside it); a tool's nested arguments
+  read by their size ("headers: an object with 2 fields", "a list of 3 items"), here and in the
+  turn panel, never as JSON.
+- **Files, beside Settings.** A folder button next to Settings opens his files: the Settings →
+  Files browser (his home workspace, one folder at a time, a file's text; read-only) in a dialog of
+  its own, a full-height sheet on a phone.
+- **What he knows about, at a glance.** The identity card (the Card tab) shows his self-knowledge
+  brief right under its header: his topics with one line each and his main trails of thought, as
+  his last sleep wrote them, with "written … ago · version N". Before his first brief: "His brief
+  forms at his next sleep."; a gateway without the route: "This gateway does not serve his brief
+  yet." Needs AbstractGateway's `GET /entities/{name}/self-brief`.
 - **Settings → Mind says which model each part of his thinking uses, and how far his memory reaches
   per turn.** Under the mind's model, three rows (Summaries and memory details, Understanding and
   dreams, Extraction) each offer "Same as the mind" or a model of their own, with its reasoning; the
@@ -616,6 +598,76 @@ Highlights:
 
 ### Changed
 
+- **One status line, then Files and Settings** (backlog 0013). The sentences beside the phase bar
+  (his own time stopped after repeated failures, a warning that stop requests may not land, the
+  phase-rule notes, sign-in notes, why his day began) share one line between the phase bar and the
+  buttons: never wrapped, ended with "…" when too long, the whole sentence on hover. A sentence
+  that appears or goes no longer moves the buttons or the graph. The buttons read **Files**, then
+  **Settings**. When he is stopped, the stop's sentence shows in red in the phase bar's own line.
+- **The legend replaces the filter chips** (backlog 0019). The graph's toolbar keeps **search**,
+  **topics** and **Context**; the All, Identity, Recent, Warm, Feelings, Diary, Dreams and
+  Questions chips and the "N emphasized" count are gone. To see where a kind of memory or a kind of
+  link sits, click it in the legend under the graph. A focused topic keeps its chip in the
+  toolbar: click it to let the topic go.
+- **One card per topic, in its colour** (backlog 0014). In the Topics panel each topic, with what it
+  unfolds, sits in one rounded card tinted with its circle's colour on the graph; the selected card
+  is tinted a little more. The text keeps a contrast of at least 4.5:1 on all twelve topic
+  colours, in dark and light themes.
+- **Every entity card is the shared card, and it acts** (operator test round 2, 2026-11-10). The
+  "Summoned entities" grid draws each entity with ui-kit's `EntityCard`, the card every app uses,
+  over the entity's tile (`GET /entities/{name}/tile`, about 2 KB, in place of the full identity
+  card read). **Watch** is now a clear button in the card's head (it opens his page, where the
+  conversation starts). When his own time stopped unexpectedly, the card says the gateway's
+  sentence, why ("It stopped after repeated failures (Aug 4); its memory is intact.") and offers
+  **Retry**; when he is stopped, it says so and offers **Resume** (both through
+  `POST /entities/{name}/lifecycle`; "Retrying…" / "Resuming…" while they run, and a refusal in the
+  gateway's words under the button). The phase bar stays at the bottom of each card and no longer
+  repeats what the card says. Needs ui-kit 0.9.28.
+
+- **The closing notice is one line shorter.** While a visit closes, the notice says his reflection
+  runs and lists his acts as they land ("He wrote in his book", feelings moved); before any lands,
+  nothing more ("watching his stream for the reflection's acts… (the Ledger tab keeps the full
+  record)" is gone).
+- **A focused topic is a spotlight on the graph** (operator's test round 2, 2026-11-10: "today
+  barely" visible). Its circle is tinted, ringed at full strength and glows; each of its memories
+  carries a ring in the topic's colour; everything else sits under a veil, and the other circles
+  and their titles dim further. Its title is placed first and its plate is tinted. Circles at rest
+  are a little stronger, so topics read without a hover. The change eases in and out on the
+  graph's usual half-second dim.
+- **Hovering a topic in the Topics panel lights it on the graph** (Entity backlog 0002). Rest the
+  pointer on a topic, its facts or one of its memories for 150 ms, or move to its row with the
+  keyboard, and the graph shows it as a spotlight and dims the rest; sweeping across the list
+  lights nothing, and leaving the list brings back the focused topic, if any. A touch never
+  hovers: a tap still focuses the topic.
+- **The camera glides to a topic** (Entity backlog 0003). Clicking a topic still unfolds it and
+  frames its circle, now as a 300 ms eased move instead of a jump; Fit view, a search and a legend
+  pick framing what they light glide the same way. Your own pan or zoom during the move takes over
+  at once; with reduced motion the camera moves in one step.
+- **A topic says what it holds by memory type** (Entity backlog 0005). An unfolded topic says,
+  right under its title and before its summary, "118 episodes · 29 diary entries · 17 summaries ·
+  10 interests · 3 world models" (memory's own counts) and "last formed 11 hours ago · since 8 Jul
+  2026", so both show the moment it unfolds, on a phone too (they used to sit below a long summary,
+  out of view). Its memories are listed by type in the topic's **Memory types** fold (see Added).
+- **Closed memories are hidden until you ask for them** (operator test rounds 2 and 3, backlog
+  0021: "why so many isolated nodes sit on the periphery arc?"). The ring outside his topics held
+  records his memory never puts in a topic: memories closed when a newer version replaced them or
+  when they were retracted, engine records, and the link between two versions of a topic. The
+  graph no longer draws them by default. A pressed toggle after **fit** names what it shows,
+  "◌ 132 closed memories" (the count alone on a narrow graph), says on hover how they were closed
+  ("132 closed memories: 132 replaced by a newer version") and shows them on their ring. Engine
+  records stay hidden and are never counted; a record you open from the Ledger tab still shows.
+  The link between two versions of a topic is no longer a dot on the graph, nor a line in the
+  Ledger tab, the **watch all** tiles or a closing visit's acts. Fit view frames what is drawn.
+  The Topics panel's "newer memories join a topic at his next sleep" line no longer counts engine
+  records.
+- **The graph's legend is two lines and you can click it** (Entity backlog 0004: "at most 2 lines
+  at the bottom, never more; interactive"). The first line names what the memories are (identity,
+  memory, diary, feeling, scar, bond, then the kinds this life holds); the second line explains
+  the lines and colours (the usage scale, how old the last selection is, the link types). If a
+  line holds more than fits, it scrolls sideways instead of wrapping onto a third line; a phone
+  keeps its one scrollable row. Click a memory type or a link type and the graph lights where
+  those memories (or both ends of those links) are, dims the rest and frames them. Click again, or
+  press Escape, to let go. This legend replaces the graph's filter chips (backlog 0019).
 - **Every text renders its Markdown.** Ledger rows, the Now line, the Book, Lessons and World,
   the identity card, world-model cards and their sources, Health, the turn panel, the meet reader
   and the entities list show bold, italics, code and links instead of raw markers. No image in
@@ -641,7 +693,7 @@ Highlights:
   the time bar follows the play position every frame while the rest of the page catches up a few
   times a second, and pausing stops exactly where the bar shows.
 - **Cognitive Monitor: the numbers speak.** No sentence under the bloom; each tone channel prints
-  its signed score (Wave tab too); "—" marks a value that does not exist; the three-letter codes
+  its signed score; "—" marks a value that does not exist; the three-letter codes
   are labels, and resting on one for a moment (or a long press on a phone) opens a small card
   explaining it with this reply's value; failed tool calls reach the gauge.
 - **A lived moment reads facts and summary first.** Clicking an episode now shows what kind of
@@ -684,6 +736,17 @@ Highlights:
   each opens with a title and one line saying what it is for, with the long explanations folded
   under "How … works". The window, its menus, switches and buttons are the shared AbstractFramework
   ones, and every setting saves exactly as before.
+
+### Removed
+
+- **The blueprint page** (backlog 0022). The page, its **blueprint** button on the entities list
+  and the `?page=blueprint` address are gone; an old link opens the entities list. The notes
+  beside the phase bar say "phase rules modulated" or "phase rules drift". The phase graph and the
+  cognition map stay in `spec/`, and AbstractGateway serves both.
+- **The Wave tab and the monitor at the top of the chat** (backlog 0018). The Cognitive Monitor
+  opens from the timeline instead (see Added).
+- **The graph's reset button** (backlog 0020). **fit** stays, and where you dragged a topic's circle
+  is kept.
 
 ### Fixed
 

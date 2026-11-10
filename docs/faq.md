@@ -39,11 +39,21 @@ is idle, once 24 hours have passed since its last sleep, or it has formed 500
 new memories since then, it sleeps for maintenance and comes back idle. See
 [The entity life cycle](entity-phases.md).
 
-## What does the cognition wave measure?
+## What does the Cognitive Monitor measure?
 
 The expressive character of the entity's own words (visit replies, diary,
 summaries), scored against a fixed basis with the entity's own embedding model.
-It does not measure inner state, and sealed diary entries are never read.
+It does not measure inner state, and sealed diary entries are never read. Open
+it with **Monitor**, after **Live** in the timeline's controls: it docks under
+the graph and reads his words at the timeline's position (**read his words**
+scores them) or, live with the chat open, the reply in view.
+
+## How do I read the graph's colours?
+
+Grey to green is how often he used a memory or a pair of memories; amber is a
+pair he used together a moment ago; after a reply, gold, pink and blue rings
+say why each recalled memory came (present by right, continuity, matched). See
+[Reading the memory graph](../README.md#reading-the-memory-graph).
 
 ## Why is some diary text hidden?
 

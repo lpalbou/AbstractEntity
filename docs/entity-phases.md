@@ -150,7 +150,9 @@ keeps everything as it is.
 - Stop is always available, even while another change you made is still on
   its way.
 - After a stop the bar shows what it did, for example "Own time was
-  revoked.", and a banner says "Stopped. Nothing runs until you resume him."
+  revoked.", and the line beside the pills says it in red, for example
+  "Stopped. Nothing runs until you resume him."; nothing else on the page
+  moves.
   When part of the stop could not finish, the bar names it and keeps a second
   **Stop** beside **Resume** so you can try again; the entity stays stopped
   either way.
@@ -193,6 +195,12 @@ message forms none. Sleep is when the entity consolidates what it has formed.
   done, his own time resumes.").
 - **Tooltips** say what each pill does, or why it cannot act now.
 - **Refusals** appear in the bar as sentences.
+- **The status line** between the bar and the **Files** and **Settings**
+  buttons holds the page's other sentences (for example "his own time stopped
+  after repeated tick failures — restart when ready", a phase-rule note or a
+  sign-in note): one line, ended with "…" when it is too long, the whole
+  sentence on hover. A sentence appearing or going never moves the buttons or
+  the graph.
 
 The bar follows changes as they happen and reads the entity again every 15
 seconds. The tiles on the entities list show the same pills and sentence;
@@ -224,8 +232,9 @@ page never scrolls sideways; swipe the controls row to reach **Settings**.
 
 The machine-readable rules live in
 [`spec/entity_phases.json`](../spec/entity_phases.json) (version 25), which
-the blueprint page (`/?page=blueprint`) draws and edits and which
-AbstractGateway and AbstractRuntime check themselves against. In that file, visit, work, personal
+AbstractGateway and AbstractRuntime check themselves against and the gateway
+serves; the app compares the served copy with its own and says "phase rules
+drift" beside the phase bar when they differ. In that file, visit, work, personal
 and sleep are the four phases of the graph, and idle and stopped are states
 outside it, so no edge lands on them. When this page and the file differ,
 follow the file. The routes behind the phase bar are listed in

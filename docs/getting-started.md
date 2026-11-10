@@ -118,7 +118,9 @@ state and how to read the bar.
 
 ## Next steps
 
-- Tour the tabs described in the [README](../README.md#what-you-can-do-in-the-app).
+- Tour the tabs described in the [README](../README.md#what-you-can-do-in-the-app),
+  and learn to read the graph's colours in
+  [Reading the memory graph](../README.md#reading-the-memory-graph).
 - On a phone or tablet, see how the layout adapts in
   [Responsive layout](../README.md#responsive-layout).
 - Open **convene a meet** on the entities list to put two entities in one

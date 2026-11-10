@@ -57,7 +57,6 @@ AbstractUIC `app-server` documentation.
 | --- | --- |
 | `/` | The entities list (or **No entities yet** with **Create your first entity**) |
 | `/#new` (also `/#/new`) | The entities list with the creation form open; the fragment is cleared when the form closes |
-| `/?page=blueprint` | The blueprint page: the lifecycle state graph, operator dials and the cognition map |
 | `/?entity=NAME` | One entity's page, starting on its live present |
 | `/?entity=NAME&live=0` | One entity's page, replaying its life from the start |
 | `/?gateway=URL&entity=NAME` | One entity on a gateway at another origin (direct sign-in, token kept in memory for the tab) |
@@ -87,7 +86,7 @@ of invented data.
 | Entities | `GET /entities` (list; also the names offered by `@` in a conversation), `POST /entities` (create: `name`, optional `spark_text`, `framework`), `POST /entities/auth/probe` |
 | Life stream | `GET /entities/{name}/replay` (NDJSON), `GET /entities/{name}/replay/stream` (SSE) |
 | Records | `GET /entities/{name}/records/{id}/verbatim`, `GET /entities/{name}/diary/{id}` |
-| Life cycle | `GET /entities/{name}/life_state`, `PUT /entities/{name}/life_state/toggles`, `POST /entities/{name}/lifecycle`, `POST /entities/{name}/state` (sleep now); `GET /entities/{name}/loop` and `/seat` (reads); `GET`/`PUT /entities/spec/phases` (the blueprint). See [Life cycle](#life-cycle-the-phase-bar) |
+| Life cycle | `GET /entities/{name}/life_state`, `PUT /entities/{name}/life_state/toggles`, `POST /entities/{name}/lifecycle`, `POST /entities/{name}/state` (sleep now); `GET /entities/{name}/loop` and `/seat` (reads); `GET /entities/spec/phases` (the served phase graph, compared with the bundled copy for the "phase rules" notes). See [Life cycle](#life-cycle-the-phase-bar) |
 | Card and metrics | `/entities/{name}/tile` (the home grid draws each entity with the ui-kit `EntityCard` from `GET /entities`, whose rows carry `state`, then reads tiles three at a time once that entity's `/loop` and `life_state` answered, kept until 5 minutes pass, the row's `state.changed_at` moves or the served phase's `rev` moves; the card's **Watch** opens the entity, **Retry** and **Resume** post `lifecycle`), `/card` (the Card tab), `/footprint`, `/cognition`, `/communities`, `/embedding` |
 | Visits and chat | `/entities/{name}/visit/open`, `/visit/{run}/turn`, `/tick`, `/close`, `/transcript`, `/state`, `/guidance`, `/answer`, `/decision`, `/ledger` (the live activity panel: the visit run's records after a cursor, read once a second while a turn runs; where served it reads `topic` on each recall handle, `iteration` and `max_iterations` on the `reason` model call, and `hits` on a `search_memory` result); `/chat/open`, `/chat/{id}/turn`, `/close`, `/transcript`; `/summon`; `/queue/{id}`; `POST /sessions/{session_id}/mentions` (see [Mentions](#mentions-in-a-conversation)) |
 | Settings | `/entities/{name}/substrate`, `/cognition-profile` (Settings → Mind, including the Sleep card), `/prompt`, `/tool-policy`, `/skills`, `/workspace`, `/workspace/file`, `/workspace/mounts`, `/access`; `GET /voice/voices`, `GET /voice/defaults` |
@@ -95,7 +94,7 @@ of invented data.
 | Track record (AbstractGateway 0.20.0) | `GET /entities/{name}/track-record`, `/reputation`, `/acquaintances`, read when the tab opens |
 | Voice in a visit | `POST /entities/{name}/voice/tts/stream` (speak a reply in the entity's own voice, sentence by sentence); `POST /attachments/upload` (the recording, into session `entity_voice_<name>`) then `POST /runs/{run}/audio/transcribe` (dictation) |
 | Meets | `POST /entities/meets/open`, `/entities/meets/{id}/relay`, `/close`, `GET /entities/meets/{id}` |
-| Other | `POST /embeddings` (cognition wave; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
+| Other | `POST /embeddings` (the Cognitive Monitor; 503 = no embedding route: the monitor says so and links to the console's Multimodal page), `/docs/corpus` (top-bar assistant), `GET /about` (versions in the About dialog) |
 
 ### Life cycle (the phase bar)
 
@@ -324,7 +323,8 @@ AbstractGateway; see their documentation for request and response shapes.
   `GET /api/gateway/entities/spec/phases`. Human-readable companion:
   [The entity life cycle](entity-phases.md).
 - [`spec/cognition_graph.json`](../spec/cognition_graph.json): the cognition map
-  drawn on the blueprint page.
+  of how an entity's memory is built, served by the gateway at
+  `GET /api/gateway/entities/spec/cognition-graph`. The app does not draw it.
 
 ## Related
 

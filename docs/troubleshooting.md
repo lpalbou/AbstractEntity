@@ -89,12 +89,12 @@ serve topics yet."
 upgrade the gateway to AbstractGateway 0.21.0 or newer. See
 [His topics](api.md#his-topics-the-graphs-layout).
 
-## The Wave tab refuses to score
+## The Cognitive Monitor refuses to score
 
-**Cause:** the cognition wave scores only with the entity's own embedding model;
-if the gateway's embeddings do not match the scorer's basis, or the gateway has
-no embedding endpoint, the wave stops with an explanation rather than showing
-invented scores.
+**Cause:** the Cognitive Monitor scores only with the entity's own embedding
+model; if the gateway's embeddings do not match the scorer's basis, or the
+gateway has no embedding endpoint, the monitor stops with an explanation rather
+than showing invented scores.
 
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.

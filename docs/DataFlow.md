@@ -49,18 +49,21 @@ consistent at any scrub position.
 
 | Surface | Reads | Produces |
 | --- | --- | --- |
-| Memory graph | `FoldState.nodes/edges` + `temporal_activation` → `graph_usage` | force-laid canvas, lenses, usage scale, Context paths |
+| Memory graph | `FoldState.nodes/edges` + `temporal_activation` → `graph_usage`; his topics (`GET /communities`) | canvas laid out by his topics (force-laid until they are served), legend picks, usage scale, Context paths, the Topics panel |
 | Detail | selected node + `fetchRecordVerbatim` / `fetchDiaryEntry` | verbatim, feelings, associations |
 | Book | `FoldState` diary nodes (`selectDiaryEntries`) | day-grouped journal → diary door on click |
 | Health | `computeHealthMetrics(FoldState)` + `fetchEntityFootprint` | re-use / concentration / forgetting / kind mix + on-disk bytes |
-| Wave | `harvestUtterances` → `embedTexts` → vendored scorer | scored samples → Bloom canvas |
+| Cognitive Monitor | `harvestUtterances` → `embedTexts` → vendored scorer, at the timeline's position; live with the chat open, the reply in view | scored samples → the bloom |
 | Ledger | `FoldState` beats/host markers (`ledgerLine`) | the continuous life ledger |
 | Meet console | `openMeet` / `relayMeet` / `closeMeet` / `fetchMeetStatus` | live two-leg transcript |
 
-## The cognition-wave pipeline (the one multi-step seam)
+## The Cognitive Monitor pipeline (the one multi-step seam)
 
-This is the only surface whose data is not a direct fold read — it is a
-feed the app owns feeding a scorer uic owns:
+The Cognitive Monitor, opened with **Monitor** in the timeline and docked under
+the graph, is the only surface whose data is not a direct fold read — it is a
+feed the app owns feeding a scorer uic owns. It reads only while it is open,
+and his words at the timeline's position only when you press **read his
+words**:
 
 ```
 FoldState + chat transcript
@@ -74,7 +77,7 @@ Utterance[] { id, label, text, at, source }
    │    └─ scorer.score(vector)  (vendored createScorer + frozen basis_v0)
    ▼
 ScoredSample[] { scores, emotions, novelty, ... }
-   │  cognition_wave_panel.tsx  (uic's core.js physics + render_bloom.js on a canvas)
+   │  cognition_wave_panel.tsx  (the ui-kit's AfCognitionBloom)
    ▼
 the bloom — framing label always on; wandering labeled session-relative
 ```
@@ -92,6 +95,6 @@ message with no gateway, no utterances, or an embed failure. The vendored
   metrics).
 - **Disk at rest** → the gateway footprint endpoint (health "on disk").
 - **Words behind a memory** → the verbatim/diary operator doors.
-- **Expressive character of words** → the cognition-wave scorer (never
+- **Expressive character of words** → the Cognitive Monitor's scorer (never
   presented as inner state).
 - **Live conversation** → the gateway chat/meets APIs.

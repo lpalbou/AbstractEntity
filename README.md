@@ -14,9 +14,14 @@ queued for him, the red **Stop** halts everything and cancels his own time, and 
 him back idle. **Settings → Mind → Sleep** sets when an idle entity sleeps for maintenance. In a
 conversation, type `@` to bring other entities in; each answers once, under its own name. Under
 a reply, badges show what the turn kept (a diary entry, a lesson, an interest, a question, a
-realization). The memory graph is laid out by the topics his memory forms in his sleep, with a
-**Topics** panel, a grey-to-green usage scale and the paths he travelled to each recalled memory.
-All of this needs AbstractGateway 0.21.0. See the [changelog](CHANGELOG.md#0120---2026-11-10).
+realization), and while he answers, the chat shows what he is doing, step by step. The memory
+graph is laid out by the topics his memory forms in his sleep, with a grey-to-green usage scale and
+the paths he travelled to each recalled memory. The **Topics** panel opens at the top right, and
+you can move and resize it; each topic is a card in its colour, with its memory types and the paths
+he travelled most. A legend you can click shows where each kind of memory or link sits, and
+**Monitor** beside **Live** in the timeline opens the Cognitive Monitor under the graph. All of
+this needs AbstractGateway 0.21.0. See the [changelog](CHANGELOG.md#0120---2026-11-10) and
+[Reading the memory graph](#reading-the-memory-graph).
 
 0.11.2 shows every entity on the home page at once: each tile appears as soon as the
 list arrives and fills in on its own, and a slow entity no longer holds the others on
@@ -111,16 +116,16 @@ for every launch flag.
 ## What you can do in the app
 
 - **Entities list** (`/`): create entities, open one, watch them all at once
-  (**watch all**), convene two of them into one conversation (**convene a
-  meet**), and open the **blueprint** page that shows how every entity's
-  memory and daily cycle work.
+  (**watch all**) and convene two of them into one conversation (**convene a
+  meet**). Each entity is a card with **Watch**, **Retry** when its own time
+  stopped unexpectedly and **Resume** when it is stopped.
 - **Entity page** (`/?entity=NAME`): the memory graph, the chat, and a set of
   reading tabs over the same life.
 
 | Surface | What it shows |
 | --- | --- |
-| Phase bar | Where the entity is in its life cycle (idle, own time, work, visit, sleep or stopped), with a sentence, since when and where it goes next ("then: own time"); the **personal** toggle that grants its own time, **sleep now**, and the red **Stop** (or **Resume**). See [The entity life cycle](docs/entity-phases.md) |
-| Memory graph | The entity's memories as a live graph, laid out by his topics (the groups his memory forms and titles in his sleep; with **topics** on, their circles, titles and the **Topics** panel), or as a force-directed graph until his topics are served (before his first sleep, or on an older gateway). Memories and lines run from grey (rarely used) to green (most used). After a reply, the **Context** view lights what he held in mind and the paths he travelled to each recalled memory. With search, lenses (identity, recent, warm, feelings, diary, dreams, questions), replay, time scrub and live tail |
+| Phase bar | Where the entity is in its life cycle (idle, own time, work, visit, sleep or stopped), with a sentence, since when and where it goes next ("then: own time"); the **personal** toggle that grants its own time, **sleep now**, and the red **Stop** (or **Resume**). Beside it, one status line (the whole sentence on hover) and the **Files** (his home workspace, read-only) and **Settings** buttons. See [The entity life cycle](docs/entity-phases.md) |
+| Memory graph | The entity's memories as a live graph, laid out by his topics (the groups his memory forms and titles in his sleep; with **topics** on, their circles, titles and the **Topics** panel), or as a force-directed graph until his topics are served (before his first sleep, or on an older gateway). Memories and lines run from grey (rarely used) to green (most used). After a reply, the **Context** view lights what he held in mind and the paths he travelled to each recalled memory. The toolbar holds **search**, **topics** and **Context**; the two-line legend under the graph names the kinds of memories and lines, and a click on one lights where they sit. With replay, time scrub and live tail. See [Reading the memory graph](#reading-the-memory-graph) |
 | Chat | Visits: talk with the entity, see its reasoning cycles and tool use, adjust its mind (Gateway default or its own provider and model), its identity (avatar design, colour and voice, with their history), files, tools and system prompt in **Settings**, and read its track record (what it has done, trust by task, whom it has met) — an admin or the entity's creator changes them (gateway 0.14+: someone else reads its mind and identity with the gateway's sentence "Only an admin or <entity>'s creator can change its settings."). Replies can be read aloud in the entity's own voice (sentence by sentence, **Stop** any time) and the composer microphone dictates through the gateway's default speech-to-text route. In its **tools** tab each tool in each phase is a switch that applies at once and writes only that phase to `tool_policy.yaml`; a refused change switches back and shows the reason |
 | Card | The entity's identity card: values, purposes, likes, open questions, interests, key moments and life so far |
 | Detail | One memory: its verbatim text, feelings and associations |
@@ -128,12 +133,12 @@ for every launch flag.
 | Lessons | What the entity has learned and kept |
 | World | The entity's short orientation cards about people, systems and ideas it has met |
 | Health | Memory counts, recall coverage, sessions, model usage and on-disk footprint |
-| Wave | The cognition wave: the expressive character of the entity's own words over time (not its inner state) |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
+| Cognitive Monitor | Opened with **🧠 Monitor**, after **Live** in the timeline's controls, under the graph: the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay (**read his words** scores them) and, live with the chat open, for the reply in view |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
-of entities your account can see, and it becomes a chip in the message box (the
+of entities your account can see, and it becomes a chip inside your sentence (the
 first pick says "Nerin will read this conversation's history"). When you send,
 the entity you are talking with answers first, then each entity you picked, one
 after the other in your order, so the second one reads the first one's answer.
@@ -186,6 +191,34 @@ explore the memory graph offline.
 The **About** button in the top bar shows the app's version, the AbstractFramework
 and AbstractGateway versions your gateway reports, and the project links; see [the FAQ](docs/faq.md#how-do-i-see-which-versions-i-am-running).
 
+### Reading the memory graph
+
+Each dot is a memory. Its fill runs from dark grey (rarely used) to green (most used), ranked
+within his own life, and the lines between memories follow the same scale for how often he used
+the two together. Zoomed in, a small core shows the memory's kind, in the colours of the legend's
+first line. An amber (orange) line is a pair he used together a moment ago; it fades as he goes
+on.
+
+After a reply, **Context** lights what he held in mind and rings each memory by why it came: gold
+for the memories he always keeps in mind (present by right), pink for continuity (memories that
+followed from the last ones) and blue for the memories found for this message (matched). A lit
+line is the path he travelled to reach a recalled memory, in its ring's colour: pink for a trail
+followed from the last memories, blue for this message's match. The links his memory names
+(`continues`, `derived_from`, `mentions` and the others) are always faint grey, with a mark at the
+end they point to (an arrow, a double chevron, a circle, a diamond, a square or a bar); the legend
+lists them by name. The Context box over the graph says what each ring and the lit lines mean.
+
+Click a kind or a link type in the legend to light where those memories sit and frame them; click
+it again, or press Escape, to let go. Memories closed when a newer version replaced them, or when
+they were retracted, stay hidden until you press the "◌ N closed memories" toggle after **fit**.
+
+With **topics** on, each topic is a circle with its title, and the **Topics** panel lists them,
+each a card in its circle's colour. On a wide graph the panel is docked at the top right: drag the
+grip on its head to move it, its bottom-right corner to resize it, and **put back** to dock it
+again; your browser remembers where you left it. Unfold a topic for what his memory knows of it:
+its **Memory types** fold (rest on a type to light those memories, click it to list them) and its
+paths most travelled (rest on a pair to light the two memories, click it to frame them).
+
 ## Responsive layout
 
 The app works on a phone, a tablet, a resized browser window and a wide
@@ -205,27 +238,25 @@ monitor.
   words, **Stop**, then its sentence and any question on lines of their own.
 - **On-screen keyboard:** while the keyboard is open, an open panel fills the
   screen above it with the tab strip kept underneath, so the chat stays usable.
-- **Graph overlays:** when the graph is narrower than 860 px, the lens chips and
-  the legend become one scrollable row each and the layout buttons (freeze,
-  settle, reset, fit) show their symbols only.
-- **Blueprint zoom bar:** the memory blueprint (`/?page=blueprint`) has **fit**,
-  **−**, **+** and **reset** buttons. On a phone the map scrolls inside its
-  frame; pinch-zoom also works.
+- **Graph overlays:** when the graph is narrower than 860 px, the toolbar
+  (search, topics, Context) and the legend become one scrollable row each, the
+  layout buttons (freeze, settle, fit) show their symbols only, and the
+  **Topics** panel stays in place: it sits under the Context box and opens as a
+  sheet over the graph.
+- **Cognitive Monitor:** on a phone the open monitor takes the graph's place;
+  press **Monitor** again to get the graph back.
 - **Full-width panels on phones:** below 768 px the chat transcript, the
   ledger, the health panel and the entity list are flat sections without card
   borders, with a thin line between items and text that starts at the screen
   gutter.
 - **Folding lists:** below 1024 px, where the side panel is a drawer, each list
   in the Detail tab has a heading you tap to fold it. Lists start open, and the
-  app remembers each fold in this browser. On a phone the Cognitive Monitor
-  starts folded, so the conversation gets the drawer; unfold it once and the
-  app remembers your choice.
+  app remembers each fold in this browser.
 - **Touch screens:** buttons, selects and fields are at least 44 px tall, text
   fields use 16 px text, no text is smaller than 14 px, and the chat
   transcript reads at 15 px.
 - **Text on a desktop:** text is at least 13 px, and the ledger and the tool
-  grants at least 12 px. The graph's node labels and the blueprint map keep
-  their own sizes; the map's zoom buttons read it closer.
+  grants at least 12 px. The graph's node labels keep their own sizes.
 
 Limits:
 

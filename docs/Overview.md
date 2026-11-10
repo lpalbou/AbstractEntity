@@ -41,16 +41,20 @@ silently, and a single malformed line that must never brick the view.
   ingest with `normalizeEnvelope` at every boundary; a pure incremental fold
   that yields `FoldState` (nodes, edges, standings, beats, sessions,
   attention windows) at any scrub position.
-- **Memory graph** (`graph_canvas.tsx`, `graph_lenses.ts`,
+- **Memory graph** (`graph_canvas.tsx`, `graph_canvas_legend.tsx`,
   `force_layout.ts`, `graph_usage.ts`, `topic_layout.ts`, `topics_panel.tsx`)
   — the mind as a live graph laid out by the topics his memory forms in his
-  sleep (force-directed until they are served), with a Topics panel, lenses, a grey-to-green usage scale ranked within each life, the
-  Context view (the memories of a recall and the paths travelled to reach
-  them), and durable spatial memory.
+  sleep (force-directed until they are served), with a Topics panel you can
+  move and resize (one card per topic, its memory types and paths most
+  travelled), a two-line legend you click to see where a kind of memory or
+  link sits, a grey-to-green usage scale ranked within each life, the Context
+  view (the memories of a recall and the paths travelled to reach them), and
+  durable spatial memory.
 - **Reading surfaces** — **Book** (`book_reader.tsx`): the diary as a
   chronological journal; **Health** (`health_panel.tsx` + `health_metrics.ts`):
-  memory-shape metrics + on-disk footprint; **Cognition Wave**
-  (`cognition_wave_panel.tsx`): uic's text-mood instrument.
+  memory-shape metrics + on-disk footprint; **Cognitive Monitor**
+  (`cognition_wave_panel.tsx`, opened with **Monitor** in the timeline):
+  uic's text-mood instrument, docked under the graph.
 - **Visits** (`chat_drawer.tsx`, `workspace_panel.tsx`) — turns with cycle
   visibility, steering, per-phase grants; the fabricated-liveness guard.
 - **Meets** (`meet_reader.tsx`, `meet_console.tsx`) — read a past shared
@@ -72,8 +76,8 @@ AbstractRuntime and AbstractMemory; this app uses them over HTTP. See
 These are load-bearing and test-pinned:
 
 - Diary redaction is honored in the pixel path and never reconstructed; a
-  sealed entry's words never enter any feed (Book, Cognition Wave).
-- The cognition wave always carries "reads the expressive character of
+  sealed entry's words never enter any feed (Book, Cognitive Monitor).
+- The Cognitive Monitor always carries "reads the expressive character of
   text, not inner state," and never crosses embedding spaces (the home's
   embedder pin drives scoring; a mismatch refuses loudly).
 - Tool claims render from `tools_used` attributes and host events only,
