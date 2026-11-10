@@ -156,13 +156,13 @@ describe("topicHover", () => {
 
 describe("the panel and the canvas are wired to it", () => {
   it("the panel body feeds pointer and keyboard to the controllers (keyboard focus only: :focus-visible)", () => {
-    expect(PANEL).toMatch(/onPointerOver=\{\(e\) => \{\n\s+hover\.pointerOver\(rowTopicKey\(e\.target\), e\.pointerType\);\n\s+litHover\.pointerOver\(rowLitKey\(e\.target\), e\.pointerType\);/);
-    expect(PANEL).toMatch(/onPointerLeave=\{\(e\) => \{\n\s+hover\.pointerLeave\(e\.pointerType\);\n\s+litHover\.pointerLeave\(e\.pointerType\);/);
+    expect(PANEL).toMatch(/onPointerOver=\{\(e\) => \{\n\s+hover\.pointerOver\(rowTopicKey\(e\.target\), e\.pointerType\);\n\s+lights\.pointerOver\(e\.target, e\.pointerType\);/);
+    expect(PANEL).toMatch(/onPointerLeave=\{\(e\) => \{\n\s+hover\.pointerLeave\(e\.pointerType\);\n\s+lights\.pointerLeave\(e\.pointerType\);/);
     expect(PANEL).toContain('const keyboard = e.target instanceof Element && e.target.matches(":focus-visible");');
     expect(PANEL).toContain("hover.focus(keyboard ? rowTopicKey(e.target) : null);");
-    expect(PANEL).toContain("if (keyboard) litHover.focus(rowLitKey(e.target));");
+    expect(PANEL).toContain("if (keyboard) lights.focus(e.target);");
     expect(PANEL).toContain("const stillInside = e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget);");
-    expect(PANEL).toMatch(/hover\.blur\(stillInside\);\n\s+litHover\.blur\(stillInside\);/);
+    expect(PANEL).toMatch(/hover\.blur\(stillInside\);\n\s+lights\.blur\(stillInside\);/);
     // Every row of a topic says which topic it is.
     for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_paths_head", "gc_tp_path", "gc_tp_types_head", "gc_tp_group", "gc_tp_unloaded", "gc_tp_member"]) {
       const line = PANEL.split("\n").find((l) => l.includes("<span") && l.includes(`"${cls}`) || (l.includes("<span") && l.includes(`\`${cls}`)));
@@ -170,10 +170,11 @@ describe("the panel and the canvas are wired to it", () => {
       expect(line, cls).toContain("data-tkey={");
     }
     expect(PANEL).toContain("useEffect(() => () => hover.dispose(), [hover]);");
-    expect(PANEL).toContain("useEffect(() => () => litHover.dispose(), [litHover]);");
     // Gone (topics off), nothing it lit stays lit; folded, neither the hover nor a clicked path.
-    expect(PANEL).toContain("useEffect(() => () => onHoverRowsRef.current(null), []);");
-    expect(PANEL).toMatch(/if \(open\) return;\n\s+hover\.dispose\(\);\n\s+litHover\.dispose\(\);\n\s+setPinnedRow\(null\);/);
+    expect(PANEL).toContain("useEffect(() => () => lights.release(), [lights]);");
+    expect(PANEL).toMatch(/if \(open\) return;\n\s+hover\.dispose\(\);\n\s+lights\.release\(\);/);
+    expect(PANEL).toContain("useEffect(() => lights.setRows(rows), [lights, rows]);");
+    expect(PANEL).toContain("useEffect(() => lights.unpin(), [focused, lights]);");
     // A row that lights memories of its own says which row it is.
     expect(PANEL.split("\n").find((l) => l.includes('`gc_tp_path gc_tp_card'))).toContain("data-rows={row.key}");
     expect(PANEL.split("\n").find((l) => l.includes('"gc_tp_group gc_tp_card"'))).toContain("data-rows={row.key}");
@@ -228,6 +229,17 @@ describe("rowsHover (a path, a memory type)", () => {
     expect(emitted).toEqual(["p1", "p2"]);
   });
 
+  it("leaving the list straight from a lit row lets go at once (the only release when the pointer exits the body from it)", () => {
+    const { h, advance, emitted } = setupRows();
+    h.pointerOver("p1", "mouse");
+    advance(HOVER_INTENT_MS);
+    expect(emitted).toEqual(["p1"]);
+    h.pointerLeave("mouse");
+    expect(emitted).toEqual(["p1", null]);
+    h.pointerLeave("mouse");
+    expect(emitted).toEqual(["p1", null]);
+  });
+
   it("onto any other row (its topic's own, a memory) or leaving the list: let go at once", () => {
     const { h, advance, emitted } = setupRows();
     h.pointerOver("p1", "mouse");
@@ -274,21 +286,19 @@ describe("rowsHover (a path, a memory type)", () => {
     expect(pathClick("p1", "p2")).toEqual({ pinned: "p2", frame: true });
   });
 
-  it("the panel: a path's click and Enter go through pathClick to onFrameRows; the shown row's memories to onHoverRows, once per change", () => {
-    expect(PANEL).toContain("onClick={() => clickPath(row.key, d.ids)}");
-    expect(PANEL).toContain('else if (d.kind === "path") clickPath(row.key, d.ids);');
-    expect(PANEL).toMatch(/const next = pathClick\(pinnedRow, rowKey\);\n\s+setPinnedRow\(next\.pinned\);\n\s+if \(next\.frame\) onFrameRows\(\[\.\.\.ids\]\);/);
-    expect(PANEL).toContain("const shownRow = shownRowKey(hoveredRow, pinnedRow, idsOf);");
-    expect(PANEL).toContain("onHoverRowsRef.current(shownIds ? [...shownIds] : null);");
-    expect(PANEL).toContain("const litHover = useMemo(() => rowsHover(setHoveredRow), []);");
+  it("the panel: a path's click and Enter go to the lights (panelLights.clickPath: topics_panel_lights.test.tsx)", () => {
+    expect(PANEL).toContain("onClick={() => ctx.clickPath(row.key)}");
+    expect(PANEL).toContain('else if (d.kind === "path") lights.clickPath(row.key);');
+    expect(PANEL).toContain("const ctx: RowContext = { focused, shownRow, cardOf, colorOf, focus, clickPath: lights.clickPath, toggleOpen, openMember: onOpenMember };");
   });
 
   it("a type's memories: looked up on a hover, grouped once per answer and fold (never per render)", () => {
-    expect(PANEL).toContain('if (r.data?.kind === "path" || r.data?.kind === "group") m.set(r.key, r.data.ids);');
+    expect(PANEL).toContain('for (const r of rows) if (r.data?.kind === "path" || r.data?.kind === "group") idsOf.set(r.key, r.data.ids);');
     expect(PANEL).toContain("const groupsOf = useMemo(() => groupsCache(), [communities, rowsOf, fold]);");
     expect(PANEL).toContain("topicRows(communities, expanded, rowsOf, fold, { opened, groupsOf })");
     // A type's click unfolds its memories (and the panel scrolls to them); it does not frame.
-    expect(PANEL).toContain("onClick={() => toggleOpen(row.key)}>");
+    expect(PANEL).toContain("onClick={() => ctx.toggleOpen(row.key)}>");
+    expect(PANEL).toContain("if (!opened.has(rowKey)) lights.opening(rowKey);");
     expect(PANEL).toContain('else if (d.kind === "types" || d.kind === "group") toggleOpen(row.key);');
   });
 });

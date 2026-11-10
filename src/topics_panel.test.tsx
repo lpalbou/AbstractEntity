@@ -38,6 +38,9 @@ import {
   typesRowKey,
   groupRowKey,
   MEMORY_TYPES_HEAD,
+  renderTopicRow,
+  type RowContext,
+  type TopicRow,
   topicCountWords,
   topicOrder,
   topicsNote,
@@ -212,10 +215,15 @@ describe("served: the list", () => {
     expect(members[0].textValue).toBe("a placed newcomer");
     // Without its head unfolded, an unfolded type lists nothing.
     expect(rowsWith([groupRowKey("harbour", "episode")]).some((r) => r.data?.kind === "group" || r.data?.kind === "member")).toBe(false);
-    // The member renders its badge (PROVISIONAL_BADGE) and opens on a click.
-    const src = fs.readFileSync(path.resolve(__dirname, "topics_panel.tsx"), "utf8");
-    expect(src).toMatch(/\{d\.provisional \? \(\n\s+<AfChip size="sm" tone="warning" className="gc_tp_provisional">\n\s+\{PROVISIONAL_BADGE\}/);
-    expect(src).toContain("data-member={d.node.id} data-tkey={d.c.key} onClick={() => onOpenMember(d.node)}");
+    // The member row says its badge (only the provisional one) and opens on a click.
+    const opened: TopicRow[] = [];
+    const ctx: RowContext = { focused: "harbour", shownRow: null, cardOf: new Map(), colorOf: () => "#fff", focus: () => {}, clickPath: () => {}, toggleOpen: () => {}, openMember: (n) => opened.push(members.find((r) => r.data?.kind === "member" && r.data.node === n)!) };
+    const html = members.map((r) => renderToStaticMarkup(<>{renderTopicRow(r, ctx)}</>));
+    const badges = html.map((h) => [...h.matchAll(/gc_tp_provisional[^>]*><span class="af-chip__label">([^<]+)</g)].map((m) => m[1]));
+    expect(badges).toEqual([["placed until his next sleep"], [], []]);
+    const el = renderTopicRow(members[1], ctx) as React.ReactElement<{ onClick(): void }>;
+    el.props.onClick();
+    expect(opened.map((r) => r.entityId)).toEqual(["ex:episode-2"]);
   });
 
   it("the head is a real disclosure: folded (a phone), the list is hidden", () => {
