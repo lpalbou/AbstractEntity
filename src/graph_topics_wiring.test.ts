@@ -86,21 +86,24 @@ describe("the live marker and the focus reach the graph", () => {
     expect(CANVAS).toContain("requestAnimationFrame(() => frameTopic(key));");
     const css = read("graph_canvas.css");
     const narrow = css.slice(css.indexOf("@container entity-canvas (max-width: 859.98px) {"));
+    // On a phone the panel is the foot of the overlay column (overlay_stack.ts), which ends above the
+    // motion buttons' row: its line sits there, under the Context legend, never under the buttons.
+    const column = narrow.slice(narrow.indexOf("  .gc_overlay_stack {"), narrow.indexOf("}", narrow.indexOf("  .gc_overlay_stack {")));
+    expect(column).toContain("bottom: calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px);");
+    expect(column).toContain("flex-direction: column;");
     const rule = narrow.slice(narrow.indexOf("  .gc_topics {"), narrow.indexOf("}", narrow.indexOf("  .gc_topics {")));
-    expect(rule).toContain("bottom: calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px);");
-    expect(rule).toContain("max-height: calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px));");
+    expect(rule).toContain("margin-top: auto;");
+    expect(rule).toContain("max-height: none;");
   });
 
-  it("open on a short canvas the panel keeps its floor — its head and one topic row — and its bottom yields (review S2)", () => {
+  it("open on a phone the panel keeps its floor — its head and two topic rows (review S2; castor's second topics night)", () => {
     const css = read("graph_canvas.css");
     const narrow = css.slice(css.indexOf("@container entity-canvas (max-width: 859.98px) {"));
-    const open = narrow.slice(narrow.indexOf("  .gc_topics.gc_tp_open {"), narrow.indexOf("}", narrow.indexOf("  .gc_topics.gc_tp_open {")));
-    expect(open).toContain("--gc-tp-floor: min(var(--gc-topics-floor), calc(100% - var(--gc-legend-top) - 16px));");
-    expect(open).toContain("bottom: max(8px, min(calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px), calc(100% - var(--gc-legend-top) - 8px - var(--gc-tp-floor))));");
-    expect(open).toContain("max-height: max(var(--gc-tp-floor), calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px)));");
-    expect(open).toContain("z-index: 3;");
-    expect(narrow).toContain(".entity_canvas_wrap:not(:has(.gc_recall_legend)) .gc_topics.gc_tp_open {\n    max-height: max(var(--gc-tp-floor), calc(100% - var(--gc-legend-top) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px)));");
-    expect(read("entity.css")).toContain("--gc-topics-floor: calc(3 * var(--tap-min, 32px) + 14px);");
+    const sheet = narrow.slice(narrow.indexOf('  .gc_overlay_stack[data-topics="sheet"] {'), narrow.indexOf("}", narrow.indexOf('  .gc_overlay_stack[data-topics="sheet"] {')));
+    expect(sheet).toContain("top: clamp(8px, calc(var(--gc-sheet-top) + (100% - var(--gc-sheet-top) - var(--gc-topics-floor) - 8px) * 1000), var(--gc-sheet-top));");
+    expect(sheet).toContain("bottom: 8px;");
+    expect(narrow).toContain(".gc_topics.gc_tp_open {\n    flex: 0 1 auto;\n    min-height: 0;");
+    expect(read("entity.css")).toContain("--gc-topics-floor: calc(var(--tap-min, 32px) + 2 * var(--gc-tp-row) + 11px);");
   });
 
   it("the panel head's fold mark is drawn, never part of its accessible name (review N3)", () => {

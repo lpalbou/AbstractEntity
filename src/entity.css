@@ -6021,10 +6021,14 @@ body {
   --gc-legend-top: 46px;
   --gc-motion-bottom: 52px;
   --gc-legend-floor: calc(var(--tap-min, 32px) + 10px);
-  /* The open Topics panel's floor (review S2): its head plus one topic row
-   * (a tap target each, and the row's padding) — never more than the room
-   * under the lens row (graph_canvas.css). */
-  --gc-topics-floor: calc(3 * var(--tap-min, 32px) + 14px);
+  /* The open Topics panel's floor (review S2; castor's second topics night
+   * 2026-11-10: two rows, not one): its head (a tap target) plus two topic
+   * rows (--gc-tp-row: a tap target, or a two-line title, with the row's
+   * padding and border; graph_canvas.css) and the panel's borders and
+   * padding. A phone canvas too short to hold it under the lens row lifts
+   * the open panel over the lens row (.gc_overlay_stack). */
+  --gc-tp-row: max(calc(var(--tap-min, 32px) + 6px), calc(33px * var(--font-scale, 1) + 6px));
+  --gc-topics-floor: calc(var(--tap-min, 32px) + 2 * var(--gc-tp-row) + 11px);
 }
 
 /* A wide canvas with the Topics panel open at the bottom-right: the kinds

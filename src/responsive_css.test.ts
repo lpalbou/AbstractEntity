@@ -96,8 +96,10 @@ describe("responsive layer: graph canvas", () => {
     expect(wrap).toMatch(/--gc-legend-top:\s*\d+px/);
     expect(wrap).toMatch(/--gc-motion-bottom:\s*\d+px/);
     expect(wrap).toMatch(/--gc-legend-floor:\s*calc\(var\(--tap-min, 32px\) \+ \d+px\)/);
+    // The legend heads the overlay column (overlay_stack.ts), which starts at the legend's top.
+    expect(rule(canvasNarrow, ".gc_overlay_stack")).toMatch(/top:\s*var\(--gc-legend-top\)/);
     const legend = rule(canvasNarrow, ".gc_recall_legend");
-    expect(legend).toMatch(/top:\s*var\(--gc-legend-top\)/);
+    expect(legend).toMatch(/position:\s*relative/);
     expect(legend).toMatch(/overflow-y:\s*auto/);
     // The base box lets the pointer through to the canvas; open on a phone it takes it, to scroll.
     expect(rule(CANVAS_CSS, ".gc_recall_legend")).toMatch(/pointer-events:\s*none/);
@@ -122,7 +124,13 @@ describe("responsive layer: graph canvas", () => {
     };
     const top = Number(/--gc-legend-top:\s*(\d+)px/.exec(wrap)![1]);
     const mb = Number(/--gc-motion-bottom:\s*(\d+)px/.exec(wrap)![1]);
-    const legend = rule(canvasNarrow, ".gc_recall_legend");
+    // The legend heads the overlay column (overlay_stack.ts): open, it shrinks to the column and scrolls
+    // inside, never below its floor (min-height); alone, it ends where the column ends.
+    const column = rule(canvasNarrow, ".gc_overlay_stack");
+    expect(decl(column, "top")).toBe("var(--gc-legend-top)");
+    const openLegend = rule(canvasNarrow, ".gc_recall_legend.gc_rl_open");
+    expect(decl(openLegend, "min-height")).toBe("var(--gc-legend-floor)");
+    expect(decl(openLegend, "flex")).toBe("0 1 auto");
     const buttons = rule(narrow, ".gc_motion_controls");
     for (const tap of [32, 44]) {
       const floor = evalCss(/--gc-legend-floor:\s*([^;]+);/.exec(wrap)![1], { "--tap-min": tap }, 0);
@@ -131,7 +139,7 @@ describe("responsive layer: graph canvas", () => {
       const vars = { "--tap-min": tap, "--gc-legend-top": top, "--gc-motion-bottom": mb, "--gc-legend-floor": floor };
       // 159 px: the live 400 × 700 canvas (castor, 2026-11-09); 259: 400 × 800; then taller ones.
       for (const H of [159, 180, 220, 259, 320, 480, 860]) {
-        const maxH = evalCss(decl(legend, "max-height"), vars, H);
+        const maxH = Math.max(floor, H - top - evalCss(decl(column, "bottom"), vars, H));
         const bottom = evalCss(decl(buttons, "bottom"), vars, H);
         const buttonsTop = H - bottom - tap;
         // Never shorter than its summary line…

@@ -230,7 +230,9 @@
   width: min(320px, calc(100% - 32px));
   max-height: 58%;
   box-sizing: border-box;
-  background: color-mix(in srgb, var(--bg-panel) 90%, transparent);
+  /* Opaque: the kit's surface (--bg-secondary). At 90 % the Context
+   * legend's words showed through it on a phone (castor, 2026-11-10). */
+  background: var(--bg-panel);
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--text);
@@ -490,61 +492,113 @@
   border-color: var(--ea-accent);
 }
 
+/* THE OVERLAY STACK (overlay_stack.ts): on a wide canvas it draws no box —
+ * the Context legend (top centre) and the Topics panel (bottom right) keep
+ * their own places. */
+.gc_overlay_stack {
+  display: contents;
+}
+
 /* Phone-width canvas: the lens row is a single strip at the top; the
  * recall line sits under it, full width. */
 @container entity-canvas (max-width: 859.98px) {
-  /* The Topics panel starts folded (one tap-target line) across the bottom,
-   * just above the motion buttons' row (it never sits under them); open, it
-   * grows up to the Context legend's floor and scrolls inside — the graph
-   * keeps its tap targets. */
-  .gc_topics {
-    left: 8px;
-    right: 8px;
-    bottom: calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px);
-    width: auto;
-    max-height: calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px));
-  }
-  /* No Context legend over the canvas: open, it may reach the lens row. */
-  .entity_canvas_wrap:not(:has(.gc_recall_legend)) .gc_topics {
-    max-height: calc(100% - var(--gc-legend-top) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px));
-  }
-  /* OPEN, its FLOOR is its head plus one topic row (--gc-topics-floor,
-   * bounded by the room under the lens row): on a short canvas (400 × 700,
-   * review S2: the body was 0 px) it never shrinks below that; its bottom
-   * yields down toward the canvas's edge instead (the legend's B1 pattern:
-   * what is below moves, the floor holds) and, open, it sits over the
-   * motion buttons and the kinds strip until it is folded again (its head
-   * stays under the lens row, tappable). A tall canvas is unchanged. */
-  .gc_topics.gc_tp_open {
-    --gc-tp-floor: min(var(--gc-topics-floor), calc(100% - var(--gc-legend-top) - 16px));
-    bottom: max(8px, min(calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px), calc(100% - var(--gc-legend-top) - 8px - var(--gc-tp-floor))));
-    max-height: max(var(--gc-tp-floor), calc(100% - var(--gc-legend-top) - var(--gc-legend-floor) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px)));
-    z-index: 3;
-  }
-  .entity_canvas_wrap:not(:has(.gc_recall_legend)) .gc_topics.gc_tp_open {
-    max-height: max(var(--gc-tp-floor), calc(100% - var(--gc-legend-top) - 16px - var(--gc-motion-bottom) - var(--tap-min, 32px)));
-  }
-  /* It ends above the motion buttons (bottom: --gc-motion-bottom, one tap
-   * target tall, then an 8 px gap) and scrolls inside, so it never sits
-   * under them at 400 px (live verification 2026-11-09). Its FLOOR is one
-   * summary line (--gc-legend-floor: a tap target plus the box's padding
-   * and border): on a short canvas (400 × 700, review B1) it never shrinks
-   * below its own summary, and the motion buttons move down below it
-   * instead (entity.css .gc_motion_controls: the same max()), so a tap on
-   * the summary never lands on "freeze". */
-  .gc_recall_legend {
+  /* THE OVERLAY STACK (castor's second topics night, 2026-11-10: the open
+   * Topics panel sat over the see-through Context legend, whose words
+   * showed through it): the legend and the Topics panel are ONE column
+   * under the lens row — the legend on top, the panel's line (its head, or
+   * its one sentence) at the foot, just above the motion buttons' row — so
+   * they never overlap, whatever either holds. Where the canvas is too
+   * short for both, the column runs on down (over the motion buttons and
+   * the kinds strip): the legend never shorter than its summary, the panel
+   * always under it. Only the children take the pointer: hover and pan go
+   * through the column to the canvas. */
+  .gc_overlay_stack {
+    position: absolute;
     top: var(--gc-legend-top);
     left: 8px;
     right: 8px;
+    bottom: calc(var(--gc-motion-bottom) + var(--tap-min, 32px) + 8px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  /* OPEN on its list, the panel is a SHEET in the legend's slot (the legend
+   * steps aside: data-legend="aside", its fold state kept): from under the
+   * lens row down to 8 px from the canvas's edge, over the motion buttons
+   * and the kinds strip; it grows up from its foot and scrolls inside. Its
+   * FLOOR (--gc-topics-floor) is its head and two topic rows: a canvas too
+   * short to hold that under the lens row (400 × 700: 176 px) lifts the
+   * sheet over the lens row, 8 px from the top (z 6, above the lens row's
+   * 5) — the clamp takes one place or the other, never a sliver of the
+   * lens row above the sheet. */
+  .gc_overlay_stack[data-topics="sheet"] {
+    --gc-sheet-top: max(var(--gc-legend-top), calc(var(--tap-min, 32px) + 12px));
+    top: clamp(8px, calc(var(--gc-sheet-top) + (100% - var(--gc-sheet-top) - var(--gc-topics-floor) - 8px) * 1000), var(--gc-sheet-top));
+    bottom: 8px;
+    z-index: 6;
+  }
+  .gc_overlay_stack[data-legend="aside"] > .gc_recall_legend {
+    display: none;
+  }
+  .gc_topics {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    flex: none;
+    width: auto;
+    max-height: none;
+    margin-top: auto;
+    pointer-events: auto;
+  }
+  .gc_topics.gc_tp_open {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  /* A topic in the list: its title (two lines at most) and its count; its
+   * summary and his author's verdict once it is focused (unfolded). The
+   * row is its fold button's height (a tap target) and centred on it, so
+   * the open panel lists two topics at 400 × 700 and four at 400 × 860 (a
+   * title and a two-line summary under a baseline-aligned 44 px button made
+   * a row of 90-100 px: one topic at a time). */
+  .gc_tp_list .af-disclosure__row[data-depth="0"]:not(:has(.gc_tp_focused)) {
+    align-items: center;
+    min-height: calc(var(--tap-min, 32px) + 6px);
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .gc_tp_topic:not(.gc_tp_focused) .gc_tp_title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .gc_tp_topic:not(.gc_tp_focused) :is(.gc_tp_summary, .gc_tp_verdict) {
+    display: none;
+  }
+  /* The Context legend at the column's head, full width; folded, its
+   * summary (never cut). Open, it scrolls inside and never shrinks below
+   * one summary line (--gc-legend-floor: a tap target plus the box's
+   * padding and border): on a short canvas (400 × 700, review B1) the
+   * motion buttons move down below that floor instead (entity.css
+   * .gc_motion_controls), so a tap on the summary never lands on
+   * "freeze". Alone in the column it ends above the motion buttons' row
+   * (live verification 2026-11-09). */
+  .gc_recall_legend {
+    position: relative;
+    top: auto;
+    left: auto;
     transform: none;
+    flex: none;
     max-width: none;
-    max-height: max(var(--gc-legend-floor), calc(100% - var(--gc-legend-top) - var(--gc-motion-bottom) - var(--tap-min, 32px) - 8px));
     overflow-y: auto;
     overscroll-behavior: contain;
     box-sizing: border-box;
   }
   /* Open, the box takes the pointer so a finger can scroll it. */
   .gc_recall_legend.gc_rl_open {
+    flex: 0 1 auto;
+    min-height: var(--gc-legend-floor);
     pointer-events: auto;
   }
 }

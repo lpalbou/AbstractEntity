@@ -77,7 +77,8 @@ import {
   type CommunityPlacement,
   type SeatedFold,
 } from "./topic_layout";
-import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, type TopicsView } from "./topics_panel";
+import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
+import { overlayStack } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -2138,6 +2139,14 @@ export function GraphCanvas({
     if (ev.relatedTarget === canvasRef.current) cardCtl.closeSoon();
     else cardCtl.close();
   };
+  // What a phone-width canvas shows of the Context legend and the Topics
+  // panel (overlay_stack.ts): the panel open on its list is a sheet in the
+  // legend's slot; its one sentence (not served) is a line, like its head.
+  const panelView = showTopics && topicsView ? topicsPanelView ?? topicsView : null;
+  const stack = overlayStack(
+    !panelView ? "none" : topicsOpen && topicsNote(panelView) === null ? "open" : "line",
+    !(recallShown && recall) ? "none" : legendOpen ? "open" : "folded",
+  );
 
   return (
     <>
@@ -2270,36 +2279,43 @@ export function GraphCanvas({
           </div>
         </HoverCardBox>
       ) : null}
-      {showTopics && topicsView ? (
-        // THE TOPICS PANEL (topics_panel.tsx): the drill-down, or the one
-        // sentence while his topics are not served.
-        <TopicsPanel
-          view={topicsPanelView ?? topicsView}
-          fold={fold}
-          rowsOf={membership?.rowsOf ?? EMPTY_ROWS}
-          waiting={waitingCount}
-          focused={pickedTopic}
-          open={topicsOpen}
-          onToggle={setTopicsOpen}
-          onFocus={(key) => {
-            // On a phone the open panel covers the short canvas: a topic
-            // picked there folds it so the graph shows the circle (its
-            // members stay one tap away, unfolded under its title). A
-            // topic with none of its memories loaded has no circle: the
-            // panel stays open on its sentence.
-            if (key !== null && narrowViewport() && loadedOf(key) > 0) setTopicsOpen(false);
-            focusTopic(key);
-          }}
-          onOpenMember={openMember}
-          onRetry={retryTopics}
-          colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
-        />
-      ) : null}
-      {recallShown && recall ? (
-        // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what
-        // each colour means, the lit lines and the grey-to-green fill.
-        <ContextLegend recall={recall} open={legendOpen} onToggle={setLegendOpen} />
-      ) : null}
+      {/* THE PHONE OVERLAY STACK (overlay_stack.ts): on a phone-width canvas
+        * the Context legend and the Topics panel are one column — the legend
+        * on top, never under the panel; open, the panel takes its slot and
+        * the legend steps aside. A wide canvas draws no box (display:
+        * contents): each keeps its own place. */}
+      <div className="gc_overlay_stack" data-legend={stack.legend} data-topics={stack.topics}>
+        {recallShown && recall ? (
+          // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what
+          // each colour means, the lit lines and the grey-to-green fill.
+          <ContextLegend recall={recall} open={legendOpen} onToggle={setLegendOpen} />
+        ) : null}
+        {panelView ? (
+          // THE TOPICS PANEL (topics_panel.tsx): the drill-down, or the one
+          // sentence while his topics are not served.
+          <TopicsPanel
+            view={panelView}
+            fold={fold}
+            rowsOf={membership?.rowsOf ?? EMPTY_ROWS}
+            waiting={waitingCount}
+            focused={pickedTopic}
+            open={topicsOpen}
+            onToggle={setTopicsOpen}
+            onFocus={(key) => {
+              // On a phone the open panel covers the short canvas: a topic
+              // picked there folds it so the graph shows the circle (its
+              // members stay one tap away, unfolded under its title). A
+              // topic with none of its memories loaded has no circle: the
+              // panel stays open on its sentence.
+              if (key !== null && narrowViewport() && loadedOf(key) > 0) setTopicsOpen(false);
+              focusTopic(key);
+            }}
+            onOpenMember={openMember}
+            onRetry={retryTopics}
+            colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
+          />
+        ) : null}
+      </div>
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the
         * bare 🌊⚓♻️🎯 emoji row read as mystery meat). aria-pressed marks
         * the freeze toggle's state. Served topics place every memory (no

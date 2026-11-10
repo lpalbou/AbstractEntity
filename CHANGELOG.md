@@ -31,7 +31,8 @@ Highlights:
   graph's layout, and a Topics panel lists them with what his memory knows of each.
 - **Fixes** from live use: playback no longer freezes the graph, the ledger names phase changes
   and his topics, older records whose summary was cut say so, the Context box and Topics panel keep
-  their room on short phone screens, and the time panel's lanes no longer overlap on a phone.
+  their room on short phone screens and never cover each other, the open Topics panel lists
+  several topics on a phone, and the time panel's lanes no longer overlap on a phone.
 
 ### Details
 
@@ -49,6 +50,19 @@ Highlights:
   moments, diary, lessons, world and dreams lanes was stretched to a 44 px block (the touch-target
   size every button gets), so the marks covered the lanes below them. They keep their drawn size
   on their own lane; the scrub bar and the ledger stay the touch path to an event.
+- **On a phone the Topics panel and the Context box no longer cover each other, and the open
+  panel lists several topics.** After castor's second topics night the open Topics panel showed
+  about one topic at a time at 400 px and sat over the Context box, whose words showed through
+  it. On a phone-width graph the Context box and the Topics panel now stand in one column under
+  the filter row, the Context box on top and the Topics line below it, whichever of them is open.
+  Opened, the Topics panel takes the Context box's place, from under the filter row down to the
+  bottom of the graph (the Context box comes back, as you left it, when the panel is folded); on a
+  graph too short for its heading and two topics under the filter row (a 400 × 700 phone) it also
+  covers the filter row until it is folded. A topic in the phone list shows its title (two lines
+  at most) and how many memories it holds; its summary shows once you select it. The open panel
+  now lists at least two topics on a 400 × 700 phone and four on 400 × 860 (it was one, partly cut
+  off). The panel's background is solid everywhere, so nothing under it shows through. The
+  wide-screen layout is unchanged.
 
 - **A topic's count matches its list, and a topic whose memories are not in the graph says so.**
   Each topic in the Topics panel shows how many memories it holds (his memory's count, plus those
