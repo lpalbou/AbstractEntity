@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 26 |
+| Planned | 27 |
 | Proposed | 6 |
 | Completed | 9 |
 | Deprecated | 0 |
 
-`planned/` holds 30 files: the 26 planned items and four completed records (0002-0005) whose move
+`planned/` holds 31 files: the 27 planned items and four completed records (0002-0005) whose move
 to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -41,6 +41,10 @@ dock and timeline vs the roster and the World tab). 0030 (W1) drops one rule in 
 Round 3 (0013-0022) is built on main and was what the operator tested in round 4; its records
 close after his check. Round 4 revisits three of them: 0027 follows 0017, 0028 follows 0021, 0032
 follows 0018.
+
+Outside the rounds: 0033 (W5, 2026-11-10 20:36: the summary under his reply crashed the chat panel;
+fixed, and the summary moved into his message as small chips) is built on main and closes after the
+operator's check.
 
 After the round: 0006 needs an investigation first; 0012 follows root 1195; 0023 (phone canvas
 height) is unlaned. 0010 and 0011 have landed code (a82aa10, 036f874, 23570ed for 0010; 222e72e for
@@ -76,6 +80,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0030 | [Unpressing "topics" clears the topic; the chip is one line](planned/0030_topics_off_clears_topic_chip_one_line.md) | XS-S | W1 | |
 | 0031 | [World tab: two clear lines on top](planned/0031_world_tab_intro_two_lines.md) | XS | W4 | |
 | 0032 | [The monitor opens in the timeline's empty space; its explanatory block goes](planned/0032_monitor_in_the_timeline_empty_space.md) | M | W1 | |
+| 0033 | [The summary under his reply no longer crashes; it sits in his message as small chips](planned/0033_reply_summary_crash_and_footer.md) (built) | S | W5 | |
 | 0034 | [P1: the graph draws only when something changed; at rest it idles](planned/0034_graph_draw_loop_idles.md) | M | | |
 
 ## Proposed (legacy names)
