@@ -1,0 +1,104 @@
+/* THE TOPIC CARDS (topics_panel.tsx; operator 2026-11-10, Entity backlog
+ * 0014: "one card per topic, the card background slightly tinted with the
+ * topic's colour"). The kit's DisclosureList is flat (one <li> per row), so
+ * a card is the run of rows of one topic: the topic's row (depth 0), then
+ * what it unfolds. Each row's content carries its topic's colour
+ * (--gc-tp-color, topics_panel.cardStyle = topicColor, its circle's colour
+ * on the graph) and paints its slice of the card under the row: the tint,
+ * the two side edges, the top edge and corners on the topic's row, the
+ * bottom edge and corners on the card's last row. The tint is the colour at
+ * 9 % over the panel's own surface (transparent mix: the same colour on the
+ * opaque panel, in every theme), so the kit's hover and selection washes on
+ * the row still show through it.
+ *
+ * Every rule leads with .gc_topics so it outranks the older .gc_tp_list
+ * rules in graph_canvas.css whatever the order the two files load in. */
+
+.gc_topics .gc_tp_list.af-disclosure {
+  /* The rows of one card touch: no seam of panel between them. */
+  gap: 0;
+}
+
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth] {
+  position: relative;
+  isolation: isolate;
+  margin: 0;
+  /* The card's edge is drawn by the row's content (below); the kit's 1 px
+   * transparent border would leave a seam of panel around every row. */
+  border: 0;
+  border-radius: 0;
+  /* Each level's text starts under its parent's text (a chevron and its
+   * gap: 16 + 6 px); a row without a chevron starts its text there. */
+  padding-left: calc(8px + var(--af-disclosure-depth, 0) * 22px);
+}
+
+.gc_topics .gc_tp_list .af-disclosure__row:not([data-depth="0"]) {
+  align-items: baseline;
+}
+
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth]:not([aria-expanded]) > .af-disclosure__chevron--spacer {
+  display: none;
+}
+
+/* The kit's ring (its border, gone above) becomes an outline: drawn over
+ * the card's tint and edge, never hidden by them. */
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth]:focus-visible,
+.gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth] {
+  outline: 1px solid var(--accent-border);
+  outline-offset: -1px;
+}
+
+/* A card starts at its topic's row: a gap above it, its top corners. */
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth="0"] {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth="0"]:not(:first-child) {
+  margin-top: 6px;
+}
+
+/* …and ends at the row before the next topic's (or the list's last). */
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth]:is(:last-child, :has(+ .af-disclosure__row[data-depth="0"])) {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.gc_topics .gc_tp_card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--gc-tp-color) 9%, transparent);
+  border-inline: 1px solid color-mix(in srgb, var(--gc-tp-color) 40%, transparent);
+}
+
+/* A browser without color-mix(): the same colour, faint, by opacity (the
+ * tint and its edge at one alpha) — never a card without its colour. */
+@supports not (color: color-mix(in srgb, red 50%, transparent)) {
+  .gc_topics .gc_tp_card::before {
+    background: var(--gc-tp-color);
+    border-color: var(--gc-tp-color);
+    opacity: 0.12;
+  }
+}
+
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth="0"] .gc_tp_card::before {
+  border-top: 1px solid color-mix(in srgb, var(--gc-tp-color) 40%, transparent);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.gc_topics .gc_tp_list .af-disclosure__row[data-depth]:is(:last-child, :has(+ .af-disclosure__row[data-depth="0"])) .gc_tp_card::before {
+  border-bottom: 1px solid color-mix(in srgb, var(--gc-tp-color) 40%, transparent);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+@supports not (color: color-mix(in srgb, red 50%, transparent)) {
+  .gc_topics .gc_tp_list .af-disclosure__row[data-depth="0"] .gc_tp_card::before,
+  .gc_topics .gc_tp_list .af-disclosure__row[data-depth]:is(:last-child, :has(+ .af-disclosure__row[data-depth="0"])) .gc_tp_card::before {
+    border-color: var(--gc-tp-color);
+  }
+}

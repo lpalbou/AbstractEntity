@@ -187,14 +187,14 @@ describe("the unfolded topic says its types and recency in its own row", () => {
     expect(topicRow).toContain("gc_tp_lead_kinds");
     expect(topicRow).toContain("gc_tp_lead_span");
     // Not repeated in the facts row.
-    const facts = html.slice(html.indexOf('class="gc_tp_facts"'));
+    const facts = html.slice(html.indexOf('class="gc_tp_facts gc_tp_card"'));
     expect(facts).not.toContain("last formed");
     expect(LEAD_FACTS.has("kinds") && LEAD_FACTS.has("span")).toBe(true);
   });
 
   it("then its memories by type, one line per type with how many are listed", () => {
     const html = render({ focused: "bridges" });
-    const groups = [...html.matchAll(/class="gc_tp_group" data-group="([^"]+)"[^>]*><i[^>]*><\/i>([^<]+)</g)].map((m) => m[2]);
+    const groups = [...html.matchAll(/class="gc_tp_group gc_tp_card" style="[^"]*" data-group="([^"]+)"[^>]*><i[^>]*><\/i>([^<]+)</g)].map((m) => m[2]);
     expect(groups).toEqual(["2 episodes", "1 diary entry", "1 interest"]);
   });
 

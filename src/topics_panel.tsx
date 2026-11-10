@@ -3,7 +3,11 @@
  * §4): the drill-down over the graph. Topic -> its members -> the memory.
  *
  * - Each topic (the kit's DisclosureList, one row per community, biggest
- *   first): its authored title, its summary and how many memories it holds;
+ *   first) is ONE CARD (operator 2026-11-10, Entity backlog 0014): its rows
+ *   (the topic's own, then what it unfolds) share one rounded box tinted
+ *   with the topic's colour — its circle's on the graph (topicColor) — at a
+ *   low alpha over the panel, its edge the same colour; a gap between the
+ *   cards. Its authored title, its summary and how many memories it holds;
  *   "title being written…" / "summary being written…" while memory says so,
  *   never a label the app made. The count is memory's (its size plus the
  *   memories placed since) and, when the graph has loaded a different
@@ -53,6 +57,7 @@ import { isDiaryNode, plainCardTitle } from "./hover_card";
 import { dayWords } from "./understanding";
 import { TITLE_BEING_WRITTEN } from "./untitled";
 import { hoverIntent, HOVER_INTENT_MS, type HoverIntentTimers } from "./hover_intent";
+import "./topics_panel.css";
 
 /** What the panel shows: the answer being read, a failed read, or the read. */
 export type TopicsView = { kind: "loading" } | { kind: "error"; message: string } | { kind: "read"; read: CommunitiesRead };
@@ -386,6 +391,12 @@ export function topicHover(emit: (key: string | null) => void, timers?: HoverInt
   };
 }
 
+/** The style that tints a row with its topic's card colour (topics_panel.css
+ * .gc_tp_card): the topic's circle colour, as a custom property. */
+export function cardStyle(color: string): React.CSSProperties {
+  return { ["--gc-tp-color" as string]: color } as React.CSSProperties;
+}
+
 /** The topic a panel row belongs to (its content's data-tkey), from any
  * element inside the row. */
 function rowTopicKey(target: EventTarget | null): string | null {
@@ -445,6 +456,8 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
   }, [focused]);
   const communities = view.kind === "read" && view.read.kind === "served" ? view.read.data.communities : null;
   const rows = useMemo(() => (communities ? topicRows(communities, expanded, rowsOf, fold) : []), [communities, expanded, rowsOf, fold]);
+  // One card style per topic, per payload version (never per row or render).
+  const cardOf = useMemo(() => new Map((communities ?? []).map((c) => [c.key, cardStyle(topicColor(c.key))])), [communities]);
 
   const note = topicsNote(view);
   if (note || !communities) {
@@ -475,8 +488,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
       const c = d.c;
       const summary = topicSummary(c);
       return (
-        <span className={`gc_tp_topic${focused === c.key ? " gc_tp_focused" : ""}`} data-topic={c.key} data-tkey={c.key} onClick={() => focus(c.key)}>
-          <i className="gc_tp_dot" style={{ background: topicColor(c.key) }} aria-hidden="true" />
+        <span className={`gc_tp_topic gc_tp_card${focused === c.key ? " gc_tp_focused" : ""}`} style={cardOf.get(c.key)} data-topic={c.key} data-tkey={c.key} onClick={() => focus(c.key)}>
           <span className={`gc_tp_title${c.titlePending ? " gc_tp_pending" : ""}`}>{row.textValue}</span>
           <AfChip size="sm" tone="muted" className="gc_tp_count">
             {topicCountWords(heldCount(c), d.loaded)}
@@ -493,7 +505,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     }
     if (d.kind === "facts") {
       return (
-        <span className="gc_tp_facts" data-facts={d.c.key} data-tkey={d.c.key}>
+        <span className="gc_tp_facts gc_tp_card" style={cardOf.get(d.c.key)} data-facts={d.c.key} data-tkey={d.c.key}>
           {d.facts.map((f) =>
             f.kind === "paths" ? (
               <span key={f.kind} className="gc_tp_fact gc_tp_fact_paths">
@@ -518,7 +530,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     }
     if (d.kind === "group") {
       return (
-        <span className="gc_tp_group" data-group={d.memoryKind} data-tkey={d.c.key}>
+        <span className="gc_tp_group gc_tp_card" style={cardOf.get(d.c.key)} data-group={d.memoryKind} data-tkey={d.c.key}>
           <i className="gc_tp_kdot" style={{ background: colorOf(d.sample) }} aria-hidden="true" />
           {row.textValue}
         </span>
@@ -526,13 +538,13 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
     }
     if (d.kind === "unloaded") {
       return (
-        <span data-tkey={d.c.key} className="gc_tp_unloaded" data-unloaded={d.c.key}>
+        <span data-tkey={d.c.key} className="gc_tp_unloaded gc_tp_card" style={cardOf.get(d.c.key)} data-unloaded={d.c.key}>
           {d.text}
         </span>
       );
     }
     return (
-      <span className="gc_tp_member" data-member={d.node.id} data-tkey={d.c.key} onClick={() => onOpenMember(d.node)}>
+      <span className="gc_tp_member gc_tp_card" style={cardOf.get(d.c.key)} data-member={d.node.id} data-tkey={d.c.key} onClick={() => onOpenMember(d.node)}>
         <i className="gc_tp_kdot" style={{ background: colorOf(d.node) }} aria-hidden="true" />
         <span className="gc_tp_mtitle">{row.textValue}</span>
         {d.provisional ? (

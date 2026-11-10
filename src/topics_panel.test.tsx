@@ -17,8 +17,9 @@ import { describe, expect, it } from "vitest";
 import { FIRST_SLEEP_SENTENCE, readCommunities, UNSERVED_SENTENCE, type CommunitiesRead, type ServedCommunity } from "./communities";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
-import { membershipOf } from "./topic_layout";
+import { membershipOf, topicColor } from "./topic_layout";
 import {
+  cardStyle,
   CENTROID_STALE_NOTE,
   EMPTY_TOPIC_SENTENCE,
   FACTS_WINDOW_DAYS,
@@ -169,7 +170,7 @@ describe("served: the list", () => {
     // harbour's served kinds: {episode: 3}; the diary entry is a type memory did not count there.
     expect(members).toEqual(["ex:episode-4", "ex:episode-2", "ex:episode-1", "ex:diary-3"]);
     // One static line per type, before its memories, with how many of it are listed.
-    const groups = [...html.matchAll(/class="gc_tp_group" data-group="([^"]+)"[^>]*><i[^>]*><\/i>([^<]+)</g)].map((m) => [m[1], m[2]]);
+    const groups = [...html.matchAll(/class="gc_tp_group gc_tp_card" style="[^"]*" data-group="([^"]+)"[^>]*><i[^>]*><\/i>([^<]+)</g)].map((m) => [m[1], m[2]]);
     expect(groups).toEqual([["episode", "3 episodes"], ["diary", "1 diary entry"]]);
     expect(html.indexOf('data-group="episode"')).toBeLessThan(html.indexOf('data-member="ex:episode-4"'));
     expect(html.indexOf('data-member="ex:episode-1"')).toBeLessThan(html.indexOf('data-group="diary"'));
@@ -238,7 +239,7 @@ const READ_FACTS = readCommunities({
 });
 const FACTS_VIEW: TopicsView = { kind: "read", read: READ_FACTS };
 const factsSlice = (html: string) => {
-  const at = html.indexOf('class="gc_tp_facts"');
+  const at = html.indexOf('class="gc_tp_facts gc_tp_card"');
   return at < 0 ? "" : html.slice(at, html.indexOf("</li>", at));
 };
 const text = (html: string) => html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
@@ -353,7 +354,7 @@ describe("a topic's count says what it holds and what the graph has loaded — t
     // Each topic row's count, and what is listed under it (members, or the sentence).
     const out = new Map<string, { count: string; members: string[]; sentence: string | null }>();
     let at: string | null = null;
-    for (const m of html.matchAll(/data-topic="([^"]+)"|gc_tp_count[^>]*><span class="af-chip__label">([^<]+)<|data-member="([^"]+)"|class="gc_tp_unloaded" data-unloaded="[^"]+">([^<]+)</g)) {
+    for (const m of html.matchAll(/data-topic="([^"]+)"|gc_tp_count[^>]*><span class="af-chip__label">([^<]+)<|data-member="([^"]+)"|class="gc_tp_unloaded gc_tp_card" style="[^"]*" data-unloaded="[^"]+">([^<]+)</g)) {
       if (m[1]) {
         at = m[1];
         out.set(at, { count: "", members: [], sentence: null });
@@ -411,5 +412,56 @@ describe("a topic's count says what it holds and what the graph has loaded — t
   it("biggest first by the count each row says", () => {
     if (ODD.kind !== "served") throw new Error("fixture");
     expect(topicOrder(ODD.data.communities).map((c) => c.key)).toEqual(["ghost", "harbour", "tides", "empty"]);
+  });
+});
+
+// ------------------------------------------------------------ one card per topic (backlog 0014)
+
+describe("one card per topic, tinted with its colour (backlog 0014)", () => {
+  const CARD_CSS = fs.readFileSync(path.resolve(__dirname, "topics_panel.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (selector: string) => {
+    const at = CARD_CSS.indexOf(`${selector} {`);
+    return at < 0 ? "" : CARD_CSS.slice(at, CARD_CSS.indexOf("}", at));
+  };
+  /** Every row's content in order: its class and the colour it carries. */
+  const cards = (html: string) => [...html.matchAll(/<span (?:data-tkey="[^"]+" )?class="(gc_tp_\w+) gc_tp_card[^"]*" style="--gc-tp-color:([^"]+)"[^>]*data-tkey="([^"]+)"|<span data-tkey="([^"]+)" class="(gc_tp_\w+) gc_tp_card[^"]*" style="--gc-tp-color:([^"]+)"/g)].map((m) => (m[1] ? { cls: m[1], color: m[2], tkey: m[3] } : { cls: m[5], color: m[6], tkey: m[4] }));
+
+  it("every row of a topic — its own, its facts, its memories, its sentence — carries the topic's circle colour", () => {
+    const html = render(FACTS_VIEW, { focused: "harbour" });
+    const rows = cards(html);
+    expect(rows.map((r) => r.cls)).toEqual(expect.arrayContaining(["gc_tp_topic", "gc_tp_facts", "gc_tp_member"]));
+    for (const r of rows) expect(r.color, r.cls).toBe(topicColor(r.tkey));
+    expect(rows.filter((r) => r.tkey === "harbour").length).toBeGreaterThan(3);
+    // The other topic's card is its own colour (a folded topic is a card of one row).
+    expect(rows.filter((r) => r.tkey === "tides").map((r) => r.cls)).toEqual(["gc_tp_topic"]);
+    const ghost = render({ kind: "read", read: readCommunities({ version: 2, version_seq: 1, first_sleep_pending: false, algorithm: "a", links: [], communities: [comm("ghost", ["ex:gone-1"])] }) }, { focused: "ghost" });
+    expect(cards(ghost).map((r) => [r.cls, r.color])).toEqual([["gc_tp_topic", topicColor("ghost")], ["gc_tp_unloaded", topicColor("ghost")]]);
+    // The tint carries the colour: no dot before the title.
+    expect(html).not.toContain("gc_tp_dot");
+    expect(cardStyle("#79c7ff")).toEqual({ "--gc-tp-color": "#79c7ff" });
+  });
+
+  it("the card: the colour at ~9 % over the panel, a 1 px edge in it, rounded at its first and last rows, a gap between cards", () => {
+    const panel = fs.readFileSync(path.resolve(__dirname, "topics_panel.tsx"), "utf8");
+    expect(panel).toContain('import "./topics_panel.css";');
+    const tint = rule(".gc_topics .gc_tp_card::before");
+    expect(tint).toContain("position: absolute;");
+    expect(tint).toContain("inset: 0;");
+    expect(tint).toContain("z-index: -1;");
+    expect(tint).toContain("background: color-mix(in srgb, var(--gc-tp-color) 9%, transparent);");
+    expect(tint).toContain("border-inline: 1px solid color-mix(in srgb, var(--gc-tp-color) 40%, transparent);");
+    // The row is the tint's box, under its content and above the kit's washes.
+    const row = rule(".gc_topics .gc_tp_list .af-disclosure__row[data-depth]");
+    expect(row).toContain("position: relative;");
+    expect(row).toContain("isolation: isolate;");
+    expect(row).toContain("border: 0;");
+    expect(rule(".gc_topics .gc_tp_list.af-disclosure")).toContain("gap: 0;");
+    expect(rule('.gc_topics .gc_tp_list .af-disclosure__row[data-depth="0"]:not(:first-child)')).toContain("margin-top: 6px;");
+    expect(rule('.gc_topics .gc_tp_list .af-disclosure__row[data-depth="0"] .gc_tp_card::before')).toContain("border-top: 1px solid");
+    expect(rule('.gc_topics .gc_tp_list .af-disclosure__row[data-depth]:is(:last-child, :has(+ .af-disclosure__row[data-depth="0"])) .gc_tp_card::before')).toContain("border-bottom: 1px solid");
+    // The kit's selection ring stays visible over the card (an outline, not the border the card removed).
+    expect(rule(".gc_topics .gc_tp_list .af-disclosure__row--selected[data-depth]")).toContain("outline: 1px solid var(--accent-border);");
+    // No colour of its own: the tint is the topic's, in every theme.
+    expect(CARD_CSS).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
 });
