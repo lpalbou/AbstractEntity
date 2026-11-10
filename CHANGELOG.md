@@ -39,6 +39,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ### Changed
 
+- Relocked on the published kit: `@abstractframework/ui-kit` ^0.9.28 and `@abstractframework/panel-chat` ^0.9.12 from npm; the vendored conversation bundle re-exported from panel-chat 0.9.12 (inline `@` chips).
 - **Every entity card is the shared card, and it acts** (operator test round 2, 2026-11-10). The
   "Summoned entities" grid draws each entity with ui-kit's `EntityCard`, the card every app uses,
   over the entity's tile (`GET /entities/{name}/tile`, about 2 KB, in place of the full identity

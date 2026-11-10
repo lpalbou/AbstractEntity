@@ -54,8 +54,10 @@ describe("the composer's mention sentences", () => {
   const composer = (extra: object) => renderToStaticMarkup(<ChatComposer value="hello" onChange={() => undefined} onSend={() => undefined} {...extra} />);
 
   it("an older gateway: the one sentence under the chips, never a silent fallback", () => {
-    const html = composer(props({ chips: [{ id: "castor", name: "Castor", kind: "entity" }], unavailable: MENTIONS_UNAVAILABLE }));
+    // The kit draws a chip inline, where its "@Name" sits in the text (panel-chat 0.9.12).
+    const html = composer({ ...props({ chips: [{ id: "castor", name: "Castor", kind: "entity", start: 6 }], unavailable: MENTIONS_UNAVAILABLE }), value: "hello @Castor" });
     expect(html).toContain("@Castor");
+    expect(html).toContain("pc-mention-chip--inline");
     expect(html).toContain(`<span>${MENTIONS_UNAVAILABLE}</span>`);
     expect(html).toContain("pc-mention-notice--unavailable");
   });

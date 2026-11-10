@@ -142,9 +142,11 @@ describe("the hint: he stays out of a message for entities only", () => {
   });
 
   it("with his chip, or without chips, no hint", () => {
-    const withAgent = [chip("entity", "leo", "Leo"), chip("agent", "agent", "Castor")];
-    const html = composer(props({ chips: withAgent, agentOut: agentStaysOutLine(withAgent, "Castor") }));
+    // The kit draws a chip inline, where its "@Name" sits in the text (panel-chat 0.9.12).
+    const withAgent = [{ ...chip("entity", "leo", "Leo"), start: 0 }, { ...chip("agent", "agent", "Castor"), start: 5 }];
+    const html = composer({ ...props({ chips: withAgent, agentOut: agentStaysOutLine(withAgent, "Castor") }), value: "@Leo @Castor hello" });
     expect(html).toContain("@Castor");
+    expect(html).toContain("pc-mention-chip--inline");
     expect(html).not.toContain("stays out of this message");
     expect(composer(props({ agentOut: agentStaysOutLine([], "Castor") }))).not.toContain("pc-mention-notice--status");
   });
