@@ -233,29 +233,42 @@
 
 /* THE TOPICS PANEL (topics_panel.tsx): his topics, biggest first, a click
  * focuses one and lists its memories; it scrolls inside. Not served, it is
- * one line: the sentence. On a wide canvas it FLOATS (backlog 0017,
- * overlay_stack.ts PanelFloat): its box (.gc_topics_float) starts docked
- * top-right under the motion buttons and grows downward (58 % of the canvas
- * at most, as tall as its list); the grip on its head moves it anywhere in
- * the canvas, its bottom-right corner resizes it (240-560 px wide, as tall
- * as the canvas), and once moved its "put back" control docks it again.
- * The custom properties come from panelVars on the overlay stack; the
- * clamps here keep it inside a canvas that shrank since. Nothing of it
- * moves the graph. */
+ * one line: the sentence. On a wide canvas it FLOATS OVER THE PAGE (backlog
+ * 0017, 0027; overlay_stack.ts PanelFloat): its box (.gc_topics_float,
+ * portaled to the app's #root, a size container: position fixed is the
+ * window's box) starts docked at the canvas's top
+ * right under the motion buttons and grows downward (58 % of the canvas at
+ * most, as tall as its list); its head bar and its grip move it anywhere in
+ * the window, its bottom-right corner grows it toward the bottom right
+ * (240-560 px wide), and once moved its "put back" control docks it again.
+ * The custom properties come from panelVars on the box; the clamps there
+ * keep it inside a window that shrank since. Nothing of it moves the graph.
+ * Over the page: above the side drawer, under the hover cards (60), the
+ * kit's drawers, modals and popovers. */
 .gc_topics_float {
-  position: absolute;
+  position: fixed;
   top: var(--gc-tp-top, 48px);
   left: var(--gc-tp-left, auto);
   right: var(--gc-tp-right, 10px);
-  z-index: 1;
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  width: var(--gc-tp-w, min(320px, calc(100% - 32px)));
-  max-height: calc(100% - var(--gc-tp-top, 48px) - 8px);
+  width: var(--gc-tp-w, 320px);
+  max-height: var(--gc-tp-maxh, calc(100% - 56px));
 }
 
-.gc_topics_float[data-docked="true"][data-sized="false"] {
-  max-height: min(58%, calc(100% - var(--gc-tp-top, 48px) - 12px));
+/* Its head bar moves it (a press that travels; a click still folds it). */
+.gc_topics_float[data-page="true"] .gc_tp_head {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Resized, it keeps its height while it is open on its list (folded, it is
+ * its head). */
+.gc_topics_float[data-page="true"][data-sized="true"][data-list="true"] > .gc_topics {
+  height: var(--gc-tp-h);
 }
 
 .gc_topics {
@@ -354,14 +367,6 @@
 
 .gc_tp_resize:hover {
   opacity: 1;
-}
-
-@container entity-canvas (min-width: 860px) {
-  /* Resized, it keeps its height while it is open on its list (folded, it is
-   * its head). */
-  .gc_topics_float[data-sized="true"][data-list="true"] > .gc_topics {
-    height: var(--gc-tp-h);
-  }
 }
 
 .gc_topics_note {

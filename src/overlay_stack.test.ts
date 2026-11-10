@@ -20,13 +20,15 @@ import {
   PANEL_GAP,
   PANEL_HEAD_H,
   PANEL_MIN_H,
+  PANEL_DRAG_SLOP,
   PANEL_STORAGE_KEY,
-  PANEL_TOP_MIN,
   PANEL_W,
   panelVars,
   parsePanelFloat,
   resizePanel,
   serializePanelFloat,
+  topReserve,
+  type PanelDock,
   type StackLegend,
   type StackTopics,
 } from "./overlay_stack";
@@ -96,22 +98,36 @@ describe("the mapping", () => {
 });
 
 describe("the canvas wiring", () => {
-  it("the legend and the panel render inside the stack, the legend first, with the mapping's attributes", () => {
-    const at = CANVAS.indexOf('className="gc_overlay_stack"\n        data-legend={stack.legend}\n        data-topics={stack.topics}\n        style={panelView ? (panelVars(panelFloat, dockTop) as React.CSSProperties) : undefined}\n      >');
+  it("the legend renders in the stack; the panel's box sits in the stack on a phone, over the page (portaled) on a wide canvas", () => {
+    const at = CANVAS.indexOf('className="gc_overlay_stack"\n        data-legend={stack.legend}\n        data-topics={stack.topics}\n        style={panelView ? ({ "--gc-tp-top-reserve": topReserve(panelFloat) } as React.CSSProperties) : undefined}\n      >');
     expect(at).toBeGreaterThan(0);
     const legend = CANVAS.indexOf("<ContextLegend recall={recall} open={legendOpen} onToggle={setLegendOpen} />", at);
-    const float = CANVAS.indexOf('className="gc_topics_float"', at);
-    const panel = CANVAS.indexOf("<TopicsPanel", at);
+    const inline = CANVAS.indexOf("{pagePanel ? null : panelBox}", at);
     expect(legend).toBeGreaterThan(at);
-    expect(float).toBeGreaterThan(legend);
-    expect(panel).toBeGreaterThan(float);
-    // In the float box after the panel: its grip and (open on its list) its corner, then the box and the stack close.
-    const tail = CANVAS.slice(panel, CANVAS.indexOf("{/* Motion controls:", panel));
-    expect(tail).toMatch(/<div className="gc_tp_grip" aria-hidden="true" [^>]*onPointerDown=\{\(ev\) => startPanelDrag\(ev, "move"\)\}>/);
-    expect(tail).toContain('{stack.topics === "sheet" ? (\n            <div className="gc_tp_resize" aria-hidden="true" title="Drag to resize the panel" onPointerDown={(ev) => startPanelDrag(ev, "size")} />');
-    expect(tail.match(/<div/g)?.length).toBe(2);
+    expect(inline).toBeGreaterThan(legend);
+    expect(CANVAS).toContain("{pagePanel && panelBox && panelHost ? createPortal(panelBox, panelHost) : null}");
+    // The box: the panel, then (over the page only) its grip, its "put back" once moved, its corner while open on its list.
+    const box = CANVAS.slice(CANVAS.indexOf("  const panelBox = panelView ? ("), CANVAS.indexOf("  return (\n    <>\n      <canvas"));
+    expect(box.indexOf("<TopicsPanel")).toBeGreaterThan(box.indexOf('className="gc_topics_float"'));
+    expect(box).toContain('{pagePanel ? (\n        <div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel (or drag its title bar)">');
+    expect(box).toContain("{pagePanel && panelFloat.at !== null ? (");
+    expect(box).toContain('{pagePanel && stack.topics === "sheet" ? <div className="gc_tp_resize" aria-hidden="true" title="Drag to resize the panel" /> : null}');
+    expect(box).toContain("onPointerDown={startPanelDrag}");
     expect(CANVAS.match(/<ContextLegend /g)?.length).toBe(1);
     expect(CANVAS.match(/<TopicsPanel\b/g)?.length).toBe(1);
+  });
+
+  it("over the page only on a wide, shown canvas (the stack draws no box there); portaled into the app's root, never silently elsewhere", () => {
+    expect(CANVAS).toContain('setPagePanel(shown && getComputedStyle(stackEl).display === "contents");');
+    expect(CANVAS).toContain("const shown = wr.width > 0 && wr.height > 0;");
+    expect(CANVAS).toContain('const host = wrap.closest("#root");');
+    expect(CANVAS).toContain('console.error("#SEAM the graph is not inside #root: the Topics panel cannot float over the page");');
+    // Measured before paint and again when the canvas or the motion buttons resize, or the window does.
+    const eff = CANVAS.slice(CANVAS.indexOf("  useLayoutEffect(() => {\n    const wrap = canvasRef.current?.parentElement;"), CANVAS.indexOf("  // The page panel lives outside the canvas's host"));
+    expect(eff).toContain("ro?.observe(wrap);");
+    expect(eff).toContain("ro?.observe(motion);");
+    expect(eff).toContain('window.addEventListener("resize", measure);');
+    expect(eff).toContain("top: Math.round(mr.bottom - hr.top + PANEL_GAP)");
   });
 
   it("the mapping reads the panel open on a list (a note is a line) and the legend's fold", () => {
@@ -128,24 +144,28 @@ describe("the stylesheet", () => {
   const wrap = rules(CSS, ".entity_canvas_wrap");
   const v = (name: string) => decl(wrap, name);
 
-  it("a wide canvas draws no stack box: the legend keeps its place, the panel floats in its own box", () => {
+  it("a wide canvas draws no stack box: the legend keeps its place, the panel floats over the page in its own box", () => {
     expect(decl(rule(CANVAS_CSS, ".gc_overlay_stack"), "display")).toBe("contents");
-    // The panel's wide geometry is its float box's (overlay_stack panelVars), docked top-right by default.
+    // The panel's box: fixed over the page (overlay_stack panelVars), above the drawer, under the cards and the kit's layers.
     const box = rule(CANVAS_CSS, ".gc_topics_float");
-    expect(decl(box, "position")).toBe("absolute");
+    expect(decl(box, "position")).toBe("fixed");
     expect(decl(box, "top")).toBe("var(--gc-tp-top, 48px)");
     expect(decl(box, "left")).toBe("var(--gc-tp-left, auto)");
     expect(decl(box, "right")).toBe("var(--gc-tp-right, 10px)");
-    expect(decl(box, "width")).toBe("var(--gc-tp-w, min(320px, calc(100% - 32px)))");
-    expect(decl(box, "max-height")).toBe("calc(100% - var(--gc-tp-top, 48px) - 8px)");
-    expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-docked="true"][data-sized="false"]'), "max-height")).toBe("min(58%, calc(100% - var(--gc-tp-top, 48px) - 12px))");
+    expect(decl(box, "width")).toBe("var(--gc-tp-w, 320px)");
+    expect(decl(box, "max-height")).toBe("var(--gc-tp-maxh, calc(100% - 56px))");
+    expect(Number(decl(box, "z-index"))).toBeLessThan(60);
     const base = rule(CANVAS_CSS, ".gc_topics");
     expect(decl(base, "position")).toBe("relative");
     expect(decl(base, "width")).toBe("100%");
     expect(decl(base, "min-height")).toBe("0");
-    // Resized, open on its list: its height (wide only).
-    const wide = block(CANVAS_CSS, "@container entity-canvas (min-width: 860px)");
-    expect(decl(rule(wide, '.gc_topics_float[data-sized="true"][data-list="true"] > .gc_topics'), "height")).toBe("var(--gc-tp-h)");
+    // Resized, open on its list: its height.
+    expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-page="true"][data-sized="true"][data-list="true"] > .gc_topics'), "height")).toBe("var(--gc-tp-h)");
+    // Its head bar moves it: a grab cursor, the browser never takes the press for a scroll, no text selected.
+    const head = rule(CANVAS_CSS, '.gc_topics_float[data-page="true"] .gc_tp_head');
+    expect(decl(head, "cursor")).toBe("grab");
+    expect(decl(head, "touch-action")).toBe("none");
+    expect(decl(head, "user-select")).toBe("none");
     // The Context legend is centred in the width the docked panel leaves.
     const legend = rule(CANVAS_CSS, ".gc_recall_legend");
     expect(decl(legend, "left")).toBe("calc((100% - var(--gc-tp-top-reserve, 0px)) / 2)");
@@ -252,44 +272,44 @@ describe("the stylesheet", () => {
   });
 });
 
-describe("the floating panel (backlog 0017)", () => {
-  const canvas = { w: 1040, h: 666 };
-  const buttons = { x: 900, y: 10, w: 130, h: 58 };
-  const start = { x: 710, y: 76, w: 320, h: 300 };
+describe("the floating panel (backlog 0017, 0027)", () => {
+  const view = { w: 1440, h: 900 };
+  // Docked at the canvas's top right (its right edge 10 px inside the canvas's, 1050).
+  const start = { x: 730, y: 168, w: 320, h: 392 };
+  const dock: PanelDock = { top: 168, right: 1050, canvasW: 1060, canvasBottom: 768, canvasH: 675, viewW: 1440 };
 
-  it("moves anywhere inside the canvas, below the lens row, its head never under the motion buttons", () => {
-    expect(movePanel(start, -400, 100, canvas, buttons)).toEqual({ x: 310, y: 176 });
-    // Clamped to the canvas: left, right, the head kept inside at the bottom.
-    expect(movePanel(start, -5000, 0, canvas, buttons).x).toBe(0);
-    expect(movePanel(start, 5000, 0, canvas, null).x).toBe(canvas.w - start.w);
-    expect(movePanel(start, 0, 5000, canvas, null).y).toBe(canvas.h - PANEL_HEAD_H);
-    // Never into the lens row's band.
-    expect(movePanel(start, -400, -5000, canvas, buttons).y).toBe(PANEL_TOP_MIN);
-    // Across the motion buttons' column, it stays below them.
-    expect(movePanel(start, 0, -5000, canvas, buttons).y).toBe(buttons.y + buttons.h + PANEL_GAP);
+  it("moves anywhere in the window (over the drawer and the timeline too), its head kept inside", () => {
+    expect(movePanel(start, -600, 200, view)).toEqual({ x: 130, y: 368 });
+    // Over the side drawer: the window, not the canvas, is the limit.
+    expect(movePanel(start, 500, 0, view)).toEqual({ x: 1120, y: 168 });
+    expect(movePanel(start, 5000, 0, view).x).toBe(view.w - start.w);
+    expect(movePanel(start, -5000, 0, view).x).toBe(0);
+    expect(movePanel(start, 0, -5000, view).y).toBe(0);
+    expect(movePanel(start, 0, 5000, view).y).toBe(view.h - PANEL_HEAD_H);
+    expect(PANEL_DRAG_SLOP).toBeGreaterThan(0);
+    expect(PANEL_DRAG_SLOP).toBeLessThanOrEqual(6);
   });
 
-  it("resizes 240-560 px wide and as tall as the canvas lets it; its top-left stays, a docked one keeps its right edge", () => {
+  it("its corner grows it toward the bottom right: the top-left stays, only a width that would leave the window moves its left edge", () => {
     const moved = { x: 300, y: 100, w: 320, h: 300 };
-    expect(resizePanel(moved, 100, 50, canvas, false)).toEqual({ x: 300, w: 420, h: 350 });
-    expect(resizePanel(moved, 5000, 0, canvas, false).w).toBe(PANEL_W.max);
-    expect(resizePanel(moved, -5000, -5000, canvas, false)).toEqual({ x: 300, w: PANEL_W.min, h: PANEL_MIN_H });
-    expect(resizePanel(moved, 0, 5000, canvas, false).h).toBe(canvas.h - moved.y - PANEL_GAP);
-    // At the canvas's right edge a wider panel grows to the left.
-    const edge = { x: 700, y: 100, w: 320, h: 300 };
-    const wider = resizePanel(edge, 150, 0, canvas, false);
-    expect(wider.w).toBe(470);
-    expect(wider.x + wider.w).toBe(canvas.w - PANEL_GAP);
-    // Docked (right 10 px): its right edge stays where it is, it grows to the left.
-    const docked = resizePanel(start, 120, 40, canvas, true);
-    expect(docked).toEqual({ x: 590, w: 440, h: 340 });
-    expect(docked.x + docked.w).toBe(start.x + start.w);
-    // A canvas narrower than the panel: as wide as it.
-    expect(resizePanel({ x: 0, y: 60, w: 300, h: 200 }, 400, 0, { w: 280, h: 400 }, false)).toEqual({ x: 0, w: 272, h: 200 });
+    expect(resizePanel(moved, 100, 50, view)).toEqual({ x: 300, w: 420, h: 350 });
+    expect(resizePanel(moved, 5000, 0, view).w).toBe(PANEL_W.max);
+    expect(resizePanel(moved, -5000, -5000, view)).toEqual({ x: 300, w: PANEL_W.min, h: PANEL_MIN_H });
+    expect(resizePanel(moved, 0, 5000, view).h).toBe(view.h - moved.y - PANEL_GAP);
+    // A docked panel at the canvas's right edge: it grows right, over the drawer (the window has room).
+    const docked = resizePanel(start, 30, 40, view);
+    expect(docked).toEqual({ x: 730, w: 350, h: 432 });
+    // At the window's right edge a wider panel moves its left edge just enough.
+    const edge = resizePanel({ x: 1100, y: 100, w: 320, h: 300 }, 150, 0, view);
+    expect(edge.w).toBe(470);
+    expect(edge.x + edge.w).toBe(view.w - PANEL_GAP);
+    // A window narrower than the panel: as wide as it.
+    expect(resizePanel({ x: 0, y: 60, w: 300, h: 200 }, 400, 0, { w: 280, h: 400 })).toEqual({ x: 0, w: 272, h: 200 });
   });
 
-  it("is remembered under one versioned key; a value of another shape is none", () => {
-    expect(PANEL_STORAGE_KEY).toBe("abstractentity_topics_panel_v1");
+  it("is remembered under one versioned key (v2: window px; a v1 value, canvas px, is never read)", () => {
+    expect(PANEL_STORAGE_KEY).toBe("abstractentity_topics_panel_v2");
+    expect(CANVAS).not.toContain("abstractentity_topics_panel_v1");
     const f = { at: { x: 310, y: 176 }, w: 420, h: 350 };
     expect(parsePanelFloat(serializePanelFloat(f))).toEqual(f);
     expect(parsePanelFloat(serializePanelFloat(PANEL_DOCKED))).toEqual(PANEL_DOCKED);
@@ -297,72 +317,82 @@ describe("the floating panel (backlog 0017)", () => {
     expect(parsePanelFloat("{not json")).toBeNull();
     expect(parsePanelFloat(JSON.stringify({ x: 1, y: 2 }))).toBeNull();
     expect(parsePanelFloat(JSON.stringify({ at: { x: "1", y: 2 }, w: null, h: null }))).toBeNull();
-    // A width stored out of range comes back inside it.
     expect(parsePanelFloat(JSON.stringify({ at: null, w: 9000, h: null }))?.w).toBe(PANEL_W.max);
   });
 
-  it("docked, it sits top-right under the motion buttons and the Context legend leaves it its width; moved, wherever it was put, clamped", () => {
-    const docked = panelVars(PANEL_DOCKED, 76);
-    expect(docked).toEqual({
-      "--gc-tp-top": "76px",
+  it("docked: at the canvas's top right under the motion buttons, 58 % of the canvas at most; moved: where it was put, clamped to the window", () => {
+    expect(panelVars(PANEL_DOCKED, dock)).toEqual({
+      "--gc-tp-top": "168px",
       "--gc-tp-left": "auto",
-      "--gc-tp-right": "10px",
-      "--gc-tp-w": "min(320px, calc(100% - 32px))",
+      "--gc-tp-right": "390px",
+      "--gc-tp-w": "320px",
       "--gc-tp-h": "auto",
-      "--gc-tp-top-reserve": "calc(min(320px, calc(100% - 32px)) + 20px)",
+      "--gc-tp-maxh": `${Math.round(0.58 * 675)}px`,
     });
-    const moved = panelVars({ at: { x: 310, y: 176 }, w: 420, h: 350 }, 76);
+    // A narrow canvas: the default width leaves it 32 px (never under PANEL_W.min).
+    expect(panelVars(PANEL_DOCKED, { ...dock, canvasW: 300 })["--gc-tp-w"]).toBe("268px");
+    expect(panelVars(PANEL_DOCKED, { ...dock, canvasW: 200 })["--gc-tp-w"]).toBe(`${PANEL_W.min}px`);
+    // Put back after a resize: its size kept, as tall as the canvas lets it.
+    const back = panelVars({ at: null, w: 460, h: 600 }, dock);
+    expect(back["--gc-tp-w"]).toBe("460px");
+    expect(back["--gc-tp-maxh"]).toBe(`${768 - 168 - PANEL_GAP}px`);
+    const moved = panelVars({ at: { x: 310, y: 176 }, w: 420, h: 350 }, dock);
     expect(moved["--gc-tp-left"]).toBe("max(0px, min(310px, calc(100% - 420px)))");
-    expect(moved["--gc-tp-top"]).toBe(`max(${PANEL_TOP_MIN}px, min(176px, calc(100% - ${PANEL_HEAD_H}px)))`);
+    expect(moved["--gc-tp-top"]).toBe(`max(0px, min(176px, calc(100% - ${PANEL_HEAD_H}px)))`);
     expect(moved["--gc-tp-right"]).toBe("auto");
     expect(moved["--gc-tp-h"]).toBe("350px");
-    expect(moved["--gc-tp-top-reserve"]).toBe("0px");
-    // The clamps, evaluated: a canvas that shrank to 600 x 300 keeps it inside.
+    // The clamps, evaluated: a window that shrank to 600 x 150 keeps its head inside.
     expect(evalCss(moved["--gc-tp-left"].replace("100%", "600px"), {}, 0)).toBe(180);
     expect(evalCss(moved["--gc-tp-top"], {}, 150)).toBe(150 - PANEL_HEAD_H);
-    expect(evalCss(moved["--gc-tp-top"], {}, 80)).toBe(PANEL_TOP_MIN);
-    expect(evalCss(moved["--gc-tp-top"], {}, 666)).toBe(176);
+    expect(evalCss(moved["--gc-tp-top"], {}, 900)).toBe(176);
+    // The Context legend leaves the docked panel its width, none once it is moved.
+    expect(topReserve(PANEL_DOCKED)).toBe("calc(min(320px, calc(100% - 32px)) + 20px)");
+    expect(topReserve({ at: null, w: 460, h: null })).toBe("calc(460px + 20px)");
+    expect(topReserve({ at: { x: 1, y: 1 }, w: 460, h: null })).toBe("0px");
   });
 
   it("the kinds legend at the canvas's foot ends before a docked panel open on its list, at any width it was resized to (review F2)", () => {
     expect(legendReserve(PANEL_DOCKED, true)).toBe("calc(min(320px, calc(100% - 32px)) + 20px)");
     expect(legendReserve({ at: null, w: 560, h: 592 }, true)).toBe("calc(560px + 20px)");
-    // Folded (its head at the top), moved (the viewer's choice) or absent: no room taken.
     expect(legendReserve({ at: null, w: 560, h: 592 }, false)).toBe("0px");
     expect(legendReserve({ at: { x: 200, y: 300 }, w: 560, h: 592 }, true)).toBe("0px");
     expect(legendReserve(null, true)).toBe("0px");
-    // entity.css: the rule reads it on the wrap; at 1440 x 900 (canvas 1040 px) the legend ends before the 560 px panel.
+    // entity.css: the rule reads it on the wrap (no :has(.gc_topics): the panel floats outside the wrap).
     const wide = block(CSS, "@container entity-canvas (min-width: 860px)");
-    const maxW = decl(rule(wide, ".entity_canvas_wrap:has(.gc_topics) > .entity_legend"), "max-width");
+    expect(wide).not.toContain(":has(.gc_topics)");
+    const maxW = decl(rule(wide, ".entity_canvas_wrap > .entity_legend"), "max-width");
     expect(maxW).toBe("min(calc(100% - 200px), calc(100% - var(--gc-tp-reserve, 0px) - 20px))");
     const W = 1040;
     const at = (reserve: number) => evalCss(maxW.replace(/100%/g, `${W}px`), { "--gc-tp-reserve": reserve }, 0);
-    const panelLeft = W - 10 - 560;
-    expect(12 + at(560 + 20)).toBeLessThan(panelLeft);
+    expect(12 + at(560 + 20)).toBeLessThan(W - 10 - 560);
     expect(12 + at(evalCss("min(320px, calc(1040px - 32px)) + 20px", {}, 0))).toBeLessThan(W - 10 - 320);
-    // Nothing reserved: the legend's own cap (the motion buttons' 200 px).
     expect(at(0)).toBe(W - 200);
-    // The canvas writes it on its wrap (the legend is the wrap's child, not the stack's).
     expect(CANVAS).toContain('const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet");');
     expect(CANVAS).toContain('wrap.style.setProperty("--gc-tp-reserve", footReserve);');
   });
 
-  it("the canvas measures its docked top under the motion buttons, moves it by its grip, puts it back with one control (never a double-click on the fold head)", () => {
-    expect(CANVAS).toContain("const measure = () => setDockTop(Math.round(el.offsetTop + el.offsetHeight + PANEL_GAP));");
-    expect(CANVAS).toContain('<div ref={motionRef} className="gc_motion_controls">');
-    // Review F1: a double-click on the head (the panel's fold button) folded and unfolded it.
-    const box = CANVAS.slice(CANVAS.indexOf('className="gc_topics_float"'), CANVAS.indexOf("{/* Motion controls:"));
-    expect(box).not.toContain("onDoubleClick");
-    expect(box).toContain('<div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel" onPointerDown={(ev) => startPanelDrag(ev, "move")}>');
-    expect(box).toMatch(/\{panelFloat\.at !== null \? \([\s\S]*?<button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick=\{\(\) => setPanelFloat\(\{ \.\.\.panelFloatRef\.current, at: null \}\)\}>\s*put back\s*<\/button>\s*\) : null\}/);
-    // Over the panel, left of the grip; the moved head leaves it room.
-    expect(decl(rule(CANVAS_CSS, ".gc_tp_dock"), "right")).toBe("var(--tap-min, 32px)");
-    expect(Number(decl(rule(CANVAS_CSS, ".gc_tp_dock"), "z-index"))).toBeGreaterThan(1);
-    expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-docked="false"] .gc_tp_head'), "padding-right")).toBe("calc(var(--tap-min, 32px) + 72px)");
-    // While it moves: the stack's custom properties, no state; let go: kept and remembered.
-    expect(CANVAS).toContain("for (const [k, v] of Object.entries(panelVars(next, dockTopRef.current))) stackEl.style.setProperty(k, v);");
-    expect(CANVAS).toContain("if (next !== from) setPanelFloat(next);");
+  it("a press: the grip moves at once, the head bar once the pointer travels (else its click folds), the corner resizes, put back stays a click", () => {
+    const drag = CANVAS.slice(CANVAS.indexOf("  const startPanelDrag = (ev: React.PointerEvent<HTMLElement>) => {"), CANVAS.indexOf("  const focusTopicRef = useRef(focusTopic);"));
+    expect(drag).toContain('const mode = !target || target.closest(".gc_tp_dock") ? null : target.closest(".gc_tp_resize") ? "size" : target.closest(".gc_tp_grip") ? "move" : target.closest(".gc_tp_head") ? "head" : null;');
+    expect(drag).toContain("if (Math.hypot(last.x - x0, last.y - y0) < PANEL_DRAG_SLOP) return;");
+    expect(drag).toContain("box.setPointerCapture(pointer);");
+    // One paint per frame; a move is a transform (no layout), never a re-render per move.
+    expect(drag).toContain("if (!frame) frame = requestAnimationFrame(paint);");
+    expect(drag).toContain("box.style.transform = `translate(${at.x - start.x}px, ${at.y - start.y}px)`;");
+    expect(drag).not.toMatch(/setPanelFloat\(next\);[\s\S]*const onMove/);
+    expect(drag.indexOf("if (next !== from) setPanelFloat(next);")).toBeGreaterThan(drag.indexOf("const onEnd"));
+    // A resize keeps the top-left (resizePanel) and writes the box's own size.
+    expect(drag).toContain("next = { at: { x: r.x, y: Math.round(start.y) }, w: r.w, h: r.h };");
+    // The click that ends a head move is not a fold.
+    expect(CANVAS).toMatch(/onClickCapture=\{\(ev\) => \{\n\s+\/\/ The click that ends a move from the head bar is not a fold\.\n\s+if \(!panelDraggedRef\.current\) return;\n\s+panelDraggedRef\.current = false;\n\s+ev\.stopPropagation\(\);\n\s+ev\.preventDefault\(\);/);
+    expect(CANVAS).toContain('<button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick={() => setPanelFloat({ ...panelFloatRef.current, at: null })}>');
     expect(CANVAS).toContain("localStorage.setItem(PANEL_STORAGE_KEY, serializePanelFloat(f));");
-    expect(CANVAS).toContain("handle.setPointerCapture(pointer);");
+    // The titles' overlay rects see the page panel (it is outside the canvas's host) and its moves.
+    expect(CANVAS).toContain('const overlays = new OverlayRects(canvas, () => floatRef.current?.querySelector(".gc_topics") ?? null);');
+    expect(CANVAS).toContain("overlaysRef.current?.invalidate();");
+    // Framing reads the panel's live box wherever it is.
+    expect(CANVAS.match(/const panelEl = floatRef\.current\?\.querySelector\("\.gc_topics"\);/g)?.length).toBe(2);
+    expect(decl(rule(CANVAS_CSS, ".gc_tp_dock"), "right")).toBe("var(--tap-min, 32px)");
+    expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-docked="false"] .gc_tp_head'), "padding-right")).toBe("calc(var(--tap-min, 32px) + 72px)");
   });
 });

@@ -233,6 +233,50 @@ describe("no per-frame DOM layout reads in the title pass (review S3)", () => {
   });
 });
 
+describe("the titles avoid the Topics panel when it floats over the page (round 4, backlog 0027)", () => {
+  it("OverlayRects reads the panel outside the canvas's host, watches it, and a move marks the rects stale", async () => {
+    const g = globalThis as unknown as Record<string, unknown>;
+    const saved = { window: g.window, ResizeObserver: g.ResizeObserver, MutationObserver: g.MutationObserver };
+    const observed: unknown[] = [];
+    g.window = { addEventListener() {}, removeEventListener() {} };
+    g.ResizeObserver = class {
+      observe(el: unknown) { observed.push(el); }
+      unobserve() {}
+      disconnect() {}
+    };
+    g.MutationObserver = class {
+      observe() {}
+      disconnect() {}
+    };
+    try {
+      const { OverlayRects } = await import("./graph_canvas");
+      let reads = 0;
+      const legend = { getBoundingClientRect: () => ({ left: 20, top: 600, width: 400, height: 50 }) };
+      const panel = { box: { left: 730, top: 168, width: 320, height: 390 }, getBoundingClientRect() { return this.box; } };
+      const host = { querySelectorAll: () => { reads += 1; return [legend]; }, contains: (el: unknown) => el === legend };
+      const canvas = { parentElement: host, getBoundingClientRect: () => ({ left: 0, top: 100 }) };
+      const o = new OverlayRects(canvas as unknown as HTMLCanvasElement, () => panel as unknown as Element);
+      expect(o.current()).toEqual([{ x: 20, y: 500, w: 400, h: 50 }, { x: 730, y: 68, w: 320, h: 390 }]);
+      expect(observed).toContain(panel);
+      // Moved over the page: nothing around the canvas changed; the canvas says so.
+      panel.box = { left: 200, top: 400, width: 320, height: 390 };
+      expect(o.current()[1]).toEqual({ x: 730, y: 68, w: 320, h: 390 });
+      o.invalidate();
+      expect(o.current()[1]).toEqual({ x: 200, y: 300, w: 320, h: 390 });
+      expect(reads).toBe(2);
+      // In the phone stack (inside the host) it is not counted twice.
+      const inHost = new OverlayRects(canvas as unknown as HTMLCanvasElement, () => legend as unknown as Element);
+      expect(inHost.current()).toHaveLength(1);
+      o.dispose();
+      inHost.dispose();
+    } finally {
+      g.window = saved.window;
+      g.ResizeObserver = saved.ResizeObserver;
+      g.MutationObserver = saved.MutationObserver;
+    }
+  });
+});
+
 describe("freeCentre: a focused topic is framed where the panel leaves room", () => {
   it("no panel: the canvas centre", async () => {
     const { freeCentre } = await import("./graph_canvas");

@@ -41,15 +41,19 @@ export function overlayStack(topics: StackTopics, legend: StackLegend): OverlayS
 /**
  * THE FLOATING TOPICS PANEL (operator 2026-11-10, Entity backlog 0017 "the
  * Topics panel floatable and resizable", folding 0001 "it should start from
- * the top right, not bottom right"). On a wide canvas the panel starts
- * DOCKED top-right, under the motion buttons, and grows downward; its grip
- * (on its head) moves it anywhere inside the canvas, its corner resizes it,
- * a double-click on its head docks it again. Where it is and its size are
- * presentation, remembered in one versioned key. A phone keeps the stack.
- * Pure: the canvas measures, these numbers clamp. In canvas px.
+ * the top right, not bottom right"; round 4, backlog 0027: "it should be
+ * able to move anywhere on the page … drag & drop from the menu bar … the
+ * resize… on the opposite side of the window, not intuitive at all"). On a
+ * wide canvas the panel floats over the PAGE: it starts DOCKED at the
+ * canvas's top right, under the motion buttons, and grows downward; its head
+ * bar (and its grip) moves it anywhere in the window, its bottom-right
+ * corner grows it toward the bottom right (its top-left stays put), "put
+ * back" docks it again. Where it is and its size are presentation,
+ * remembered in one versioned key. A phone keeps the stack.
+ * Pure: the canvas measures, these numbers clamp. In viewport px.
  */
 export type PanelFloat = {
-  /** Where its top-left corner is; null: docked top-right. */
+  /** Where its top-left corner is in the window; null: docked. */
   at: { x: number; y: number } | null;
   /** Its width (null: the docked default) and its height while open on its
    * list (null: as tall as its list, up to its cap). */
@@ -62,43 +66,49 @@ export const PANEL_DOCKED: PanelFloat = { at: null, w: null, h: null };
 export const PANEL_W = { min: 240, max: 560 } as const;
 /** The shortest a resize makes it (its head and a few rows). */
 export const PANEL_MIN_H = 120;
-/** Its head stays inside the canvas (the grip with it). */
+/** Its head stays inside the window (its bar with it). */
 export const PANEL_HEAD_H = 40;
-/** The lens row's band: a moved panel stays below it. */
-export const PANEL_TOP_MIN = 48;
-/** The gap it keeps from the canvas edges and from the motion buttons. */
+/** The gap it keeps from the window's edges and under the motion buttons. */
 export const PANEL_GAP = 8;
-export const PANEL_STORAGE_KEY = "abstractentity_topics_panel_v1";
+/** v2 (round 4): positions are the window's, not the canvas's; a v1 value
+ * (canvas px, from before the page float) is never read. */
+export const PANEL_STORAGE_KEY = "abstractentity_topics_panel_v2";
+/** A press on the head moves the panel once the pointer travels this far
+ * (px); short of it, the press is the head's click (it folds the panel). */
+export const PANEL_DRAG_SLOP = 4;
 
 type Box = { x: number; y: number; w: number; h: number };
 
-/** Where a move by (dx, dy) from `start` puts it: inside the canvas, below
- * the lens row, its head never under the motion buttons (a panel across
- * their column stays below them). */
-export function movePanel(start: Box, dx: number, dy: number, canvas: { w: number; h: number }, buttons: Box | null): { x: number; y: number } {
-  const x = Math.max(0, Math.min(start.x + dx, canvas.w - start.w));
-  let y = Math.max(PANEL_TOP_MIN, Math.min(start.y + dy, canvas.h - PANEL_HEAD_H));
-  if (buttons && x < buttons.x + buttons.w && buttons.x < x + start.w && y < buttons.y + buttons.h + PANEL_GAP) y = buttons.y + buttons.h + PANEL_GAP;
-  return { x, y };
+/** Where a move by (dx, dy) from `start` puts it: anywhere in the window,
+ * its head kept inside it. */
+export function movePanel(start: Box, dx: number, dy: number, view: { w: number; h: number }): { x: number; y: number } {
+  const x = Math.max(0, Math.min(start.x + dx, view.w - start.w));
+  const y = Math.max(0, Math.min(start.y + dy, view.h - PANEL_HEAD_H));
+  return { x: Math.round(x), y: Math.round(y) };
 }
 
-/** Its size after its bottom-right corner moved by (dx, dy): PANEL_W wide
- * at most and at least, never past the canvas's edges. Its top-left stays
- * put; at the canvas's right edge a wider panel grows to the left instead
- * (a docked panel always does: its right edge is the canvas's). */
-export function resizePanel(start: Box, dx: number, dy: number, canvas: { w: number; h: number }, docked: boolean): { x: number; w: number; h: number } {
-  const right = docked ? start.x + start.w : canvas.w - PANEL_GAP;
+/** Its box after its bottom-right corner moved by (dx, dy): its top-left
+ * stays put and it grows toward the bottom right, PANEL_W wide at most and
+ * at least, as tall as the window lets it; only a width that would leave
+ * the window moves its left edge (left, just enough). */
+export function resizePanel(start: Box, dx: number, dy: number, view: { w: number; h: number }): { x: number; w: number; h: number } {
+  const right = view.w - PANEL_GAP;
   let w = Math.max(PANEL_W.min, Math.min(start.w + dx, PANEL_W.max));
-  let x = docked ? right - w : start.x;
+  let x = start.x;
   if (x + w > right) x = right - w;
   if (x < 0) {
-    // A canvas narrower than the panel's width: as wide as it.
+    // A window narrower than the panel's width: as wide as it.
     x = 0;
     w = right;
   }
-  const h = Math.max(PANEL_MIN_H, Math.min(start.h + dy, canvas.h - start.y - PANEL_GAP));
+  const h = Math.max(PANEL_MIN_H, Math.min(start.h + dy, view.h - start.y - PANEL_GAP));
   return { x: Math.round(x), w: Math.round(w), h: Math.round(h) };
 }
+
+/** Where the docked panel goes (window px, measured by the canvas): its top
+ * (under the motion buttons), its right edge (10 px inside the canvas's),
+ * and the canvas's width and bottom (its default width and height cap). */
+export type PanelDock = { top: number; right: number; canvasW: number; canvasBottom: number; canvasH: number; viewW: number };
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -126,24 +136,44 @@ export function serializePanelFloat(f: PanelFloat): string {
 }
 
 /** The panel's width: as resized, else the docked default. */
-function panelWidth(f: PanelFloat): string {
-  return f.w !== null ? `${f.w}px` : "min(320px, calc(100% - 32px))";
+function panelWidth(f: PanelFloat, dock: PanelDock): string {
+  return f.w !== null ? `${f.w}px` : `${Math.max(PANEL_W.min, Math.min(320, dock.canvasW - 32))}px`;
 }
 
-/** The panel's custom properties (the stylesheet clamps them to the canvas
- * when it shrinks): its top, its left (docked: none, it keeps right), its
- * width, its height while open on its list, and the room the Context legend
- * leaves it at the top (docked only). `dockTop`: under the motion buttons. */
-export function panelVars(f: PanelFloat, dockTop: number): Record<string, string> {
-  const w = panelWidth(f);
+/** The panel box's custom properties (position: fixed; the stylesheet
+ * clamps a moved one to a window that shrank since): its top, its left or
+ * its right (docked: the canvas's right edge), its width, its height while
+ * open on its list and its height cap (docked and not resized: 58 % of the
+ * canvas, never past its foot). */
+export function panelVars(f: PanelFloat, dock: PanelDock): Record<string, string> {
+  const w = panelWidth(f, dock);
+  if (f.at) {
+    const top = `max(0px, min(${f.at.y}px, calc(100% - ${PANEL_HEAD_H}px)))`;
+    return {
+      "--gc-tp-top": top,
+      "--gc-tp-left": `max(0px, min(${f.at.x}px, calc(100% - ${w})))`,
+      "--gc-tp-right": "auto",
+      "--gc-tp-w": w,
+      "--gc-tp-h": f.h !== null ? `${f.h}px` : "auto",
+      "--gc-tp-maxh": `calc(100% - ${top} - ${PANEL_GAP}px)`,
+    };
+  }
+  const cap = f.h !== null ? dock.canvasBottom - dock.top - PANEL_GAP : Math.min(0.58 * dock.canvasH, dock.canvasBottom - dock.top - 12);
   return {
-    "--gc-tp-top": f.at ? `max(${PANEL_TOP_MIN}px, min(${f.at.y}px, calc(100% - ${PANEL_HEAD_H}px)))` : `${dockTop}px`,
-    "--gc-tp-left": f.at ? `max(0px, min(${f.at.x}px, calc(100% - ${w})))` : "auto",
-    "--gc-tp-right": f.at ? "auto" : "10px",
+    "--gc-tp-top": `${dock.top}px`,
+    "--gc-tp-left": "auto",
+    "--gc-tp-right": `${Math.max(0, dock.viewW - dock.right)}px`,
     "--gc-tp-w": w,
     "--gc-tp-h": f.h !== null ? `${f.h}px` : "auto",
-    "--gc-tp-top-reserve": f.at ? "0px" : `calc(${w} + 20px)`,
+    "--gc-tp-maxh": `${Math.max(PANEL_MIN_H, Math.round(cap))}px`,
   };
+}
+
+/** The room the Context legend (top centre of the canvas) leaves the docked
+ * panel: its width and gaps; none while it is moved (the viewer's choice).
+ * Resolved in the canvas (its 100 % is the canvas's width). */
+export function topReserve(f: PanelFloat): string {
+  return f.at ? "0px" : `calc(${f.w !== null ? `${f.w}px` : "min(320px, calc(100% - 32px))"} + 20px)`;
 }
 
 /** The room the kinds legend (at the canvas's foot) leaves the panel
@@ -152,5 +182,5 @@ export function panelVars(f: PanelFloat, dockTop: number): Record<string, string
  * the viewer's choice), folded (its head, at the top) or absent. A phone's
  * stack never meets the rule (wide canvases only). */
 export function legendReserve(f: PanelFloat | null, openList: boolean): string {
-  return f && f.at === null && openList ? `calc(${panelWidth(f)} + 20px)` : "0px";
+  return f && f.at === null && openList ? topReserve(f) : "0px";
 }

@@ -5916,9 +5916,11 @@ body {
 /* A wide canvas with the Topics panel docked open at the top right: the
  * kinds legend ends before it, whatever width it was resized to (the canvas
  * sets --gc-tp-reserve on this wrap: the docked panel's width and its gaps,
- * 0 while it is moved, folded or absent; overlay_stack legendReserve). */
+ * 0 while it is moved, folded or absent; overlay_stack legendReserve). No
+ * :has(.gc_topics): a wide canvas floats the panel over the page, outside
+ * this wrap (round 4, backlog 0027). */
 @container entity-canvas (min-width: 860px) {
-  .entity_canvas_wrap:has(.gc_topics) > .entity_legend {
+  .entity_canvas_wrap > .entity_legend {
     max-width: min(calc(100% - 200px), calc(100% - var(--gc-tp-reserve, 0px) - 20px));
   }
   /* The motion buttons stay inside the 200 px the lens row leaves them

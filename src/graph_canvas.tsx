@@ -21,7 +21,8 @@
  * owns truth: everything drawn derives from the fold at the scrub seq.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { FoldState, NodeState, StandingState } from "./stream_fold";
 import { ADMISSION_LABELS } from "./stream_types";
@@ -79,7 +80,7 @@ import {
   type SeatedFold,
 } from "./topic_layout";
 import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
-import { legendReserve, movePanel, overlayStack, PANEL_DOCKED, PANEL_STORAGE_KEY, PANEL_TOP_MIN, PANEL_GAP, panelVars, parsePanelFloat, resizePanel, serializePanelFloat, type PanelFloat } from "./overlay_stack";
+import { legendReserve, movePanel, overlayStack, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizePanel, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -483,12 +484,16 @@ function readStoredLayout(key: string): string | null {
 /** The DOM overlays over the canvas, in canvas px (what a topic's title
  * must never sit under). */
 const CANVAS_OVERLAYS = ".gc_topics, .gc_recall_legend, .gc_motion_controls, .entity_legend";
-function overlayRectsOver(canvas: HTMLCanvasElement): { rects: Rect[]; els: Element[] } {
+/** `outside`: an overlay that lives outside the canvas's host (the Topics
+ * panel floating over the page, portaled to the app's root). */
+function overlayRectsOver(canvas: HTMLCanvasElement, outside?: () => Element | null): { rects: Rect[]; els: Element[] } {
   const host = canvas.parentElement;
   if (!host) return { rects: [], els: [] };
   const c = canvas.getBoundingClientRect();
   const rects: Rect[] = [];
   const els = Array.from(host.querySelectorAll(CANVAS_OVERLAYS));
+  const away = outside?.() ?? null;
+  if (away && !host.contains(away)) els.push(away);
   for (const el of els) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) rects.push({ x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height });
@@ -508,7 +513,7 @@ export class OverlayRects {
   private readonly watched = new Set<Element>();
   private readonly resize: ResizeObserver | null;
   private readonly dom: MutationObserver | null;
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly outside?: () => Element | null) {
     const mark = () => {
       this.dirty = true;
     };
@@ -524,11 +529,15 @@ export class OverlayRects {
     this.onResize = mark;
   }
   private readonly onResize: () => void;
+  /** Mark the rects stale (the page panel moved: no observer here sees it). */
+  invalidate(): void {
+    this.dirty = true;
+  }
   /** The rects as they are (read from the DOM only when marked stale). */
   current(): Rect[] {
     if (!this.dirty) return this.rects;
     this.dirty = false;
-    const { rects, els } = overlayRectsOver(this.canvas);
+    const { rects, els } = overlayRectsOver(this.canvas, this.outside);
     // An overlay seen for the first time is watched for its own resizes
     // (its first observation marks the rects once more, then holds).
     for (const el of els) {
@@ -722,9 +731,12 @@ export function GraphCanvas({
   }, [topicsPending]);
   // The Topics panel: open on a wide screen, folded on a phone.
   const [topicsOpen, setTopicsOpen] = useState(() => !narrowViewport());
-  // THE FLOATING PANEL (overlay_stack.ts PanelFloat; backlog 0017): a wide
-  // canvas starts it docked top-right under the motion buttons; its grip
-  // moves it, its corner resizes it, a double-click on its head docks it.
+  // THE FLOATING PANEL (overlay_stack.ts PanelFloat; backlog 0017, 0027):
+  // a wide canvas floats it over the PAGE (portaled to the body: the
+  // canvas's wrap is a CSS container, which would hold a fixed box inside
+  // it), docked at the canvas's top right under the motion buttons; its head
+  // bar and its grip move it anywhere in the window, its corner grows it
+  // toward the bottom right, "put back" docks it again.
   const [panelFloat, setPanelFloatState] = useState<PanelFloat>(readPanelFloat);
   const panelFloatRef = useRef(panelFloat);
   panelFloatRef.current = panelFloat;
@@ -732,22 +744,65 @@ export function GraphCanvas({
     setPanelFloatState(f);
     writePanelFloat(f);
   };
-  /** Its docked top: under the motion buttons (measured: one row or two). */
-  const [dockTop, setDockTop] = useState(PANEL_TOP_MIN);
-  const dockTopRef = useRef(dockTop);
-  dockTopRef.current = dockTop;
+  /** Where the docked panel goes, in the window (null until measured). */
+  const [panelDock, setPanelDock] = useState<PanelDock | null>(null);
+  const panelDockRef = useRef(panelDock);
+  panelDockRef.current = panelDock;
+  /** The panel floats over the page (a wide, shown canvas: the stack draws
+   * no box) — else it is the phone stack's foot. */
+  const [pagePanel, setPagePanel] = useState(false);
+  /** Where the page panel is portaled: the app's root (its rules, its font
+   * scale; a size container, so "fixed" is the root's box: the window). */
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
+  const panelHostRef = useRef<HTMLElement | null>(null);
   const stackRef = useRef<HTMLDivElement | null>(null);
   const floatRef = useRef<HTMLDivElement | null>(null);
   const motionRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = motionRef.current;
-    if (!el) return;
-    const measure = () => setDockTop(Math.round(el.offsetTop + el.offsetHeight + PANEL_GAP));
+  /** A press on the head that became a move: its click is not the fold's. */
+  const panelDraggedRef = useRef(false);
+  /** The frame's overlay rects (a moved page panel marks them stale). */
+  const overlaysRef = useRef<OverlayRects | null>(null);
+  // Measured before paint (no frame with the panel in the wrong place), again
+  // when the canvas or the motion buttons resize (the drawer, the window, a
+  // container query that moves the buttons: the first open on a canvas that
+  // grew past the phone width read a stale "under the buttons" before).
+  useLayoutEffect(() => {
+    const wrap = canvasRef.current?.parentElement;
+    const motion = motionRef.current;
+    const stackEl = stackRef.current;
+    if (!wrap || !motion || !stackEl) return;
+    const host = wrap.closest("#root");
+    if (!(host instanceof HTMLElement)) {
+      // The app mounts in #root; without it the panel stays in the canvas (the phone stack's place), said loudly.
+      console.error("#SEAM the graph is not inside #root: the Topics panel cannot float over the page");
+      return;
+    }
+    panelHostRef.current = host;
+    setPanelHost(host);
+    const measure = () => {
+      const hr = host.getBoundingClientRect();
+      const wr = wrap.getBoundingClientRect();
+      const mr = motion.getBoundingClientRect();
+      const shown = wr.width > 0 && wr.height > 0;
+      setPagePanel(shown && getComputedStyle(stackEl).display === "contents");
+      const next: PanelDock = { top: Math.round(mr.bottom - hr.top + PANEL_GAP), right: Math.round(wr.right - hr.left - 10), canvasW: Math.round(wr.width), canvasBottom: Math.round(wr.bottom - hr.top), canvasH: Math.round(wr.height), viewW: Math.round(hr.width) };
+      setPanelDock((d) => (d && d.top === next.top && d.right === next.right && d.canvasW === next.canvasW && d.canvasBottom === next.canvasBottom && d.canvasH === next.canvasH && d.viewW === next.viewW ? d : next));
+    };
     measure();
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    return () => ro?.disconnect();
+    ro?.observe(wrap);
+    ro?.observe(motion);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
+  // The page panel lives outside the canvas's host: its moves reach the
+  // titles' overlay rects through this.
+  useEffect(() => {
+    overlaysRef.current?.invalidate();
+  }, [panelFloat, panelDock, pagePanel]);
   /** Last frame time the recall drove the emphasis (ease-out pacing). */
   const recallDriveAtRef = useRef<number | null>(null);
   const hoverRef = useRef<string | null>(null);
@@ -1011,7 +1066,8 @@ export function GraphCanvas({
     // the DOM only when something can have moved them — the canvas or an
     // overlay resized, an overlay came or went, the overlays' DOM changed —
     // never per frame (review S3: the ruling, no per-frame recompute).
-    const overlays = new OverlayRects(canvas);
+    const overlays = new OverlayRects(canvas, () => floatRef.current?.querySelector(".gc_topics") ?? null);
+    overlaysRef.current = overlays;
 
     // THE TOPIC TITLES' PLACEMENT (each title off every node, off the other
     // titles, never under an overlay): computed once per change of what it
@@ -2291,7 +2347,7 @@ export function GraphCanvas({
     const rect = canvas?.getBoundingClientRect();
     if (circle && canvas && rect && rect.width >= 10) {
       // Framed in the part of the canvas the Topics panel leaves free.
-      const panelEl = canvas.parentElement?.querySelector(".gc_topics");
+      const panelEl = floatRef.current?.querySelector(".gc_topics");
       const pr = panelEl?.getBoundingClientRect();
       const panel = pr && pr.width > 0 ? { x: pr.left - rect.left, y: pr.top - rect.top, w: pr.width, h: pr.height } : null;
       const free = freeCentre({ w: rect.width, h: rect.height }, panel);
@@ -2311,59 +2367,91 @@ export function GraphCanvas({
       const ln = layoutRef.current.get(id);
       if (ln) points.push(ln);
     }
-    const panelEl = canvas.parentElement?.querySelector(".gc_topics");
+    const panelEl = floatRef.current?.querySelector(".gc_topics");
     const pr = panelEl?.getBoundingClientRect();
     const panel = pr && pr.width > 0 ? { x: pr.left - rect.left, y: pr.top - rect.top, w: pr.width, h: pr.height } : null;
     const pose = framePointsPose(points, { w: rect.width, h: rect.height }, freeCentre({ w: rect.width, h: rect.height }, panel));
     if (pose) moveCamera(pose);
   };
-  /** A press on the panel's grip (move) or its corner (size): the panel
-   * follows the pointer (mouse, pen or touch: pointer capture), clamped to
-   * the canvas (overlay_stack movePanel / resizePanel); written straight on
-   * the stack's custom properties while it moves (no re-render per move),
-   * kept and remembered when it is let go. */
-  const startPanelDrag = (ev: React.PointerEvent<HTMLElement>, mode: "move" | "size") => {
+  /** A press on the page panel: its grip (move), its head bar (a move once
+   * the pointer travels PANEL_DRAG_SLOP; short of it, the head's own click
+   * folds the panel) or its corner (size; its top-left stays put). The panel
+   * follows the pointer with pointer capture, one paint per frame: a move is
+   * a transform (the compositor's, no layout, no re-render), a resize writes
+   * the panel box's own size; both are kept and remembered on release
+   * (overlay_stack movePanel / resizePanel, clamped to the window). */
+  const startPanelDrag = (ev: React.PointerEvent<HTMLElement>) => {
+    panelDraggedRef.current = false;
+    if (!pagePanel) return;
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
-    const wrap = floatRef.current;
-    const stackEl = stackRef.current;
-    const host = wrap?.offsetParent;
-    if (!wrap || !stackEl || !(host instanceof HTMLElement)) return;
-    ev.preventDefault();
-    ev.stopPropagation();
+    const target = ev.target instanceof Element ? ev.target : null;
+    const mode = !target || target.closest(".gc_tp_dock") ? null : target.closest(".gc_tp_resize") ? "size" : target.closest(".gc_tp_grip") ? "move" : target.closest(".gc_tp_head") ? "head" : null;
+    const box = floatRef.current;
+    const dock = panelDockRef.current;
+    const host = panelHostRef.current;
+    if (mode === null || !box || !dock || !host) return;
+    // The head keeps its press (its click folds the panel when it never moved).
+    if (mode !== "head") ev.preventDefault();
     const hr = host.getBoundingClientRect();
-    const br = wrap.getBoundingClientRect();
+    const br = box.getBoundingClientRect();
     const start = { x: br.left - hr.left, y: br.top - hr.top, w: br.width, h: br.height };
-    const area = { w: hr.width, h: hr.height };
-    const mr = motionRef.current?.getBoundingClientRect();
-    const buttons = mr && mr.width > 0 ? { x: mr.left - hr.left, y: mr.top - hr.top, w: mr.width, h: mr.height } : null;
+    const view = { w: hr.width, h: hr.height };
     const from = panelFloatRef.current;
-    const docked = from.at === null;
-    const handle = ev.currentTarget;
     const pointer = ev.pointerId;
     const x0 = ev.clientX;
     const y0 = ev.clientY;
+    let last = { x: x0, y: y0 };
+    let dragging = mode !== "head";
     let next = from;
-    handle.setPointerCapture(pointer);
+    let frame = 0;
+    if (dragging) box.setPointerCapture(pointer);
+    const paint = () => {
+      frame = 0;
+      const dx = last.x - x0;
+      const dy = last.y - y0;
+      if (mode === "size") {
+        const r = resizePanel(start, dx, dy, view);
+        next = { at: { x: r.x, y: Math.round(start.y) }, w: r.w, h: r.h };
+        for (const [k, v] of Object.entries(panelVars(next, dock))) box.style.setProperty(k, v);
+        box.dataset.sized = "true";
+        box.dataset.docked = "false";
+      } else {
+        const at = movePanel(start, dx, dy, view);
+        next = { ...from, at };
+        box.style.transform = `translate(${at.x - start.x}px, ${at.y - start.y}px)`;
+      }
+    };
     const onMove = (e: PointerEvent) => {
       if (e.pointerId !== pointer) return;
-      if (mode === "move") {
-        next = { ...from, at: movePanel(start, e.clientX - x0, e.clientY - y0, area, buttons) };
-      } else {
-        const r = resizePanel(start, e.clientX - x0, e.clientY - y0, area, docked);
-        next = { at: docked ? null : { x: r.x, y: start.y }, w: r.w, h: r.h };
+      last = { x: e.clientX, y: e.clientY };
+      if (!dragging) {
+        if (Math.hypot(last.x - x0, last.y - y0) < PANEL_DRAG_SLOP) return;
+        dragging = true;
+        panelDraggedRef.current = true;
+        box.setPointerCapture(pointer);
       }
-      for (const [k, v] of Object.entries(panelVars(next, dockTopRef.current))) stackEl.style.setProperty(k, v);
+      if (!frame) frame = requestAnimationFrame(paint);
     };
     const onEnd = (e: PointerEvent) => {
       if (e.pointerId !== pointer) return;
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onEnd);
-      handle.removeEventListener("pointercancel", onEnd);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+      if (!dragging) return;
+      if (frame) cancelAnimationFrame(frame);
+      paint();
+      if (mode !== "size") {
+        // Where the transform had it, as its place; then no transform (no jump).
+        for (const [k, v] of Object.entries(panelVars(next, dock))) box.style.setProperty(k, v);
+        box.dataset.docked = "false";
+        box.style.transform = "";
+      }
       if (next !== from) setPanelFloat(next);
+      overlaysRef.current?.invalidate();
     };
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onEnd);
-    handle.addEventListener("pointercancel", onEnd);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
   };
   const focusTopicRef = useRef(focusTopic);
   focusTopicRef.current = focusTopic;
@@ -2467,6 +2555,73 @@ export function GraphCanvas({
       wrap.style.removeProperty("--gc-tp-reserve");
     };
   }, [footReserve]);
+
+  // THE TOPICS PANEL (topics_panel.tsx): the drill-down, or the one sentence
+  // while his topics are not served. On a wide canvas its box floats over
+  // the page (its head bar and grip, its corner, "put back"); on a phone the
+  // box draws nothing (the stack's foot).
+  const panelBox = panelView ? (
+    <div
+      ref={floatRef}
+      className="gc_topics_float"
+      data-page={pagePanel ? "true" : "false"}
+      data-docked={panelFloat.at === null ? "true" : "false"}
+      data-sized={panelFloat.h !== null ? "true" : "false"}
+      data-list={stack.topics === "sheet" ? "true" : "false"}
+      style={pagePanel && panelDock ? (panelVars(panelFloat, panelDock) as React.CSSProperties) : undefined}
+      onPointerDown={startPanelDrag}
+      onClickCapture={(ev) => {
+        // The click that ends a move from the head bar is not a fold.
+        if (!panelDraggedRef.current) return;
+        panelDraggedRef.current = false;
+        ev.stopPropagation();
+        ev.preventDefault();
+      }}
+    >
+      <TopicsPanel
+        view={panelView}
+        fold={fold}
+        rowsOf={membership?.rowsOf ?? EMPTY_ROWS}
+        waiting={waitingCount}
+        focused={pickedTopic}
+        open={topicsOpen}
+        onToggle={setTopicsOpen}
+        onFocus={(key) => {
+          // On a phone the open panel covers the short canvas: a topic
+          // picked there folds it so the graph shows the circle (its
+          // members stay one tap away, unfolded under its title). A
+          // topic with none of its memories loaded has no circle: the
+          // panel stays open on its sentence.
+          if (key !== null && narrowViewport() && loadedOf(key) > 0) setTopicsOpen(false);
+          focusTopic(key);
+        }}
+        onOpenMember={openMember}
+        onHoverTopic={(key) => {
+          hoverTopicRef.current = key;
+        }}
+        onHoverRows={(ids) => {
+          hoverRowsRef.current = ids === null ? null : new Set(seamRows(fold, ids, "onHoverRows"));
+        }}
+        onFrameRows={(ids) => frameRows(seamRows(fold, ids, "onFrameRows"))}
+        onRetry={retryTopics}
+        colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
+      />
+      {pagePanel ? (
+        <div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel (or drag its title bar)">
+          ⠿
+        </div>
+      ) : null}
+      {pagePanel && panelFloat.at !== null ? (
+        // Moved: one control puts it back (docked top-right, its size
+        // kept). Never the head's double-click: the head is the fold
+        // button, and a double-click folded and unfolded it (review F1).
+        <button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick={() => setPanelFloat({ ...panelFloatRef.current, at: null })}>
+          put back
+        </button>
+      ) : null}
+      {pagePanel && stack.topics === "sheet" ? <div className="gc_tp_resize" aria-hidden="true" title="Drag to resize the panel" /> : null}
+    </div>
+  ) : null;
 
   return (
     <>
@@ -2603,78 +2758,23 @@ export function GraphCanvas({
         * the Context legend and the Topics panel are one column — the legend
         * on top, never under the panel; open, the panel takes its slot and
         * the legend steps aside. A wide canvas draws no box (display:
-        * contents): each keeps its own place, the panel floating where its
-        * custom properties put it (and the Context legend leaving it room
-        * while it is docked). */}
+        * contents): the legend keeps its place (leaving the docked panel its
+        * width), the panel floats over the page (portaled below). */}
       <div
         ref={stackRef}
         className="gc_overlay_stack"
         data-legend={stack.legend}
         data-topics={stack.topics}
-        style={panelView ? (panelVars(panelFloat, dockTop) as React.CSSProperties) : undefined}
+        style={panelView ? ({ "--gc-tp-top-reserve": topReserve(panelFloat) } as React.CSSProperties) : undefined}
       >
         {recallShown && recall ? (
           // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what
           // each colour means, the lit lines and the grey-to-green fill.
           <ContextLegend recall={recall} open={legendOpen} onToggle={setLegendOpen} />
         ) : null}
-        {panelView ? (
-          // THE TOPICS PANEL (topics_panel.tsx): the drill-down, or the one
-          // sentence while his topics are not served. On a wide canvas it
-          // floats (its grip, its corner; a double-click on its head docks
-          // it top-right); on a phone this box draws nothing.
-          <div
-            ref={floatRef}
-            className="gc_topics_float"
-            data-docked={panelFloat.at === null ? "true" : "false"}
-            data-sized={panelFloat.h !== null ? "true" : "false"}
-            data-list={stack.topics === "sheet" ? "true" : "false"}
-          >
-          <TopicsPanel
-            view={panelView}
-            fold={fold}
-            rowsOf={membership?.rowsOf ?? EMPTY_ROWS}
-            waiting={waitingCount}
-            focused={pickedTopic}
-            open={topicsOpen}
-            onToggle={setTopicsOpen}
-            onFocus={(key) => {
-              // On a phone the open panel covers the short canvas: a topic
-              // picked there folds it so the graph shows the circle (its
-              // members stay one tap away, unfolded under its title). A
-              // topic with none of its memories loaded has no circle: the
-              // panel stays open on its sentence.
-              if (key !== null && narrowViewport() && loadedOf(key) > 0) setTopicsOpen(false);
-              focusTopic(key);
-            }}
-            onOpenMember={openMember}
-            onHoverTopic={(key) => {
-              hoverTopicRef.current = key;
-            }}
-            onHoverRows={(ids) => {
-              hoverRowsRef.current = ids === null ? null : new Set(seamRows(fold, ids, "onHoverRows"));
-            }}
-            onFrameRows={(ids) => frameRows(seamRows(fold, ids, "onFrameRows"))}
-            onRetry={retryTopics}
-            colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
-          />
-          <div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel" onPointerDown={(ev) => startPanelDrag(ev, "move")}>
-            ⠿
-          </div>
-          {panelFloat.at !== null ? (
-            // Moved: one control puts it back (docked top-right, its size
-            // kept). Never the head's double-click: the head is the fold
-            // button, and a double-click folded and unfolded it (review F1).
-            <button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick={() => setPanelFloat({ ...panelFloatRef.current, at: null })}>
-              put back
-            </button>
-          ) : null}
-          {stack.topics === "sheet" ? (
-            <div className="gc_tp_resize" aria-hidden="true" title="Drag to resize the panel" onPointerDown={(ev) => startPanelDrag(ev, "size")} />
-          ) : null}
-          </div>
-        ) : null}
+        {pagePanel ? null : panelBox}
       </div>
+      {pagePanel && panelBox && panelHost ? createPortal(panelBox, panelHost) : null}
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the
         * bare 🌊⚓♻️🎯 emoji row read as mystery meat). aria-pressed marks
         * the freeze toggle's state. Served topics place every memory (no

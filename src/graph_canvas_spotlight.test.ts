@@ -218,7 +218,7 @@ describe("the canvas lights and frames the panel's rows", () => {
     const at = CANVAS.indexOf("  const frameRows = (ids: string[]) => {");
     expect(at).toBeGreaterThan(0);
     const block = CANVAS.slice(at, CANVAS.indexOf("  const focusTopicRef = useRef(focusTopic);"));
-    expect(block).toContain('canvas.parentElement?.querySelector(".gc_topics")');
+    expect(block).toContain('floatRef.current?.querySelector(".gc_topics")');
     expect(block).toContain("const pose = framePointsPose(points, { w: rect.width, h: rect.height }, freeCentre({ w: rect.width, h: rect.height }, panel));");
     expect(block).toContain("if (pose) moveCamera(pose);");
     expect(block).not.toMatch(/cam\.(x|y|zoom) =/);
