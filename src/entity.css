@@ -4449,7 +4449,7 @@ body {
  * The side panel keeps its whole height beside graph + monitor (its tab strip never gives the
  * monitor any room): the main area becomes a grid while the monitor is open, the graph and the
  * monitor in the first column, the side panel down the second. */
-.entity_main:has(> .entity_monitor_dock):not(:has(> .side_tabs_emphasized)) {
+.entity_main:has(> .entity_monitor_dock) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr) auto;
@@ -4472,10 +4472,6 @@ body {
   overscroll-behavior: contain;
   border-top: 1px solid var(--line);
   background: var(--bg-panel);
-}
-/* The avatar view takes the whole main area (side_tabs_emphasized): no column for the monitor. */
-.entity_main:has(> .side_tabs_emphasized) > .entity_monitor_dock {
-  display: none;
 }
 .cw_panel.cw_dock {
   flex: none;
@@ -4550,7 +4546,7 @@ body {
  * takes the graph's place above the tab strip (an open panel covers it like it covers the graph);
  * its toggle in the timeline gives the graph back. */
 @media (max-width: 767.98px), (max-height: 500px) {
-  .entity_main:has(> .entity_monitor_dock):not(:has(> .side_tabs_emphasized)) {
+  .entity_main:has(> .entity_monitor_dock) {
     display: flex;
   }
   .entity_main:has(> .entity_monitor_dock) > .entity_canvas_wrap {
@@ -6734,8 +6730,7 @@ body {
 .side_tabs_emphasized { flex: 0 0 100%; min-width: 0; }
 .entity_main:has(> .side_tabs_emphasized) > .entity_canvas_wrap { overflow: hidden; }
 @media (max-width: 767.98px), (max-height: 599.98px) {
-  .entity_main:has(> .side_tabs_avatar) ~ .entity_timeline,
-  .entity_main:has(> .side_tabs_avatar) > .entity_monitor_dock { display: none; }
+  .entity_main:has(> .side_tabs_avatar) ~ .entity_timeline { display: none; }
   .side_tabs_avatar .pc-avatar-conversation { gap: .45rem; padding: .45rem; }
   .side_tabs_avatar .pc-avatar-conversation__scene { flex: 0 0 auto; min-height: 0; height: min(20dvh, 144px); }
   .side_tabs_avatar .pc-avatar-conversation__scene canvas { width: min(20dvh, 144px) !important; height: min(20dvh, 144px) !important; }

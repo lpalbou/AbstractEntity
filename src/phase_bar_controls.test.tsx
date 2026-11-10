@@ -330,6 +330,9 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(bar).not.toContain("showSentence");
     expect(bar).toContain('className={phaseView.stopped ? "ec_pb_stopped" : undefined}');
     expect(view).not.toContain("entity_stopped_banner");
+    // The stop is said at once to a screen reader (the banner's role="alert"): an alert region always
+    // present, carrying the stop's sentence while stopped.
+    expect(view).toContain('<span className="sr_only" role="alert">\n            {phaseView.stopped ? phaseView.sentence : ""}\n          </span>');
     const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
     expect(css).not.toContain("entity_stopped_banner");
     expect(css).toMatch(/\.ec_phase_bar\.ec_pb_stopped \.ec_pb_sentence \{[^}]*color: color-mix\(in srgb, var\(--scar\) 60%, var\(--text\)\);/);

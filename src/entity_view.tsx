@@ -41,7 +41,7 @@ import { bearerAccountStatus } from "./entity_account";
 import { ENTITY_DOCS_SOURCE, ENTITY_DOCS_SUGGESTIONS, makeEntityDocsFetch } from "./entity_assistant";
 
 import { BookReader } from "./book_reader";
-import { CognitionWavePanel } from "./cognition_wave_panel";
+import { MonitorDock, monitorShown } from "./cognition_wave_panel";
 import { createReplyFeed } from "./cognition_wave_inline";
 import { LessonsPanel, WorldPanel } from "./lessons_world_panels";
 import { HealthPanel } from "./health_panel";
@@ -1670,6 +1670,10 @@ export function EntityView(): React.ReactElement {
   };
   const docsFetch = useMemo(() => makeEntityDocsFetch(() => docsTargetRef.current.base, () => docsTargetRef.current.token), []);
 
+  // The monitor on screen (so mounted, and its toggle pressed): open, his page, past the content gate,
+  // and not beside the avatar view (which takes the whole main area; the toggle waits until it closes).
+  const monitorOnScreen = monitorShown({ open: monitorOpen, locked: gatewayLocked, roster: indexBase !== null && !entityName, avatar: avatarChat });
+
   return (
     <div className="entity_app" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <header className="entity_header">
@@ -1812,6 +1816,11 @@ export function EntityView(): React.ReactElement {
             onCancel={cancelPhaseConfirm}
             className={phaseView.stopped ? "ec_pb_stopped" : undefined}
           />
+          {/* The stop, said at once to a screen reader (the old banner's role="alert"; the bar's own
+            * line is a polite status). Always present, so its words are announced as they come. */}
+          <span className="sr_only" role="alert">
+            {phaseView.stopped ? phaseView.sentence : ""}
+          </span>
           {/* THE STATUS LINE (operator 2026-11-10, backlog 0013): every status sentence of the strip
             * sits in this one reserved slot: one line, never wrapped, cut with an ellipsis, the whole
             * sentence in its title. It takes the free space between the phase bar and the buttons,
@@ -2179,19 +2188,16 @@ export function EntityView(): React.ReactElement {
           <GraphLegend extraKinds={extraKinds} relationTypes={relationTypes} warmthAge={warmthAge} picked={legendPick} onPick={setLegendPick} />
         </div>
         {/* THE COGNITIVE MONITOR, docked above the timeline under the graph (backlog 0018): the side
-          * panel keeps its whole height beside it. Never behind the content gate (a locked browser
-          * sees nothing of him). */}
-        {monitorOpen && !gatewayLocked && !(indexBase !== null && !entityName) ? (
-          <section className="entity_monitor_dock" aria-label="Cognitive monitor">
-            <CognitionWavePanel
-              fold={fold}
-              source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
-              scrubSeq={scrubSeq}
-              live={live}
-              replyFeed={replyFeed}
-            />
-          </section>
-        ) : null}
+          * panel keeps its whole height beside it. Mounted only on screen (monitorShown): never behind
+          * the content gate, never beside the avatar view. */}
+        <MonitorDock
+          shown={monitorOnScreen}
+          fold={fold}
+          source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
+          scrubSeq={scrubSeq}
+          live={live}
+          replyFeed={replyFeed}
+        />
         <SideTabs
           defaultTab="ledger"
           emphasizedTab={avatarChat ? "chat" : undefined}
@@ -2428,8 +2434,8 @@ export function EntityView(): React.ReactElement {
           }}
           onSpeed={setSpeed}
           onToggleLive={toggleLive}
-          monitorOpen={monitorOpen}
-          onToggleMonitor={() => setMonitorOpen((v) => !v)}
+          monitorOpen={monitorOnScreen}
+          onToggleMonitor={avatarChat ? null : () => setMonitorOpen((v) => !v)}
           playhead={playhead}
         />
       )}

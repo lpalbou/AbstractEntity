@@ -41,6 +41,9 @@ describe("compareSpecs", () => {
     const r = await compareSpecs(specV7, specV7 + " ", "some-other-sha", true, 3);
     expect(r.status).toBe("modulated");
     expect(r.detail).toContain("rev 3");
+    // The sentence lands in the toolbar note's hover title: phase rules, never the removed blueprint page.
+    expect(r.detail).toBe("the operator modulated the phase rules (rev 3) — the served copy is the ruling truth; this bundle is the pre-edit shape");
+    expect(r.detail).not.toMatch(/blueprint/i);
     // operator_edited with IDENTICAL bytes still matches (no edit in effect).
     const same = await compareSpecs(specV7, specV7, await sha256Hex(specV7), true, 3);
     expect(same.status).toBe("match");

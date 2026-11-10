@@ -42,9 +42,10 @@ export interface TimelineProps {
   onTogglePlay(): void;
   onSpeed(speed: number): void;
   onToggleLive(): void;
-  /** The Cognitive Monitor docked above this panel (backlog 0018): open or not, and its toggle. */
+  /** The Cognitive Monitor docked above this panel (backlog 0018): on screen or not, and its toggle;
+   * null while it cannot show (beside the avatar view): the toggle is then disabled and says why. */
   monitorOpen: boolean;
-  onToggleMonitor(): void;
+  onToggleMonitor: (() => void) | null;
   /** A defining event was clicked: move time to it and open its memory. */
   onOpenEvent?(index: number, recordId: string): void;
   /** The play head while playing (the panel follows it every frame). */
@@ -305,8 +306,13 @@ export function Timeline(props: TimelineProps): React.ReactElement {
         <button
           className="et_btn et_monitor"
           aria-pressed={props.monitorOpen}
-          onClick={props.onToggleMonitor}
-          title="Cognitive monitor: how his words read at this point of the replay and, live, at each reply"
+          onClick={props.onToggleMonitor ?? undefined}
+          disabled={props.onToggleMonitor === null}
+          title={
+            props.onToggleMonitor === null
+              ? "Cognitive monitor: not shown beside the avatar view"
+              : "Cognitive monitor: how his words read at this point of the replay and, live, at each reply"
+          }
         >
           🧠 Monitor
         </button>

@@ -74,7 +74,7 @@ export async function compareSpecs(
       status: "modulated",
       bundled,
       wire,
-      detail: `the operator modulated the blueprint (rev ${operatorRev ?? "?"}) — the served copy is the ruling truth; this bundle is the pre-edit shape`,
+      detail: `the operator modulated the phase rules (rev ${operatorRev ?? "?"}) — the served copy is the ruling truth; this bundle is the pre-edit shape`,
     };
   }
   // The gateway's declared sha is over ITS vendored file bytes — the only

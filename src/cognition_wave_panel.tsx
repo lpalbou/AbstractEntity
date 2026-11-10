@@ -94,16 +94,53 @@ export function sampleAt(samples: readonly ScoredSample[], seq: number): ScoredS
 
 /** The corpus read, kept per gateway + entity for the page's life: the monitor
  * mounts only while open, and a re-open must not cost his words another read.
- * A read in flight is its promise (a re-open while scoring waits on it). */
+ * A read in flight is its promise (a re-open while scoring waits on it).
+ * Never evicted: one entry per home visited, one ~120-sample corpus each. */
 const corpusReads = new Map<string, Phase | Promise<Phase>>();
-const corpusKey = (source: { baseUrl: string; entity: string } | null): string => (source ? `${source.baseUrl}\u0000${source.entity}` : "");
+export const corpusKey = (source: { baseUrl: string; entity: string } | null): string => (source ? `${source.baseUrl}\u0000${source.entity}` : "");
+
+/** What the monitor shows for a home on (re)opening: the kept read, "scoring" while one is in
+ * flight, else the resting state. */
+export function keptCorpus(key: string): Phase {
+  const kept = corpusReads.get(key);
+  return kept === undefined ? { name: "idle" } : kept instanceof Promise ? { name: "scoring" } : kept;
+}
+
+/** The read in flight for a home (a re-open waits on it), or null. */
+export function corpusInFlight(key: string): Promise<Phase> | null {
+  const kept = corpusReads.get(key);
+  return kept instanceof Promise ? kept : null;
+}
+
+/** THE ONE PULL for a home: starts `read` unless one is in flight (null then, nothing starts);
+ * its result is kept for the page's life. */
+export function startCorpusRead(key: string, read: () => Promise<Phase>): Promise<Phase> | null {
+  if (corpusInFlight(key)) return null;
+  const pending = read();
+  corpusReads.set(key, pending);
+  void pending.then((done) => corpusReads.set(key, done));
+  return pending;
+}
+
+/** Whether the monitor is on screen, so mounted: open, his page (not the roster), his content not
+ * behind the content gate, and not beside the avatar view (which takes the whole main area). */
+export function monitorShown(state: { open: boolean; locked: boolean; roster: boolean; avatar: boolean }): boolean {
+  return state.open && !state.locked && !state.roster && !state.avatar;
+}
+
+/** The dock under the graph (backlog 0018): nothing at all unless shown. */
+export function MonitorDock({ shown, ...panel }: CognitionWavePanelProps & { shown: boolean }): React.ReactElement | null {
+  if (!shown) return null;
+  return (
+    <section className="entity_monitor_dock" aria-label="Cognitive monitor">
+      <CognitionWavePanel {...panel} />
+    </section>
+  );
+}
 
 export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: CognitionWavePanelProps): React.ReactElement {
   const key = corpusKey(source);
-  const [phase, setPhase] = useState<Phase>(() => {
-    const kept = corpusReads.get(key);
-    return kept === undefined ? { name: "idle" } : kept instanceof Promise ? { name: "scoring" } : kept;
-  });
+  const [phase, setPhase] = useState<Phase>(() => keptCorpus(key));
   const [basis, setBasis] = useState<FrozenBasis | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const feed = useSyncExternalStore(replyFeed.subscribe, replyFeed.get, replyFeed.get);
@@ -112,7 +149,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   // dependency. This is THE flood fix (agency c2155): `fold` is a fresh
   // object on every replay envelope (live tail) and every scrub, so an
   // effect keyed on it re-ran the whole harvest — ~120 diary/episode door
-  // reads EACH — continuously while the Wave tab was open (~995 gateway
+  // reads EACH — continuously while the old Wave tab was open (~995 gateway
   // hits in 3 min + diary_read marker pollution). The c1824 ruling is ONE
   // operator-driven pull, never per-render sampling; the harvest now fires
   // ONLY from the explicit button below, over a snapshot of the current fold.
@@ -146,11 +183,11 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   // never auto-scores the new one. A read in flight lands when it ends.
   useEffect(() => {
     let alive = true;
-    const kept = corpusReads.get(key);
-    if (kept instanceof Promise) {
+    const flight = corpusInFlight(key);
+    if (flight) {
       setPhase({ name: "scoring" });
-      void kept.then((p) => alive && setPhase(p));
-    } else setPhase(kept ?? { name: "idle" });
+      void flight.then((p) => alive && setPhase(p));
+    } else setPhase(keptCorpus(key));
     return () => {
       alive = false;
     };
@@ -161,9 +198,8 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   // and caches the samples. A live/scrub fold change does NOT re-run this;
   // the operator re-reads on demand with the same button.
   const runScore = useCallback(() => {
-    if (!source || corpusReads.get(key) instanceof Promise) return;
-    setPhase({ name: "scoring" });
-    const read = (async (): Promise<Phase> => {
+    if (!source) return;
+    const read = startCorpusRead(key, async (): Promise<Phase> => {
       try {
         const b = await loadBasis();
         const scorer = createScorer(b, {
@@ -176,12 +212,10 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
         if (isEmbeddingsUnconfigured(e)) return { name: "unconfigured", message: e.message };
         return { name: "error", message: (e as Error).message, warnings: (e as { warnings?: string[] }).warnings ?? [] };
       }
-    })();
-    corpusReads.set(key, read);
-    void read.then((p) => {
-      corpusReads.set(key, p);
-      setPhase((cur) => (cur.name === "scoring" && corpusKey(sourceRef.current) === key ? p : cur));
     });
+    if (!read) return; // one in flight already: it lands when it ends
+    setPhase({ name: "scoring" });
+    void read.then((p) => setPhase((cur) => (cur.name === "scoring" && corpusKey(sourceRef.current) === key ? p : cur)));
   }, [source, key]);
 
   // The kit's AfCognitionBloom owns the physics + render (morph gate,
@@ -244,7 +278,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
 
           {phase.name === "empty" ? (
             <p className="cw_note">
-              No readable utterances yet — the wave fills as he speaks (visit replies, diary entries, reflections).
+              No readable words yet — the monitor fills as he speaks (visit replies, diary entries, reflections).
               {phase.warnings.length ? <span className="cw_warn"> {phase.warnings[0]}</span> : null}
             </p>
           ) : null}

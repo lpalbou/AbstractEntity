@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ScoredSample } from "./cognition_adapter";
 import { createReplyFeed, type ReplyFeedValue } from "./cognition_wave_inline";
-import { CognitionWavePanel, sampleAt } from "./cognition_wave_panel";
+import { CognitionWavePanel, MonitorDock, keptCorpus, monitorShown, sampleAt, startCorpusRead, corpusKey } from "./cognition_wave_panel";
 import { createFoldState } from "./stream_fold";
 import { Timeline, type TimelineProps } from "./timeline";
 import type { ReplayEnvelope } from "./stream_types";
@@ -47,24 +47,99 @@ describe("the timeline's Monitor toggle", () => {
     expect(toggle(on).replace('aria-pressed="true"', "")).toBe(toggle(off).replace('aria-pressed="false"', ""));
   });
 
-  it("the page opens the monitor docked under the graph, beside the side panel, behind the content gate, mounted only while open", () => {
-    expect(VIEW).toContain("monitorOpen={monitorOpen}");
-    expect(VIEW).toContain("onToggleMonitor={() => setMonitorOpen((v) => !v)}");
-    const dock = VIEW.indexOf('<section className="entity_monitor_dock" aria-label="Cognitive monitor">');
+  it("the page mounts the dock under the graph, beside the side panel, exactly when it is on screen; the toggle shows that state", () => {
+    const at = VIEW.indexOf("<MonitorDock");
     // Inside the main area: after the graph's wrapper, before the side panel (a child of .entity_main).
-    expect(dock).toBeGreaterThan(VIEW.indexOf("<GraphLegend "));
-    expect(dock).toBeLessThan(VIEW.indexOf("<SideTabs"));
-    expect(VIEW.slice(VIEW.indexOf("<GraphLegend "), dock)).toMatch(/\/>\s*<\/div>\s*\{\/\*/);
-    expect(VIEW.slice(VIEW.lastIndexOf("{", dock), dock)).toContain("monitorOpen && !gatewayLocked && !(indexBase !== null && !entityName) ? (");
-    const panel = VIEW.slice(dock, VIEW.indexOf("</section>", dock));
-    for (const prop of ["scrubSeq={scrubSeq}", "live={live}", "replyFeed={replyFeed}"]) expect(panel).toContain(prop);
+    expect(at).toBeGreaterThan(VIEW.indexOf("<GraphLegend "));
+    expect(at).toBeLessThan(VIEW.indexOf("<SideTabs"));
+    const dock = VIEW.slice(at, VIEW.indexOf("/>", at));
+    expect(dock).toContain("shown={monitorOnScreen}");
+    for (const prop of ["scrubSeq={scrubSeq}", "live={live}", "replyFeed={replyFeed}"]) expect(dock).toContain(prop);
+    expect(VIEW).toContain("const monitorOnScreen = monitorShown({ open: monitorOpen, locked: gatewayLocked, roster: indexBase !== null && !entityName, avatar: avatarChat });");
+    expect(VIEW).toContain("monitorOpen={monitorOnScreen}");
+    expect(VIEW).toContain("onToggleMonitor={avatarChat ? null : () => setMonitorOpen((v) => !v)}");
+    expect(VIEW).not.toMatch(/<section className="entity_monitor_dock"/);
+  });
+
+  it("on screen only when open, on his page, past the content gate, and not beside the avatar view", () => {
+    const base = { open: true, locked: false, roster: false, avatar: false };
+    expect(monitorShown(base)).toBe(true);
+    expect(monitorShown({ ...base, open: false })).toBe(false);
+    expect(monitorShown({ ...base, locked: true })).toBe(false);
+    expect(monitorShown({ ...base, roster: true })).toBe(false);
+    expect(monitorShown({ ...base, avatar: true })).toBe(false);
+  });
+
+  it("the dock is in the rendered tree when shown and absent when not", () => {
+    const props = { fold: createFoldState(), source: null, scrubSeq: 0, live: false, replyFeed: createReplyFeed() };
+    expect(renderToStaticMarkup(<MonitorDock shown={false} {...props} />)).toBe("");
+    const open = renderToStaticMarkup(<MonitorDock shown {...props} />);
+    expect(open).toMatch(/^<section class="entity_monitor_dock" aria-label="Cognitive monitor"><div class="cw_panel cw_dock">/);
+  });
+
+  it("beside the avatar view the toggle waits, disabled, unpressed, and says why", () => {
+    const blocked = toggle(render({ monitorOpen: false, onToggleMonitor: null }));
+    expect(blocked).toContain("disabled");
+    expect(blocked).toContain('aria-pressed="false"');
+    expect(blocked).toContain('title="Cognitive monitor: not shown beside the avatar view"');
+    expect(toggle(render({}))).not.toContain("disabled");
+  });
+});
+
+describe("his words read once per home, on demand (the corpus read)", () => {
+  const ready = (text: string) => ({ name: "ready" as const, samples: [sample(5, text)], warnings: [] });
+  const deferred = () => {
+    let resolve!: (v: ReturnType<typeof ready>) => void;
+    const promise = new Promise<ReturnType<typeof ready>>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it("one read; a re-open while it runs waits on it and starts nothing; after it, a re-open shows it at once", async () => {
+    const key = corpusKey({ baseUrl: "http://gw.test", entity: "reopen-castor" });
+    const reads = vi.fn();
+    const first = deferred();
+    expect(keptCorpus(key)).toEqual({ name: "idle" });
+    expect(startCorpusRead(key, () => (reads(), first.promise))).not.toBeNull();
+    // Closed and opened again while it runs: "scoring", and a click there starts no second read.
+    expect(keptCorpus(key)).toEqual({ name: "scoring" });
+    expect(startCorpusRead(key, () => (reads(), first.promise))).toBeNull();
+    first.resolve(ready("the harbour visit"));
+    await settle();
+    expect(reads).toHaveBeenCalledTimes(1);
+    // Opened again after it: the kept read, rendered at once, no click.
+    expect(keptCorpus(key)).toMatchObject({ name: "ready" });
+    const html = renderToStaticMarkup(<CognitionWavePanel fold={createFoldState()} source={{ baseUrl: "http://gw.test", entity: "reopen-castor" }} scrubSeq={10} live={false} replyFeed={createReplyFeed()} />);
+    expect(html).toContain('class="cw_ready"');
+    expect(html).toContain(">re-read</button>");
+    expect(reads).toHaveBeenCalledTimes(1);
+    // Only the operator's re-read reads again.
+    expect(startCorpusRead(key, () => (reads(), Promise.resolve(ready("again"))))).not.toBeNull();
+    expect(reads).toHaveBeenCalledTimes(2);
+  });
+
+  it("moving along the timeline reads nothing: renders at many positions start no read, and no effect of the panel re-reads", () => {
+    const key = corpusKey({ baseUrl: "http://gw.test", entity: "scrub-castor" });
+    for (const seq of [0, 3, 9, 40, 1e6]) {
+      renderToStaticMarkup(<CognitionWavePanel fold={createFoldState()} source={{ baseUrl: "http://gw.test", entity: "scrub-castor" }} scrubSeq={seq} live={false} replyFeed={createReplyFeed()} />);
+    }
+    expect(keptCorpus(key)).toEqual({ name: "idle" });
+    // The read starts from the button only: runScore is defined once and used once (onClick), and
+    // no effect of the panel depends on the position (an effect cannot run in a server render).
+    expect(PANEL.match(/\brunScore\b/g)).toHaveLength(2);
+    expect(PANEL).toContain("onClick={runScore}");
+    const effects = [...PANEL.matchAll(/useEffect\(\(\) => \{[\s\S]*?\}, \[([^\]]*)\]\);/g)].map((m) => m[1]);
+    expect(effects.length).toBeGreaterThan(0);
+    for (const deps of effects) expect(deps).not.toMatch(/scrubSeq|runScore|fold/);
+    expect(PANEL.match(/useEffect\(/g)).toHaveLength(effects.length);
   });
 });
 
 describe("nothing of it at the top: no Wave tab, no monitor over the chat", () => {
   it("the side panel has no Wave tab", () => {
     expect(VIEW).not.toMatch(/id: "wave"|title: "Wave"/);
-    expect(VIEW.match(/<CognitionWavePanel\b/g)).toHaveLength(1);
+    expect(VIEW).not.toContain("<CognitionWavePanel");
+    expect(VIEW.match(/<MonitorDock\b/g)).toHaveLength(1);
   });
 
   it("the chat drawer mounts no monitor; it publishes the reply in view into the feed", () => {
@@ -148,22 +223,22 @@ describe("the reply feed", () => {
 
 describe("layout", () => {
   it("the side panel keeps its whole height: while open the main area is a grid, graph over monitor in the first column, the side panel down the second", () => {
-    expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\):not\(:has\(> \.side_tabs_emphasized\)\) \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: minmax\(0, 1fr\) auto;/);
+    expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\) \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: minmax\(0, 1fr\) auto;/);
     expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\) > \.side_tabs \{\s*grid-column: 2;\s*grid-row: 1 \/ span 2;/);
     expect(CSS).toMatch(/\.entity_main:has\(> \.entity_monitor_dock\) > \.entity_canvas_wrap \{\s*grid-column: 1;\s*grid-row: 1;/);
     // No rule squeezes the side panel's tab strip for the monitor any more.
     expect(CSS).not.toMatch(/entity_monitor_dock\)?[^{]*\.st_rail/);
   });
 
-  it("a bounded strip with its own scroll; on a phone one column in the graph's place, hidden under the avatar view", () => {
+  it("a bounded strip with its own scroll; on a phone one column in the graph's place", () => {
     expect(CSS).toMatch(/\.entity_monitor_dock \{\s*grid-column: 1;\s*grid-row: 2;\s*min-width: 0;\s*max-height: calc\(var\(--vh-full, 100vh\) \* 0\.38\);\s*overflow-y: auto;/);
     expect(CSS).toMatch(/\.cw_panel\.cw_dock \{[^}]*grid-template-columns: minmax\(220px, 300px\) minmax\(0, 1fr\);/);
     const phone = CSS.slice(CSS.indexOf(".cw_dock .cm_body {"));
     expect(phone).toMatch(/@media \(max-width: 767\.98px\) \{\s*\.cw_panel\.cw_dock \{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
-    expect(CSS).toContain(".entity_main:has(> .side_tabs_avatar) > .entity_monitor_dock { display: none; }");
-    expect(CSS).toContain(".entity_main:has(> .side_tabs_emphasized) > .entity_monitor_dock {\n  display: none;");
+    // Beside the avatar view it is not mounted at all (monitorShown), so no CSS hides it there.
+    expect(CSS).not.toMatch(/side_tabs_(avatar|emphasized)\) [>~] \.entity_monitor_dock/);
     // A phone holds one pane at a time: the open monitor takes the graph's place above the tab strip.
-    expect(CSS).toMatch(/@media \(max-width: 767\.98px\), \(max-height: 500px\) \{\s*\.entity_main:has\(> \.entity_monitor_dock\):not\(:has\(> \.side_tabs_emphasized\)\) \{\s*display: flex;\s*\}\s*\.entity_main:has\(> \.entity_monitor_dock\) > \.entity_canvas_wrap \{\s*display: none;\s*\}\s*\/\*[^*]*\*\/\s*\.entity_monitor_dock \{\s*flex: 1 1 0;/);
+    expect(CSS).toMatch(/@media \(max-width: 767\.98px\), \(max-height: 500px\) \{\s*\.entity_main:has\(> \.entity_monitor_dock\) \{\s*display: flex;\s*\}\s*\.entity_main:has\(> \.entity_monitor_dock\) > \.entity_canvas_wrap \{\s*display: none;\s*\}\s*\/\*[^*]*\*\/\s*\.entity_monitor_dock \{\s*flex: 1 1 0;/);
     expect(CSS).toMatch(/\.et_monitor\[aria-pressed="true"\] \{[^}]*border-color: var\(--ea-accent\);/);
   });
 });
