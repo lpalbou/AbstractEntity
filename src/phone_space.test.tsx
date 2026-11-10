@@ -163,11 +163,10 @@ describe("type floor (DESIGN §12.1)", () => {
     expect(decls.filter((v) => v.includes("var(--ent-type-floor, 0px)")).length).toBeGreaterThan(300);
   });
 
-  it("desktop 13 px, dense lists and the tool matrix 12 px, touch 14 px, the blueprint map exempt", () => {
+  it("desktop 13 px, dense lists and the tool matrix 12 px, touch 14 px", () => {
     expect(rule(CSS, ":root")).toMatch(/--ent-type-floor:\s*13px/);
     expect(rule(CSS, "#root .el_list")).toMatch(/--ent-type-floor:\s*12px/);
     expect(rule(coarse, ":root")).toMatch(/--ent-type-floor:\s*14px/);
     expect(rule(coarse, "#root .wsp_matrix")).toMatch(/--ent-type-floor:\s*14px/);
-    expect(rule(CSS, "#root .bp_svg")).toMatch(/--ent-type-floor:\s*0px/);
   });
 });

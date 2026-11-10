@@ -78,7 +78,7 @@ describe("Files, then Settings, at the right end of the strip (backlog 0013)", (
     expect(status).not.toBe("");
     // The phase bar comes first; after it, the notes live only inside the status line.
     expect(strip.slice(0, strip.indexOf('<span className="ec_status">'))).not.toContain("ec_note");
-    for (const note of ["{TICK_FAILURE_NOTE}", "{loopStatus.inbox_warning}", "phase-graph drift: {specDrift.detail}", "{controlNote}", "dayCauseLine(loopStatus?.day_cause)"]) {
+    for (const note of ["{TICK_FAILURE_NOTE}", "{loopStatus.inbox_warning}", "phase rules drift: {specDrift.detail}", "{controlNote}", "dayCauseLine(loopStatus?.day_cause)"]) {
       expect(status).toContain(note);
     }
     // Each note carries its whole sentence in its title (the line cuts it with an ellipsis).

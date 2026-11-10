@@ -125,22 +125,6 @@ describe("cognition_graph.json — the schema law", () => {
     }
   });
 
-  it("the render derives from the artifact — the panel arrays are row-for-row views (no hand-tuned survivor)", async () => {
-    const { BLUEPRINT_NODES, BLUEPRINT_EDGES, COGNITION_GRAPH_VERSION } = await import("./blueprint_panel");
-    expect(COGNITION_GRAPH_VERSION).toBe((graph as { version: number }).version);
-    expect(BLUEPRINT_NODES.length).toBe(nodes.length);
-    expect(BLUEPRINT_EDGES.length).toBe(edges.length);
-    // Spot-honesty: a node's layout in the render IS the artifact's.
-    const first = nodes[0] as { id: string; layout: { x: number } };
-    const rendered = BLUEPRINT_NODES.find((n) => n.id === first.id);
-    expect(rendered?.x).toBe(first.layout.x);
-    // The source file carries no literal node-array rows anymore.
-    const { readFileSync } = await import("node:fs");
-    const src = readFileSync(new URL("./blueprint_panel.tsx", import.meta.url), "utf8");
-    expect(src).not.toMatch(/BLUEPRINT_NODES: BpNode\[\] = \[\s*\n\s*\/\/ ──/);
-    expect(src).toContain('from "../spec/cognition_graph.json"');
-  });
-
   it("every constitutional edge is RATIFIED BY PRECEDENT (c4779): ratified_by names its standing ruling", () => {
     const cons = graph.edges.filter((e) => e.protection === "constitutional");
     expect(cons.length).toBe(8);

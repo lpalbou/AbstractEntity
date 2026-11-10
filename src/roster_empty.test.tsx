@@ -114,15 +114,15 @@ describe("roster mode and head actions", () => {
     expect(empty.watchAll).toBe(false);
     expect(empty.convene).toBe(false);
     expect(empty.newEntity).toBe(false); // the empty card carries the one create button
-    expect(empty.blueprint).toBe(true);
     expect(empty.refresh).toBe(true);
     const list = rosterHeadActions("list");
-    expect(list).toEqual({ watchAll: true, convene: true, blueprint: true, refresh: true, newEntity: true });
+    // No blueprint door (backlog 0022: the blueprint page went).
+    expect(list).toEqual({ watchAll: true, convene: true, refresh: true, newEntity: true });
   });
 
   it("the loading screen shows neither the empty card nor the list actions", () => {
     const html = renderToStaticMarkup(
-      <EntitiesIndex baseUrl="http://gw.test" token={null} onOpen={noop} onWatchAll={noop} onConvene={noop} onBlueprint={noop} />,
+      <EntitiesIndex baseUrl="http://gw.test" token={null} onOpen={noop} onWatchAll={noop} onConvene={noop} />,
     );
     expect(html).not.toContain("eix-empty");
     expect(html).not.toContain("watch all");

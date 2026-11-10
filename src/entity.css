@@ -679,11 +679,6 @@ body {
   color: var(--text-dim);
 }
 
-
-
-
-
-
 .eh_liveage_quiet {
   color: var(--bond);
 }
@@ -5783,120 +5778,11 @@ body {
 .wsp_skills_verdicts ul { margin: 4px 0 0; padding-left: 18px; }
 .wsp_skills_verdicts code { word-break: break-all; color: var(--warn, #e7b45a); }
 
-/* ── Memory blueprint (operator directive dm#118: the cognition machine as
- * a page — same for all entities, static per build, reads no stream). ── */
-.bp_panel { display: flex; flex-direction: column; gap: 6px; }
-.bp_head { display: flex; align-items: baseline; gap: 10px; }
-.bp_title { font-weight: 700; font-size: max(13px, var(--ent-type-floor, 0px)); }
-.bp_vintage { font-size: max(11px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); cursor: help; }
-.bp_legend { display: flex; gap: 8px; flex-wrap: wrap; font-size: max(10.5px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); }
-.bp_lg { border-left: 3px solid; padding-left: 5px; }
-.bp_lg_missing { border-left: 3px dashed #5d6a7a; padding-left: 5px; }
-.bp_lg_anti { border-left: 3px dashed #d87a7a; padding-left: 5px; }
-.bp_scroll { overflow: auto; max-height: 78vh; border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 18%, transparent); border-radius: 8px; }
-.bp_svg { width: 100%; min-width: 860px; height: auto; display: block; }
-.bp_nlabel { font-size: max(12.5px, var(--ent-type-floor, 0px)); font-weight: 650; fill: var(--text, #dfe6ef); }
-.bp_nsub { font-size: max(9.5px, var(--ent-type-floor, 0px)); line-height: 1.25; color: var(--text-dim, #8a94a6); text-align: center; overflow: hidden; }
-.bp_edge { stroke: #8a94a6; stroke-width: 1.2; opacity: 0.85; }
-.bp_edge_missing { stroke: #5d6a7a; stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.8; }
-.bp_edge_anti { stroke: #d87a7a; stroke-width: 1.3; stroke-dasharray: 6 4; opacity: 0.9; }
-.bp_elabel { font-size: max(9px, var(--ent-type-floor, 0px)); fill: var(--text-dim, #a7b1c2); paint-order: stroke; stroke: var(--bg-panel, #10161e); stroke-width: 3px; stroke-linejoin: round; }
-.bp_elabel_anti { fill: #d87a7a; }
-.bp_elabel_missing { fill: #7a8698; font-style: italic; }
-.bp_footnote { font-size: max(10.5px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); line-height: 1.5; margin: 2px 0 0; }
-
-/* Blueprint as its own page (laurent dm#130): full-height wrapper off the
- * roster. Width capped at the fleet page's bound and centered (placement
- * adversary P1-2: uncapped full-viewport scaling turned the map into a
- * poster taller than the screen); the head mirrors fleet's shape (title +
- * ⌂ back at the right). */
-.bp_page { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 40px; max-width: 1180px; margin: 0 auto; width: 100%; box-sizing: border-box; overflow-y: auto; height: 100%; }
-.bp_page_head { display: flex; align-items: baseline; justify-content: space-between; }
-.bp_page_head h2 { margin: 0; font-size: 16px; }
-/* THE OPERATOR'S DIALS (dm#104): the tunables edit surface under the map. */
-.bp_tunables { padding-top: 6px; }
-.bp_section .bp_tunables .bp_tun_head h3 { display: none; }
-.bp_tun_head { display: flex; align-items: baseline; gap: 10px; }
-.bp_tun_head h3 { margin: 0; font-size: max(13.5px, var(--ent-type-floor, 0px)); }
-.bp_tun_rev { font-size: max(11px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); }
-.bp_tun_note { font-size: max(11.5px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); line-height: 1.5; margin: 4px 0 8px; }
-.bp_tun_grid { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 8px; }
-.bp_tun_row { display: flex; align-items: baseline; gap: 6px; font-size: max(12px, var(--ent-type-floor, 0px)); }
-.bp_tun_row input { width: 72px; background: color-mix(in srgb, var(--text-dim, #8a94a6) 8%, transparent); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 5px; color: var(--text, #dfe6f2); padding: 3px 6px; font-size: max(12px, var(--ent-type-floor, 0px)); }
-.bp_tun_label { color: var(--text-dim, #8a94a6); }
-.bp_tun_unit { color: var(--text-dim, #8a94a6); font-size: max(11px, var(--ent-type-floor, 0px)); }
-.bp_tun_bad input { border-color: var(--warn, #e7b45a); }
-.bp_tun_bound { color: var(--warn, #e7b45a); font-size: max(11px, var(--ent-type-floor, 0px)); }
-/* v12 consumption contract: a declared-but-unconsumed dial renders read-only
- * with the honest tag — editing it would be a silent no-op. */
-.bp_tun_unwired { opacity: 0.55; }
-.bp_tun_unwired_tag { color: var(--text-dim, #8a94a6); font-size: max(10.5px, var(--ent-type-floor, 0px)); text-transform: uppercase; letter-spacing: 0.04em; }
-.bp_tun_actions { display: flex; gap: 8px; align-items: center; }
-.bp_tun_reason { flex: 1; min-width: 200px; background: color-mix(in srgb, var(--text-dim, #8a94a6) 8%, transparent); border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 30%, transparent); border-radius: 5px; color: var(--text, #dfe6f2); padding: 4px 8px; font-size: max(12px, var(--ent-type-floor, 0px)); }
-.bp_tun_ok { font-size: max(11.5px, var(--ent-type-floor, 0px)); color: var(--ok, #6cc06c); margin: 6px 0 0; }
-.bp_tun_err { font-size: max(11.5px, var(--ent-type-floor, 0px)); color: var(--warn, #e7b45a); margin: 6px 0 0; }
-
 /* THE RISK BADGE (tool-tiers round): served bands only, never guessed. */
 .wsp_risk { display: inline-block; min-width: 14px; text-align: center; margin-left: 4px; padding: 0 4px; border-radius: 4px; font-size: max(10px, var(--ent-type-floor, 0px)); font-weight: 700; background: color-mix(in srgb, var(--text-dim, #8a94a6) 12%, transparent); color: var(--text-dim, #8a94a6); }
 .wsp_risk_3, .wsp_risk_4 { background: color-mix(in srgb, var(--warn, #e7b45a) 18%, transparent); color: var(--warn, #e7b45a); }
 .wsp_risk_unvetted { border: 1px dashed color-mix(in srgb, var(--text-dim, #8a94a6) 45%, transparent); background: transparent; }
 
-/* WHAT-CAN-BE-EDITED banner on the blueprint page (P0 repro c4779). */
-.bp_editable_note { margin: 2px 0 6px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 30%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--accent, #6ea8fe) 7%, transparent); color: var(--text, #dbe2ee); font-size: max(12px, var(--ent-type-floor, 0px)); line-height: 1.45; }
-.bp_editable_note a { color: var(--accent, #6ea8fe); }
-
-/* THE PHASE-GRAPH EDITOR (structural-edit build c4837). */
-.pe_editor { display: flex; flex-direction: column; gap: 8px; }
-.pe_group { margin: 8px 0; }
-.pe_group_head { margin: 6px 0 4px; font-size: max(12px, var(--ent-type-floor, 0px)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim, #8a94a6); }
-.pe_row { padding: 5px 8px; border-radius: 6px; }
-.pe_row:nth-child(even) { background: color-mix(in srgb, var(--text-dim, #8a94a6) 6%, transparent); }
-.pe_row_touched { outline: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 35%, transparent); }
-.pe_row_main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.pe_edge { font-size: max(12.5px, var(--ent-type-floor, 0px)); }
-.pe_cause { color: var(--text-dim, #8a94a6); }
-.pe_chip { font-size: max(10px, var(--ent-type-floor, 0px)); padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
-.pe_chip_demo { font-size: max(10px, var(--ent-type-floor, 0px)); padding: 0 5px; border-radius: 8px; }
-.pe_tier_enforced { background: color-mix(in srgb, #6ecf8e 18%, transparent); color: #6ecf8e; }
-.pe_tier_fact { background: color-mix(in srgb, var(--text-dim, #8a94a6) 16%, transparent); color: var(--text-dim, #8a94a6); }
-.pe_tier_election { background: color-mix(in srgb, #c084dd 18%, transparent); color: #c084dd; }
-.pe_state_removed { background: color-mix(in srgb, #e07a6a 18%, transparent); color: #e07a6a; }
-.pe_state_redirected { background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); color: var(--accent, #6ea8fe); }
-.pe_state_added { background: color-mix(in srgb, var(--warn, #e7b45a) 18%, transparent); color: var(--warn, #e7b45a); }
-.pe_guards { font-size: max(10.5px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); }
-.pe_instruction { margin: 3px 0 0 6px; font-size: max(12px, var(--ent-type-floor, 0px)); color: var(--text, #dbe2ee); }
-.pe_row_actions { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
-.pe_btn { font-size: max(11px, var(--ent-type-floor, 0px)); padding: 2px 8px; }
-.pe_redirect_form, .pe_add_form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: max(12px, var(--ent-type-floor, 0px)); }
-.pe_add { margin: 10px 0 4px; }
-.pe_add_form input { min-width: 220px; }
-.pe_bound { min-width: 60px !important; width: 70px; }
-.pe_add_refusal { flex-basis: 100%; margin: 2px 0 0; }
-.pe_locked_note { font-size: max(11px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); }
-
-
-/* THE REBUILT BLUEPRINT PAGE (operator verdict c4995): normal document
- * flow — no ancestor-height dependency (the height:100% chain collapsed
- * to a 0px panel with overlapping text; screenshots untracked/bp_before_*). */
-.pm_wrap { border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 20%, transparent); border-radius: 10px; padding: 8px 10px; background: color-mix(in srgb, #0e1420 65%, transparent); }
-.pm_svg { width: 100%; height: auto; display: block; touch-action: none; border-radius: 6px; }
-.pm_controls { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-.pm_hint { font-size: max(11px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); margin-left: 8px; }
-.pm_legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: max(11px, var(--ent-type-floor, 0px)); margin-top: 4px; }
-.pe_row_selected { outline: 2px solid color-mix(in srgb, var(--accent, #6ea8fe) 60%, transparent); background: color-mix(in srgb, var(--accent, #6ea8fe) 8%, transparent) !important; }
-.bp_section { border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 18%, transparent); border-radius: 10px; padding: 10px 12px; }
-.bp_section > summary { cursor: pointer; font-weight: 600; font-size: max(13.5px, var(--ent-type-floor, 0px)); color: var(--text, #dbe2ee); list-style: none; display: flex; align-items: baseline; gap: 8px; }
-.bp_section > summary::before { content: "▸"; color: var(--text-dim, #8a94a6); transition: transform 0.15s; }
-.bp_section[open] > summary::before { transform: rotate(90deg); }
-.bp_section_sub { font-size: max(11px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); font-weight: 400; }
-.pe_tier_act { background: color-mix(in srgb, #7a8fd8 18%, transparent); color: #7a8fd8; }
-.pe_save_sticky { position: sticky; bottom: 8px; background: color-mix(in srgb, #0e1420 92%, transparent); border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 40%, transparent); border-radius: 10px; padding: 8px 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.45); z-index: 5; }
-.pe_staged_count { font-size: max(12px, var(--ent-type-floor, 0px)); color: var(--warn, #e7b45a); font-weight: 600; margin-right: 8px; }
-.bp_tun_save { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pm_svg { max-height: 62vh; }
-/* P2-16: inside the collapsible section the cognition panel's own title
- * repeats the summary — hide the inner header line. */
-.bp_section .bp_panel .bp_head { display: none; }
 .ei_digest_method { margin: 2px 0 0; font-size: max(10.5px, var(--ent-type-floor, 0px)); color: var(--text-dim, #8a94a6); }
 
 /* THE BRAIN SELECTOR (flow-brain lane c5190). */
@@ -5911,8 +5797,6 @@ body {
 .cd_queue_offer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--warn, #e7b45a) 35%, transparent); border-radius: 8px; margin: 6px 0; }
 .cd_queue_card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--text-dim, #8a94a6) 25%, transparent); border-radius: 8px; margin: 6px 0; }
 .cd_queue_line { color: var(--text, #dbe2ee); font-size: max(12.5px, var(--ent-type-floor, 0px)); }
-
-
 
 /* =====================================================================
  * RESPONSIVE (DESIGN v1 — untracked/responsive/DESIGN.md). Desktop-first:
@@ -5961,7 +5845,6 @@ body {
 /* Scrollers own their scroll (no scroll chaining into the shell). */
 .st_panel,
 .entities_index,
-.bp_page,
 .ev_body {
   overscroll-behavior: contain;
 }
@@ -5985,48 +5868,11 @@ body {
   width: min(420px, calc(100vw - 16px));
 }
 
-/* Wide screens: the roster and the blueprint use the room on a 2560 px
- * window (3 card columns) while 1280-1600 px windows keep today's 900 /
- * 1180 px columns exactly (the clamp floors). */
+/* Wide screens: the roster uses the room on a 2560 px window (3 card
+ * columns) while 1280-1600 px windows keep today's 900 px column exactly
+ * (the clamp floor). */
 .entities_index {
   max-width: clamp(900px, 60vw - 100px, 1320px);
-}
-.bp_page {
-  max-width: clamp(1180px, 70vw, 1600px);
-}
-
-/* The blueprint map: scroll + zoom (blueprint_panel.tsx). The scroller is
- * bounded by the VISIBLE viewport; the page scroller wraps it. */
-.bp_scroll {
-  max-height: calc(var(--vh-full, 100vh) * 0.78);
-  overscroll-behavior: contain;
-}
-.bp_zoom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.bp_zoom_btn {
-  background: var(--bg-raise);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 2px 10px;
-  min-height: 24px;
-  cursor: pointer;
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.bp_zoom_btn:hover {
-  border-color: var(--ea-accent);
-}
-.bp_zoom_on {
-  border-color: var(--ea-accent);
-  color: var(--ea-accent);
-}
-.bp_zoom_val {
-  color: var(--text-dim);
-  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
 /* The graph canvas is a container: its overlays adapt to the CANVAS width
@@ -6481,17 +6327,7 @@ body {
   .fleet_view {
     padding: 12px var(--gutter, 12px) 32px;
   }
-  .bp_page {
-    padding: 10px var(--gutter, 12px) calc(32px + var(--safe-bottom, 0px));
-  }
-  .bp_head,
-  .bp_page_head {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .entity_connect input,
-  .bp_tun_reason,
-  .pe_add_form input {
+  .entity_connect input {
     min-width: min(200px, 100%);
   }
 }
@@ -6639,7 +6475,6 @@ body {
   .st_panel,
   .entities_index,
   .ev_panel,
-  .bp_page,
   .fleet_view {
     --font-scale: calc(var(--ent-user-scale, 1) * 1.2);
   }
@@ -6788,7 +6623,6 @@ body {
   .st_panel,
   .entities_index,
   .ev_panel,
-  .bp_page,
   .fleet_view {
     --font-scale: calc(var(--ent-user-scale, 1) * 1.3);
   }
@@ -6806,7 +6640,7 @@ body {
  *   ledgers (the ledger list, the tool-grant matrix) 12 px minimum;
  * - touch screens (phones and tablets): 14 px minimum everywhere.
  * The graph's node labels are drawn on the canvas (graph_canvas.tsx) and are
- * the documented exception; the blueprint map is an SVG with its own zoom.
+ * the documented exception.
  * ==================================================================== */
 :root {
   --ent-type-floor: 13px;
@@ -6825,11 +6659,6 @@ body {
   .cd_thread .pc-md {
     font-size: calc(var(--font-size-md, 13px) * 15 / 13);
   }
-}
-/* The blueprint map's sizes are SVG world units scaled with the map (its
- * zoom bar reads it closer); a floor there would break the fixed layout. */
-#root .bp_svg {
-  --ent-type-floor: 0px;
 }
 
 /* Mind / Voice tabs (round 3): the kit's shared pickers (af-pmp,

@@ -9,7 +9,6 @@
 //   connect   → the shared sign-in dialog (signed out)
 //   list      → the entities roster (signed in)
 //   create    → the create-entity form
-//   blueprint → the memory blueprint page (the wide cognition SVG)
 //   detail    → one entity: memory graph + side panel (Detail tab), replay at the end
 //   talk      → the Chat tab (conversation + composer)
 //   cognition → the Cognitive Monitor docked above the timeline (its Monitor toggle)
@@ -141,18 +140,6 @@ export default {
         await page.locator("#ce_name").waitFor({ state: "visible", timeout: 10000 });
         await page.locator(".ce_spark_toggle").click().catch(() => {});
       },
-    },
-    {
-      name: "blueprint",
-      async run(page, info) {
-        await page.goto(`${info.baseUrl}/?page=blueprint`, { waitUntil: "domcontentloaded" });
-        await signIn(page);
-        if (!(await page.locator(".bp_page").isVisible().catch(() => false))) {
-          await page.locator(".eix_create_btn", { hasText: "blueprint" }).first().click();
-        }
-        await page.locator(".bp_page").waitFor({ state: "visible", timeout: 15000 });
-      },
-      settle: 1200,
     },
     {
       name: "detail",

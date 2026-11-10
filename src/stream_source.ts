@@ -756,6 +756,7 @@ async function putJson<T>(url: string, body: unknown, token: string | null): Pro
   return (await res.json()) as T;
 }
 
+// orphan: deleted by the operator's git rm, round 3
 /** The served phase blueprint (v11 editable lane, gateway c-t-i #350):
  * GET serves the OPERATOR copy when present (operator_edited/operator_rev
  * on the wire, sha over the served bytes); PUT {tunables} deep-merges the
@@ -787,6 +788,7 @@ export interface PhaseSpecServed {
   graph_overlay?: { edge_ops?: EdgeOp[] } | null;
 }
 
+// orphan: deleted by the operator's git rm, round 3
 /** One structural edit op (the c4934 shipped wire — edge identity is the
  * TRIPLE from->to#cause; document-ownership: a PUT carrying graph replaces
  * the stored op set WHOLESALE, so editors send the full desired list). */
@@ -800,6 +802,7 @@ export interface EdgeOp {
   bound_h?: number;
 }
 
+// orphan: deleted by the operator's git rm, round 3
 export function getPhaseSpec(baseUrl: string): Promise<PhaseSpecServed> {
   return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/spec/phases`));
 }
@@ -925,6 +928,7 @@ export function getRunSummary(
   return getJson(joinBaseUrl(baseUrl, `api/gateway/runs/${encodeURIComponent(runId)}`));
 }
 
+// orphan: deleted by the operator's git rm, round 3
 export function putPhaseSpecGraph(
   baseUrl: string,
   edgeOps: EdgeOp[],
@@ -938,6 +942,7 @@ export function putPhaseSpecGraph(
   return putJson(joinBaseUrl(baseUrl, `api/gateway/entities/spec/phases`), body, token);
 }
 
+// orphan: deleted by the operator's git rm, round 3
 export function putPhaseSpecTunables(
   baseUrl: string,
   tunables: Record<string, unknown>,

@@ -31,7 +31,6 @@ export function rosterMode(input: { rowCount: number | null; authNeeded: boolean
 export interface RosterHeadActions {
   watchAll: boolean;
   convene: boolean;
-  blueprint: boolean;
   refresh: boolean;
   /** The head's "+ new entity" toggle. In the empty state the centred card
    * carries the (one) create button instead. */
@@ -43,9 +42,6 @@ export function rosterHeadActions(mode: RosterMode): RosterHeadActions {
   return {
     watchAll: some,
     convene: some,
-    // The blueprint is the cognition machine, the same for every entity:
-    // it makes sense before the first one exists.
-    blueprint: mode === "list" || mode === "empty",
     refresh: true,
     newEntity: some,
   };

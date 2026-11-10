@@ -44,9 +44,6 @@ import { BookReader } from "./book_reader";
 import { CognitionWavePanel } from "./cognition_wave_panel";
 import { createReplyFeed } from "./cognition_wave_inline";
 import { LessonsPanel, WorldPanel } from "./lessons_world_panels";
-import { BlueprintPanel } from "./blueprint_panel";
-import { BlueprintTunables } from "./blueprint_tunables";
-import { PhaseGraphEditor } from "./phase_editor";
 import { HealthPanel } from "./health_panel";
 import { Inspector } from "./inspector";
 import { LedgerPanel } from "./ledger_panel";
@@ -71,7 +68,7 @@ import { useCommunitiesMarker, usePlacedOnStream } from "./topic_map";
 import { substrateChoiceOf, type SubstrateChoice } from "./mind_voice_settings";
 import { getEntitySubstrate } from "./stream_source";
 import { checkSpecSync, type SpecSyncResult } from "./spec_sync";
-import { pageFromSearch, searchAfterNavigate } from "./index_page";
+import { searchAfterNavigate, type IndexPage } from "./index_page";
 import {
   classifyOperatorAuth,
   gatewayReadHeaders,
@@ -389,11 +386,9 @@ export function EntityView(): React.ReactElement {
   /** ONE index-page axis (placement adversary P2-3: two booleans guarded
    * only by pairwise clearing = a representable both-true blank screen;
    * the union makes it unrepresentable). "roster" is the home; "fleet" =
-   * watch-all; "blueprint" = the memory blueprint as its OWN page
-   * (laurent dm#130 — the per-entity tab was REMOVED on the same ruling:
-   * a secondary door inside the entity page contradicts "it doesn't make
-   * sense inside the entity page itself"). */
-  const [indexPage, setIndexPage] = useState<"roster" | "fleet" | "blueprint">("roster");
+   * watch-all. (The blueprint page went, operator 2026-11-10, backlog 0022:
+   * a Flow will power his cognition, root backlog 1200.) */
+  const [indexPage, setIndexPage] = useState<IndexPage>("roster");
   /** The `#new` deep link (mission JJ): the creation form opens on arrival
    * and whenever the fragment becomes #new again. A counter, so a second
    * request after the form was closed reopens it. */
@@ -413,15 +408,13 @@ export function EntityView(): React.ReactElement {
     if (!wantsCreateFlow(window.location.hash)) return;
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
   }, []);
-  /** Navigate the index-page axis AND keep the URL honest (laurent dm#147
-   * via framework c4018: the blueprint gets a shareable deep link —
-   * ?page=blueprint — so a refresh lands back on the map). Only the
-   * blueprint is URL-addressable (his approval names it); roster/fleet
-   * clear the param so a stale ?page can never contradict the screen. */
-  const navigateIndexPage = useCallback((page: "roster" | "fleet" | "blueprint", opts: { pushUrl?: boolean } = {}) => {
+  /** Navigate the index-page axis AND keep the URL honest: no index page is
+   * URL-addressable (fleet deliberately not), so a navigation clears a stale
+   * ?page (an old ?page=blueprint bookmark included) and scrubs credentials. */
+  const navigateIndexPage = useCallback((page: IndexPage, opts: { pushUrl?: boolean } = {}) => {
     setIndexPage(page);
     if (opts.pushUrl === false) return;
-    const qs = searchAfterNavigate(window.location.search, page);
+    const qs = searchAfterNavigate(window.location.search);
     const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     // No junk history entries (deep-link adversary P1-4): a fleet click
     // produced a URL-identical push, making Back a visual no-op and
@@ -641,10 +634,6 @@ export function EntityView(): React.ReactElement {
     // ?live=0 opts into replay-from-the-start for archive study; the
     // timeline scrub leaves live mode at any moment either way.
     const wantReplay = ["0", "false", "no", "replay"].includes((params.get("live") || "").trim().toLowerCase());
-    // Deep link to the blueprint (laurent dm#147 via c4018): a refresh or
-    // a shared URL lands back on the map instead of the roster. ONE law
-    // (pageFromSearch) decides — the entity param wins when both present.
-    if (!entityParam) setIndexPage(pageFromSearch(window.location.search));
     // NO ?token= seeding (maintainer ruling 2026-07-09, screenshot in hand:
     // auth must be EXACTLY AbstractFlow's — gateway sign-in -> session
     // cookies -> the app's own /api proxy). The connect modal is the ONLY
@@ -927,15 +916,9 @@ export function EntityView(): React.ReactElement {
       // The drawer's first-hand visit signal dies with the room (belt —
       // the drawer's unmount cleanup fires it too).
       setClientVisit(null);
-      // The index-page axis resets to the URL'S RECORDED INTENT, never a
-      // hardcoded roster (deep-link adversary P0-1: this raw reset fired
-      // three times across a deep-linked boot — mount, gateway adoption,
-      // auth verification — and clobbered ?page=blueprint every time; the
-      // headline promise "refresh lands back on the map" failed. Deriving
-      // from the URL fixes boot, adoption, auth flips, and re-auth in one
-      // place; the placement-P1-1 concern stays satisfied because an
-      // entity param in the URL maps to roster in pageFromSearch).
-      setIndexPage(pageFromSearch(window.location.search));
+      // The index-page axis resets to the roster (no index page is
+      // URL-addressable since the blueprint page went, backlog 0022).
+      setIndexPage("roster");
       setFootprint(null);
       return;
     }
@@ -1208,7 +1191,7 @@ export function EntityView(): React.ReactElement {
         const url = new URLSearchParams(window.location.search);
         url.set("entity", name);
         url.delete("token");
-        url.delete("page"); // an entity view is not the blueprint (dm#147 param stays honest)
+        url.delete("page"); // an entity view carries no index page (a stale ?page never rides it)
         if (base) url.set("gateway", base);
         else url.delete("gateway");
         window.history.pushState({ entity: name }, "", `${window.location.pathname}?${url.toString()}`);
@@ -1300,10 +1283,9 @@ export function EntityView(): React.ReactElement {
         void openEntity(entityParam, { pushUrl: false });
       } else if (indexBase !== null) {
         goToIndex({ pushUrl: false });
-        // Back/forward honor the deep link BOTH directions (deep-link
-        // adversary P1-2: the old one-directional restore left the screen
-        // on the map after popping to a roster URL). One law decides.
-        navigateIndexPage(pageFromSearch(window.location.search), { pushUrl: false });
+        // Back/forward to an index URL land on the roster (no index page is
+        // URL-addressable).
+        navigateIndexPage("roster", { pushUrl: false });
       }
     };
     window.addEventListener("popstate", onPop);
@@ -1851,11 +1833,11 @@ export function EntityView(): React.ReactElement {
                 className="ec_note ec_daycause"
                 title={`The operator edited the dials through the write door: ${specDrift.overlay ? `overlay edit ${specDrift.overlay.edit_seq}${specDrift.overlay.edited_at ? ` at ${specDrift.overlay.edited_at}` : ""} — the structural law is untouched (sha matches)` : specDrift.detail}. The machinery reads the edited dials at its next boundary.`}
               >
-                🎛 blueprint modulated ({specDrift.overlay ? `edit ${specDrift.overlay.edit_seq}` : `rev ${specDrift.wire?.operator_rev ?? "?"}`})
+                🎛 phase rules modulated ({specDrift.overlay ? `edit ${specDrift.overlay.edit_seq}` : `rev ${specDrift.wire?.operator_rev ?? "?"}`})
               </span>
             ) : specDrift ? (
-              <span className="ec_note ec_warn" title={`⚠ phase-graph drift: ${specDrift.detail}\nONE-GRAPH drift (laurent dm#79: one state graph, shared): ${specDrift.detail}. Until this clears, phase words rendered here and served by the gateway may disagree.`}>
-                ⚠ phase-graph drift: {specDrift.detail}
+              <span className="ec_note ec_warn" title={`⚠ phase rules drift: ${specDrift.detail}\nONE-GRAPH drift (laurent dm#79: one state graph, shared): ${specDrift.detail}. Until this clears, phase words rendered here and served by the gateway may disagree.`}>
+                ⚠ phase rules drift: {specDrift.detail}
               </span>
             ) : null}
             {controlNote ? (
@@ -1953,34 +1935,6 @@ export function EntityView(): React.ReactElement {
         />
       ) : null}
 
-      {!gatewayLocked && indexBase !== null && !entityName && indexPage === "blueprint" ? (
-        <div className="bp_page">
-          <div className="bp_page_head">
-            <h2>Entity blueprint</h2>
-            <button className="eix_refresh" onClick={() => navigateIndexPage("roster")} title="Back to the roster">
-              ⌂ roster
-            </button>
-          </div>
-          {/* THE COGNITION MAP leads (operator correction c5070: the graph
-            * he means is the MEMORY COGNITION machine — passive/active
-            * construction and what it creates. The phase machine is the
-            * simple rhythm, demoted to a section below). */}
-          <BlueprintPanel />
-          <details className="bp_section" open>
-            <summary>
-              Operator dials <span className="bp_section_sub">the rhythm — windows, cadences, floors</span>
-            </summary>
-            <BlueprintTunables baseUrl={indexBase} token={controlToken.trim() || null} />
-          </details>
-          <details className="bp_section">
-            <summary>
-              Phase transitions <span className="bp_section_sub">the life rhythm — visit/work/personal/sleep, editable (create/remove/redirect)</span>
-            </summary>
-            <PhaseGraphEditor baseUrl={indexBase} token={controlToken.trim() || null} />
-          </details>
-        </div>
-      ) : null}
-
       {!gatewayLocked && indexBase !== null && !entityName && indexPage === "roster" ? (
         <EntitiesIndex
           key={authState ? `authed:${authState.userId}` : "anon"}
@@ -1989,7 +1943,6 @@ export function EntityView(): React.ReactElement {
           onOpen={(slug) => void openEntity(slug)}
           onConnect={() => setShowAuth(true)}
           onWatchAll={() => navigateIndexPage("fleet")}
-          onBlueprint={() => navigateIndexPage("blueprint")}
           onConvene={() => setShowMeetConsole(true)}
           createRequest={createRequest}
           onCreateFlowClosed={clearCreateHash}

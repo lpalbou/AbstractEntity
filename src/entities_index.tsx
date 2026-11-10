@@ -55,9 +55,6 @@ export interface EntitiesIndexProps {
    * bar floated over a narrower column and aligned with nothing). */
   onWatchAll?(): void;
   onConvene?(): void;
-  /** The memory blueprint — the cognition machine as its own page
-   * (laurent dm#130: reachable from the roster, same map for all). */
-  onBlueprint?(): void;
   /** Open the creation form on arrival and again each time the number
    * changes (the `#new` deep link, entity_view.tsx). 0 / absent = closed. */
   createRequest?: number;
@@ -233,7 +230,6 @@ export function EntitiesIndex({
   onConnect,
   onWatchAll,
   onConvene,
-  onBlueprint,
   createRequest = 0,
   onCreateFlowClosed,
 }: EntitiesIndexProps): React.ReactElement {
@@ -380,15 +376,6 @@ export function EntitiesIndex({
               title="Watch every life at once — one live tile per entity (streams never merge; each tile is its own fold)"
             >
               👁 watch all
-            </button>
-          ) : null}
-          {head.blueprint && onBlueprint ? (
-            <button
-              className="eix_create_btn"
-              onClick={onBlueprint}
-              title="The memory blueprint — how every entity's cognition flows (stores, acts, the day gate, the night). The MACHINE, same for all; no entity's data."
-            >
-              🧭 blueprint
             </button>
           ) : null}
           {head.convene && onConvene ? (
