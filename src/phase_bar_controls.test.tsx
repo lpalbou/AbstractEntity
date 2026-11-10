@@ -109,7 +109,7 @@ describe("PhaseBarControls", () => {
     }
   });
 
-  it("stopped: Resume (not red), the toggles and sleep disabled with the gateway's words, the visit pill offers Resume and visit; the page can move the sentence to its banner", () => {
+  it("stopped: Resume (not red), the toggles and sleep disabled with the gateway's words, the visit pill offers Resume and visit; a host can leave the sentence out (a roster tile)", () => {
     const html = render(read("stopped"), undefined, { showSentence: false });
     const power = button(html, "ec_pb_power")!;
     expect(power).toContain("af-chip--success");
@@ -317,11 +317,23 @@ describe("wiring: the phase bar is the one phase control", () => {
     expect(source).not.toContain("loop/stop");
   });
 
-  it("the page renders the bar from the served read, with Stop / Resume and the stopped banner from the same view", () => {
+  it("stopped, as the page draws it: the stop's sentence in the bar's own sentence line, marked stopped", () => {
+    const html = render(read("stopped"), undefined, { className: "ec_pb_stopped" });
+    expect(html).toContain('class="ec_phase_bar ec_pb_stopped"');
+    expect(html).toMatch(/<span class="ec_pb_sentence" role="status"[^>]*>Stopped\. Nothing runs until you resume him\./);
+  });
+
+  it("the page renders the bar from the served read, with Stop / Resume; stopped, the bar's own sentence line says so (no banner: nothing shifts, backlog 0013)", () => {
     expect(view).toContain("<PhaseBarControls");
     expect(view).toContain("const phaseView = phaseBarView(phaseRead, phaseUi);");
-    expect(view).toContain("showSentence={!phaseView.stopped}");
-    expect(view).toContain('phaseView.stopped ? (\n        <div className="entity_stopped_banner" role="alert">');
+    const bar = view.slice(view.indexOf("<PhaseBarControls"), view.indexOf("/>", view.indexOf("<PhaseBarControls")));
+    expect(bar).not.toContain("showSentence");
+    expect(bar).toContain('className={phaseView.stopped ? "ec_pb_stopped" : undefined}');
+    expect(view).not.toContain("entity_stopped_banner");
+    const css = fs.readFileSync(path.join(__dirname, "entity.css"), "utf8");
+    expect(css).not.toContain("entity_stopped_banner");
+    expect(css).toMatch(/\.ec_phase_bar\.ec_pb_stopped \.ec_pb_sentence \{[^}]*color: color-mix\(in srgb, var\(--scar\) 60%, var\(--text\)\);/);
+    expect(css).toMatch(/\.ec_phase_bar\.ec_pb_stopped \.ec_pb_sentence::before \{\s*content: "⛔ " \/ "";/);
   });
 
   it("Stop is never held by a write in flight: the page lets it through and the lanes send it at once", () => {

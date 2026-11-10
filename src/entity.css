@@ -987,8 +987,7 @@ body {
 .ec_pb_since,
 .ec_pb_reason,
 .ec_pb_queue,
-.ec_pb_then,
-.esb_since {
+.ec_pb_then {
   font-style: normal;
   white-space: nowrap;
 }
@@ -1000,13 +999,45 @@ body {
 }
 
 /* Settings gear (operator 2026-07-15 (d)): the old "workspace" button,
- * now clearly a settings entry with an icon; pushed slightly apart from
- * the phase radio + stop so the phases read as the primary control. */
+ * now clearly a settings entry with an icon. Files, then Settings, at the right end of the strip
+ * (the status line before them takes the free space). */
 .ec_settings_btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-left: auto;
+}
+
+/* THE STATUS LINE (backlog 0013): the strip's one reserved slot for its sentences (tick failures,
+ * inbox warning, phase rules, sign-in notes, the day cause). It always takes the free space between
+ * the phase bar and the buttons, at a fixed one-line height, never wrapped, cut with an ellipsis
+ * (the title carries the whole sentence): a sentence that appears or goes moves nothing. */
+.entity_controls > .ec_status {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1.5em;
+  line-height: 1.5em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+.ec_status > .ec_note + .ec_note::before {
+  content: " · ";
+  color: var(--text-dim);
+}
+
+/* Stopped (the liveness axis): the phase bar's own sentence line says it, in the kill switch's red,
+ * where the sentence for now always sits, so stopping moves nothing (no banner). */
+.ec_phase_bar.ec_pb_stopped .ec_pb_sentence {
+  color: color-mix(in srgb, var(--scar) 60%, var(--text));
+  font-style: normal;
+  font-weight: 600;
+}
+.ec_phase_bar.ec_pb_stopped .ec_pb_sentence::before {
+  content: "⛔ " / "";
+}
+.ec_phase_bar.ec_pb_stopped .ec_pb_since {
+  font-weight: 400;
 }
 
 /* The shared drawer opens over the app's densest text rail — the kit's
@@ -4963,27 +4994,6 @@ body {
   color: color-mix(in srgb, var(--scar) 65%, var(--text));
 }
 
-/* THE STOPPED BANNER (liveness axis): outranks every chip — full-width,
- * red family, impossible to miss. */
-.entity_stopped_banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  background: color-mix(in srgb, var(--scar) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--scar) 55%, transparent);
-  border-radius: 8px;
-  margin: 6px 10px;
-}
-.esb_glyph {
-  font-size: max(calc(16px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-}
-.esb_text {
-  color: color-mix(in srgb, var(--scar) 60%, var(--text));
-  font-size: max(calc(12px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  flex: 1;
-}
-
 /* -------------------------------------- ledger day/tick boundary rows
  * The rhythm of his own time (maintainer 2026-07-08 16:31), derived from
  * run/turn changes — centered, quiet, unmistakably structural. */
@@ -6190,9 +6200,6 @@ body {
     white-space: normal;
     max-width: 100%;
   }
-  .entity_stopped_banner {
-    flex-wrap: wrap;
-  }
 }
 
 /* ---- sm (< 768) and short landscape phones: one pane at a time ---- */
@@ -6498,7 +6505,7 @@ body {
   .eh_home {
     padding: 6px 10px;
   }
-  /* The phase bar, then Settings and the notes: one swipeable row (wrapped rows cost the graph
+  /* The phase bar, then Files, Settings and the status line: one swipeable row (wrapped rows cost the graph
    * height on a 667 px phone); Settings stays reachable. */
   .entity_controls {
     flex-wrap: nowrap;
@@ -6511,8 +6518,13 @@ body {
   .entity_controls > * {
     flex: none;
   }
-  .ec_settings_btn {
-    margin-left: 0;
+  /* The status line comes after the buttons in the swipeable row (so they never move), one screen
+   * wide at most. */
+  .entity_controls > .ec_status {
+    order: 1;
+    flex: none;
+    max-width: calc(100vw - 28px);
+    text-align: left;
   }
   /* The phase bar is the first screen-wide part of the swipeable row: pills and Stop, then the
    * sentence (and an open confirmation) on lines of their own, never scrolled out of sight. */

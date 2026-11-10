@@ -58,6 +58,8 @@ import { foldUpToIndex, isDiaryGraphId, lastLifeChangeSeq, mergeEnvelopes, type 
  * tail may be silent before newer gateway events mean it stalled. */
 const LIVE_CHECK_MS = 20_000;
 const LIVE_STALL_MS = 15_000;
+/** The strip's sentence when the loop stopped itself after failed ticks (the status line). */
+const TICK_FAILURE_NOTE = "his own time stopped after repeated tick failures — restart when ready";
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
@@ -1817,7 +1819,8 @@ export function EntityView(): React.ReactElement {
             * phase_bar.ts): visit, work and sleep are indicators, personal is the one toggle
             * (pressed = allowed) that lights when current, one Stop / Resume button apart from
             * them; the line beside them is the gateway's sentence for now. A gateway without it
-            * gets one sentence and no controls. */}
+            * gets one sentence and no controls. Stopped, that same line carries the stop's sentence in
+            * the kill switch's red (ec_pb_stopped; backlog 0013: no banner, so nothing moves). */}
           <PhaseBarControls
             view={phaseView}
             ui={phaseUi}
@@ -1826,30 +1829,75 @@ export function EntityView(): React.ReactElement {
             onAct={actOnPhase}
             onConfirm={confirmPhaseAct}
             onCancel={cancelPhaseConfirm}
-            showSentence={!phaseView.stopped}
+            className={phaseView.stopped ? "ec_pb_stopped" : undefined}
           />
-          {/* THE DAY CAUSE (drives build, runtime seq 269): WHY the day-gate
-            * chose work/personal/sleep — the operator-audit line the v7
-            * adversary demanded (B F8: "nothing tells the operator WHICH
-            * pull opened a personal day"). Machine words, plain rendering;
-            * the degrade kind renders as the warning it is. */}
-          {(() => {
-            // Suppressed under a visit (dm#94 P2-8): the last day-open's
-            // "personal day…" claim standing beside a visit chip is the
-            // exact co-render the ruling forbids; the gate's history
-            // returns the moment the visit closes.
-            if (visiting) return null;
-            const line = dayCauseLine(loopStatus?.day_cause);
-            if (!line) return null;
-            return (
-              <span
-                className={`ec_note ${line.warn ? "ec_warn" : "ec_daycause"}`}
-                title={`Why the day-gate chose this day (DRIVES-ARE-DRIVERS): written by the loop at day-open and refreshed each heartbeat. kind=${String(loopStatus?.day_cause?.kind || "")}`}
-              >
-                {line.text}
+          {/* THE STATUS LINE (operator 2026-11-10, backlog 0013): every status sentence of the strip
+            * sits in this one reserved slot: one line, never wrapped, cut with an ellipsis, the whole
+            * sentence in its title. It takes the free space between the phase bar and the buttons,
+            * so a sentence that appears or goes moves nothing: not the buttons, not the row's
+            * height, not the graph. Warnings first, so a cut never hides them. */}
+          <span className="ec_status">
+            {!loopStatus?.running && loopStatus?.stopped_by === "failures" ? (
+              <span className="ec_note ec_warn" title={`${TICK_FAILURE_NOTE}. Three consecutive ticks failed (usually LLM timeouts under load) and the loop stopped itself. His memory is intact — restart his own time when the substrate is healthy.`}>
+                {TICK_FAILURE_NOTE}
               </span>
-            );
-          })()}
+            ) : null}
+            {loopStatus?.inbox_warning ? (
+              <span className="ec_note ec_warn" title={`${loopStatus.inbox_warning}\nThe loop's command inbox could not be read — stop requests may not land until this clears.`}>
+                {loopStatus.inbox_warning}
+              </span>
+            ) : null}
+            {specDrift && (specDrift.status === "modulated" || specDrift.overlay) ? (
+              <span
+                className="ec_note ec_daycause"
+                title={`The operator edited the dials through the write door: ${specDrift.overlay ? `overlay edit ${specDrift.overlay.edit_seq}${specDrift.overlay.edited_at ? ` at ${specDrift.overlay.edited_at}` : ""} — the structural law is untouched (sha matches)` : specDrift.detail}. The machinery reads the edited dials at its next boundary.`}
+              >
+                🎛 blueprint modulated ({specDrift.overlay ? `edit ${specDrift.overlay.edit_seq}` : `rev ${specDrift.wire?.operator_rev ?? "?"}`})
+              </span>
+            ) : specDrift ? (
+              <span className="ec_note ec_warn" title={`⚠ phase-graph drift: ${specDrift.detail}\nONE-GRAPH drift (laurent dm#79: one state graph, shared): ${specDrift.detail}. Until this clears, phase words rendered here and served by the gateway may disagree.`}>
+                ⚠ phase-graph drift: {specDrift.detail}
+              </span>
+            ) : null}
+            {controlNote ? (
+              <span className="ec_note" title={controlNote}>
+                {controlNote}
+              </span>
+            ) : null}
+            {/* THE DAY CAUSE (drives build, runtime seq 269): WHY the day-gate
+              * chose work/personal/sleep — the operator-audit line the v7
+              * adversary demanded (B F8: "nothing tells the operator WHICH
+              * pull opened a personal day"). Machine words, plain rendering;
+              * the degrade kind renders as the warning it is. */}
+            {(() => {
+              // Suppressed under a visit (dm#94 P2-8): the last day-open's
+              // "personal day…" claim standing beside a visit chip is the
+              // exact co-render the ruling forbids; the gate's history
+              // returns the moment the visit closes.
+              if (visiting) return null;
+              const line = dayCauseLine(loopStatus?.day_cause);
+              if (!line) return null;
+              return (
+                <span
+                  className={`ec_note ${line.warn ? "ec_warn" : "ec_daycause"}`}
+                  title={`${line.text}\nWhy the day-gate chose this day (DRIVES-ARE-DRIVERS): written by the loop at day-open and refreshed each heartbeat. kind=${String(loopStatus?.day_cause?.kind || "")}`}
+                >
+                  {line.text}
+                </span>
+              );
+            })()}
+          </span>
+          {/* FILES (operator test round 2, 2026-11-10): his home workspace, the Settings → Files
+            * browser in a dialog of its own (files_view.tsx). Files, then Settings (operator
+            * 2026-11-10, backlog 0013). */}
+          <button
+            className="ec_btn ec_files_btn"
+            onClick={() => setShowFiles(true)}
+            title={`${entityName.charAt(0).toUpperCase() + entityName.slice(1)}'s files: his home workspace`}
+          >
+            <Icon name="folder" size={14} />
+            <span>Files</span>
+          </button>
           {/* SETTINGS (operator 2026-07-15 (d)(e)): the old "workspace"
             * button was really settings — one gear opens the modal holding
             * the mind substrate (provider/model), workspace/files, mounts,
@@ -1863,52 +1911,6 @@ export function EntityView(): React.ReactElement {
             <Icon name="settings" size={14} />
             <span>Settings</span>
           </button>
-          {/* FILES (operator test round 2, 2026-11-10): his home workspace, the Settings → Files
-            * browser in a dialog of its own (files_view.tsx). */}
-          <button
-            className="ec_btn ec_files_btn"
-            onClick={() => setShowFiles(true)}
-            title={`${entityName.charAt(0).toUpperCase() + entityName.slice(1)}'s files: his home workspace`}
-          >
-            <Icon name="folder" size={14} />
-            <span>Files</span>
-          </button>
-          {loopStatus?.inbox_warning ? (
-            <span className="ec_note ec_warn" title="The loop's command inbox could not be read — stop requests may not land until this clears.">
-              {loopStatus.inbox_warning}
-            </span>
-          ) : null}
-          {specDrift && (specDrift.status === "modulated" || specDrift.overlay) ? (
-            <span
-              className="ec_note ec_daycause"
-              title={`The operator edited the dials through the write door: ${specDrift.overlay ? `overlay edit ${specDrift.overlay.edit_seq}${specDrift.overlay.edited_at ? ` at ${specDrift.overlay.edited_at}` : ""} — the structural law is untouched (sha matches)` : specDrift.detail}. The machinery reads the edited dials at its next boundary.`}
-            >
-              🎛 blueprint modulated ({specDrift.overlay ? `edit ${specDrift.overlay.edit_seq}` : `rev ${specDrift.wire?.operator_rev ?? "?"}`})
-            </span>
-          ) : specDrift ? (
-            <span className="ec_note ec_warn" title={`ONE-GRAPH drift (laurent dm#79: one state graph, shared): ${specDrift.detail}. Until this clears, phase words rendered here and served by the gateway may disagree.`}>
-              ⚠ phase-graph drift: {specDrift.detail}
-            </span>
-          ) : null}
-          {!loopStatus?.running && loopStatus?.stopped_by === "failures" ? (
-            <span className="ec_note ec_warn" title="Three consecutive ticks failed (usually LLM timeouts under load) and the loop stopped itself. His memory is intact — restart his own time when the substrate is healthy.">
-              his own time stopped after repeated tick failures — restart when ready
-            </span>
-          ) : null}
-          {controlNote ? <span className="ec_note">{controlNote}</span> : null}
-        </div>
-      ) : null}
-
-      {/* THE STOPPED BANNER (liveness axis, laurent 16:06/16:12): the kill switch outranks every
-        * other line, full width, whatever the tab. Its words are the gateway's sentence; the one
-        * Resume button is in the phase bar. */}
-      {sourceKind === "gateway" && entityName && phaseView.stopped ? (
-        <div className="entity_stopped_banner" role="alert">
-          <span className="esb_glyph" aria-hidden="true">⛔</span>
-          <span className="esb_text">
-            <strong title={phaseView.sentenceTitle || undefined}>{phaseView.sentence}</strong>
-            {phaseView.since ? <span className="esb_since"> · {phaseView.since}</span> : null}
-          </span>
         </div>
       ) : null}
 

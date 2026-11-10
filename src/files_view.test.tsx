@@ -55,19 +55,48 @@ describe("the Files view", () => {
   });
 });
 
-describe("the folder button beside Settings", () => {
+describe("Files, then Settings, at the right end of the strip (backlog 0013)", () => {
   const src = fs.readFileSync(path.join(__dirname, "entity_view.tsx"), "utf8");
-  it("comes right after the Settings button, a folder icon and the word Files", () => {
-    const settings = src.indexOf('className="ec_btn ec_settings_btn"');
+  it("Files comes first, a folder icon and the word Files, then Settings, nothing between them", () => {
     const files = src.indexOf('className="ec_btn ec_files_btn"');
-    expect(settings).toBeGreaterThan(-1);
-    expect(files).toBeGreaterThan(settings);
+    const settings = src.indexOf('className="ec_btn ec_settings_btn"');
+    expect(files).toBeGreaterThan(-1);
+    expect(settings).toBeGreaterThan(files);
     const button = src.slice(files, src.indexOf("</button>", files));
     expect(button).toContain("onClick={() => setShowFiles(true)}");
     expect(button).toContain('<Icon name="folder" size={14} />');
     expect(button).toContain("<span>Files</span>");
-    // Nothing else stands between the two buttons.
-    expect(src.slice(src.indexOf("</button>", settings) + 9, src.lastIndexOf("<button", files))).not.toMatch(/<(button|span|div)\b/);
+    expect(src.slice(settings, src.indexOf("</button>", settings))).toContain("<span>Settings</span>");
+    // Nothing else stands between the two buttons, and nothing follows Settings in the strip.
+    expect(src.slice(src.indexOf("</button>", files) + 9, src.lastIndexOf("<button", settings))).not.toMatch(/<(button|span|div)\b/);
+    expect(src.slice(src.indexOf("</button>", settings) + 9, src.indexOf("</div>", settings))).not.toMatch(/<(button|span|div)\b|\{[a-zA-Z!]/);
+  });
+
+  it("every sentence of the strip sits in the one status line, before the buttons", () => {
+    const strip = src.slice(src.indexOf('<div className="entity_controls">'), src.indexOf('className="ec_btn ec_files_btn"'));
+    const status = strip.slice(strip.indexOf('<span className="ec_status">'));
+    expect(status).not.toBe("");
+    // The phase bar comes first; after it, the notes live only inside the status line.
+    expect(strip.slice(0, strip.indexOf('<span className="ec_status">'))).not.toContain("ec_note");
+    for (const note of ["{TICK_FAILURE_NOTE}", "{loopStatus.inbox_warning}", "phase-graph drift: {specDrift.detail}", "{controlNote}", "dayCauseLine(loopStatus?.day_cause)"]) {
+      expect(status).toContain(note);
+    }
+    // Each note carries its whole sentence in its title (the line cuts it with an ellipsis).
+    expect(status).toContain("title={`${TICK_FAILURE_NOTE}.");
+    expect(status).toContain("title={controlNote}");
+    expect(status).toContain("title={`${line.text}");
+  });
+
+  it("the status line: the free space, one fixed line, never wrapped, cut with an ellipsis; on a phone after the buttons", () => {
+    const css = strip(fs.readFileSync(path.join(__dirname, "entity.css"), "utf8"));
+    const rule = css.match(/\.entity_controls > \.ec_status \{([^}]*)\}/)![1];
+    for (const decl of ["flex: 1 1 0;", "min-width: 0;", "height: 1.5em;", "line-height: 1.5em;", "overflow: hidden;", "white-space: nowrap;", "text-overflow: ellipsis;"]) {
+      expect(rule).toContain(decl);
+    }
+    // No button pushes itself with an auto margin any more (the line takes the free space).
+    expect(css).not.toMatch(/\.ec_(settings|files)_btn \{[^}]*margin-left: auto/);
+    const phone = css.slice(css.indexOf("@media (max-width: 479.98px)"));
+    expect(phone).toMatch(/\.entity_controls > \.ec_status \{[^}]*order: 1;[^}]*flex: none;[^}]*max-width: calc\(100vw - 28px\);/);
   });
 
   it("opens the Files view for the open entity on a gateway, and its close closes it", () => {
