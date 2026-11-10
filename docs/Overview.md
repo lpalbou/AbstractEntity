@@ -44,9 +44,9 @@ silently, and a single malformed line that must never brick the view.
 - **Memory graph** (`graph_canvas.tsx`, `graph_canvas_legend.tsx`,
   `force_layout.ts`, `graph_usage.ts`, `topic_layout.ts`, `topics_panel.tsx`)
   — the mind as a live graph laid out by the topics his memory forms in his
-  sleep (force-directed until they are served), with a Topics panel you can
-  move and resize (one card per topic, its memory types and paths most
-  travelled), a two-line legend you click to see where a kind of memory or
+  sleep (force-directed until they are served), quiet dark lines with his
+  walked trails lit green, a Topics panel you can move anywhere on the page
+  and resize (one card per topic, its memory types and paths most travelled), a two-line legend you click to see where a kind of memory or
   link sits, a grey-to-green usage scale ranked within each life, the Context
   view (the memories of a recall and the paths travelled to reach them), and
   durable spatial memory.
@@ -54,7 +54,7 @@ silently, and a single malformed line that must never brick the view.
   chronological journal; **Health** (`health_panel.tsx` + `health_metrics.ts`):
   memory-shape metrics + on-disk footprint; **Cognitive Monitor**
   (`cognition_wave_panel.tsx`, opened with **Monitor** in the timeline):
-  uic's text-mood instrument, docked under the graph.
+  uic's text-mood instrument, shown inside the timeline right of its lanes.
 - **Visits** (`chat_drawer.tsx`, `workspace_panel.tsx`) — turns with cycle
   visibility, steering, per-phase grants; the fabricated-liveness guard.
 - **Meets** (`meet_reader.tsx`, `meet_console.tsx`) — read a past shared
@@ -77,8 +77,9 @@ These are load-bearing and test-pinned:
 
 - Diary redaction is honored in the pixel path and never reconstructed; a
   sealed entry's words never enter any feed (Book, Cognitive Monitor).
-- The Cognitive Monitor always carries "reads the expressive character of
-  text, not inner state," and never crosses embedding spaces (the home's
+- The Cognitive Monitor always carries, in its ⓘ (hover and accessible
+  name), "This reads the expressive character of his WORDS, not his inner
+  state," and never crosses embedding spaces (the home's
   embedder pin drives scoring; a mismatch refuses loudly).
 - Tool claims render from `tools_used` attributes and host events only,
   never from reply prose.

@@ -59,11 +59,11 @@ consistent at any scrub position.
 
 ## The Cognitive Monitor pipeline (the one multi-step seam)
 
-The Cognitive Monitor, opened with **Monitor** in the timeline and docked under
-the graph, is the only surface whose data is not a direct fold read — it is a
-feed the app owns feeding a scorer uic owns. It reads only while it is open,
-and his words at the timeline's position only when you press **read his
-words**:
+The Cognitive Monitor, opened with **Monitor** and shown inside the timeline,
+right of the lanes, is the only surface whose data is not a direct fold read —
+it is a feed the app owns feeding a scorer uic owns. It reads nothing while it
+is closed; opening it is what reads his words, once per entity, kept while the
+page is open:
 
 ```
 FoldState + chat transcript

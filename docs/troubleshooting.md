@@ -93,8 +93,8 @@ upgrade the gateway to AbstractGateway 0.21.0 or newer. See
 
 **Cause:** the Cognitive Monitor scores only with the entity's own embedding
 model; if the gateway's embeddings do not match the scorer's basis, or the
-gateway has no embedding endpoint, the monitor stops with an explanation rather
-than showing invented scores.
+gateway has no embedding endpoint, the monitor says "could not read" (hover it
+for the reason) rather than showing invented scores.
 
 **Fix:** make sure the gateway serves `/api/gateway/embeddings` with the model
 the entity was created with. The rest of the app is unaffected.

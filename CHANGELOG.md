@@ -26,23 +26,28 @@ Highlights:
   once, under its own name and avatar, even when you send the same words again.
 - **What a reply kept, as badges** under his words (diary, lesson, interest, question,
   realization), each opening its record.
-- **The memory graph.** One grey-to-green usage scale, the paths he travelled to each recalled
-  memory (with their direction and meaning on hover), a Context legend, a two-line legend you click
-  to see where a kind of memory or link sits (it replaces the filter chips), and hover that waits
-  for the pointer to rest. Closed memories stay hidden until you ask for them.
+- **The memory graph.** Memories run from grey to green by use; the lines stay dark grey except
+  the trails he walked, which light green up to bright, and a hovered memory lights its own lines.
+  The paths he travelled to each recalled memory (with their direction and meaning on hover), a
+  Context legend, a two-line legend you click to see where a kind of memory or link sits (it
+  replaces the filter chips), and hover that waits for the pointer to rest. Closed memories stay
+  hidden until you ask for them.
 - **His topics.** The topics his memory forms in his sleep, with their authored titles, are the
-  graph's layout. The Topics panel opens at the top right, and you can move and resize it; each
-  topic is a card in its circle's colour, with what his memory knows of it, its memory types and
-  the paths he travelled most, and a topic you point at is a spotlight on the graph.
+  graph's layout. The Topics panel opens at the top right, and you can move it anywhere on the page
+  and resize it; each topic is a card in its circle's colour that folds back on a second click,
+  with what his memory knows of it, its memory types and the paths he travelled most, and a topic
+  you point at is a spotlight on the graph.
 - **What he is doing, live.** While a turn runs, the chat shows each thing he does, row by row,
   then folds the turn into one line above the message box.
-- **The Cognitive Monitor beside the timeline.** **Monitor**, after **Live** in the timeline's
-  controls, opens it under the graph; it follows the replay, and live, the reply in view.
+- **The Cognitive Monitor in the timeline.** **Monitor**, after **Live** in the timeline's
+  controls, opens it in the timeline's free space and reads his words; it follows the replay, and
+  live, the reply in view.
 - **Entity cards that act, and simpler controls.** Each entity on the home page is the shared
   card, with **Watch**, **Retry** when his own time stopped unexpectedly and **Resume** when he is
-  stopped. On his page, one status line that never moves the buttons, **Files** beside
-  **Settings**, and his self-knowledge brief on the Card tab. The blueprint page, the Wave tab, the
-  graph's filter chips and its reset button are gone.
+  stopped, three to a row on a desktop. On his page, one status line that never moves the
+  buttons, **Files** beside **Settings**, his self-knowledge brief on the Card tab, and the side
+  tabs in the order chat, card, health, book, world, lessons, detail, ledger. The blueprint page,
+  the Wave tab, the graph's filter chips and its reset button are gone.
 - **Fixes** from live use: playback no longer freezes the graph, the ledger names phase changes
   and his topics, older records whose summary was cut say so, the Context box and Topics panel keep
   their room on short phone screens and never cover each other, the open Topics panel lists
@@ -261,9 +266,10 @@ Highlights:
   carries, the same as its card in the graph, not one the app made up ("A visit with admin").
   While no title is written yet it says "Title being written…". Who the moment was with stays as
   a small line under the title.
-- **The memory graph shows what he uses most.** Memories and the lines between them now run from
-  dark grey (rarely used) to green (most used), ranked within each entity's own life, so his most
-  used tenth stands out in bright green instead of the whole graph looking equally green. In the
+- **The memory graph shows what he uses most.** Memories now run from dark grey (rarely used) to
+  green (most used), ranked within each entity's own life, so his most used tenth stands out in
+  bright green instead of the whole graph looking equally green; the lines stay dark except the
+  trails he walked (see "Quiet lines, walked trails" under Changed). In the
   Context view, the line he travelled to reach each recalled memory is lit in the colour of its
   ring, and the rest is dimmed. The Context box now explains the rings: present by right (memories
   he always keeps in mind), continuity (memories that followed from the last ones) and matched
@@ -520,14 +526,17 @@ Highlights:
 
 ### Added
 
-- **Move and resize the Topics panel** (backlog 0017 and 0001). On a wide graph the panel opens
-  at the top right, under the layout buttons, and grows downward. Drag the grip on its head to
-  move it anywhere on the graph, and its bottom-right corner to resize it (240 to 560 px wide, up
-  to the graph's height). A moved panel shows **put back** on its head, which docks it at the top
-  right again with its size kept. Your browser remembers where you left it. A topic you click is
-  framed in the part of the graph the panel leaves free, wherever the panel is, and the legend
-  under the graph ends before the docked panel. On a phone the panel stays a sheet; open, the sheet
-  now fills its column and only its list scrolls.
+- **Move and resize the Topics panel** (backlog 0017, 0001 and 0027). On a wide graph the panel
+  opens docked at the top right, under the layout buttons, and grows downward. Drag it by its head
+  (past a few pixels; a plain click still folds it) or by its grip, and it follows the pointer
+  smoothly anywhere on the page, over the toolbar, the timeline and the side panel too, its head
+  always inside the window. Drag its bottom-right corner to grow it toward the bottom right, its
+  top-left corner staying put (240 to 560 px wide, as tall as the window allows). A moved panel
+  shows **put back** on its head, which docks it at the top right again with its size kept. Your
+  browser remembers where you left it. A topic you click is framed in the part of the graph the
+  panel leaves free, wherever the panel is, and the legend under the graph ends before the docked
+  panel. On a phone the panel stays a sheet; open, the sheet fills its column and only its list
+  scrolls.
 - **The paths most travelled light up** (backlog 0015). In a topic's facts, each pair of memories
   he used most together (up to five) is a row. Rest the pointer on it, or reach it with the
   keyboard, and it shows the whole pair while the graph lights the two memories; click, tap or
@@ -539,13 +548,17 @@ Highlights:
   graph. Rest on a type, or reach it with the keyboard, to light those memories on the graph;
   click it (or press Enter or →) to unfold its memories, newest first, and the panel scrolls to
   show them.
-- **The Cognitive Monitor opens from the timeline** (backlog 0018). **🧠 Monitor**, after **Live**
-  in the timeline's controls, opens the monitor under the graph, above the timeline, and closes it
-  again. It follows the timeline: while you replay, his words at the timeline's position (press
-  **read his words** to score them); live with his conversation open, the reply in view, with its
-  conduct gauge. The side panel keeps its full height beside it, and the monitor takes at most
-  38 % of the screen's height, scrolling inside. On a phone it takes the graph's place until you
-  close it. A closed monitor reads nothing.
+- **The Cognitive Monitor opens in the timeline** (backlog 0018 and 0032). **🧠 Monitor**, after
+  **Live** in the timeline's controls, opens the monitor in the timeline's free space, right of the
+  lanes and above the controls, and closes it again; the graph and the side panel keep their size.
+  It is compact: a small bloom (rest on it for the register his words are closest to) and the tone
+  row. Opening it is what reads his words, once per entity, kept while the page is open, so
+  reopening it shows the reading at once; another entity's page opens with it closed. It follows
+  the timeline: while you replay, his words at the timeline's position; live with his conversation
+  open, the reply in view, with its conduct gauge. A short word says when it is reading or has
+  nothing to show, and its ⓘ says on hover what it reads (his words, not his inner state) and with
+  which basis. On a phone it takes the place of the timeline's lanes until you close it. Beside
+  the Avatar view it is not shown, and its toggle says why. A closed monitor reads nothing.
 - **"just travelled" in the legend.** The legend's second line names the amber line: two memories
   he used together a moment ago. It fades as he goes on.
 - **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
@@ -604,11 +617,27 @@ Highlights:
   buttons: never wrapped, ended with "…" when too long, the whole sentence on hover. A sentence
   that appears or goes no longer moves the buttons or the graph. The buttons read **Files**, then
   **Settings**. When he is stopped, the stop's sentence shows in red in the phase bar's own line.
-- **The legend replaces the filter chips** (backlog 0019). The graph's toolbar keeps **search**,
-  **topics** and **Context**; the All, Identity, Recent, Warm, Feelings, Diary, Dreams and
-  Questions chips and the "N emphasized" count are gone. To see where a kind of memory or a kind of
-  link sits, click it in the legend under the graph. A focused topic keeps its chip in the
-  toolbar: click it to let the topic go.
+- **Quiet lines, walked trails** (backlog 0025). Every line he has not walked much, and every link
+  his memory names, is one dark grey near the background, which stays dark however many lines
+  cross. Only his walked trails light: the upper third of his trails turns a faint green, and his
+  most used ones bright green and wider, so they read as paths. Hover or select a memory and its
+  own lines light while the rest dims.
+- **The legend replaces the filter chips** (backlog 0019 and 0030). The graph's toolbar keeps
+  **search**, **topics** and **Context**; the All, Identity, Recent, Warm, Feelings, Diary, Dreams
+  and Questions chips and the "N emphasized" count are gone. To see where a kind of memory or a
+  kind of link sits, click it in the legend under the graph. A focused topic keeps its chip in the
+  toolbar, on one line (its title cut with "…", whole on hover): click it, or unpress **topics**,
+  to let the topic go.
+- **Topic cards fold back** (backlog 0026). A click (or Enter, Space) on an unfolded topic folds it
+  back to the card it was; the next click unfolds it again. The topic stays focused on the graph
+  until you let it go.
+- **The side tabs in a new order** (backlog 0029): Chat, Card, Health, Book, World, Lessons, Detail
+  and Ledger (Health first until you are signed in), on the phone's strip too.
+- **The World tab says what it is** (backlog 0031), in two lines: "His world model: how he
+  represents and sees the world. One card per thing he understands."
+- **Three entities per row on a desktop** (backlog 0024). The home page's cards use the page's
+  width: one per row on a phone, two up to 1199 px, three from 1200 px, four from 1700 px; the
+  creation form keeps its reading width.
 - **One card per topic, in its colour** (backlog 0014). In the Topics panel each topic, with what it
   unfolds, sits in one rounded card tinted with its circle's colour on the graph; the selected card
   is tinted a little more. The text keeps a contrast of at least 4.5:1 on all twelve topic
@@ -652,7 +681,8 @@ Highlights:
   0021: "why so many isolated nodes sit on the periphery arc?"). The ring outside his topics held
   records his memory never puts in a topic: memories closed when a newer version replaced them or
   when they were retracted, engine records, and the link between two versions of a topic. The
-  graph no longer draws them by default. A pressed toggle after **fit** names what it shows,
+  graph no longer draws them by default. A pressed toggle just before **fit** (backlog 0028) names
+  what it shows,
   "◌ 132 closed memories" (the count alone on a narrow graph), says on hover how they were closed
   ("132 closed memories: 132 replaced by a newer version") and shows them on their ring. Engine
   records stay hidden and are never counted; a record you open from the Ledger tab still shows.
@@ -724,13 +754,12 @@ Highlights:
   Every title, list row, reason and summary goes through the shared Markdown renderer, so their
   bold, headings and lists render (a mark the saved title cut open stays as it was saved).
 - **The Cognitive Monitor shows every value.** Each petal of the bloom is the similarity of his
-  words to that emotional register, with its number printed beside it, on one fixed scale for
-  every reply: the inner ring is −0.25, the outer edge +0.75, zero a quarter of the way out.
+  words to that emotional register, on one fixed scale for every reply: the inner ring is −0.25,
+  the outer edge +0.75, zero a quarter of the way out.
   Nothing is centred or hidden any more (before, most registers of an ordinary reply were drawn
-  at zero and the bloom often went flat). The sentence always names the register his words are
-  closest to, with its number ("the words are closest to joy (JOY −0.02)"; "lean strongly toward
-  fear (FEA 0.59) with a thread of anxiety (ANX 0.43)"), clicking a register shows its value, and
-  the edge tint is gone (it read the values as intensities).
+  at zero and the bloom often went flat). Resting on the bloom names the register his words are
+  closest to, with its number ("closest to joy (JOY −0.02)"), and the edge tint is gone (it read
+  the values as intensities).
 - **A calmer, better organised Settings window.** Its nine sections now sit in four groups (Mind &
   voice, Identity & record, Workspace, Prompt) in a side list — a section picker on a phone — and
   each opens with a title and one line saying what it is for, with the long explanations folded
@@ -743,8 +772,9 @@ Highlights:
   and the `?page=blueprint` address are gone; an old link opens the entities list. The notes
   beside the phase bar say "phase rules modulated" or "phase rules drift". The phase graph and the
   cognition map stay in `spec/`, and AbstractGateway serves both.
-- **The Wave tab and the monitor at the top of the chat** (backlog 0018). The Cognitive Monitor
-  opens from the timeline instead (see Added).
+- **The Wave tab, the monitor at the top of the chat and the monitor's ⓘ window** (backlog 0018
+  and 0032). The Cognitive Monitor opens in the timeline instead (see Added); its ⓘ's hover says
+  what it reads and with which basis.
 - **The graph's reset button** (backlog 0020). **fit** stays, and where you dragged a topic's circle
   is kept.
 
