@@ -430,6 +430,34 @@
   font-style: italic;
 }
 
+/* An unfolded topic's row says, under its title and before its summary,
+ * what it holds by memory type ("118 episodes · 29 diary entries") and
+ * when its newest memory formed — shown the moment it unfolds, on a phone
+ * too (never below a long summary). */
+.gc_tp_lead {
+  flex-basis: 100%;
+  color: var(--text);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.gc_tp_lead_span {
+  color: var(--text-dim);
+}
+
+/* A type's line over its memories ("80 episodes"): a static row, open by
+ * default (never a fold), its kind dot the graph's colour. */
+.gc_tp_group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 1px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
 .gc_tp_fact_paths {
   display: flex;
   flex-direction: column;

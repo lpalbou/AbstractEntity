@@ -12,13 +12,18 @@
  *   whose memories the graph has loaded says so in one sentence ("Its
  *   memories are outside the loaded window."), never an empty list.
  * - A click on a topic FOCUSES it: the graph frames its circle and lights
- *   its memories, and the topic unfolds to list them (titles, newest first).
+ *   its memories, and the topic unfolds to list them by memory type: one
+ *   line per type with how many of that type the graph has loaded ("80
+ *   episodes"), then those memories (titles, newest first) — open by
+ *   default, never behind a fold.
  *   A click on the focused topic lets it go.
  * - A click on a member opens it (Detail; a diary entry shows in the Book —
  *   the graph's rule). A member placed since his last sleep carries the
  *   badge "placed until his next sleep".
- * - The topic view (unfolded) says what memory counts of it (`facts`), in
- *   words: when its memories were formed, how much it was used this week,
+ * - The topic view (unfolded) says first what it holds by memory type, from
+ *   memory's own counts ("118 episodes · 29 diary entries · 10 interests"),
+ *   and when its newest memory formed ("last formed 9 hours ago · since 8
+ *   Jul 2026"); then what memory counts of it (`facts`), in words: how much it was used this week,
  *   its most used memory, its bridges to other topics, what his last sleep
  *   changed, the pairs of memories most used together; and, when its
  *   centroid is stale, that its placement may be. Memories and topics are
@@ -115,25 +120,88 @@ export const VERDICT_SENTENCE: Record<typeof NO_COMMON_SUBJECT, string> = {
 export const CENTROID_STALE_NOTE = "placement may be stale until his next sleep";
 export const PATHS_HEAD = "paths most travelled";
 
+/** A memory type in words, singular and plural ("diary entry", "diary
+ * entries"); a type this app does not name is its served name, spaced. */
+const KIND_NAMES: Record<string, [string, string]> = {
+  episode: ["episode", "episodes"],
+  diary: ["diary entry", "diary entries"],
+  summary: ["summary", "summaries"],
+  interest: ["interest", "interests"],
+  dream: ["dream", "dreams"],
+  lesson: ["lesson", "lessons"],
+  world_model: ["world model", "world models"],
+  value: ["value", "values"],
+  purpose: ["purpose", "purposes"],
+  trait: ["trait", "traits"],
+  limit: ["limit", "limits"],
+  claim: ["claim", "claims"],
+  memory: ["memory", "memories"],
+  observation: ["observation", "observations"],
+  realization: ["realization", "realizations"],
+  question: ["question", "questions"],
+  relation: ["link", "links"],
+};
+
+/** "118 episodes", "1 diary entry". */
+export function kindCountWords(kind: string, n: number): string {
+  const [one, many] = KIND_NAMES[kind] ?? [kind.replace(/_/g, " "), `${kind.replace(/_/g, " ")}s`];
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** A memory's type as memory counts it in a topic's `kinds`. */
+export function memoryKindOf(node: Pick<NodeState, "kind" | "diary">): string {
+  return node.diary ? "diary" : node.kind;
+}
+
+/** A topic's types, most first (ties by name), from memory's own counts. */
+export function topicKinds(c: Pick<ServedCommunity, "kinds">): Array<[string, number]> {
+  return [...c.kinds.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** "118 episodes · 29 diary entries · 10 interests" (null: no counts served). */
+export function kindsLine(c: Pick<ServedCommunity, "kinds">): string | null {
+  const kinds = topicKinds(c);
+  return kinds.length ? kinds.map(([k, n]) => kindCountWords(k, n)).join(" · ") : null;
+}
+
+/** How long ago, in words: "just now", "5 minutes ago", "9 hours ago",
+ * "yesterday", "4 days ago", "3 weeks ago", then the day ("on 8 Jul 2026"). */
+export function agoWords(iso: string, nowMs: number, timeZone?: string): string {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return iso;
+  const s = Math.max(0, (nowMs - at) / 1000);
+  const n = (v: number, unit: string) => `${v} ${unit}${v === 1 ? "" : "s"} ago`;
+  if (s < 60) return "just now";
+  if (s < 3600) return n(Math.floor(s / 60), "minute");
+  if (s < 86400) return n(Math.floor(s / 3600), "hour");
+  if (s < 2 * 86400) return "yesterday";
+  if (s < 14 * 86400) return n(Math.floor(s / 86400), "day");
+  if (s < 56 * 86400) return n(Math.floor(s / (7 * 86400)), "week");
+  return `on ${dayWords(iso, timeZone)}`;
+}
+
 export type TopicFact =
-  | { kind: "span" | "activity" | "hub" | "bridges" | "changed" | "stale"; text: string }
+  | { kind: "kinds" | "span" | "activity" | "hub" | "bridges" | "changed" | "stale"; text: string }
   | { kind: "paths"; text: string; paths: { a: string; b: string; count: number }[] };
 
-/** What memory counts of a topic, in words. `titleOf` names a member record
- * (its graph id) by the graph's node, null when the graph does not hold it;
+/** What memory counts of a topic, in words: first what it holds by type
+ * (`kinds`) and when its newest memory formed (`span.last`, relative to
+ * `nowMs`), then the rest. `titleOf` names a member record (its graph id)
+ * by the graph's node, null when the graph does not hold it;
  * `topicTitleOf` names another topic by its key, null when not served or
  * its title is not written. Nothing is said for an absent fact, an empty
  * one, or one that would have to show an id. */
-export function topicFacts(c: ServedCommunity, titleOf: (graphId: string) => string | null, topicTitleOf: (key: string) => string | null, timeZone?: string): TopicFact[] {
+export function topicFacts(c: ServedCommunity, titleOf: (graphId: string) => string | null, topicTitleOf: (key: string) => string | null, timeZone?: string, nowMs: number = Date.now()): TopicFact[] {
   const f = c.facts;
   const out: TopicFact[] = [];
+  const kinds = kindsLine(c);
+  if (kinds) out.push({ kind: "kinds", text: kinds });
   const first = f.span?.first ?? null;
   const last = f.span?.last ?? null;
-  if (first) {
-    const a = dayWords(first, timeZone);
-    const b = last ? dayWords(last, timeZone) : a;
-    out.push({ kind: "span", text: b === a ? `since ${a}` : `since ${a} · last ${b}` });
-  }
+  const span: string[] = [];
+  if (last) span.push(`last formed ${agoWords(last, nowMs, timeZone)}`);
+  if (first && !(last && dayWords(first, timeZone) === dayWords(last, timeZone))) span.push(`since ${dayWords(first, timeZone)}`);
+  if (span.length) out.push({ kind: "span", text: span.join(" · ") });
   if (f.activity !== undefined) {
     const n = f.activity;
     out.push({ kind: "activity", text: n === 0 ? `not used in the last ${FACTS_WINDOW_DAYS} days` : `used ${n} ${n === 1 ? "time" : "times"} in the last ${FACTS_WINDOW_DAYS} days` });
@@ -175,8 +243,9 @@ export function topicOrder(communities: ServedCommunity[]): ServedCommunity[] {
 }
 
 type TopicRowData =
-  | { kind: "topic"; c: ServedCommunity; loaded: number }
+  | { kind: "topic"; c: ServedCommunity; loaded: number; lead: TopicFact[] }
   | { kind: "facts"; c: ServedCommunity; facts: TopicFact[] }
+  | { kind: "group"; c: ServedCommunity; memoryKind: string; count: number; sample: NodeState }
   | { kind: "unloaded"; c: ServedCommunity; text: string }
   | { kind: "member"; c: ServedCommunity; node: NodeState; provisional: boolean };
 type TopicRow = DisclosureRow<TopicRowData>;
@@ -185,12 +254,44 @@ export const topicRowKey = (key: string) => `topic:${key}`;
 export const memberRowKey = (key: string, row: string) => `member:${key}:${row}`;
 export const factsRowKey = (key: string) => `facts:${key}`;
 export const unloadedRowKey = (key: string) => `unloaded:${key}`;
+export const groupRowKey = (key: string, memoryKind: string) => `group:${key}:${memoryKind}`;
+
+/** A topic's loaded memories by type: memory's order of its types (most
+ * first), then any other type loaded (most first, ties by name); newest
+ * first inside a type. */
+export function memberGroups(c: Pick<ServedCommunity, "kinds">, nodes: NodeState[]): Array<{ memoryKind: string; nodes: NodeState[] }> {
+  const byKind = new Map<string, NodeState[]>();
+  for (const node of nodes) {
+    const k = memoryKindOf(node);
+    const list = byKind.get(k);
+    if (list) list.push(node);
+    else byKind.set(k, [node]);
+  }
+  const served = topicKinds(c).map(([k]) => k);
+  const rank = new Map(served.map((k, i) => [k, i]));
+  const order = [...byKind.keys()].sort((a, b) => {
+    const ra = rank.get(a) ?? Infinity;
+    const rb = rank.get(b) ?? Infinity;
+    if (ra !== rb) return ra - rb;
+    return byKind.get(b)!.length - byKind.get(a)!.length || (a < b ? -1 : a > b ? 1 : 0);
+  });
+  return order.map((memoryKind) => ({
+    memoryKind,
+    nodes: byKind.get(memoryKind)!.sort((a, b) => b.first_seq - a.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+  }));
+}
+
+/** The facts an unfolded topic says in its own row, under its title and
+ * before its summary (visible the moment it unfolds, never below a long
+ * summary): what it holds by type and when its newest memory formed. */
+export const LEAD_FACTS: ReadonlySet<TopicFact["kind"]> = new Set(["kinds", "span"]);
 
 /** The panel's visible rows: every topic (its count beside how many the
  * graph has loaded); an unfolded one's facts (a static row: never focused
- * or selected) then its members (the memories of the fold, newest first) —
- * or, with none loaded, the one sentence that says so (a static row). */
-export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState): TopicRow[] {
+ * or selected) then its members by type — a static line per type ("80
+ * episodes"), then those memories of the fold, newest first — or, with
+ * none loaded, the one sentence that says so (a static row). */
+export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<string>, rowsOf: ReadonlyMap<string, string[]>, fold: FoldState, nowMs: number = Date.now()): TopicRow[] {
   const out: TopicRow[] = [];
   const byKey = new Map(communities.map((c) => [c.key, c]));
   const titleOf = (gid: string): string | null => {
@@ -204,9 +305,11 @@ export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<
   for (const c of topicOrder(communities)) {
     const open = expanded.has(c.key);
     const nodes = (rowsOf.get(c.key) ?? []).map((r) => fold.nodes.get(r)).filter((n): n is NodeState => Boolean(n));
-    out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c, loaded: nodes.length } });
+    const all = open ? topicFacts(c, titleOf, topicTitleOf, undefined, nowMs) : [];
+    const lead = all.filter((f) => LEAD_FACTS.has(f.kind));
+    out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c, loaded: nodes.length, lead } });
     if (!open) continue;
-    const facts = topicFacts(c, titleOf, topicTitleOf);
+    const facts = all.filter((f) => !LEAD_FACTS.has(f.kind));
     if (facts.length) {
       out.push({ key: factsRowKey(c.key), entityId: factsRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: factsText(facts), data: { kind: "facts", c, facts } });
     }
@@ -215,17 +318,20 @@ export function topicRows(communities: ServedCommunity[], expanded: ReadonlySet<
       out.push({ key: unloadedRowKey(c.key), entityId: unloadedRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: text, data: { kind: "unloaded", c, text } });
       continue;
     }
-    nodes.sort((a, b) => b.first_seq - a.first_seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    for (const node of nodes) {
-      out.push({
-        key: memberRowKey(c.key, node.id),
-        entityId: node.id,
-        parentKey: topicRowKey(c.key),
-        depth: 1,
-        expandable: false,
-        textValue: plainCardTitle(node),
-        data: { kind: "member", c, node, provisional: c.provisional.has(node.graph_id ?? node.id) },
-      });
+    for (const group of memberGroups(c, nodes)) {
+      const words = kindCountWords(group.memoryKind, group.nodes.length);
+      out.push({ key: groupRowKey(c.key, group.memoryKind), entityId: groupRowKey(c.key, group.memoryKind), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: words, data: { kind: "group", c, memoryKind: group.memoryKind, count: group.nodes.length, sample: group.nodes[0] } });
+      for (const node of group.nodes) {
+        out.push({
+          key: memberRowKey(c.key, node.id),
+          entityId: node.id,
+          parentKey: topicRowKey(c.key),
+          depth: 1,
+          expandable: false,
+          textValue: plainCardTitle(node),
+          data: { kind: "member", c, node, provisional: c.provisional.has(node.graph_id ?? node.id) },
+        });
+      }
     }
   }
   return out;
@@ -365,6 +471,11 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
           <AfChip size="sm" tone="muted" className="gc_tp_count">
             {topicCountWords(heldCount(c), d.loaded)}
           </AfChip>
+          {d.lead.map((f) => (
+            <span key={f.kind} className={`gc_tp_lead gc_tp_lead_${f.kind}`}>
+              {f.text}
+            </span>
+          ))}
           {summary ? <span className={`gc_tp_summary${c.summaryPending ? " gc_tp_pending" : ""}`}>{summary}</span> : null}
           {c.verdict ? <span className="gc_tp_verdict">{VERDICT_SENTENCE[c.verdict]}</span> : null}
         </span>
@@ -392,6 +503,14 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
               </span>
             ),
           )}
+        </span>
+      );
+    }
+    if (d.kind === "group") {
+      return (
+        <span className="gc_tp_group" data-group={d.memoryKind} data-tkey={d.c.key}>
+          <i className="gc_tp_kdot" style={{ background: colorOf(d.sample) }} aria-hidden="true" />
+          {row.textValue}
         </span>
       );
     }
