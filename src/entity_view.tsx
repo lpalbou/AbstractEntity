@@ -1320,9 +1320,9 @@ export function EntityView(): React.ReactElement {
   // would set it one render later): one page render per commit, not two.
   // Speed is read live, so changing it never restarts the loop.
   const playhead = useMemo(createPlayhead, []);
-  // THE COGNITIVE MONITOR (operator 2026-11-10, backlog 0018): docked above
-  // the timeline, opened by the timeline's Monitor toggle and mounted only
-  // while open; the timeline drives it. The chat drawer publishes the reply
+  // THE COGNITIVE MONITOR (operator 2026-11-10, backlogs 0018, 0032): inside
+  // the timeline, right of the lanes, opened by its Monitor toggle and mounted
+  // only while open; the timeline drives it. The chat drawer publishes the reply
   // in view into the feed; only the open monitor subscribes.
   const [monitorOpen, setMonitorOpen] = useState(false);
   const replyFeed = useMemo(createReplyFeed, []);

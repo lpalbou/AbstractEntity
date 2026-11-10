@@ -308,8 +308,9 @@ export function Timeline(props: TimelineProps): React.ReactElement {
         >
           ● Live
         </button>
-        {/* THE COGNITIVE MONITOR's toggle (operator 2026-11-10, backlog 0018): pressed = the monitor
-          * is open above the timeline, following this replay and, live, each reply. */}
+        {/* THE COGNITIVE MONITOR's toggle (operator 2026-11-10, backlogs 0018, 0032): pressed = the
+          * monitor is open in this panel, right of the lanes, following this replay and, live, each
+          * reply; the press is what reads his words. */}
         <button
           className="et_btn et_monitor"
           aria-pressed={props.monitorOpen}

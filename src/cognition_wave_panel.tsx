@@ -21,8 +21,9 @@
  * → uic's frozen-basis scorer → uic's Bloom renderer, animated on a canvas.
  *
  * Honesty (non-negotiable, per uic + me):
- * - The framing label ("reads the expressive character of text, not inner
- *   state") is ALWAYS shown — never hidden, never toned down.
+ * - The framing ("reads the expressive character of text, not inner state")
+ *   is the ⓘ's card, reached by hover, focus or a long-press, never toned
+ *   down (the operator removed the visible block, backlog 0032).
  * - `wandering` is session-relative (labeled); the curated-only v0 basis
  *   names itself as such (provenance line).
  * - Embedder space is guarded end to end: the scorer refuses a pin↔basis
@@ -38,9 +39,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { AfCognitionBloom } from "@abstractframework/ui-kit";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { basisProvenanceNote, bloomScoresOf, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
+import { ExplainedCode, type ExplainerContent } from "./code_explainer";
+import { basisProvenanceNote, bloomScoresOf, CHANNEL_AXES, dominantEmotion, simText, ToneRow, TONE_POLES } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
-import { isEmbeddingsUnconfigured } from "./stream_source";
+import { EMBEDDINGS_UNCONFIGURED, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { CognitionWaveInline, EmbeddingsUnconfiguredNote, type ReplyFeed } from "./cognition_wave_inline";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
@@ -71,7 +73,7 @@ export interface CognitionWavePanelProps {
   replyFeed: ReplyFeed;
 }
 
-type Phase =
+export type Phase =
   | { name: "idle" } // primed for a pull, not yet run (the resting state)
   | { name: "scoring" }
   | { name: "ready"; samples: ScoredSample[]; warnings: string[] }
@@ -112,14 +114,62 @@ export function corpusInFlight(key: string): Promise<Phase> | null {
   return kept instanceof Promise ? kept : null;
 }
 
-/** THE ONE PULL for a home: starts `read` unless one is in flight (null then, nothing starts);
- * its result is kept for the page's life. */
+/** THE ONE PULL for a home: starts `read` unless one is in flight (null then, nothing starts). A
+ * read is kept for the page's life; a failed one (no embeddings, an error) is not, so the next press
+ * tries again (after the route is set up, say). */
 export function startCorpusRead(key: string, read: () => Promise<Phase>): Promise<Phase> | null {
   if (corpusInFlight(key)) return null;
   const pending = read();
   corpusReads.set(key, pending);
-  void pending.then((done) => corpusReads.set(key, done));
+  void pending.then((done) => (done.name === "unconfigured" || done.name === "error" ? corpusReads.delete(key) : corpusReads.set(key, done)));
   return pending;
+}
+
+/** Before his words are read (each read of his book is recorded in his life, one marker per entry,
+ * the transparency contract): the home's embedder and the embedding route, so a read that cannot
+ * score never opens his book. null = go on; else the phase to show. */
+export async function corpusPreflight(baseUrl: string, entity: string): Promise<Phase | null> {
+  const home = await fetchEntityEmbedding(baseUrl, entity);
+  // The door resolves no embedder: the embeddings route has none either (it answers 503).
+  if (home && !home.resolved_embedder) return { name: "unconfigured", message: EMBEDDINGS_UNCONFIGURED };
+  if (home?.match === "mismatch") {
+    return { name: "error", message: `His memory is embedded with ${home.pin?.model_id ?? "another model"}, this gateway embeds with ${home.resolved_embedder}: his words cannot be read here.`, warnings: [] };
+  }
+  try {
+    await embedTexts(baseUrl, ["a check of the embedding route"], home?.pin?.model_id ?? undefined);
+  } catch (e) {
+    if (isEmbeddingsUnconfigured(e)) return { name: "unconfigured", message: e.message };
+    return { name: "error", message: (e as Error).message, warnings: [] };
+  }
+  return null;
+}
+
+/** The ⓘ's card (hover, focus or a long-press): what the monitor reads, the five tone channels with
+ * their poles on one −1..+1 scale, and the basis it reads with. */
+export function monitorAbout(provenance: string | null, calibration: string | null): ExplainerContent {
+  return {
+    code: "ⓘ",
+    name: "cognitive monitor",
+    color: "var(--text-dim)",
+    summary: FRAMING,
+    facts: CHANNEL_AXES.filter((a) => a.id in TONE_POLES).map((a) => ({
+      label: `${a.code} ${a.name}`,
+      value: `${TONE_POLES[a.id].positive[0]} (+1) to ${TONE_POLES[a.id].negative[0]} (−1)`,
+    })),
+    note: ["The bloom: how close his words are to each register. The tone channels: each from −1 to +1.", provenance, calibration].filter(Boolean).join(" "),
+  };
+}
+
+/** The monitor's one short line (its height never depends on it; the full reason in the hover). */
+export function MonitorState({ phase, source, conversation, nothingHere }: { phase: Phase; source: { baseUrl: string } | null; conversation: boolean; nothingHere: boolean }): React.ReactElement | null {
+  if (!source) return <span className="cw_note">exported view: not read</span>;
+  if (conversation) return null;
+  if (phase.name === "scoring") return <span className="cw_note">reading…</span>;
+  if (phase.name === "ready") return nothingHere ? <span className="cw_note">nothing said yet here</span> : null;
+  if (phase.name === "empty") return <span className="cw_note" title={phase.warnings.join(" · ") || undefined}>nothing readable yet</span>;
+  if (phase.name === "error") return <span className="cw_note cw_note_error" title={[phase.message, ...phase.warnings].join(" · ")}>could not read</span>;
+  if (phase.name === "unconfigured") return <EmbeddingsUnconfiguredNote baseUrl={source.baseUrl} message={phase.message} className="cw_note cw_note_error" short />;
+  return null;
 }
 
 /** Whether the monitor is on screen, so mounted: open, his page (not the roster), his content not
@@ -197,6 +247,9 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
     if (!source) return;
     const read = startCorpusRead(key, async (): Promise<Phase> => {
       try {
+        // No embeddings (or another space): said at once, his book never opened.
+        const stop = await corpusPreflight(source.baseUrl, source.entity);
+        if (stop) return stop;
         const b = await loadBasis();
         const scorer = createScorer(b, {
           embedderId: b.embedder_id,
@@ -229,7 +282,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
   const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
   // The ⓘ's hover: what this reads (never his inner state), and the basis it reads with.
-  const about = [FRAMING, provenance, calibration].filter(Boolean).join("\n");
+  const about = useMemo(() => monitorAbout(provenance, calibration), [provenance, calibration]);
 
   return (
     <div className="cw_panel cw_compact" data-reading-state={conversation ? "conversation" : phase.name}>
@@ -256,15 +309,10 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
         </div>
       )}
       <div className="cw_state">
-        <span className="cw_about" title={about} aria-label={about}>
+        <ExplainedCode className="cw_about" explain={about}>
           ⓘ
-        </span>
-        {!source ? <span className="cw_note">needs his home</span> : null}
-        {!conversation && phase.name === "scoring" ? <span className="cw_note">reading…</span> : null}
-        {!conversation && phase.name === "ready" && !current ? <span className="cw_note">nothing said yet here</span> : null}
-        {!conversation && phase.name === "empty" ? <span className="cw_note" title={phase.warnings.join(" · ") || undefined}>nothing readable yet</span> : null}
-        {!conversation && phase.name === "error" ? <span className="cw_note cw_note_error" title={[phase.message, ...phase.warnings].join(" · ")}>could not read</span> : null}
-        {!conversation && phase.name === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={source?.baseUrl ?? ""} message={phase.message} className="cw_note cw_note_error" /> : null}
+        </ExplainedCode>
+        <MonitorState phase={phase} source={source} conversation={Boolean(conversation)} nothingHere={!current} />
       </div>
     </div>
   );

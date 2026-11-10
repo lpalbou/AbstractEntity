@@ -239,8 +239,8 @@ body {
 }
 
 /* ---- THE COGNITIVE MONITOR's reading of his conversation, per message (operator 2026-07-15;
- * docked above the timeline since 2026-11-10, backlog 0018): its own line (mood dot, as of,
- * reading), then the bloom with DOM axis codes beside the conduct gauge. */
+ * inside the timeline since 2026-11-10, backlog 0032): the bloom, the tone row and the conduct
+ * gauge in one row, then its short line (as of, not read). */
 .cm_panel {
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--standing) 5%, transparent);
@@ -4149,12 +4149,14 @@ body {
   display: flex;
   justify-content: flex-end;
 }
+/* At most the lanes' own height (five 16 px rows and their 2 px gaps): opening it never grows the
+ * timeline, whatever its state says (that is one short line; the reason is in its hover). */
 .cw_panel.cw_compact {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
-  max-height: 110px;
+  max-height: 88px;
   overflow: hidden;
 }
 .cw_compact .cm_body,
@@ -4207,7 +4209,8 @@ body {
   align-items: flex-start;
   gap: 2px;
   flex: none;
-  max-width: 120px;
+  max-width: 150px;
+  white-space: nowrap;
 }
 .cw_about {
   color: var(--text-dim);
@@ -4247,9 +4250,25 @@ body {
   .entity_timeline.et_monitor_open .et_lane {
     display: none;
   }
-  .cw_panel.cw_compact {
-    flex-wrap: wrap;
-    max-height: none;
+  /* The same one row in the lanes' place, a little smaller so it fits 400 px with the gauge
+   * (never a tall wrapped column). */
+  .cw_compact .cm_canvas_box {
+    width: 64px !important;
+  }
+  .cw_compact .cm_canvas_box canvas,
+  .cw_compact .cm_canvas_box .cm_reading_state {
+    width: 64px !important;
+    height: 64px !important;
+  }
+  .cw_compact .cm_tone_codes {
+    width: 150px;
+  }
+  .cw_compact .cm_gauge_box {
+    width: 104px;
+  }
+  .cw_panel.cw_compact,
+  .cw_compact .cm_body {
+    gap: 6px;
   }
 }
 /* --------------------------------------------- lessons + world panels */

@@ -1,8 +1,8 @@
 /**
  * The Cognitive Monitor's reading of HIS CONVERSATION, per message: the live
- * part of the monitor docked above the timeline (cognition_wave_panel.tsx;
- * operator 2026-11-10, backlog 0018: "the cognitive monitor lives at the
- * bottom with the temporal replay, evolving with the replay and per
+ * part of the monitor inside the timeline (cognition_wave_panel.tsx;
+ * operator 2026-11-10, backlogs 0018 and 0032: "the cognitive monitor lives
+ * at the bottom with the temporal replay, evolving with the replay and per
  * message, so nothing of it at the top"). The DIAGRAM is the kit's
  * `AfCognitionBloom` (co-designed component, c2242: nine registers incl.
  * GRAVITY, morph-gated breath, settledness-gated valence vignette, optional
@@ -97,7 +97,7 @@ export function createReplyFeed(): ReplyFeed {
 /** The squares inside the timeline (backlog 0032: the monitor stays about 110 px tall): the bloom,
  * and the conduct gauge with its code row under it. */
 const BLOOM = 84;
-const GAUGE = 64;
+const GAUGE = 56;
 
 interface ScoredText {
   scores: Record<string, number>;
@@ -156,7 +156,7 @@ export function toolCallsOf(detail: { tools_ran?: string[]; tool_details?: Array
 /** "Embeddings are not configured on this gateway, …" + the console page that sets the route.
  * Behind the app's proxy (`baseUrl` = "") the console lives on the proxied
  * gateway, whose address the proxy's connection status names. */
-export function EmbeddingsUnconfiguredNote({ baseUrl, message, className = "cm_err" }: { baseUrl: string; message: string; className?: string }): React.ReactElement {
+export function EmbeddingsUnconfiguredNote({ baseUrl, message, className = "cm_err", short = false }: { baseUrl: string; message: string; className?: string; /** The monitor's one short line (its height never depends on its note): the sentence in the hover. */ short?: boolean }): React.ReactElement {
   const [proxied, setProxied] = useState("");
   useEffect(() => {
     if (baseUrl.trim()) return;
@@ -168,13 +168,13 @@ export function EmbeddingsUnconfiguredNote({ baseUrl, message, className = "cm_e
   }, [baseUrl]);
   const gateway = baseUrl.trim() || proxied;
   return (
-    <span className={className} data-monitor-note="embeddings">
-      {message}
+    <span className={className} data-monitor-note="embeddings" title={short ? message : undefined}>
+      {short ? "no embeddings" : message}
       {gateway ? (
         <>
-          {" "}
+          {short ? " · " : " "}
           <a href={embeddingsSetupUrl(gateway)} target="_blank" rel="noreferrer">
-            Set up embeddings
+            {short ? "set up" : "Set up embeddings"}
           </a>
         </>
       ) : null}
@@ -372,7 +372,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
             not read
           </span>
         ) : null}
-        {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err" /> : null}
+        {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err" short /> : null}
       </div>
     </div>
   );

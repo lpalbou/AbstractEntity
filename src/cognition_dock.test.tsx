@@ -12,7 +12,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ScoredSample } from "./cognition_adapter";
 import { createReplyFeed, type ReplyFeedValue } from "./cognition_wave_inline";
-import { CognitionWavePanel, keptCorpus, monitorShown, sampleAt, startCorpusRead, corpusKey } from "./cognition_wave_panel";
+import { CognitionWavePanel, corpusPreflight, keptCorpus, monitorAbout, MonitorState, monitorShown, sampleAt, startCorpusRead, corpusKey, type Phase } from "./cognition_wave_panel";
+import { EMBEDDINGS_UNCONFIGURED } from "./stream_source";
 import { createFoldState } from "./stream_fold";
 import { Timeline, type TimelineProps } from "./timeline";
 import type { ReplayEnvelope } from "./stream_types";
@@ -184,7 +185,8 @@ describe("the monitor follows the timeline", () => {
     expect(html).toMatch(/^<div class="cw_panel cw_compact" data-reading-state="idle">/);
     expect(html).not.toMatch(/<button|Cognitive Monitor|basis v|read his words|reads his diary|his words at the timeline|cw_framing|cw_pull/);
     expect(html).toContain('aria-label="Tone of the phrasing"');
-    expect(html).toMatch(/<span class="cw_about" title="This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm\." aria-label="[^"]*">ⓘ<\/span>/);
+    // The ⓘ is a code with its card (hover, focus, long-press): a keyboard reaches it.
+    expect(html).toMatch(/<span class="cw_about cm_explained" tabindex="0">ⓘ<\/span>/);
   });
 
   it("live with his conversation open: the reply in view, per message", () => {
@@ -223,9 +225,14 @@ describe("the reply feed", () => {
 });
 
 describe("layout", () => {
-  it("in the timeline's third column over the lanes' rows, about 110 px tall at most; the main area is never a grid for it", () => {
+  it("in the timeline's third column over the lanes' rows, never taller than the lanes (88 px); the main area is never a grid for it", () => {
     expect(CSS).toMatch(/\.et_monitor_slot \{\s*grid-column: 3;\s*min-width: 0;/);
-    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 110px;[^}]*overflow: hidden;/);
+    expect(CSS).toMatch(/\.cw_panel\.cw_compact \{[^}]*max-height: 88px;[^}]*overflow: hidden;/);
+    // Its state is one line, whatever it says (the reason in the hover).
+    expect(CSS).toMatch(/\.cw_state \{[^}]*white-space: nowrap;/);
+    // A phone keeps the one row (smaller squares), never a wrapped column.
+    const phone = CSS.slice(CSS.indexOf("/* Phone (the lanes fill the width): the open monitor takes the lanes' place"));
+    expect(phone.slice(0, phone.indexOf("/* ---"))).not.toMatch(/flex-wrap: wrap|max-height: none/);
     // The tone row keeps its own width (it carries cm_gauge_codes too; only the gauge's codes span their box).
     expect(CSS).toMatch(/\.cw_compact \.cm_tone_codes \{\s*width: 168px;/);
     expect(CSS).not.toMatch(/\.cw_compact \.cm_gauge_codes \{/);
@@ -238,5 +245,92 @@ describe("layout", () => {
     expect(phone).toMatch(/\.et_monitor_slot \{\s*grid-column: 1 \/ -1;\s*grid-row: auto !important;/);
     expect(phone).toMatch(/\.entity_timeline\.et_monitor_open \.et_lane_label:not\(\.et_time_label\),\s*\.entity_timeline\.et_monitor_open \.et_lane \{\s*display: none;/);
     expect(CSS).toMatch(/\.et_monitor\[aria-pressed="true"\] \{[^}]*border-color: var\(--ea-accent\);/);
+  });
+});
+
+describe("the monitor's one short line: every state says itself (backlog 0032 review F3)", () => {
+  const src = { baseUrl: "http://gw.test" };
+  const line = (phase: Phase, extra: Partial<React.ComponentProps<typeof MonitorState>> = {}) =>
+    renderToStaticMarkup(<MonitorState phase={phase} source={src} conversation={false} nothingHere={false} {...extra} />);
+
+  it("reading, nothing readable, nothing said here, an exported view", () => {
+    expect(line({ name: "scoring" })).toBe('<span class="cw_note">reading…</span>');
+    expect(line({ name: "empty", warnings: [] })).toBe('<span class="cw_note">nothing readable yet</span>');
+    expect(line({ name: "ready", samples: [], warnings: [] }, { nothingHere: true })).toBe('<span class="cw_note">nothing said yet here</span>');
+    expect(line({ name: "ready", samples: [], warnings: [] })).toBe("");
+    expect(line({ name: "scoring" }, { source: null })).toBe('<span class="cw_note">exported view: not read</span>');
+    // Live with a conversation the reading carries its own line.
+    expect(line({ name: "scoring" }, { conversation: true })).toBe("");
+  });
+
+  it("no embeddings: one short line with the set-up link, the whole sentence in its hover", () => {
+    const html = line({ name: "unconfigured", message: EMBEDDINGS_UNCONFIGURED });
+    expect(html).toBe(`<span class="cw_note cw_note_error" data-monitor-note="embeddings" title="${EMBEDDINGS_UNCONFIGURED}">no embeddings · <a href="http://gw.test/console#defaults" target="_blank" rel="noreferrer">set up</a></span>`);
+  });
+
+  it("a failed read: could not read, the reason in its hover", () => {
+    expect(line({ name: "error", message: "the embeddings route timed out", warnings: ["batch 0-32 failed"] })).toBe('<span class="cw_note cw_note_error" title="the embeddings route timed out · batch 0-32 failed">could not read</span>');
+  });
+});
+
+describe("the ⓘ names what the codes are (backlog 0032 review F4)", () => {
+  it("the five tone channels with their poles on one −1..+1 scale, the framing first, the basis last", () => {
+    const about = monitorAbout("basis v1.0.0 · generic registers", null);
+    expect(about.summary).toBe("This reads the expressive character of his WORDS, not his inner state — a text performing calm scores calm.");
+    expect(about.facts).toEqual([
+      { label: "WAR warmth", value: "warm (+1) to discouraged (−1)" },
+      { label: "TSN tension", value: "urgent (+1) to unhurried (−1)" },
+      { label: "REF reflection", value: "reflective (+1) to matter-of-fact (−1)" },
+      { label: "STR structure", value: "structured (+1) to loosely associative (−1)" },
+      { label: "CER certainty", value: "assured (+1) to hedging (−1)" },
+    ]);
+    expect(about.note).toContain("each from −1 to +1");
+    expect(about.note).toContain("basis v1.0.0 · generic registers");
+  });
+});
+
+describe("no embeddings: said at once, his book never opened (backlog 0032 review F2)", () => {
+  const route = (answers: { embedding: unknown; embeddings: number }) => {
+    const seen: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      const path = new URL(String(url), "http://gw.test").pathname;
+      seen.push(path);
+      if (path.endsWith("/embedding")) return new Response(JSON.stringify(answers.embedding), { status: 200 });
+      if (path.endsWith("/embeddings")) return new Response(answers.embeddings === 200 ? JSON.stringify({ model: "m", data: [{ index: 0, embedding: [0.1] }] }) : "{}", { status: answers.embeddings });
+      return new Response("{}", { status: 404 });
+    });
+    return seen;
+  };
+
+  it("the door resolves no embedder: unconfigured, nothing else is asked (no embed, no book)", async () => {
+    const seen = route({ embedding: { pin: { model_id: "m" }, resolved_embedder: null, match: "unknown" }, embeddings: 503 });
+    expect(await corpusPreflight("http://gw.test", "castor")).toEqual({ name: "unconfigured", message: EMBEDDINGS_UNCONFIGURED });
+    expect(seen).toEqual(["/api/gateway/entities/castor/embedding"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("the embedding route refuses (503): unconfigured before any book read; another space: an error", async () => {
+    let seen = route({ embedding: { pin: { model_id: "m" }, resolved_embedder: "m", match: "match" }, embeddings: 503 });
+    expect(await corpusPreflight("http://gw.test", "castor")).toMatchObject({ name: "unconfigured" });
+    expect(seen.some((p) => /diary|verbatim/.test(p))).toBe(false);
+    seen = route({ embedding: { pin: { model_id: "a" }, resolved_embedder: "b", match: "mismatch" }, embeddings: 200 });
+    expect(await corpusPreflight("http://gw.test", "castor")).toMatchObject({ name: "error" });
+    seen = route({ embedding: { pin: { model_id: "m" }, resolved_embedder: "m", match: "match" }, embeddings: 200 });
+    expect(await corpusPreflight("http://gw.test", "castor")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("the panel's read asks the preflight first, before the harvest", () => {
+    const run = PANEL.slice(PANEL.indexOf("const runScore = useCallback("));
+    expect(run.indexOf("await corpusPreflight(source.baseUrl, source.entity)")).toBeGreaterThan(-1);
+    expect(run.indexOf("await corpusPreflight(")).toBeLessThan(run.indexOf("scoreEntityUtterances("));
+  });
+
+  it("a failed read is not kept: the next press tries again", async () => {
+    const key = corpusKey({ baseUrl: "http://gw.test", entity: "retry-castor" });
+    expect(startCorpusRead(key, async () => ({ name: "unconfigured", message: EMBEDDINGS_UNCONFIGURED }))).not.toBeNull();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(keptCorpus(key)).toEqual({ name: "idle" });
+    expect(startCorpusRead(key, async () => ({ name: "error", message: "x", warnings: [] }))).not.toBeNull();
   });
 });
