@@ -9,9 +9,10 @@ import { describe, expect, it } from "vitest";
 
 import fixture from "./fixtures/visit_turn_ledger.json";
 import { withServedFields } from "./fixtures/visit_turn_fields";
-import { NO_ACTIVITY, foldVisitTurn, visitTurnSlice, withTopicTitles } from "./live_activity";
+import { NO_ACTIVITY, foldVisitTurn, toolRow, visitTurnSlice, withTopicTitles } from "./live_activity";
 import type { VisitLedgerRecord } from "./stream_source";
 import { LIVE_ROWS, TurnActivityPanel } from "./turn_pulse_bars";
+import { ToolCall } from "./turn_probe_views";
 
 const TOPICS = fixture.visits.topics.records as unknown as VisitLedgerRecord[];
 const fold = (records: VisitLedgerRecord[]) => {
@@ -66,6 +67,30 @@ describe("live", () => {
     for (const r of TOPICS) if (r.step_id) expect(html).not.toContain(r.step_id);
     expect(html).not.toContain("toolu_");
     expect(html).not.toContain("trace_");
+  });
+});
+
+describe("review 2b: a row is one control, a tool opens in plain words", () => {
+  const fetchRow = toolRow("t1", "fetch_url", { url: "https://example.org/a", headers: { accept: "text/html", "user-agent": "x".repeat(8000) }, options: { retry: { times: 3 } } }, "done", { output: "a page" }, 1.2);
+  it("a URL in a row's words is plain text, never a link inside the row's button", () => {
+    const html = renderToStaticMarkup(<TurnActivityPanel activity={{ ...NO_ACTIVITY, begun: true, rows: [fetchRow] }} live onOpenRecord={open} />);
+    expect(html).toContain('<button type="button" class="la_line la_line_open"');
+    expect(html).toContain('<span class="la_text">Tool: fetch_url — https://example.org/a</span>');
+    expect(html).not.toContain("<a ");
+  });
+  it("the memories that came to mind: a title in its button is plain text too (the source)", () => {
+    const src = readFileSync(resolve(__dirname, "turn_pulse_bars.tsx"), "utf8");
+    expect(src).toMatch(/title="Open in Detail">\s*\{m\.title\}\s*<\/button>/);
+  });
+  it("opened, a tool with nested arguments says them by size, never as JSON", () => {
+    expect(fetchRow.open?.type).toBe("tool");
+    if (fetchRow.open?.type !== "tool") return;
+    const html = renderToStaticMarkup(<ToolCall t={fetchRow.open.tool} />);
+    expect(html).toContain("an object with 2 fields");
+    expect(html).toContain("an object with 1 field");
+    expect(html).not.toContain("xxxxxxxx");
+    expect(html).not.toContain("&quot;accept&quot;");
+    expect(html.length).toBeLessThan(2500);
   });
 });
 

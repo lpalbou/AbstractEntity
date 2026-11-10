@@ -35,9 +35,9 @@ function RowLine({ row, onOpenRecord }: { row: ActivityRow; onOpenRecord(graphId
   const body = (
     <>
       <span className="la_mark" aria-hidden="true" />
-      <span className="la_text">
-        <WordsLine text={row.text} inline />
-      </span>
+      {/* Plain text: the row is a button, and a link inside it (a fetched URL) would be a second
+        * control in one (review 2b-4); the opened detail keeps its links. */}
+      <span className="la_text">{row.text}</span>
       {row.detail || row.seconds !== null ? (
         <span className="la_meta">
           {row.detail ? <span className="la_detail">{row.detail}</span> : null}
@@ -77,7 +77,7 @@ function RowLine({ row, onOpenRecord }: { row: ActivityRow; onOpenRecord(graphId
             <li key={`${m.graphId ?? "x"}:${i}`}>
               {m.graphId ? (
                 <button type="button" className="la_record" onClick={() => onOpenRecord(m.graphId!)} title="Open in Detail">
-                  <WordsLine text={m.title} inline />
+                  {m.title}
                 </button>
               ) : (
                 <span className="la_record">

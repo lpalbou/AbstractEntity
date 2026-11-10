@@ -100,6 +100,25 @@ describe("what a tool call asked", () => {
   it("names an unknown tool and lists its arguments", () => {
     expect(describeToolAsk("note_capture", '{"text": "hi"}')).toMatchObject({ verb: "Used the tool note_capture", object: null, extra: [["text", "hi"]] });
   });
+
+  it("a nested argument reads by its size, never as JSON (review 2b-3: a fetch_url with headers opened as 8 KB of braces)", () => {
+    const headers = { accept: "text/html", "user-agent": "x".repeat(8000) };
+    const a = describeToolAsk("fetch_url", JSON.stringify({ url: "https://example.org/a", headers, options: { retry: { times: 3 } }, tags: ["a", "b"], one: [1], none: [], empty: {}, depth: 2, follow: true }));
+    expect(a.object).toBe("https://example.org/a");
+    expect(a.extra).toEqual([
+      ["headers", "an object with 2 fields"],
+      ["options", "an object with 1 field"],
+      ["tags", "a list of 2 items"],
+      ["one", "a list of 1 item"],
+      ["none", "an empty list"],
+      ["empty", "an empty object"],
+      ["depth", "2"],
+      ["follow", "true"],
+    ]);
+    for (const [, v] of a.extra) expect(v).not.toMatch(/[{}[\]"]/);
+    // the declared argument itself, when an object, reads the same way
+    expect(describeToolAsk("web_search", JSON.stringify({ query: { text: "storm" } })).object).toBe("an object with 1 field");
+  });
 });
 
 describe("what a tool call returned", () => {

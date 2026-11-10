@@ -60,9 +60,19 @@ export interface ToolAsk {
   note: string | null;
 }
 
+/** An argument's value in plain words: a string or a number as it is; an object or a list by its
+ * size ("an object with 3 fields", "a list of 2 items"), never its JSON (operator rule: a tool's
+ * key parameters in plain words; a nested one opened as kilobytes of braces, review 2b-3). */
 function argValue(v: unknown): string {
   if (v === null || v === undefined) return "";
-  return typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.length ? `a list of ${v.length} ${v.length === 1 ? "item" : "items"}` : "an empty list";
+  if (typeof v === "object") {
+    const n = Object.keys(v as object).length;
+    return n ? `an object with ${n} ${n === 1 ? "field" : "fields"}` : "an empty object";
+  }
+  return String(v);
 }
 
 /** The visit lane keeps `json.dumps(arguments)` up to 200 characters and
