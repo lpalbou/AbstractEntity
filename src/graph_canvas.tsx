@@ -83,6 +83,7 @@ import { overlayStack } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
+import { glideAt, startGlide, type CameraPose, type Glide } from "./graph_canvas_camera";
 import { litRowsCache, litTopicKey, MEMBER_RING, TOPIC_GLOW, topicCircleStyle, topicDimTarget, veilAlpha } from "./graph_canvas_spotlight";
 
 export interface GraphCanvasProps {
@@ -741,6 +742,22 @@ export function GraphCanvas({
   // Cooling state (P0-2/3): alpha decays toward freeze; arrivals reheat.
   const simRef = useRef({ alpha: 1, frozen: false, lastSaveAt: 0, autoFitDone: false, lastCount: 0, stableFrames: 0 });
   const reducedMotionRef = useRef(false);
+  /** THE CAMERA GLIDE (graph_canvas_camera.ts; operator 2026-11-10: "never
+   * a teleport"): a programmatic move in progress, stepped by the frame;
+   * the viewer's pan or wheel drops it. */
+  const glideRef = useRef<Glide | null>(null);
+  /** Move the camera to `to`: a glide (CAMERA_GLIDE_MS, eased), one step
+   * under reduced motion. */
+  const moveCamera = (to: CameraPose) => {
+    const cam = cameraRef.current;
+    const glide = startGlide(cam, to, performance.now(), reducedMotionRef.current);
+    glideRef.current = glide;
+    if (!glide) {
+      cam.x = to.x;
+      cam.y = to.y;
+      cam.zoom = to.zoom;
+    }
+  };
   /** The served topics the layout last seated (a new version re-seats with
    * a short transition from where every memory is). */
   const servedSeenRef = useRef<ServedCommunities | null>(null);
@@ -785,12 +802,9 @@ export function GraphCanvas({
         }
         const rect = canvasRef.current?.getBoundingClientRect();
         if (found && rect && rect.width >= 10) {
-          const cam = cameraRef.current;
-          cam.x = (minX + maxX) / 2;
-          cam.y = (minY + maxY) / 2;
           const spanX = Math.max(140, maxX - minX + 180);
           const spanY = Math.max(140, maxY - minY + 180);
-          cam.zoom = Math.min(4, Math.max(0.12, Math.min(rect.width / spanX, rect.height / spanY)));
+          moveCamera({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, zoom: Math.min(4, Math.max(0.12, Math.min(rect.width / spanX, rect.height / spanY))) });
           return; // fitted — stop retrying
         }
       }
@@ -872,6 +886,7 @@ export function GraphCanvas({
     if (!selectedRow) return;
     const ln = layoutRef.current.get(selectedRow);
     if (ln) {
+      glideRef.current = null;
       cameraRef.current.x = ln.x;
       cameraRef.current.y = ln.y;
     }
@@ -1133,6 +1148,7 @@ export function GraphCanvas({
           minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
         }
         const rect = canvas.getBoundingClientRect();
+        glideRef.current = null;
         const cam0 = cameraRef.current;
         cam0.x = (minX + maxX) / 2;
         cam0.y = (minY + maxY) / 2;
@@ -1175,6 +1191,13 @@ export function GraphCanvas({
       const h = canvas.height / dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
+      // A glide in progress places the camera for this frame (by the clock).
+      const glide = glideRef.current;
+      if (glide) {
+        const step = glideAt(glide, performance.now());
+        Object.assign(cameraRef.current, step.pose);
+        if (step.done) glideRef.current = null;
+      }
       const cam = cameraRef.current;
       const toScreen = (x: number, y: number) => ({
         x: w / 2 + (x - cam.x) * cam.zoom,
@@ -1815,6 +1838,7 @@ export function GraphCanvas({
 
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
+      glideRef.current = null; // the viewer's zoom wins over a glide
       const cam = cameraRef.current;
       // Cursor-anchored zoom (P0-5): the world point under the cursor
       // stays under the cursor — zooming never loses the reference.
@@ -1895,6 +1919,7 @@ export function GraphCanvas({
         offsetsRef.current = dragCircle(servedNow, offsetsRef.current, drag.circle, dx / cam.zoom, dy / cam.zoom);
         offsetsRevRef.current += 1;
       } else {
+        if (drag.moved) glideRef.current = null; // the viewer's pan wins over a glide
         cam.x -= dx / cam.zoom;
         cam.y -= dy / cam.zoom;
       }
@@ -2130,10 +2155,9 @@ export function GraphCanvas({
       const pr = panelEl?.getBoundingClientRect();
       const panel = pr && pr.width > 0 ? { x: pr.left - rect.left, y: pr.top - rect.top, w: pr.width, h: pr.height } : null;
       const free = freeCentre({ w: rect.width, h: rect.height }, panel);
-      const cam = cameraRef.current;
-      cam.zoom = Math.min(4, Math.max(0.12, Math.min(free.w, free.h) / (2 * circle.r + 120)));
-      cam.x = circle.x + (rect.width / 2 - free.x) / cam.zoom;
-      cam.y = circle.y + (rect.height / 2 - free.y) / cam.zoom;
+      // A glide to it (CAMERA_GLIDE_MS), never a jump (reduced motion: one step).
+      const zoom = Math.min(4, Math.max(0.12, Math.min(free.w, free.h) / (2 * circle.r + 120)));
+      moveCamera({ x: circle.x + (rect.width / 2 - free.x) / zoom, y: circle.y + (rect.height / 2 - free.y) / zoom, zoom });
     }
   };
   const focusTopicRef = useRef(focusTopic);
@@ -2470,14 +2494,10 @@ export function GraphCanvas({
             }
             const canvas = canvasRef.current;
             const rect = canvas?.getBoundingClientRect();
-            const cam = cameraRef.current;
-            cam.x = (minX + maxX) / 2;
-            cam.y = (minY + maxY) / 2;
-            if (rect) {
-              const spanX = Math.max(120, maxX - minX + 120);
-              const spanY = Math.max(120, maxY - minY + 120);
-              cam.zoom = Math.min(6, Math.max(0.12, Math.min(rect.width / spanX, rect.height / spanY)));
-            }
+            const spanX = Math.max(120, maxX - minX + 120);
+            const spanY = Math.max(120, maxY - minY + 120);
+            // A glide to the whole graph (reduced motion: one step).
+            moveCamera({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, zoom: rect ? Math.min(6, Math.max(0.12, Math.min(rect.width / spanX, rect.height / spanY))) : cameraRef.current.zoom });
           }}
         >
           ⛶ <span className="gc_btn_word">fit</span>
