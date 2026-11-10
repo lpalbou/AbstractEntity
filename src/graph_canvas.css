@@ -880,3 +880,96 @@
   content: "→";
   content: "→" / "";
 }
+
+/* THE LEGEND (graph_canvas_legend.tsx; operator 2026-11-10, Entity backlog
+ * 0004: "at most 2 lines at the bottom, never more; interactive"). Two rows
+ * — what the memories are, what the lines and colours mean — each ONE line
+ * that scrolls sideways when it holds more than the canvas is wide; every
+ * memory item and relation type a pressed toggle. A phone-width canvas keeps
+ * its one scrollable row (entity.css). */
+.entity_legend.gc_legend2 {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 3px;
+}
+
+.gc_lg_row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.gc_lg_row::-webkit-scrollbar {
+  display: none;
+}
+
+.gc_lg_row > * {
+  flex: none;
+}
+
+.gc_lg_item {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 1px 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gc_lg_item.lg::before {
+  margin-right: 0;
+}
+
+.gc_lg_item:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.gc_lg_item[aria-pressed="true"] {
+  border-color: var(--ea-accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--ea-accent) 16%, transparent);
+}
+
+.gc_lg_item:focus-visible {
+  outline: 2px solid var(--ea-accent);
+  outline-offset: 1px;
+}
+
+@container entity-canvas (max-width: 859.98px) {
+  .entity_legend.gc_legend2 {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  .gc_lg_row {
+    display: contents;
+  }
+}
+
+/* Touch: the legend's items are 44 px tap targets (entity.css's touch
+ * floor). On a phone-width canvas its one row loses its vertical padding (one
+ * target tall: 46 px) and the motion buttons stand 8 px above it. */
+@media (pointer: coarse) {
+  @container entity-canvas (max-width: 859.98px) {
+    .entity_legend.gc_legend2 {
+      padding-block: 0;
+    }
+  }
+  .entity_canvas_wrap:has(> .gc_legend2) {
+    --gc-motion-bottom: calc(var(--tap-min, 44px) + 18px);
+  }
+}

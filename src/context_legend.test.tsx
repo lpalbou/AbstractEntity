@@ -137,8 +137,11 @@ describe("wiring", () => {
   });
 
   it("the graph's key names the one scale (no 'warm together' / 'warm now' left)", () => {
-    expect(view).toContain("{USAGE_LOW} → {USAGE_HIGH}");
-    expect(view).toContain("title={USAGE_TITLE}");
-    expect(view).not.toMatch(/warm together|warm now|warmthLegendTitles/);
+    // The key lives in the graph's legend (graph_canvas_legend.tsx), which the view renders.
+    const legend = fs.readFileSync(path.resolve(__dirname, "graph_canvas_legend.tsx"), "utf8");
+    expect(legend).toContain("{USAGE_LOW} → {USAGE_HIGH}");
+    expect(legend).toContain("title={USAGE_TITLE}");
+    expect(view).toContain("<GraphLegend extraKinds={extraKinds} relationTypes={relationTypes} warmthAge={warmthAge} picked={legendPick} onPick={setLegendPick} />");
+    for (const src of [view, legend]) expect(src).not.toMatch(/warm together|warm now|warmthLegendTitles/);
   });
 });

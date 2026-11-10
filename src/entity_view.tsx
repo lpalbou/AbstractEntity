@@ -24,7 +24,8 @@ import { EntitiesIndex } from "./entities_index";
 import { FleetView } from "./fleet_view";
 import { MeetConsole } from "./meet_console";
 import { MeetReader } from "./meet_reader";
-import { GraphCanvas, KIND_COLORS, relationGlyph, type RelationGlyph } from "./graph_canvas";
+import { GraphCanvas } from "./graph_canvas";
+import { GraphLegend, legendIds, pickKey, type LegendPick } from "./graph_canvas_legend";
 import { ContextToggle } from "./context_toggle";
 import { canvasSelection, contextAvailability, contextToggleView, readContextChoice, sessionStore, writeContextChoice } from "./recall_emphasis";
 import { IdentityCardContent } from "./identity_card";
@@ -59,7 +60,6 @@ const LIVE_CHECK_MS = 20_000;
 const LIVE_STALL_MS = 15_000;
 import { LENSES, lensIds, type GraphLens } from "./graph_lenses";
 import { computeTemporalActivation } from "./temporal_activation";
-import { USAGE_HIGH, USAGE_LOW, USAGE_TITLE } from "./graph_usage";
 import { dayCauseLine, type ClientVisitSignal } from "./entity_state";
 import { adoptPhaseBar, adoptPhaseMarker, adoptPhaseRead, phaseActPlan, phaseBarRead, phaseBarView, phaseWriteOutcome, type PhaseBarAct, type PhaseBarRead, type PhaseBarUi, type PhaseNote, type PhaseWriteOutcome } from "./phase_bar";
 import { PhaseWrites } from "./phase_bar_writes";
@@ -111,25 +111,6 @@ type SourceKind = "demo" | "file" | "gateway";
  * not a nicety). Returns whether it copied. */
 async function copyText(text: string): Promise<boolean> {
   return clipboardWrite(text);
-}
-
-/** Legend swatch for a typed edge: short line + the SAME glyph the canvas
- * draws at the target end (one mapping, two renderers — the legend can
- * never diverge from the graph). SVG paths mirror traceRelationGlyph. */
-function RelationGlyphSwatch({ glyph }: { glyph: RelationGlyph }): React.ReactElement {
-  return (
-    <svg width="30" height="12" aria-hidden="true">
-      <line x1="0" y1="6" x2="20" y2="6" stroke="var(--text-dim)" strokeWidth="1" opacity="0.55" />
-      <g transform="translate(27,6)" stroke="var(--text-dim)" strokeWidth="1.2" fill="none">
-        {glyph === "arrow" ? <path d="M-4.5,-3.5 L0,0 L-4.5,3.5" /> : null}
-        {glyph === "chevron2" ? <path d="M-7.5,-3.2 L-3.5,0 L-7.5,3.2 M-4,-3.2 L0,0 L-4,3.2" /> : null}
-        {glyph === "circle" ? <circle cx="-2" cy="0" r="3" /> : null}
-        {glyph === "diamond" ? <path d="M-6.5,0 L-3,-3.2 L0.5,0 L-3,3.2 Z" /> : null}
-        {glyph === "square" ? <rect x="-5.6" y="-2.8" width="5.6" height="5.6" /> : null}
-        {glyph === "bar" ? <path d="M-1.5,-4 L-1.5,4" /> : null}
-      </g>
-    </svg>
-  );
 }
 
 export function EntityView(): React.ReactElement {
@@ -1607,6 +1588,11 @@ export function EntityView(): React.ReactElement {
   // more intersecting source. Keyed by the community's STABLE key, so a
   // nightly revision keeps the focus (the graph re-emits its new members).
   const [topicFilter, setTopicFilter] = useState<{ key: string; ids: Set<string>; label: string } | null>(null);
+  // THE LEGEND's pick (graph_canvas_legend.ts; operator 2026-11-10: "click a
+  // legend item, show where those nodes/edges are"): one more intersecting
+  // emphasis source, its ids once per fold.
+  const [legendPick, setLegendPick] = useState<LegendPick | null>(null);
+  const legendSet = useMemo(() => (legendPick ? legendIds(fold, legendPick) : null), [fold, legendPick]);
   // A ledger row about a topic asks the graph to open the Topics panel on it.
   const [topicRequest, setTopicRequest] = useState<{ key: string; nonce: number } | null>(null);
   // Topics are the graph's NATURAL layout (operator 2026-11-07: "all the
@@ -1627,6 +1613,7 @@ export function EntityView(): React.ReactElement {
     // A focused topic none of whose memories the graph has loaded lights
     // nothing and dims nothing (its panel row says why: review S1).
     if (topicFilter !== null && topicFilter.ids.size > 0) sources.push(topicFilter.ids);
+    if (legendSet !== null) sources.push(legendSet);
     if (sources.length === 0) return null;
     let acc = sources[0];
     for (const s of sources.slice(1)) {
@@ -1635,7 +1622,7 @@ export function EntityView(): React.ReactElement {
       acc = both;
     }
     return acc;
-  }, [fold, temporal, lens, searchIds, topicFilter]);
+  }, [fold, temporal, lens, searchIds, topicFilter, legendSet]);
 
   // Camera-fit trigger: OPERATOR intent only (lens clicks + debounced search
   // commits) — never fold-driven membership drift, which would hijack the
@@ -1645,7 +1632,9 @@ export function EntityView(): React.ReactElement {
     const t = window.setTimeout(() => setDebouncedSearch(searchText.trim()), 450);
     return () => window.clearTimeout(t);
   }, [searchText]);
-  const focusToken = lens === "all" && !debouncedSearch ? "" : `${lens}|${debouncedSearch}`;
+  // A legend pick frames what it lights, like a lens.
+  const legendToken = legendPick ? pickKey(legendPick) : "";
+  const focusToken = lens === "all" && !debouncedSearch && !legendToken ? "" : `${lens}|${debouncedSearch}|${legendToken}`;
 
   // A lens is a per-life question — switching entities resets it (a sticky
   // "Dreams" lens on a fresh life opened pre-dimmed with no explanation).
@@ -2250,50 +2239,9 @@ export function EntityView(): React.ReactElement {
             communitiesMarker={communitiesMarker}
             communitiesPlaced={communitiesPlaced}
           />
-          <div className="entity_legend">
-            <span className="lg lg_identity">identity</span>
-            <span className="lg lg_memory">memory</span>
-            <span className="lg lg_diary">diary</span>
-            <span className="lg lg_standing">feeling</span>
-            <span className="lg lg_scar">scar</span>
-            <span className="lg lg_bond">bond</span>
-            {/* Kinds present in THIS life beyond the core six — lessons,
-              * world cards, dreams… named so the colors are readable
-              * (operator 2026-07-15: lesson/world_model were unnamed). */}
-            {extraKinds.map((k) => (
-              <span key={k} className="lg_kind" title={`kind: ${k}`}>
-                <i className="lg_kdot" style={{ background: KIND_COLORS[k] ?? KIND_COLORS.unknown }} aria-hidden="true" />
-                {k === "world_model" ? "world" : k}
-              </span>
-            ))}
-            <span className="lg_sep" />
-            {/* THE USAGE SCALE (operator 2026-11-09): one grey-to-green key
-              * for memories and lines, ranked within this life
-              * (graph_usage.ts); the swatch rides the same tokens the canvas
-              * resolves (graph_canvas.css .gc_rl_scale). */}
-            <span className="lg_edge" title={USAGE_TITLE}>
-              <i className="gc_rl_scale" aria-hidden="true" />
-              {USAGE_LOW} → {USAGE_HIGH}
-            </span>
-            {warmthAge ? (
-              <span
-                className="lg_edge lg_stale"
-                title="How long ago he last used a memory. The colours rank his use within his life; they do not fade while nothing runs."
-              >
-                🥶 last selection {warmthAge} ago
-              </span>
-            ) : null}
-            {relationTypes.map((relation) => (
-              <span
-                key={relation}
-                className="lg_edge"
-                title={`“${relation}” link — recorded at formation (born linked). The glyph sits at the TARGET end of the edge: it names the relation type and points the direction.`}
-              >
-                <RelationGlyphSwatch glyph={relationGlyph(relation)} />
-                {relation}
-              </span>
-            ))}
-          </div>
+          {/* THE LEGEND (graph_canvas_legend.tsx): two rows at most, each item a
+            * pressed toggle that shows where those memories or links are. */}
+          <GraphLegend extraKinds={extraKinds} relationTypes={relationTypes} warmthAge={warmthAge} picked={legendPick} onPick={setLegendPick} />
         </div>
         <SideTabs
           defaultTab="ledger"
