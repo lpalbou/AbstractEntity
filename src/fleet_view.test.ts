@@ -7,8 +7,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { summarize } from "./fleet_view";
-import { foldEnvelopes } from "./stream_fold";
+import { summarize, tileStep } from "./fleet_view";
+import { createFoldState, foldEnvelopes } from "./stream_fold";
+import type { ReplayEnvelope } from "./stream_types";
 import { parseNdjson } from "./stream_source";
 
 describe("fleet tile summary", () => {
@@ -30,5 +31,22 @@ describe("fleet tile summary", () => {
     const summons = fold.sessions.filter((m) => m.kind === "summon").length;
     expect(s.sessions).toBe(Math.max(summons, fold.inferred_sessions.length));
     expect(s.feelings).toBe(fold.standings.size);
+  });
+});
+
+describe("a tile's recent lines", () => {
+  // A topic version (memory's community record), then the link row memory closes with it: kind
+  // "memory", the version's graph id (castor's shape, ledger_topics.test.ts).
+  const at = "2026-11-10T02:40:13.957351+00:00";
+  const version = { seq: 10, family: "binding", observed_at: at, payload: { record_id: "ex:community-v1", source: "remember", seq: 10 }, display: { record_id: "ex:community-v1", kind: "community", graph_id: "ex:community-v1", community_key: "ex:community-k1", size: 12, title: "Tending the bridges" } } as unknown as ReplayEnvelope;
+  const link = { seq: 11, family: "closure", observed_at: at, payload: { assertion_id: "row-11", kind: "supersede", reason: "community ex:community-k1: version 2", replacement_ids: ["ex:community-v2"], closure_id: "c11", seq: 11 }, display: { record_id: "row-11", kind: "memory", title: "ex:community-v1 refines", graph_id: "ex:community-v1" } } as unknown as ReplayEnvelope;
+
+  it("a topic version's link to the one before never reaches the tile (the fold's topic ids go to ledgerLine)", () => {
+    const fold = createFoldState();
+    expect(tileStep(fold, version)?.title).toBe("🗺 A topic took shape: Tending the bridges");
+    expect(fold.community_graph_ids.has("ex:community-v1")).toBe(true);
+    expect(tileStep(fold, link)).toBeNull();
+    // Without the ids the same row reads as a belief's line: what the tile used to show.
+    expect(tileStep(createFoldState(), link)?.title).toBe("Belief revised");
   });
 });

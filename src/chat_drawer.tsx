@@ -66,6 +66,7 @@ export { splitVisitDecoration } from "./chat_message_list";
 import { getEntitySeat, listEntities, postMention, refusalText, stoppedSentence, type EntitySeat, type IdentityRef } from "./stream_source";
 import { useFlowConversation } from "./use_flow_conversation";
 import { ledgerLine, type LedgerLine } from "./ledger_lines";
+import { COMMUNITY_RECORD_KIND } from "./stream_fold";
 import { RefusalLine, type SubstrateChoice } from "./mind_voice_settings";
 import { attachmentChips, attachmentRecords, turnRefusal, visitTurnPayload, type PendingFile } from "./visit_attachments";
 import type { ReplayEnvelope } from "./stream_types";
@@ -77,18 +78,25 @@ import { VisitVoiceButtons, useEntityVoice, useVoiceDefaults, useVoicePreference
 /** The reflection's visible acts in the live stream: every envelope past
  * the close-start seq, rendered as ledger lines, filtered to the tones
  * that MEAN something during a close (feelings moved, records formed,
- * session markers, revisions) — recall/usage bookkeeping stays out. */
+ * session markers, revisions) — recall/usage bookkeeping stays out. The
+ * topic versions seen in that stretch go with each line (the stream_fold
+ * rule: a community record's graph id), so a topic version's link to the
+ * one before, closed with it, reads as the quiet audit line and stays out. */
 export function reflectionActivity(envelopes: ReplayEnvelope[], sinceSeq: number | null): LedgerLine[] {
   if (sinceSeq === null) return [];
   const MEANINGFUL = new Set(["formation", "feeling", "session", "revision", "boundary"]);
+  let start = envelopes.length;
+  while (start > 0 && envelopes[start - 1].seq > sinceSeq) start--; // envelopes are seq-ordered
+  const topicIds = new Set<string>();
   const out: LedgerLine[] = [];
-  for (let i = envelopes.length - 1; i >= 0; i--) {
+  for (let i = start; i < envelopes.length; i++) {
     const env = envelopes[i];
-    if (env.seq <= sinceSeq) break; // envelopes are seq-ordered
-    const line = ledgerLine(env);
+    const gid = env.display?.kind === COMMUNITY_RECORD_KIND && typeof env.display.graph_id === "string" ? env.display.graph_id.trim() : "";
+    if (gid) topicIds.add(gid);
+    const line = ledgerLine(env, undefined, topicIds);
     if (MEANINGFUL.has(line.tone)) out.push(line);
   }
-  return out.reverse();
+  return out;
 }
 
 

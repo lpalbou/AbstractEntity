@@ -58,6 +58,15 @@ export function summarize(fold: FoldState): { memories: number; sessions: number
   };
 }
 
+/** One envelope into a tile: folded, then its ledger line, or null when it is quiet. The fold's topic
+ * version ids go with it (W2's ledgerLine rule): a topic version's link to the one before reads as
+ * the quiet audit line, so it never reaches the tile as "Belief revised". */
+export function tileStep(fold: FoldState, env: ReplayEnvelope): LedgerLine | null {
+  applyEnvelope(fold, env);
+  const line = ledgerLine(env, undefined, fold.community_graph_ids);
+  return line.tone === "quiet" ? null : line;
+}
+
 function FleetTile({ baseUrl, entity, onOpen }: { baseUrl: string; entity: EntitySummary; onOpen(slug: string): void }): React.ReactElement {
   const [tile, setTile] = useState<TileState>(freshTile);
   const [, setClock] = useState(0); // staleness re-render tick
@@ -68,11 +77,8 @@ function FleetTile({ baseUrl, entity, onOpen }: { baseUrl: string; entity: Entit
     const state = freshTile();
 
     const apply = (env: ReplayEnvelope) => {
-      applyEnvelope(state.fold, env);
-      const line = ledgerLine(env);
-      if (line.tone !== "quiet") {
-        state.recent = [...state.recent, line].slice(-RECENT_LINES);
-      }
+      const line = tileStep(state.fold, env);
+      if (line) state.recent = [...state.recent, line].slice(-RECENT_LINES);
       state.lastEnvelopeAt = Date.now();
     };
 
