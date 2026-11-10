@@ -37,8 +37,9 @@ import { sttRouteText } from "@abstractframework/ui-kit";
 import { clipboardWrite, COPY_FAILED } from "./lib/secure-context";
 
 import { CognitionWaveInline, toolCallsOf } from "./cognition_wave_inline";
-import { turnPulse, type TurnPulse } from "./turn_pulse";
-import { TurnPulseBars } from "./turn_pulse_bars";
+import { NO_ACTIVITY as NO_TURN_ACTIVITY } from "./live_activity";
+import { TurnActivityPanel } from "./turn_pulse_bars";
+import { useLiveActivity } from "./use_live_activity";
 import {
   answerVisit,
   decideVisit,
@@ -329,30 +330,6 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     }
   }, [avatarMode, props.visible]);
 
-  const liveActivity = useMemo(() => {
-    if (busy !== "turn") return [];
-    const lines: string[] = [];
-    for (let i = envelopes.length - 1; i >= 0 && lines.length < 5; i--) {
-      const env = envelopes[i];
-      if (env.seq <= turnStartSeqRef.current) break;
-      const line = ledgerLine(env);
-      if (line.tone === "quiet") continue;
-      lines.push(line.title + (line.detail ? ` — ${line.detail}` : ""));
-    }
-    return lines.reverse();
-  }, [busy, envelopes]);
-
-  /** The pulse behind the thinking bars (operator 2026-08-01): live recall/
-   * context signals folded from the same envelopes-past-turn-start window
-   * the activity lines read — one seq boundary, one truth. */
-  const EMPTY_PULSE: TurnPulse = useMemo(() => ({ shelf: null, recallTokens: null, formed: 0 }), []);
-  const livePulse = useMemo(
-    () => (busy === "turn" ? turnPulse(envelopes, turnStartSeqRef.current) : EMPTY_PULSE),
-    [busy, envelopes, EMPTY_PULSE],
-  );
-  /** Turns lived in THIS thread (the one being lived counts — its user
-   * message is already pushed when the wait begins). */
-  const turnCount = useMemo(() => messages.filter((m) => m.role === "user").length, [messages]);
 
   /** Read aloud (Settings → voice): a reply lived in this visit is spoken in
    * his voice. Replies already on screen when the visit (re)opens are not. */
@@ -397,6 +374,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     stepAway,
   } = useFlowConversation({ baseUrl, entity, entityName, token, push, setBusy, setDraft, envelopesRef, turnStartSeqRef, conversation: avatarMode });
   const publicVisit = useAvatarVisit(baseUrl, entity, runId, avatarMode && brain === "driver", busy === "turn");
+  /** The live activity panel (operator 2026-11-10, backlog 0010): his visit's ledger or the flow
+   * brain's view, live while a turn runs, folded into the turn's summary after (turn_pulse_bars.tsx). */
+  const activity = useLiveActivity({ baseUrl, entity, brain, visitRunId: runId, live: busy === "turn", visible: props.visible !== false && !avatarMode, flowView, flowActive, envelopes, turnStartSeq: turnStartSeqRef.current });
   const flowPublic = useMemo(() => flowConversationState(flowView), [flowView]);
   const publicState = brain === "flow" ? flowPublic : publicVisit.state;
   const publicMessages = useMemo(() => brain === "flow" ? flowPublicHistory : publicState ? publicVisitMessages(publicState) : [], [brain, flowPublicHistory, publicState]);
@@ -1485,20 +1465,10 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           ) : null}
           {busy === "turn" && !avatarMode ? (
             <div className="cd_thinking" aria-live="polite">
-              {/* THE PULSE BARS (operator 2026-08-01: "make them represent
-                * something more meaningful … turns, tool calls and tokens
-                * … each bar with a different color"): three live reads in
-                * the conduct gauge's own palette — turns (teal pips, this
-                * thread), memories shelved by the recall (blue, live from
-                * the trace envelope, +N formed), recalled-memory ~tokens
-                * (amber, the commit snapshot's own estimate vs the recall
-                * budget — it measures the recall payload, NOT the full
-                * prompt; pulse adversary F1). Tool calls are deliberately
-                * NOT a bar: the stream carries none during a turn, and a
-                * bar stuck at zero would be a zero-fake (absent-not-zero).
-                * Before a signal lands its row shimmers indeterminate,
-                * exactly like the old skeleton. */}
-              <TurnPulseBars turns={turnCount} pulse={livePulse} />
+              {/* THE LIVE ACTIVITY PANEL (operator 2026-11-10, backlog 0010; replaced the 2026-08-01
+                * pulse bars): what he is doing, row by row — what came to mind, each step, each tool
+                * with what it asked, the memories he looked for, what he formed. */}
+              <TurnActivityPanel activity={activity ?? NO_TURN_ACTIVITY} live onOpenRecord={props.onOpenRecord} />
               {flowActive && !runId ? (
                 <button
                   className="eix_refresh pe_btn cd_stopwait"
@@ -1508,13 +1478,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
                   stop waiting
                 </button>
               ) : null}
-              {liveActivity.map((line, i) => (
-                <span key={i} className="cd_activity">
-                  {line}
-                </span>
-              ))}
             </div>
           ) : null}
+          {busy === "idle" && !avatarMode && activity ? <TurnActivityPanel activity={activity} live={false} onOpenRecord={props.onOpenRecord} /> : null}
           {/* THE CLOSE IS OBSERVABLE (operator 2026-07-15 pm: "we've zero
             * observability over it"): while the door closes the room, his
             * reflection's acts land in the live stream — every envelope

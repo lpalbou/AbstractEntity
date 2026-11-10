@@ -1,0 +1,2626 @@
+{
+ "_comment": "Two of castor's visits as GET /entities/castor/visit/{run}/ledger served them on 2026-11-10 (live gateway, read-only), shape-preserving: node ids, statuses, step ids, timestamps, effect types, tool names and arguments, admissions and counts as served; titles, outputs and replies replaced by neutral words (untracked/live-activity-2026-11-10/make_fixture.py). Pins src/live_activity.test.ts.",
+ "visits": {
+  "topics": {
+   "run_id": "c3a415fb-c081-468c-8c3e-b80a49ad451a",
+   "status": "completed",
+   "records": [
+    {
+     "step_id": "c5536f4f-c1f3-4090-9afb-d1c203fc6991",
+     "node_id": "PARK",
+     "status": "started",
+     "started_at": "2026-11-10T09:30:10.398248+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T10:30:10.369155+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "c5536f4f-c1f3-4090-9afb-d1c203fc6991",
+     "node_id": "PARK",
+     "status": "waiting",
+     "started_at": "2026-11-10T09:30:10.398248+00:00",
+     "ended_at": "2026-11-10T09:30:10.426972+00:00",
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T10:30:10.369155+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": {
+      "wait": {
+       "reason": "event",
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T10:30:10.369155+00:00",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "prompt": null,
+       "choices": null,
+       "allow_free_text": true,
+       "details": {
+        "kind": "visitor_message"
+       }
+      }
+     }
+    },
+    {
+     "step_id": "ae9a162f-9f0c-48e9-9067-2283e54bb362",
+     "node_id": "PARK",
+     "status": "completed",
+     "started_at": "2026-11-10T09:30:37.306657+00:00",
+     "ended_at": "2026-11-10T09:30:37.306735+00:00",
+     "error": null,
+     "effect": {
+      "type": "resume",
+      "payload": {
+       "wait_reason": "event",
+       "wait_key": "visitor_input",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "payload": {
+        "text": "what are the main topics you know?",
+        "speaker": "person:admin"
+       }
+      }
+     },
+     "result": {
+      "resumed": true
+     }
+    },
+    {
+     "step_id": "88c56cb0-d3e9-4854-824f-d7af3109ace6",
+     "node_id": "RECALL",
+     "status": "started",
+     "started_at": "2026-11-10T09:30:37.537915+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_recall",
+      "payload": {
+       "cue_text": "what are the main topics you know?",
+       "view": "working_set",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "88c56cb0-d3e9-4854-824f-d7af3109ace6",
+     "node_id": "RECALL",
+     "status": "completed",
+     "started_at": "2026-11-10T09:30:37.537915+00:00",
+     "ended_at": "2026-11-10T09:30:49.195290+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_recall",
+      "payload": {
+       "cue_text": "what are the main topics you know?",
+       "view": "working_set",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": {
+      "trace_id": "trace_bbaec5ed50d2e4022e35d671",
+      "view": "working_set",
+      "as_of_seq": 105728,
+      "stop_reason": "enough",
+      "budget_spent": {
+       "tokens_used": 5123,
+       "token_budget": 6000,
+       "candidates_considered": 228,
+       "handles": 50,
+       "stm_handles": 12,
+       "stm_tokens_used": 1481,
+       "shelf_size": 50,
+       "edges_visited": 100,
+       "max_edges": 100,
+       "self_handles": 6,
+       "self_tokens_used": 177
+      },
+      "handles": [
+       {
+        "record_id": "047d192689f329c922181dee1bbb2d0c",
+        "kind": "value",
+        "title": "A memory 1",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:value-9f1534be8c84def56f8a21c1cb"
+        }
+       },
+       {
+        "record_id": "625e7a88f6a68d81ccf26fcdf06c86a7",
+        "kind": "value",
+        "title": "A memory 2",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:value-72b571506e3d81a9e2397e282c"
+        }
+       },
+       {
+        "record_id": "98d34a27d4789704fea8146297fcda08",
+        "kind": "value",
+        "title": "A memory 3",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:value-75fe69c517ce0d1bfe192b0920"
+        }
+       },
+       {
+        "record_id": "c67e2d25316c094aa8926ead2aa663a6",
+        "kind": "purpose",
+        "title": "A memory 4",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:purpose-ad7ec13280b650661d2567d1b9"
+        }
+       },
+       {
+        "record_id": "a771fe8ca33f1c41420c2d3f28f6dbe3",
+        "kind": "trait",
+        "title": "A memory 5",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:trait-6e85b7102637aa6c9031950ed5"
+        }
+       },
+       {
+        "record_id": "aabf41c5421bc101edbe9e9ed1d7b7e9",
+        "kind": "trait",
+        "title": "A memory 6",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:trait-65c63dbd87a5fa658fb2e4259b"
+        }
+       },
+       {
+        "record_id": "147900ce812a089dad410a6bacc70d9a",
+        "kind": "episode",
+        "title": "A memory 7",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-d62a85260d816d4d483dd85aa7"
+        }
+       },
+       {
+        "record_id": "15943e1d1b5df1e3bf8ecb07fb8b6e95",
+        "kind": "episode",
+        "title": "A memory 8",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-950e7ed8286ba4cdc7831fc119"
+        }
+       },
+       {
+        "record_id": "3715caf5165327401de38982d7e4cad0",
+        "kind": "episode",
+        "title": "A memory 9",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-e9c3e32f9d3eb54657aa1f931d"
+        }
+       },
+       {
+        "record_id": "380c727444982ab176f27fea8a0729cb",
+        "kind": "episode",
+        "title": "A memory 10",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-66b3e7fbe02e3976aa29d67df2"
+        }
+       },
+       {
+        "record_id": "69a3849d92dc982107d41554744a38bd",
+        "kind": "episode",
+        "title": "A memory 11",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-78d751eef1e5b20fc82fa31b85"
+        }
+       },
+       {
+        "record_id": "7161771f6fb05be8db90b929d5cd3285",
+        "kind": "episode",
+        "title": "A memory 12",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-7c723506a54f683e1b6672c511"
+        }
+       },
+       {
+        "record_id": "b3f95f55aa928f897261e06e5f4e1567",
+        "kind": "episode",
+        "title": "A memory 13",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-18dfd90894b8a2f35bf2ba597b"
+        }
+       },
+       {
+        "record_id": "b94f5ffcd4a40a432eea3f828687f7e5",
+        "kind": "episode",
+        "title": "A memory 14",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-e88b06c32522a2cdf8a6631d27"
+        }
+       },
+       {
+        "record_id": "c663caa02ef8c0401cb1a09c8f7b94ad",
+        "kind": "episode",
+        "title": "A memory 15",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-6bd74d2146830ed419cbbb22d0"
+        }
+       },
+       {
+        "record_id": "d5a9e7096b9f1b8cf928310e84f9dad0",
+        "kind": "episode",
+        "title": "A memory 16",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-80d468907bb4d705fbe0e9bca2"
+        }
+       },
+       {
+        "record_id": "eb1fbc0d59949504abcb795d78ddcfa4",
+        "kind": "episode",
+        "title": "A memory 17",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-d528956f90b01d7a2df345582f"
+        }
+       },
+       {
+        "record_id": "df3b8cb6433bc37ac9531a2ba4b76e73",
+        "kind": "diary",
+        "title": "A memory 18",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:diary-559eac37b79b64e7b369d84201"
+        }
+       },
+       {
+        "record_id": "231b20595902991662e0a43c1cb636e8",
+        "kind": "lesson",
+        "title": "A memory 19",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:lesson-d1146c19c60c664c0dfd35788e"
+        }
+       },
+       {
+        "record_id": "3a505094e7ee50474a1c2a56626a858a",
+        "kind": "episode",
+        "title": "A memory 20",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-5116a685c70e98568ef98b499e"
+        }
+       },
+       {
+        "record_id": "4635500ef66397eba279bc15f0db3a99",
+        "kind": "episode",
+        "title": "A memory 21",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-9729f8e4bba6e3630f19cf8088"
+        }
+       },
+       {
+        "record_id": "fd34aace7ffe481f54aa47c2d29fc179",
+        "kind": "episode",
+        "title": "A memory 22",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-72099a843bd4b8f317e0088ef3"
+        }
+       },
+       {
+        "record_id": "69bc93e2c1c57296b25d8e24bc5b8776",
+        "kind": "episode",
+        "title": "A memory 23",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b46bd5fcba90bd459c2452586c"
+        }
+       },
+       {
+        "record_id": "199f8e3878a3da7e10bb78b1c0803ab9",
+        "kind": "episode",
+        "title": "A memory 24",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b1178aba3d8c62fbc7fe715f51"
+        }
+       },
+       {
+        "record_id": "96f7feac186063c364d4f1ae3393cc04",
+        "kind": "episode",
+        "title": "A memory 25",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-466e892353d956755e8423a5df"
+        }
+       },
+       {
+        "record_id": "7ce9fc493b3744716918100f815585c3",
+        "kind": "episode",
+        "title": "A memory 26",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-90d4a22a1a7ce8a806d96fd434"
+        }
+       },
+       {
+        "record_id": "62b765d14dc681993a31e16176bad956",
+        "kind": "episode",
+        "title": "A memory 27",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-4dec7d1ff44c1cd4a8db2b0fc8"
+        }
+       },
+       {
+        "record_id": "ac16be814101eb16aa1cc3f31b862930",
+        "kind": "episode",
+        "title": "A memory 28",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-d4e7d58463355548bff2777703"
+        }
+       },
+       {
+        "record_id": "7f7db69af26dbc7281828caec1dfa01d",
+        "kind": "episode",
+        "title": "A memory 29",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-5c963aecf5c765c7f1d70b6959"
+        }
+       },
+       {
+        "record_id": "0ef35b0d24f6bc7259234f23b03e692b",
+        "kind": "episode",
+        "title": "A memory 30",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-7c81dcf95a2d880625a8fec08d"
+        }
+       },
+       {
+        "record_id": "ce6911bc052f180794fc4808be4c0bc9",
+        "kind": "episode",
+        "title": "A memory 31",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b82815c172857d80a3885b4b9d"
+        }
+       },
+       {
+        "record_id": "a8cabec996869663fc0f1195cff24e5a",
+        "kind": "episode",
+        "title": "A memory 32",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-bd31edc6ba3b1ded3808c5f773"
+        }
+       },
+       {
+        "record_id": "5a18ccfa65b6a663dfbff841826bc83a",
+        "kind": "episode",
+        "title": "A memory 33",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b0e2b2879c6e58eb722a9e1a45"
+        }
+       },
+       {
+        "record_id": "7740317ca7d91cdb993749a18b20f7bb",
+        "kind": "episode",
+        "title": "A memory 34",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-f33e14b286d92b437e60c3efb8"
+        }
+       },
+       {
+        "record_id": "f84347005d95ec8b0eb996233952779a",
+        "kind": "episode",
+        "title": "A memory 35",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-8a97e1e4a113a2c6023373c195"
+        }
+       },
+       {
+        "record_id": "c58c26a0f7edb32d5eb17a130cc6b9bc",
+        "kind": "episode",
+        "title": "A memory 36",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-a326be121c79aefb0f8f2937bd"
+        }
+       },
+       {
+        "record_id": "7769dd263559381cf0355bd989aa5c58",
+        "kind": "episode",
+        "title": "A memory 37",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-274f28782feceb40216fbe09df"
+        }
+       },
+       {
+        "record_id": "9d4659b1ec0a8369ce8de30f354c3bb2",
+        "kind": "summary",
+        "title": "A memory 38",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-3daa13612a1728a88018e47ca7"
+        }
+       },
+       {
+        "record_id": "8376a665e874488fd1adacf1ead9af07",
+        "kind": "summary",
+        "title": "A memory 39",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-9aad87bcf0ae22e00a54c541d6"
+        }
+       },
+       {
+        "record_id": "d1b45fedde13900071a60bb0dc5da437",
+        "kind": "summary",
+        "title": "A memory 40",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-57fc9f090c97d7308f9ed8f828"
+        }
+       },
+       {
+        "record_id": "33ace2296214546dde3b0151959f4bc0",
+        "kind": "summary",
+        "title": "A memory 41",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-28f5dac223438b81add84577ff"
+        }
+       },
+       {
+        "record_id": "47a3bdba852a1d025bfec8df67dcafdd",
+        "kind": "summary",
+        "title": "A memory 42",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-eaac8a3f7b21b8b24e52ffa390"
+        }
+       },
+       {
+        "record_id": "ec0058ebaaea1d8932b2c38a45ea2488",
+        "kind": "summary",
+        "title": "A memory 43",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-3082902df2927db53d366d7dda"
+        }
+       },
+       {
+        "record_id": "acfd2b2885b1f2d38a6ea338ac5f04a4",
+        "kind": "summary",
+        "title": "A memory 44",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-987eb663bc8cf2c814ba0bbd8c"
+        }
+       },
+       {
+        "record_id": "0e11a51e2307828285a8f33ed840a013",
+        "kind": "summary",
+        "title": "A memory 45",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-6f55e35826f364438b15a8a568"
+        }
+       },
+       {
+        "record_id": "d74d3ed3b9d380f0b693d3735f130c78",
+        "kind": "summary",
+        "title": "A memory 46",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-3ebf86918436d00aa7954920ac"
+        }
+       },
+       {
+        "record_id": "46c6e2eaad18e3cce31f33235abb5506",
+        "kind": "summary",
+        "title": "A memory 47",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-77ac4c8d1c91d1fb6c46cc06f1"
+        }
+       },
+       {
+        "record_id": "84604b51b9d2ee4213a4ea5a15d441eb",
+        "kind": "episode",
+        "title": "A memory 48",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-95cc44ea4fb6750e5317a1bc0b"
+        }
+       },
+       {
+        "record_id": "170cf3afc16cda8189a3e317384741a8",
+        "kind": "summary",
+        "title": "A memory 49",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-d395360be3d511228e4909fbbb"
+        }
+       },
+       {
+        "record_id": "6c3e0d3ec560cebe4c40737c46dc4c7d",
+        "kind": "lesson",
+        "title": "A memory 50",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:lesson-4ce17460dff969c98a58318afe"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "6d11d79b-716d-4811-84f3-d47ffc0c4aa8",
+     "node_id": "reason",
+     "status": "started",
+     "started_at": "2026-11-10T09:30:49.590288+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "6d11d79b-716d-4811-84f3-d47ffc0c4aa8",
+     "node_id": "reason",
+     "status": "completed",
+     "started_at": "2026-11-10T09:30:49.590288+00:00",
+     "ended_at": "2026-11-10T09:30:53.785752+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "finish_reason": "tool_calls",
+      "usage": {
+       "input_tokens": 17225,
+       "output_tokens": 273,
+       "total_tokens": 17498,
+       "prompt_tokens": 17225,
+       "completion_tokens": 273,
+       "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 17223
+       },
+       "cached_input_tokens": 0
+      },
+      "content": "",
+      "tool_calls": [
+       {
+        "name": "search_memory",
+        "arguments": {
+         "query": "main topics"
+        },
+        "call_id": "toolu_01TLhUjqttDGq61zxd5qHJmn"
+       },
+       {
+        "name": "diary_list",
+        "arguments": {
+         "limit": 10
+        },
+        "call_id": "toolu_01UjGAnTf8TPWmZZNdwTwWax"
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "e81c7e39-3233-45d4-a5c1-40a395a48d1d",
+     "node_id": "act",
+     "status": "started",
+     "started_at": "2026-11-10T09:30:54.724932+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "tool_calls",
+      "payload": {
+       "tool_calls": [
+        {
+         "name": "search_memory",
+         "arguments": {
+          "query": "main topics"
+         },
+         "call_id": "toolu_01TLhUjqttDGq61zxd5qHJmn",
+         "runtime_call_id": "rtcall_11db9c8208ae06876ea617c7e7973f3d_1"
+        },
+        {
+         "name": "diary_list",
+         "arguments": {
+          "limit": 10
+         },
+         "call_id": "toolu_01UjGAnTf8TPWmZZNdwTwWax",
+         "runtime_call_id": "rtcall_11db9c8208ae06876ea617c7e7973f3d_2"
+        }
+       ],
+       "allowed_tools": [
+        "diary_list",
+        "diary_read",
+        "fetch_url",
+        "list_files",
+        "read_file",
+        "read_memory",
+        "search_memory",
+        "web_search",
+        "write_file"
+       ],
+       "act_seq": 1
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "e81c7e39-3233-45d4-a5c1-40a395a48d1d",
+     "node_id": "act",
+     "status": "completed",
+     "started_at": "2026-11-10T09:30:54.724932+00:00",
+     "ended_at": "2026-11-10T09:31:02.029614+00:00",
+     "error": null,
+     "effect": {
+      "type": "tool_calls",
+      "payload": {
+       "tool_calls": [
+        {
+         "name": "search_memory",
+         "arguments": {
+          "query": "main topics"
+         },
+         "call_id": "toolu_01TLhUjqttDGq61zxd5qHJmn",
+         "runtime_call_id": "rtcall_11db9c8208ae06876ea617c7e7973f3d_1"
+        },
+        {
+         "name": "diary_list",
+         "arguments": {
+          "limit": 10
+         },
+         "call_id": "toolu_01UjGAnTf8TPWmZZNdwTwWax",
+         "runtime_call_id": "rtcall_11db9c8208ae06876ea617c7e7973f3d_2"
+        }
+       ],
+       "allowed_tools": [
+        "diary_list",
+        "diary_read",
+        "fetch_url",
+        "list_files",
+        "read_file",
+        "read_memory",
+        "search_memory",
+        "web_search",
+        "write_file"
+       ],
+       "act_seq": 1
+      }
+     },
+     "result": {
+      "mode": "executed",
+      "results": [
+       {
+        "call_id": "toolu_01TLhUjqttDGq61zxd5qHJmn",
+        "name": "search_memory",
+        "success": true,
+        "error": null,
+        "artifact_id": null,
+        "output": "(what search_memory returned)"
+       },
+       {
+        "call_id": "toolu_01UjGAnTf8TPWmZZNdwTwWax",
+        "name": "diary_list",
+        "success": true,
+        "error": null,
+        "artifact_id": null,
+        "output": "(what diary_list returned)"
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "75c72638-1903-4d0e-a057-88b9d6ec8bc1",
+     "node_id": "reason",
+     "status": "started",
+     "started_at": "2026-11-10T09:31:02.238020+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "75c72638-1903-4d0e-a057-88b9d6ec8bc1",
+     "node_id": "reason",
+     "status": "completed",
+     "started_at": "2026-11-10T09:31:02.238020+00:00",
+     "ended_at": "2026-11-10T09:31:12.494302+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "finish_reason": "stop",
+      "usage": {
+       "input_tokens": 18479,
+       "output_tokens": 1264,
+       "total_tokens": 19743,
+       "prompt_tokens": 18479,
+       "completion_tokens": 1264,
+       "prompt_tokens_details": {
+        "cached_tokens": 7870,
+        "cache_write_tokens": 10607
+       },
+       "cached_input_tokens": 7870
+      },
+      "content": "(his words)"
+     }
+    },
+    {
+     "step_id": "46ac9abb-be08-4b0b-a2fa-70615e066b4a",
+     "node_id": "COMMIT",
+     "status": "started",
+     "started_at": "2026-11-10T09:31:14.510396+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_access",
+      "payload": {
+       "trace_id": "trace_bbaec5ed50d2e4022e35d671",
+       "prompt_token_estimate": 4946
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "46ac9abb-be08-4b0b-a2fa-70615e066b4a",
+     "node_id": "COMMIT",
+     "status": "completed",
+     "started_at": "2026-11-10T09:31:14.510396+00:00",
+     "ended_at": "2026-11-10T09:31:21.234166+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_access",
+      "payload": {
+       "trace_id": "trace_bbaec5ed50d2e4022e35d671",
+       "prompt_token_estimate": 4946
+      }
+     },
+     "result": {
+      "snapshot_id": "8fa4bd96a2da2a2956dc35f8fdaa2166",
+      "seq": 106364,
+      "trace_id": "trace_bbaec5ed50d2e4022e35d671",
+      "prompt_token_estimate": 4946,
+      "committed": 44
+     }
+    },
+    {
+     "step_id": "055a6a87-e356-4dea-ae03-cf49acfb0d45",
+     "node_id": "VISIT_AUTHOR",
+     "status": "started",
+     "started_at": "2026-11-10T09:31:21.380552+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "055a6a87-e356-4dea-ae03-cf49acfb0d45",
+     "node_id": "VISIT_AUTHOR",
+     "status": "completed",
+     "started_at": "2026-11-10T09:31:21.380552+00:00",
+     "ended_at": "2026-11-10T09:31:29.582021+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "capability": "summaries",
+      "content": "(his words)"
+     }
+    },
+    {
+     "step_id": "3e1e0c59-3492-4dc7-9f57-f2a49c7f1bd6",
+     "node_id": "FORM",
+     "status": "started",
+     "started_at": "2026-11-10T09:31:29.663148+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-0001",
+       "records": [
+        {
+         "kind": "episode",
+         "title": "A episode he formed 1"
+        }
+       ]
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "3e1e0c59-3492-4dc7-9f57-f2a49c7f1bd6",
+     "node_id": "FORM",
+     "status": "completed",
+     "started_at": "2026-11-10T09:31:29.663148+00:00",
+     "ended_at": "2026-11-10T09:31:32.856267+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-0001",
+       "records": [
+        {
+         "kind": "episode",
+         "title": "A episode he formed 1"
+        }
+       ]
+      }
+     },
+     "result": {
+      "record_ids": [
+       "ex:episode-fed1c32099924a37c65313298f"
+      ],
+      "formed": 1,
+      "scope": "life",
+      "owner_id": "entity:castor@home-fd023c86",
+      "turn_id": "t-0001",
+      "idempotency_key": "c3a415fb-c081-468c-8c3e-b80a49ad451a:t-0001:e3d41eb8b8bf17e5"
+     }
+    },
+    {
+     "step_id": "da909759-8270-47b0-b0d8-776d03522660",
+     "node_id": "ANSWER",
+     "status": "started",
+     "started_at": "2026-11-10T09:31:32.949598+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "answer_user",
+      "payload": {
+       "message": "(his reply)",
+       "turn_id": "t-0001",
+       "tools_ran": [
+        "search_memory",
+        "diary_list"
+       ],
+       "notices": []
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "da909759-8270-47b0-b0d8-776d03522660",
+     "node_id": "ANSWER",
+     "status": "completed",
+     "started_at": "2026-11-10T09:31:32.949598+00:00",
+     "ended_at": "2026-11-10T09:31:33.268630+00:00",
+     "error": null,
+     "effect": {
+      "type": "answer_user",
+      "payload": {
+       "message": "(his reply)",
+       "turn_id": "t-0001",
+       "tools_ran": [
+        "search_memory",
+        "diary_list"
+       ],
+       "notices": []
+      }
+     },
+     "result": {
+      "message": "(his reply)",
+      "level": "message"
+     }
+    },
+    {
+     "step_id": "1672032c-c6f2-4c35-8e5f-c50cbf843a22",
+     "node_id": "PARK",
+     "status": "started",
+     "started_at": "2026-11-10T09:31:33.473346+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T10:31:33.463317+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "1672032c-c6f2-4c35-8e5f-c50cbf843a22",
+     "node_id": "PARK",
+     "status": "waiting",
+     "started_at": "2026-11-10T09:31:33.473346+00:00",
+     "ended_at": "2026-11-10T09:31:33.490276+00:00",
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T10:31:33.463317+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": {
+      "wait": {
+       "reason": "event",
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T10:31:33.463317+00:00",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "prompt": null,
+       "choices": null,
+       "allow_free_text": true,
+       "details": {
+        "kind": "visitor_message"
+       }
+      }
+     }
+    },
+    {
+     "step_id": "ff366d0f-7e3a-4195-aa08-e499d3e6292a",
+     "node_id": "PARK",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:07.087302+00:00",
+     "ended_at": "2026-11-10T09:34:07.087348+00:00",
+     "error": null,
+     "effect": {
+      "type": "resume",
+      "payload": {
+       "wait_reason": "event",
+       "wait_key": "visitor_input",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "payload": {
+        "kind": "close",
+        "closed_by": "operator",
+        "reason": "closed from the entity app"
+       }
+      }
+     },
+     "result": {
+      "resumed": true
+     }
+    },
+    {
+     "step_id": "81d11694-1355-4f3a-bfb0-61566402b440",
+     "node_id": "REFLECT",
+     "status": "started",
+     "started_at": "2026-11-10T09:34:08.203201+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "turn_id": "t-reflect"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "81d11694-1355-4f3a-bfb0-61566402b440",
+     "node_id": "REFLECT",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:08.203201+00:00",
+     "ended_at": "2026-11-10T09:34:33.976237+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "turn_id": "t-reflect"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "finish_reason": "stop",
+      "usage": {
+       "input_tokens": 17470,
+       "output_tokens": 1158,
+       "total_tokens": 18628,
+       "prompt_tokens": 17470,
+       "completion_tokens": 1158,
+       "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 17468
+       },
+       "cached_input_tokens": 0
+      },
+      "content": "(his words)",
+      "diary_entries": [
+       {
+        "entry_id": "diary_88d9b2ee8aec7217c8e6ae7e",
+        "kind": "problem",
+        "visibility": "self",
+        "projected_record_id": "ex:diary-e70cc37bf09fee33b8f1dfeba7",
+        "title": "A book entry 1"
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "455a3dac-e1d0-4e37-b3bf-992afb04b259",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T09:34:34.497654+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "455a3dac-e1d0-4e37-b3bf-992afb04b259",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:34.497654+00:00",
+     "ended_at": "2026-11-10T09:34:39.983330+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "capability": "summaries",
+      "content": "(his words)"
+     }
+    },
+    {
+     "step_id": "205c7502-d958-4dcd-8b23-3973e71fa6bc",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T09:34:40.041160+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-reflect-c3a415fb-c081-468c-8c3e-b80a49ad451a",
+       "records": [
+        {
+         "kind": "summary",
+         "title": "A summary he formed 1"
+        }
+       ]
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "205c7502-d958-4dcd-8b23-3973e71fa6bc",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:40.041160+00:00",
+     "ended_at": "2026-11-10T09:34:43.586302+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-reflect-c3a415fb-c081-468c-8c3e-b80a49ad451a",
+       "records": [
+        {
+         "kind": "summary",
+         "title": "A summary he formed 1"
+        }
+       ]
+      }
+     },
+     "result": {
+      "record_ids": [
+       "ex:summary-78243399cce725745936ca6253"
+      ],
+      "formed": 1,
+      "scope": "life",
+      "owner_id": "entity:castor@home-fd023c86",
+      "turn_id": "t-reflect-c3a415fb-c081-468c-8c3e-b80a49ad451a",
+      "idempotency_key": "c3a415fb-c081-468c-8c3e-b80a49ad451a:t-reflect-c3a415fb-c081-468c-8c3e-b80a49ad451a:a0a52db04a234f8c"
+     }
+    },
+    {
+     "step_id": "845bf885-7a02-4f4d-bcc8-ca0db41c2cde",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T09:34:45.305555+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_appraise",
+      "payload": {
+       "op": "appraise",
+       "sign": -1,
+       "magnitude": 1.0,
+       "turn_id": "t-reflect-feel-c3a415fb-c081-468c-8c3e-b80a49ad451a-0"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "845bf885-7a02-4f4d-bcc8-ca0db41c2cde",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:45.305555+00:00",
+     "ended_at": "2026-11-10T09:34:45.469637+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_appraise",
+      "payload": {
+       "op": "appraise",
+       "sign": -1,
+       "magnitude": 1.0,
+       "turn_id": "t-reflect-feel-c3a415fb-c081-468c-8c3e-b80a49ad451a-0"
+      }
+     },
+     "result": {
+      "op": "appraise",
+      "sign": -1,
+      "magnitude": 1.0
+     }
+    },
+    {
+     "step_id": "56d2330a-a807-4ed2-a011-9dedf7ae141a",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T09:34:45.799863+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_appraise",
+      "payload": {
+       "op": "appraise",
+       "sign": 1,
+       "magnitude": 1.0,
+       "turn_id": "t-reflect-feel-c3a415fb-c081-468c-8c3e-b80a49ad451a-1"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "56d2330a-a807-4ed2-a011-9dedf7ae141a",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:45.799863+00:00",
+     "ended_at": "2026-11-10T09:34:46.070038+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_appraise",
+      "payload": {
+       "op": "appraise",
+       "sign": 1,
+       "magnitude": 1.0,
+       "turn_id": "t-reflect-feel-c3a415fb-c081-468c-8c3e-b80a49ad451a-1"
+      }
+     },
+     "result": {
+      "op": "appraise",
+      "sign": 1,
+      "magnitude": 1.0
+     }
+    },
+    {
+     "step_id": "1dde5513-c163-4bd2-a5cc-cfb7ea1e65be",
+     "node_id": "DONE",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:46.697400+00:00",
+     "ended_at": "2026-11-10T09:34:46.697431+00:00",
+     "error": null,
+     "effect": null,
+     "result": {
+      "completed": true,
+      "output": {
+       "ok": true,
+       "turns": 1,
+       "close_reason": "closed",
+       "reflection_notices": [],
+       "closed_by": "operator",
+       "close_note": "closed from the entity app"
+      }
+     }
+    },
+    {
+     "step_id": "9828206e-905d-4d76-a7b8-5757b10637d2",
+     "node_id": "DONE",
+     "status": "completed",
+     "started_at": "2026-11-10T09:34:46.994770+00:00",
+     "ended_at": "2026-11-10T09:34:46.994829+00:00",
+     "error": null,
+     "effect": {
+      "type": "emit_event",
+      "payload": {
+       "name": "abstract.status",
+       "scope": "session",
+       "payload": {
+        "text": "completed"
+       }
+      }
+     },
+     "result": {
+      "emitted": true,
+      "name": "abstract.status",
+      "payload": {
+       "text": "completed"
+      }
+     }
+    }
+   ]
+  },
+  "check_in": {
+   "run_id": "264dc639-d7c0-4746-af74-b9bd2b2ab99f",
+   "status": "completed",
+   "records": [
+    {
+     "step_id": "07c17a78-3297-4b4a-bc75-cd534de18a84",
+     "node_id": "PARK",
+     "status": "started",
+     "started_at": "2026-11-10T13:40:22.930302+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T14:40:22.930064+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "07c17a78-3297-4b4a-bc75-cd534de18a84",
+     "node_id": "PARK",
+     "status": "waiting",
+     "started_at": "2026-11-10T13:40:22.930302+00:00",
+     "ended_at": "2026-11-10T13:40:22.930995+00:00",
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T14:40:22.930064+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": {
+      "wait": {
+       "reason": "event",
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T14:40:22.930064+00:00",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "prompt": null,
+       "choices": null,
+       "allow_free_text": true,
+       "details": {
+        "kind": "visitor_message"
+       }
+      }
+     }
+    },
+    {
+     "step_id": "2ce5f37b-1702-4a8d-805e-bbb2089725fc",
+     "node_id": "PARK",
+     "status": "completed",
+     "started_at": "2026-11-10T13:40:44.037292+00:00",
+     "ended_at": "2026-11-10T13:40:44.037314+00:00",
+     "error": null,
+     "effect": {
+      "type": "resume",
+      "payload": {
+       "wait_reason": "event",
+       "wait_key": "visitor_input",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "payload": {
+        "text": "We are performing some tests, i just want to be sure you are ok?",
+        "speaker": "person:admin"
+       }
+      }
+     },
+     "result": {
+      "resumed": true
+     }
+    },
+    {
+     "step_id": "9b987b8f-4fb8-4bdd-8de9-27610e5b47a7",
+     "node_id": "RECALL",
+     "status": "started",
+     "started_at": "2026-11-10T13:40:44.106718+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_recall",
+      "payload": {
+       "cue_text": "We are performing some tests, i just want to be sure you are ok?",
+       "view": "working_set",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "9b987b8f-4fb8-4bdd-8de9-27610e5b47a7",
+     "node_id": "RECALL",
+     "status": "completed",
+     "started_at": "2026-11-10T13:40:44.106718+00:00",
+     "ended_at": "2026-11-10T13:40:47.314229+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_recall",
+      "payload": {
+       "cue_text": "We are performing some tests, i just want to be sure you are ok?",
+       "view": "working_set",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": {
+      "trace_id": "trace_5e3f5a8a227c4f9e4eca7cd4",
+      "view": "working_set",
+      "as_of_seq": 106376,
+      "stop_reason": "enough",
+      "budget_spent": {
+       "tokens_used": 5173,
+       "token_budget": 6000,
+       "candidates_considered": 236,
+       "handles": 50,
+       "stm_handles": 11,
+       "stm_tokens_used": 1495,
+       "shelf_size": 50,
+       "edges_visited": 100,
+       "max_edges": 100,
+       "self_handles": 6,
+       "self_tokens_used": 177
+      },
+      "handles": [
+       {
+        "record_id": "047d192689f329c922181dee1bbb2d0c",
+        "kind": "value",
+        "title": "A memory 1",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:value-9f1534be8c84def56f8a21c1cb"
+        }
+       },
+       {
+        "record_id": "625e7a88f6a68d81ccf26fcdf06c86a7",
+        "kind": "value",
+        "title": "A memory 2",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:value-72b571506e3d81a9e2397e282c"
+        }
+       },
+       {
+        "record_id": "98d34a27d4789704fea8146297fcda08",
+        "kind": "value",
+        "title": "A memory 3",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:value-75fe69c517ce0d1bfe192b0920"
+        }
+       },
+       {
+        "record_id": "c67e2d25316c094aa8926ead2aa663a6",
+        "kind": "purpose",
+        "title": "A memory 4",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:purpose-ad7ec13280b650661d2567d1b9"
+        }
+       },
+       {
+        "record_id": "a771fe8ca33f1c41420c2d3f28f6dbe3",
+        "kind": "trait",
+        "title": "A memory 5",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:trait-6e85b7102637aa6c9031950ed5"
+        }
+       },
+       {
+        "record_id": "aabf41c5421bc101edbe9e9ed1d7b7e9",
+        "kind": "trait",
+        "title": "A memory 6",
+        "admission": "self",
+        "provenance": {
+         "record_id": "ex:trait-65c63dbd87a5fa658fb2e4259b"
+        }
+       },
+       {
+        "record_id": "15943e1d1b5df1e3bf8ecb07fb8b6e95",
+        "kind": "episode",
+        "title": "A memory 7",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-950e7ed8286ba4cdc7831fc119"
+        }
+       },
+       {
+        "record_id": "3715caf5165327401de38982d7e4cad0",
+        "kind": "episode",
+        "title": "A memory 8",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-e9c3e32f9d3eb54657aa1f931d"
+        }
+       },
+       {
+        "record_id": "380c727444982ab176f27fea8a0729cb",
+        "kind": "episode",
+        "title": "A memory 9",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-66b3e7fbe02e3976aa29d67df2"
+        }
+       },
+       {
+        "record_id": "69a3849d92dc982107d41554744a38bd",
+        "kind": "episode",
+        "title": "A memory 10",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-78d751eef1e5b20fc82fa31b85"
+        }
+       },
+       {
+        "record_id": "7161771f6fb05be8db90b929d5cd3285",
+        "kind": "episode",
+        "title": "A memory 11",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-7c723506a54f683e1b6672c511"
+        }
+       },
+       {
+        "record_id": "b3f95f55aa928f897261e06e5f4e1567",
+        "kind": "episode",
+        "title": "A memory 12",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-18dfd90894b8a2f35bf2ba597b"
+        }
+       },
+       {
+        "record_id": "b94f5ffcd4a40a432eea3f828687f7e5",
+        "kind": "episode",
+        "title": "A memory 13",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-e88b06c32522a2cdf8a6631d27"
+        }
+       },
+       {
+        "record_id": "c663caa02ef8c0401cb1a09c8f7b94ad",
+        "kind": "episode",
+        "title": "A memory 14",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-6bd74d2146830ed419cbbb22d0"
+        }
+       },
+       {
+        "record_id": "d5a9e7096b9f1b8cf928310e84f9dad0",
+        "kind": "episode",
+        "title": "A memory 15",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-80d468907bb4d705fbe0e9bca2"
+        }
+       },
+       {
+        "record_id": "d8952eb67459aee10ef7aff47edf4b13",
+        "kind": "episode",
+        "title": "A memory 16",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:episode-4c9085633cd83dc615ba5752b9"
+        }
+       },
+       {
+        "record_id": "fca7f602ff2859068c51260b9dc16de7",
+        "kind": "interest",
+        "title": "A memory 17",
+        "admission": "stm",
+        "provenance": {
+         "record_id": "ex:interest-9f1cd0899f2c39db07daab1cec"
+        }
+       },
+       {
+        "record_id": "231b20595902991662e0a43c1cb636e8",
+        "kind": "lesson",
+        "title": "A memory 18",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:lesson-d1146c19c60c664c0dfd35788e"
+        }
+       },
+       {
+        "record_id": "84604b51b9d2ee4213a4ea5a15d441eb",
+        "kind": "episode",
+        "title": "A memory 19",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-95cc44ea4fb6750e5317a1bc0b"
+        }
+       },
+       {
+        "record_id": "3a505094e7ee50474a1c2a56626a858a",
+        "kind": "episode",
+        "title": "A memory 20",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-5116a685c70e98568ef98b499e"
+        }
+       },
+       {
+        "record_id": "4635500ef66397eba279bc15f0db3a99",
+        "kind": "episode",
+        "title": "A memory 21",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-9729f8e4bba6e3630f19cf8088"
+        }
+       },
+       {
+        "record_id": "fd34aace7ffe481f54aa47c2d29fc179",
+        "kind": "episode",
+        "title": "A memory 22",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-72099a843bd4b8f317e0088ef3"
+        }
+       },
+       {
+        "record_id": "69bc93e2c1c57296b25d8e24bc5b8776",
+        "kind": "episode",
+        "title": "A memory 23",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b46bd5fcba90bd459c2452586c"
+        }
+       },
+       {
+        "record_id": "199f8e3878a3da7e10bb78b1c0803ab9",
+        "kind": "episode",
+        "title": "A memory 24",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b1178aba3d8c62fbc7fe715f51"
+        }
+       },
+       {
+        "record_id": "96f7feac186063c364d4f1ae3393cc04",
+        "kind": "episode",
+        "title": "A memory 25",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-466e892353d956755e8423a5df"
+        }
+       },
+       {
+        "record_id": "7ce9fc493b3744716918100f815585c3",
+        "kind": "episode",
+        "title": "A memory 26",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-90d4a22a1a7ce8a806d96fd434"
+        }
+       },
+       {
+        "record_id": "62b765d14dc681993a31e16176bad956",
+        "kind": "episode",
+        "title": "A memory 27",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-4dec7d1ff44c1cd4a8db2b0fc8"
+        }
+       },
+       {
+        "record_id": "ac16be814101eb16aa1cc3f31b862930",
+        "kind": "episode",
+        "title": "A memory 28",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-d4e7d58463355548bff2777703"
+        }
+       },
+       {
+        "record_id": "7f7db69af26dbc7281828caec1dfa01d",
+        "kind": "episode",
+        "title": "A memory 29",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-5c963aecf5c765c7f1d70b6959"
+        }
+       },
+       {
+        "record_id": "0ef35b0d24f6bc7259234f23b03e692b",
+        "kind": "episode",
+        "title": "A memory 30",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-7c81dcf95a2d880625a8fec08d"
+        }
+       },
+       {
+        "record_id": "ce6911bc052f180794fc4808be4c0bc9",
+        "kind": "episode",
+        "title": "A memory 31",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b82815c172857d80a3885b4b9d"
+        }
+       },
+       {
+        "record_id": "a8cabec996869663fc0f1195cff24e5a",
+        "kind": "episode",
+        "title": "A memory 32",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-bd31edc6ba3b1ded3808c5f773"
+        }
+       },
+       {
+        "record_id": "5a18ccfa65b6a663dfbff841826bc83a",
+        "kind": "episode",
+        "title": "A memory 33",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-b0e2b2879c6e58eb722a9e1a45"
+        }
+       },
+       {
+        "record_id": "7740317ca7d91cdb993749a18b20f7bb",
+        "kind": "episode",
+        "title": "A memory 34",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-f33e14b286d92b437e60c3efb8"
+        }
+       },
+       {
+        "record_id": "f84347005d95ec8b0eb996233952779a",
+        "kind": "episode",
+        "title": "A memory 35",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-8a97e1e4a113a2c6023373c195"
+        }
+       },
+       {
+        "record_id": "c58c26a0f7edb32d5eb17a130cc6b9bc",
+        "kind": "episode",
+        "title": "A memory 36",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-a326be121c79aefb0f8f2937bd"
+        }
+       },
+       {
+        "record_id": "7769dd263559381cf0355bd989aa5c58",
+        "kind": "episode",
+        "title": "A memory 37",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:episode-274f28782feceb40216fbe09df"
+        }
+       },
+       {
+        "record_id": "170cf3afc16cda8189a3e317384741a8",
+        "kind": "summary",
+        "title": "A memory 38",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-d395360be3d511228e4909fbbb"
+        }
+       },
+       {
+        "record_id": "9d4659b1ec0a8369ce8de30f354c3bb2",
+        "kind": "summary",
+        "title": "A memory 39",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-3daa13612a1728a88018e47ca7"
+        }
+       },
+       {
+        "record_id": "8376a665e874488fd1adacf1ead9af07",
+        "kind": "summary",
+        "title": "A memory 40",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-9aad87bcf0ae22e00a54c541d6"
+        }
+       },
+       {
+        "record_id": "d1b45fedde13900071a60bb0dc5da437",
+        "kind": "summary",
+        "title": "A memory 41",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-57fc9f090c97d7308f9ed8f828"
+        }
+       },
+       {
+        "record_id": "33ace2296214546dde3b0151959f4bc0",
+        "kind": "summary",
+        "title": "A memory 42",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-28f5dac223438b81add84577ff"
+        }
+       },
+       {
+        "record_id": "47a3bdba852a1d025bfec8df67dcafdd",
+        "kind": "summary",
+        "title": "A memory 43",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-eaac8a3f7b21b8b24e52ffa390"
+        }
+       },
+       {
+        "record_id": "ec0058ebaaea1d8932b2c38a45ea2488",
+        "kind": "summary",
+        "title": "A memory 44",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-3082902df2927db53d366d7dda"
+        }
+       },
+       {
+        "record_id": "acfd2b2885b1f2d38a6ea338ac5f04a4",
+        "kind": "summary",
+        "title": "A memory 45",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-987eb663bc8cf2c814ba0bbd8c"
+        }
+       },
+       {
+        "record_id": "0e11a51e2307828285a8f33ed840a013",
+        "kind": "summary",
+        "title": "A memory 46",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-6f55e35826f364438b15a8a568"
+        }
+       },
+       {
+        "record_id": "d74d3ed3b9d380f0b693d3735f130c78",
+        "kind": "summary",
+        "title": "A memory 47",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-3ebf86918436d00aa7954920ac"
+        }
+       },
+       {
+        "record_id": "46c6e2eaad18e3cce31f33235abb5506",
+        "kind": "summary",
+        "title": "A memory 48",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:summary-77ac4c8d1c91d1fb6c46cc06f1"
+        }
+       },
+       {
+        "record_id": "6c3e0d3ec560cebe4c40737c46dc4c7d",
+        "kind": "lesson",
+        "title": "A memory 49",
+        "admission": "both",
+        "provenance": {
+         "record_id": "ex:lesson-4ce17460dff969c98a58318afe"
+        }
+       },
+       {
+        "record_id": "b0f6f70a603a2da6bb2c0e62fdb9fd2f",
+        "kind": "lesson",
+        "title": "A memory 50",
+        "admission": "stimulus",
+        "provenance": {
+         "record_id": "ex:lesson-7ac8f9c484ae3da10a99461fea"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "15701b39-d94e-4874-a5d8-2ff2c4a33a69",
+     "node_id": "reason",
+     "status": "started",
+     "started_at": "2026-11-10T13:40:47.491406+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "15701b39-d94e-4874-a5d8-2ff2c4a33a69",
+     "node_id": "reason",
+     "status": "completed",
+     "started_at": "2026-11-10T13:40:47.491406+00:00",
+     "ended_at": "2026-11-10T13:40:55.633365+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "finish_reason": "tool_calls",
+      "usage": {
+       "input_tokens": 17304,
+       "output_tokens": 300,
+       "total_tokens": 17604,
+       "prompt_tokens": 17304,
+       "completion_tokens": 300,
+       "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 17302
+       },
+       "cached_input_tokens": 0
+      },
+      "content": "",
+      "tool_calls": [
+       {
+        "name": "list_files",
+        "arguments": {
+         "path": "mounts/mnemosyne"
+        },
+        "call_id": "toolu_01DyUDyKNaFVLX7ErD3tsask"
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "f0bcc822-771e-4d85-948c-c9c58aecfce3",
+     "node_id": "act",
+     "status": "started",
+     "started_at": "2026-11-10T13:40:55.766446+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "tool_calls",
+      "payload": {
+       "tool_calls": [
+        {
+         "name": "list_files",
+         "arguments": {
+          "path": "mounts/mnemosyne"
+         },
+         "call_id": "toolu_01DyUDyKNaFVLX7ErD3tsask",
+         "runtime_call_id": "rtcall_a7dc7f3779dcd0ec79095c7a606b43ef_1"
+        }
+       ],
+       "allowed_tools": [
+        "diary_list",
+        "diary_read",
+        "fetch_url",
+        "list_files",
+        "read_file",
+        "read_memory",
+        "search_memory",
+        "web_search",
+        "write_file"
+       ],
+       "act_seq": 1
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "f0bcc822-771e-4d85-948c-c9c58aecfce3",
+     "node_id": "act",
+     "status": "completed",
+     "started_at": "2026-11-10T13:40:55.766446+00:00",
+     "ended_at": "2026-11-10T13:41:00.931912+00:00",
+     "error": null,
+     "effect": {
+      "type": "tool_calls",
+      "payload": {
+       "tool_calls": [
+        {
+         "name": "list_files",
+         "arguments": {
+          "path": "mounts/mnemosyne"
+         },
+         "call_id": "toolu_01DyUDyKNaFVLX7ErD3tsask",
+         "runtime_call_id": "rtcall_a7dc7f3779dcd0ec79095c7a606b43ef_1"
+        }
+       ],
+       "allowed_tools": [
+        "diary_list",
+        "diary_read",
+        "fetch_url",
+        "list_files",
+        "read_file",
+        "read_memory",
+        "search_memory",
+        "web_search",
+        "write_file"
+       ],
+       "act_seq": 1
+      }
+     },
+     "result": {
+      "mode": "executed",
+      "results": [
+       {
+        "call_id": "toolu_01DyUDyKNaFVLX7ErD3tsask",
+        "name": "list_files",
+        "success": true,
+        "error": null,
+        "artifact_id": "c69edcf8f6bbfea29d238586a61bab4e",
+        "output": "(what list_files returned)"
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "4063531f-5694-4d05-82f7-a8d4000b3773",
+     "node_id": "reason",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:01.808902+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "4063531f-5694-4d05-82f7-a8d4000b3773",
+     "node_id": "reason",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:01.808902+00:00",
+     "ended_at": "2026-11-10T13:41:10.230294+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "provider": "endpoint:airelay",
+       "model": "claude-haiku-5-5",
+       "turn_id": "t-0001"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "finish_reason": "stop",
+      "usage": {
+       "input_tokens": 38659,
+       "output_tokens": 1004,
+       "total_tokens": 39663,
+       "prompt_tokens": 38659,
+       "completion_tokens": 1004,
+       "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 38657
+       },
+       "cached_input_tokens": 0
+      },
+      "content": "(his words)"
+     }
+    },
+    {
+     "step_id": "0eab2be4-cc0d-45f3-bbef-b8d67e09b620",
+     "node_id": "COMMIT",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:10.292996+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_access",
+      "payload": {
+       "trace_id": "trace_5e3f5a8a227c4f9e4eca7cd4",
+       "prompt_token_estimate": 4996
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "0eab2be4-cc0d-45f3-bbef-b8d67e09b620",
+     "node_id": "COMMIT",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:10.292996+00:00",
+     "ended_at": "2026-11-10T13:41:10.383784+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_access",
+      "payload": {
+       "trace_id": "trace_5e3f5a8a227c4f9e4eca7cd4",
+       "prompt_token_estimate": 4996
+      }
+     },
+     "result": {
+      "snapshot_id": "2f5442fbeb31ce991cc4d6cb93882433",
+      "seq": 107045,
+      "trace_id": "trace_5e3f5a8a227c4f9e4eca7cd4",
+      "prompt_token_estimate": 4996,
+      "committed": 44
+     }
+    },
+    {
+     "step_id": "52b47e05-bfb1-4bff-8278-18ca4d68583a",
+     "node_id": "VISIT_AUTHOR",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:10.392568+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "52b47e05-bfb1-4bff-8278-18ca4d68583a",
+     "node_id": "VISIT_AUTHOR",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:10.392568+00:00",
+     "ended_at": "2026-11-10T13:41:14.357683+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "capability": "summaries",
+      "content": "(his words)"
+     }
+    },
+    {
+     "step_id": "e19284b9-f354-43bb-b0df-8af6cc5f2e6a",
+     "node_id": "FORM",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:14.432678+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-0001",
+       "records": [
+        {
+         "kind": "episode",
+         "title": "A episode he formed 1"
+        }
+       ]
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "e19284b9-f354-43bb-b0df-8af6cc5f2e6a",
+     "node_id": "FORM",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:14.432678+00:00",
+     "ended_at": "2026-11-10T13:41:15.115640+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-0001",
+       "records": [
+        {
+         "kind": "episode",
+         "title": "A episode he formed 1"
+        }
+       ]
+      }
+     },
+     "result": {
+      "record_ids": [
+       "ex:episode-f04749b58c1360bae92868e4df"
+      ],
+      "formed": 1,
+      "scope": "life",
+      "owner_id": "entity:castor@home-fd023c86",
+      "turn_id": "t-0001",
+      "idempotency_key": "264dc639-d7c0-4746-af74-b9bd2b2ab99f:t-0001:bbb48ab6bd22f708"
+     }
+    },
+    {
+     "step_id": "3949e968-1b9d-4e32-81f5-7611677a9e0b",
+     "node_id": "ANSWER",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:15.121603+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "answer_user",
+      "payload": {
+       "message": "(his reply)",
+       "turn_id": "t-0001",
+       "tools_ran": [
+        "list_files"
+       ],
+       "notices": []
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "3949e968-1b9d-4e32-81f5-7611677a9e0b",
+     "node_id": "ANSWER",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:15.121603+00:00",
+     "ended_at": "2026-11-10T13:41:15.121960+00:00",
+     "error": null,
+     "effect": {
+      "type": "answer_user",
+      "payload": {
+       "message": "(his reply)",
+       "turn_id": "t-0001",
+       "tools_ran": [
+        "list_files"
+       ],
+       "notices": []
+      }
+     },
+     "result": {
+      "message": "(his reply)",
+      "level": "message"
+     }
+    },
+    {
+     "step_id": "25441abf-d56a-4f20-95a4-587a2d77045e",
+     "node_id": "PARK",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:15.126527+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T14:41:15.126446+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "25441abf-d56a-4f20-95a4-587a2d77045e",
+     "node_id": "PARK",
+     "status": "waiting",
+     "started_at": "2026-11-10T13:41:15.126527+00:00",
+     "ended_at": "2026-11-10T13:41:15.126767+00:00",
+     "error": null,
+     "effect": {
+      "type": "wait_event",
+      "payload": {
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T14:41:15.126446+00:00",
+       "resume_to_node": "ROUTE"
+      }
+     },
+     "result": {
+      "wait": {
+       "reason": "event",
+       "wait_key": "visitor_input",
+       "until": "2026-11-10T14:41:15.126446+00:00",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "prompt": null,
+       "choices": null,
+       "allow_free_text": true,
+       "details": {
+        "kind": "visitor_message"
+       }
+      }
+     }
+    },
+    {
+     "step_id": "d9859aa9-f5cf-41ce-ad6f-6cb1bcf37bb1",
+     "node_id": "PARK",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:41.113353+00:00",
+     "ended_at": "2026-11-10T13:41:41.113388+00:00",
+     "error": null,
+     "effect": {
+      "type": "resume",
+      "payload": {
+       "wait_reason": "event",
+       "wait_key": "visitor_input",
+       "resume_to_node": "ROUTE",
+       "result_key": "_turn.resume",
+       "payload": {
+        "kind": "close",
+        "closed_by": "operator",
+        "reason": "closed from the entity app"
+       }
+      }
+     },
+     "result": {
+      "resumed": true
+     }
+    },
+    {
+     "step_id": "2e96a287-1503-4856-94b3-b0d9f023b175",
+     "node_id": "REFLECT",
+     "status": "started",
+     "started_at": "2026-11-10T13:41:41.143590+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "turn_id": "t-reflect"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "2e96a287-1503-4856-94b3-b0d9f023b175",
+     "node_id": "REFLECT",
+     "status": "completed",
+     "started_at": "2026-11-10T13:41:41.143590+00:00",
+     "ended_at": "2026-11-10T13:42:04.184640+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "turn_id": "t-reflect"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "finish_reason": "stop",
+      "usage": {
+       "input_tokens": 17035,
+       "output_tokens": 1259,
+       "total_tokens": 18294,
+       "prompt_tokens": 17035,
+       "completion_tokens": 1259,
+       "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 17033
+       },
+       "cached_input_tokens": 0
+      },
+      "content": "(his words)",
+      "diary_entries": [
+       {
+        "entry_id": "diary_5b7243c0c91ed17036e47ae4",
+        "kind": "question",
+        "visibility": "self",
+        "projected_record_id": "ex:diary-f9e9fb2489ad4004475281c735",
+        "title": "A book entry 1"
+       },
+       {
+        "entry_id": "diary_480fbea2b086a1f591005cb9",
+        "kind": "problem",
+        "visibility": "self",
+        "projected_record_id": "ex:diary-68326fffff1669291bba154509",
+        "title": "A book entry 2"
+       }
+      ]
+     }
+    },
+    {
+     "step_id": "3aaf3407-0c73-432f-9801-ac11eaab421d",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T13:42:04.420320+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "3aaf3407-0c73-432f-9801-ac11eaab421d",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T13:42:04.420320+00:00",
+     "ended_at": "2026-11-10T13:42:10.688066+00:00",
+     "error": null,
+     "effect": {
+      "type": "llm_call",
+      "payload": {
+       "capability": "summaries"
+      }
+     },
+     "result": {
+      "model": "claude-haiku-5-5",
+      "capability": "summaries",
+      "content": "(his words)"
+     }
+    },
+    {
+     "step_id": "b115c5a8-8176-46e5-9cb9-ca0847ce3050",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T13:42:10.698463+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-reflect-264dc639-d7c0-4746-af74-b9bd2b2ab99f",
+       "records": [
+        {
+         "kind": "summary",
+         "title": "A summary he formed 1"
+        }
+       ]
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "b115c5a8-8176-46e5-9cb9-ca0847ce3050",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T13:42:10.698463+00:00",
+     "ended_at": "2026-11-10T13:42:11.748638+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-reflect-264dc639-d7c0-4746-af74-b9bd2b2ab99f",
+       "records": [
+        {
+         "kind": "summary",
+         "title": "A summary he formed 1"
+        }
+       ]
+      }
+     },
+     "result": {
+      "record_ids": [
+       "ex:summary-5e2f08b0b9b52523616f3367a2"
+      ],
+      "formed": 1,
+      "scope": "life",
+      "owner_id": "entity:castor@home-fd023c86",
+      "turn_id": "t-reflect-264dc639-d7c0-4746-af74-b9bd2b2ab99f",
+      "idempotency_key": "264dc639-d7c0-4746-af74-b9bd2b2ab99f:t-reflect-264dc639-d7c0-4746-af74-b9bd2b2ab99f:f453e3010ef418ae"
+     }
+    },
+    {
+     "step_id": "4ab421a6-126e-4d36-8473-d5351632f859",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T13:42:11.769333+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-reflect-lesson-264dc639-d7c0-4746-af74-b9bd2b2ab99f-0",
+       "records": [
+        {
+         "kind": "lesson",
+         "title": "A lesson he formed 1"
+        }
+       ]
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "4ab421a6-126e-4d36-8473-d5351632f859",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T13:42:11.769333+00:00",
+     "ended_at": "2026-11-10T13:42:12.130001+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_form",
+      "payload": {
+       "scope": "life",
+       "turn_id": "t-reflect-lesson-264dc639-d7c0-4746-af74-b9bd2b2ab99f-0",
+       "records": [
+        {
+         "kind": "lesson",
+         "title": "A lesson he formed 1"
+        }
+       ]
+      }
+     },
+     "result": {
+      "record_ids": [
+       "ex:lesson-c4f85609ac7b077bc4bbf5bf1b"
+      ],
+      "formed": 1,
+      "scope": "life",
+      "owner_id": "entity:castor@home-fd023c86",
+      "turn_id": "t-reflect-lesson-264dc639-d7c0-4746-af74-b9bd2b2ab99f-0",
+      "idempotency_key": "264dc639-d7c0-4746-af74-b9bd2b2ab99f:t-reflect-lesson-264dc639-d7c0-4746-af74-b9bd2b2ab99f-0:42ae50f19ff9011d"
+     }
+    },
+    {
+     "step_id": "af449720-d4b6-4e1c-b005-77aae0c94269",
+     "node_id": "APPLY",
+     "status": "started",
+     "started_at": "2026-11-10T13:42:12.236023+00:00",
+     "ended_at": null,
+     "error": null,
+     "effect": {
+      "type": "memory_appraise",
+      "payload": {
+       "op": "appraise",
+       "sign": 1,
+       "magnitude": 1.0,
+       "turn_id": "t-reflect-feel-264dc639-d7c0-4746-af74-b9bd2b2ab99f-0"
+      }
+     },
+     "result": null
+    },
+    {
+     "step_id": "af449720-d4b6-4e1c-b005-77aae0c94269",
+     "node_id": "APPLY",
+     "status": "completed",
+     "started_at": "2026-11-10T13:42:12.236023+00:00",
+     "ended_at": "2026-11-10T13:42:12.277588+00:00",
+     "error": null,
+     "effect": {
+      "type": "memory_appraise",
+      "payload": {
+       "op": "appraise",
+       "sign": 1,
+       "magnitude": 1.0,
+       "turn_id": "t-reflect-feel-264dc639-d7c0-4746-af74-b9bd2b2ab99f-0"
+      }
+     },
+     "result": {
+      "op": "appraise",
+      "sign": 1,
+      "magnitude": 1.0
+     }
+    },
+    {
+     "step_id": "bb09c254-c4ef-4eb9-8a2c-3b420fcbb8c5",
+     "node_id": "DONE",
+     "status": "completed",
+     "started_at": "2026-11-10T13:42:12.470026+00:00",
+     "ended_at": "2026-11-10T13:42:12.470051+00:00",
+     "error": null,
+     "effect": null,
+     "result": {
+      "completed": true,
+      "output": {
+       "ok": true,
+       "turns": 1,
+       "close_reason": "closed",
+       "reflection_notices": [
+        "#FALLBACK feel line skipped (unparseable): 'touches=\"intellectual honesty: state what is known, unknown, and uncertain\"'"
+       ],
+       "closed_by": "operator",
+       "close_note": "closed from the entity app"
+      }
+     }
+    },
+    {
+     "step_id": "902bb4e7-bdb6-421a-ae38-75b638f268df",
+     "node_id": "DONE",
+     "status": "completed",
+     "started_at": "2026-11-10T13:42:12.486617+00:00",
+     "ended_at": "2026-11-10T13:42:12.486654+00:00",
+     "error": null,
+     "effect": {
+      "type": "emit_event",
+      "payload": {
+       "name": "abstract.status",
+       "scope": "session",
+       "payload": {
+        "text": "completed"
+       }
+      }
+     },
+     "result": {
+      "emitted": true,
+      "name": "abstract.status",
+      "payload": {
+       "text": "completed"
+      }
+     }
+    }
+   ]
+  }
+ }
+}

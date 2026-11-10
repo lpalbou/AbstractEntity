@@ -1464,6 +1464,41 @@ export function sendVisitTurn(
   return postJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/turn`), body, token, null);
 }
 
+/** One record of a visit run's own ledger, as `GET /entities/{name}/visit/{run_id}/ledger` serves it
+ * (AbstractGateway entity_visits `ledger`: the runtime's step records, workspace paths made relative).
+ * Only the fields the live activity panel reads are typed; the rest stays opaque. A completed record's
+ * big payload fields can be slimmed (`$slim`, over 4 KB): the started twin keeps the full payload. */
+export interface VisitLedgerRecord {
+  step_id?: string;
+  node_id?: string;
+  /** started | waiting | completed | failed */
+  status?: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  error?: unknown;
+  effect?: { type?: string; payload?: Record<string, unknown> } | null;
+  result?: Record<string, unknown> | null;
+}
+
+export interface VisitLedgerPage {
+  run_id: string;
+  status: string;
+  /** The cursor the page starts after (clamped into the ledger). */
+  after: number;
+  records: Array<{ cursor: number; record: VisitLedgerRecord }>;
+  next_cursor: number;
+  total: number;
+  /** The run is terminal and the page reached the end. */
+  done: boolean;
+}
+
+/** The visit run's ledger after `after` records, at most `limit` of them (pure read; works on live
+ * and terminal runs). An `after` past the end answers no records and `next_cursor` = the total. */
+export function getVisitLedger(baseUrl: string, entity: string, runId: string, after: number, limit: number): Promise<VisitLedgerPage> {
+  const q = `after=${Math.max(0, Math.floor(after))}&limit=${Math.max(1, Math.floor(limit))}`;
+  return getJson(joinBaseUrl(baseUrl, `api/gateway/entities/${encodeURIComponent(entity)}/visit/${encodeURIComponent(runId)}/ledger?${q}`));
+}
+
 /** One `@entity` mention as the gateway answered it (`POST /sessions/{session_id}/mentions`,
  * AbstractGateway main f32c8ca9): the HTTP status, the JSON body (null when it is not JSON) and
  * the error code (`code` in the body, else the `X-Gateway-Error-Code` header). The outcome rule
