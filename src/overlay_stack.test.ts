@@ -153,7 +153,8 @@ describe("the stylesheet", () => {
 
   it("a phone keeps the stack: the float box draws nothing, its grip and corner are gone", () => {
     expect(decl(rule(narrow, ".gc_topics_float"), "display")).toBe("contents");
-    expect(decl(rule(narrow, ".gc_tp_grip,\n  .gc_tp_resize"), "display")).toBe("none");
+    expect(decl(rule(narrow, ".gc_tp_grip,\n  .gc_tp_resize,\n  .gc_tp_dock"), "display")).toBe("none");
+    expect(decl(rule(narrow, '.gc_topics_float .gc_tp_head,\n  .gc_topics_float[data-docked="false"] .gc_tp_head'), "padding-right")).toBe("10px");
     expect(narrow).not.toContain("--gc-tp-");
   });
 
@@ -305,10 +306,18 @@ describe("the floating panel (backlog 0017)", () => {
     expect(evalCss(moved["--gc-tp-top"], {}, 666)).toBe(176);
   });
 
-  it("the canvas measures its docked top under the motion buttons, moves it by its grip, docks it on a double-click on its head", () => {
+  it("the canvas measures its docked top under the motion buttons, moves it by its grip, puts it back with one control (never a double-click on the fold head)", () => {
     expect(CANVAS).toContain("const measure = () => setDockTop(Math.round(el.offsetTop + el.offsetHeight + PANEL_GAP));");
     expect(CANVAS).toContain('<div ref={motionRef} className="gc_motion_controls">');
-    expect(CANVAS).toContain('if (ev.target instanceof Element && ev.target.closest(".gc_tp_head, .gc_tp_grip") && panelFloatRef.current.at !== null) setPanelFloat({ ...panelFloatRef.current, at: null });');
+    // Review F1: a double-click on the head (the panel's fold button) folded and unfolded it.
+    const box = CANVAS.slice(CANVAS.indexOf('className="gc_topics_float"'), CANVAS.indexOf("{/* Motion controls:"));
+    expect(box).not.toContain("onDoubleClick");
+    expect(box).toContain('<div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel" onPointerDown={(ev) => startPanelDrag(ev, "move")}>');
+    expect(box).toMatch(/\{panelFloat\.at !== null \? \([\s\S]*?<button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick=\{\(\) => setPanelFloat\(\{ \.\.\.panelFloatRef\.current, at: null \}\)\}>\s*put back\s*<\/button>\s*\) : null\}/);
+    // Over the panel, left of the grip; the moved head leaves it room.
+    expect(decl(rule(CANVAS_CSS, ".gc_tp_dock"), "right")).toBe("var(--tap-min, 32px)");
+    expect(Number(decl(rule(CANVAS_CSS, ".gc_tp_dock"), "z-index"))).toBeGreaterThan(1);
+    expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-docked="false"] .gc_tp_head'), "padding-right")).toBe("calc(var(--tap-min, 32px) + 72px)");
     // While it moves: the stack's custom properties, no state; let go: kept and remembered.
     expect(CANVAS).toContain("for (const [k, v] of Object.entries(panelVars(next, dockTopRef.current))) stackEl.style.setProperty(k, v);");
     expect(CANVAS).toContain("if (next !== from) setPanelFloat(next);");

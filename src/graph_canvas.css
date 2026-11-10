@@ -309,6 +309,33 @@
   padding-right: calc(var(--tap-min, 32px) + 4px);
 }
 
+/* Moved, its head also holds "put back" (it docks it top-right again). */
+.gc_tp_dock {
+  position: absolute;
+  top: 0;
+  right: var(--tap-min, 32px);
+  z-index: 2;
+  height: var(--tap-min, 32px);
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  cursor: pointer;
+}
+
+.gc_tp_dock:hover,
+.gc_tp_dock:focus-visible {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.gc_topics_float[data-docked="false"] .gc_tp_head {
+  padding-right: calc(var(--tap-min, 32px) + 72px);
+}
+
 .gc_tp_resize {
   position: absolute;
   right: 0;
@@ -675,10 +702,12 @@
     display: contents;
   }
   .gc_tp_grip,
-  .gc_tp_resize {
+  .gc_tp_resize,
+  .gc_tp_dock {
     display: none;
   }
-  .gc_topics_float .gc_tp_head {
+  .gc_topics_float .gc_tp_head,
+  .gc_topics_float[data-docked="false"] .gc_tp_head {
     padding-right: 10px;
   }
   .gc_topics {

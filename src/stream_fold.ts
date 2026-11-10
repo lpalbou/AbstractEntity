@@ -577,8 +577,14 @@ export const COMMUNITY_RECORD_KIND = "community";
 
 /** A topic version record seen on the replay (its binding or its closure):
  * its graph id is remembered, so the links it starts are known as its own. */
-function rememberCommunity(state: FoldState, graphId: unknown): void {
-  if (typeof graphId === "string" && graphId.trim()) state.community_graph_ids.add(graphId.trim());
+function rememberCommunity(state: FoldState, graphId: unknown, seq: number): void {
+  if (typeof graphId === "string" && graphId.trim()) {
+    state.community_graph_ids.add(graphId.trim());
+    return;
+  }
+  // Memory's replay gives every formed record its graph id: a topic version
+  // without one breaks that contract, and its links would come back as nodes.
+  if (typeof console !== "undefined") console.error(`#SEAM a topic version's record at seq ${seq} carries no graph id: its links cannot be told from memories`);
 }
 
 /** A row whose display names a topic version record as its source: a link of
@@ -595,9 +601,13 @@ function applyBinding(state: FoldState, env: ReplayEnvelope): void {
   const p = env.payload as unknown as BindingPayload;
   const display = displayOf(env);
   if (display.kind === COMMUNITY_RECORD_KIND) {
-    rememberCommunity(state, display.graph_id ?? p.record_id);
+    rememberCommunity(state, display.graph_id ?? p.record_id, env.seq);
     return;
   }
+  // A row naming a topic version as its source (the version chain's link)
+  // mints no node on a binding either (memory closes them; a binding of one
+  // would be the same row).
+  if (isTopicChainRow(state, display)) return;
   const graphId = String(p.record_id || "");
   // Bindings key nodes by graph id; if a usage row id was already seen for
   // the same record we cannot know the pairing until enrichment reveals it,
@@ -1023,7 +1033,7 @@ function applyClosure(state: FoldState, env: ReplayEnvelope): void {
   // A topic version closed (replaced by a newer one, or dissolved): never a
   // node either (the binding's ghost guard; a closure would mint one).
   if (display.kind === COMMUNITY_RECORD_KIND) {
-    rememberCommunity(state, display.graph_id);
+    rememberCommunity(state, display.graph_id, env.seq);
     return;
   }
   // Its link to the version before (`refines`), closed right after it: a

@@ -9,7 +9,7 @@
  * redaction, and beat grouping by envelope-level correlation keys.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { foldEnvelopes, foldUpToIndex, createFoldState, applyEnvelope, type FoldCache } from "./stream_fold";
 import { ledgerLine } from "./ledger_lines";
@@ -781,6 +781,26 @@ describe("a link between two versions of a topic is never a node (backlog 0021)"
     const fold = foldEnvelopes(version(7, "ex:community-0a7", "row-v7").slice(2));
     expect([...fold.nodes.keys()]).toEqual(["row-v7-link"]);
     expect(fold.nodes.get("row-v7-link")?.kind).toBe("relation");
+  });
+
+  it("a link of the version chain arriving as a binding mints no node either (review N3)", () => {
+    const [formed] = version(9, "ex:community-0a9", "row-v9");
+    const linkBinding = bindingEnv("row-v9-link", 10, {}, { record_id: "row-v9-link", kind: "memory", title: "ex:community-0a9 refines", graph_id: "ex:community-0a9" });
+    expect(foldEnvelopes([formed, linkBinding]).nodes.size).toBe(0);
+    // Without the version seen first, nothing says it is a topic's: a node (the rule reads the graph id, never the words).
+    expect(foldEnvelopes([linkBinding]).nodes.size).toBe(1);
+  });
+
+  it("a topic version without a graph id says so loudly (memory's contract: every formed record carries one)", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bare = bindingEnv("", 11, {}, { kind: "community", title: "Harbour work" });
+    foldEnvelopes([bare]);
+    expect(err).toHaveBeenCalledTimes(1);
+    expect(String(err.mock.calls[0][0])).toBe("#SEAM a topic version's record at seq 11 carries no graph id: its links cannot be told from memories");
+    err.mockClear();
+    foldEnvelopes(version(12, "ex:community-0b2", "row-b2"));
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
   });
 
   it("a memory's own refines link closed after it never becomes a node either way (it merges onto the memory)", () => {

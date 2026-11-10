@@ -123,6 +123,8 @@ describe("the canvas hides the closed memories until the toggle shows them", () 
     expect(block).toContain('className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}');
     expect(block).toContain("aria-pressed={showOutside}");
     expect(block).toContain("title={closedTitle(outside)}");
+    // Its accessible name is the phrase, never "132closed memories" (review N1: the two spans carry no space).
+    expect(block).toContain("aria-label={`${outside.closed} ${closedWord(outside.closed)}`}");
     expect(block).toContain("onClick={() => setShowOutside((v) => !v)}");
     expect(block).toContain('◌ <span className="gc_btn_count">{outside.closed}</span>');
     expect(block).toContain('<span className="gc_btn_word">{closedWord(outside.closed)}</span>');

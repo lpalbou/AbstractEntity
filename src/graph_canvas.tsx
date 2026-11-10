@@ -2612,9 +2612,6 @@ export function GraphCanvas({
             data-docked={panelFloat.at === null ? "true" : "false"}
             data-sized={panelFloat.h !== null ? "true" : "false"}
             data-list={stack.topics === "sheet" ? "true" : "false"}
-            onDoubleClick={(ev) => {
-              if (ev.target instanceof Element && ev.target.closest(".gc_tp_head, .gc_tp_grip") && panelFloatRef.current.at !== null) setPanelFloat({ ...panelFloatRef.current, at: null });
-            }}
           >
           <TopicsPanel
             view={panelView}
@@ -2644,9 +2641,17 @@ export function GraphCanvas({
             onRetry={retryTopics}
             colorOf={(n) => KIND_COLORS[nodeClass(n)] ?? KIND_COLORS.unknown}
           />
-          <div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel · double-click its head to put it back top right" onPointerDown={(ev) => startPanelDrag(ev, "move")}>
+          <div className="gc_tp_grip" aria-hidden="true" title="Drag to move the panel" onPointerDown={(ev) => startPanelDrag(ev, "move")}>
             ⠿
           </div>
+          {panelFloat.at !== null ? (
+            // Moved: one control puts it back (docked top-right, its size
+            // kept). Never the head's double-click: the head is the fold
+            // button, and a double-click folded and unfolded it (review F1).
+            <button type="button" className="gc_tp_dock" title="Put the panel back at the top right" onClick={() => setPanelFloat({ ...panelFloatRef.current, at: null })}>
+              put back
+            </button>
+          ) : null}
           {stack.topics === "sheet" ? (
             <div className="gc_tp_resize" aria-hidden="true" title="Drag to resize the panel" onPointerDown={(ev) => startPanelDrag(ev, "size")} />
           ) : null}
@@ -2711,6 +2716,7 @@ export function GraphCanvas({
             className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}
             aria-pressed={showOutside}
             title={closedTitle(outside)}
+            aria-label={`${outside.closed} ${closedWord(outside.closed)}`}
             onClick={() => setShowOutside((v) => !v)}
           >
             ◌ <span className="gc_btn_count">{outside.closed}</span>
