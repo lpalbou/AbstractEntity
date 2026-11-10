@@ -19,8 +19,28 @@ export const CLOSING_HEAD = "Closing — reflection runs now";
 /** The narrator's line under it, in italic, no parentheses (operator 2026-11-10: "like a narrator
  * explaining the action"). */
 export const CLOSING_NARRATION = "looking back over the visit; feelings may move, a summary forms…";
+/** The one plain line of a visit closed without a single turn (runtime 0.19.4: a visit without words
+ * forms nothing; its close answer carries no notices, `notices: []`, `reflection_notices: []`). */
+export const NOTHING_KEPT = "Nothing to keep: no words were shared.";
 
-export function ClosingNotice({ activity }: { activity: LedgerLine[] }): React.ReactElement {
+/** What the close of this visit can keep, from the data only: `turns` the visit's served turn count
+ * (null: not known), `notices` the close answer's notices (null: not answered yet), `activity` the acts
+ * already in his stream. Nothing is kept only for zero turns with no notice and no act: any notice or
+ * act (the data) wins, and an unknown count never claims "nothing". */
+export function closeKeepsNothing(turns: number | null, notices: readonly unknown[] | null, activity: readonly unknown[]): boolean {
+  return turns === 0 && activity.length === 0 && (notices === null || notices.length === 0);
+}
+
+export function ClosingNotice({ activity, turns = null, notices = null }: { activity: LedgerLine[]; turns?: number | null; notices?: readonly unknown[] | null }): React.ReactElement {
+  if (closeKeepsNothing(turns, notices, activity)) {
+    return (
+      <div className="cd_closing" aria-live="polite">
+        <div className="cd_closing_head">
+          <WordsLine text={NOTHING_KEPT} inline />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="cd_closing" aria-live="polite">
       <div className="cd_closing_head">

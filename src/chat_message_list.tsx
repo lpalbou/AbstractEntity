@@ -83,6 +83,7 @@ export function ChatMessageList({
   onOpenRecord,
   renderMentionCard,
   closing,
+  closingTurns = null,
 }: {
   messages: DrawerMessage[];
   /** A mention chip's card in a message's words (panel-chat 0.9.13): shown after a rest on it. */
@@ -90,6 +91,8 @@ export function ChatMessageList({
   /** While the visit closes: the reflection's acts so far. The closing notice is then the thread's
    * last row, in the messages' column (never a card floating over them). Null: no close running. */
   closing?: LedgerLine[] | null;
+  /** The closing visit's served turn count (null: not known): a visit without a turn keeps nothing. */
+  closingTurns?: number | null;
   /** A summary chip opens the turn panel on its tab (memories and what formed: context; tools). */
   onDetail(detail: ChatTurnResult, tab: TurnPanelTab): void;
   /** A chip that names one record (the memory formed, the diary entry) opens it in Detail by its
@@ -184,7 +187,7 @@ export function ChatMessageList({
       ))}
       {closing ? (
         <div className="cd_msg" data-role="closing">
-          <ClosingNotice activity={closing} />
+          <ClosingNotice activity={closing} turns={closingTurns} />
         </div>
       ) : null}
       <div ref={bottomRef} />

@@ -12,9 +12,9 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { reflectionActivity } from "./chat_drawer";
+import { reflectionActivity, visitTurnCount } from "./chat_drawer";
 import { ChatMessageList, type DrawerMessage } from "./chat_message_list";
-import { CLOSING_HEAD, CLOSING_NARRATION, ClosingNotice } from "./closing_notice";
+import { CLOSING_HEAD, CLOSING_NARRATION, ClosingNotice, NOTHING_KEPT, closeKeepsNothing } from "./closing_notice";
 import type { ReplayEnvelope } from "./stream_types";
 
 const env = (seq: number, family: string, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope =>
@@ -108,5 +108,58 @@ describe("wiring", () => {
   it("the old second line is gone from the drawer and its style from the sheet", () => {
     expect(drawer).not.toMatch(OLD_HINT);
     expect(fs.readFileSync(path.join(__dirname, "entity.css"), "utf8")).not.toContain("cd_closing_hint");
+  });
+});
+
+describe("a visit without words keeps nothing (runtime 0.19.4: zero turns form nothing)", () => {
+  const notice = { kind: "lesson", record_id: "ex:lesson-1", title: "a lesson" };
+  const render = (turns: number | null, notices: unknown[] | null, acts: ReturnType<typeof reflectionActivity> = []) =>
+    renderToStaticMarkup(<ClosingNotice activity={acts} turns={turns} notices={notices} />);
+
+  it("zero turns and an answer without notices: one plain line, no narration, no act rows", () => {
+    const out = render(0, []);
+    expect(out).toContain(NOTHING_KEPT);
+    expect(NOTHING_KEPT).toBe("Nothing to keep: no words were shared.");
+    expect(out).not.toContain(CLOSING_HEAD);
+    expect(out).not.toContain(CLOSING_NARRATION);
+    expect(out).not.toContain("<li>");
+    expect(out).not.toContain("cd_closing_spin");
+  });
+
+  it("one turn: the head and the narration, as before", () => {
+    const out = render(1, []);
+    expect(out).toContain(CLOSING_HEAD);
+    expect(out).toContain(CLOSING_NARRATION);
+    expect(out).not.toContain(NOTHING_KEPT);
+  });
+
+  it("zero turns but a notice, or an act in his stream: the data wins, the narration shows", () => {
+    expect(render(0, [notice])).toContain(CLOSING_NARRATION);
+    expect(render(0, [notice])).not.toContain(NOTHING_KEPT);
+    const acts = reflectionActivity([diary(6, "kept anyway")], 5);
+    expect(render(0, null, acts)).toContain("kept anyway");
+    expect(render(0, null, acts)).not.toContain(NOTHING_KEPT);
+  });
+
+  it("the rule: zero served turns, no notice, no act; an unknown count never claims nothing", () => {
+    expect(closeKeepsNothing(0, [], [])).toBe(true);
+    expect(closeKeepsNothing(0, null, [])).toBe(true); // the close still runs: its answer will carry none
+    expect(closeKeepsNothing(1, [], [])).toBe(false);
+    expect(closeKeepsNothing(0, [notice], [])).toBe(false);
+    expect(closeKeepsNothing(null, [], [])).toBe(false);
+    expect(render(null, null)).toContain(CLOSING_NARRATION);
+  });
+
+  it("the turn count is served: the poll's turn_n for this run, or a reply's (the poll can lag)", () => {
+    const reply = (run: string, n: number) => ({ id: `m${n}`, role: "assistant", content: "x", detail: { reply: "x", run_id: run, turn_n: n } }) as unknown as DrawerMessage;
+    expect(visitTurnCount({ run_id: "v1", turn_n: 0 }, [], "v1")).toBe(0);
+    expect(visitTurnCount({ run_id: "v1", turn_n: 0 }, [reply("v1", 1)], "v1")).toBe(1);
+    expect(visitTurnCount({ run_id: "v0", turn_n: 0 }, [reply("v0", 3)], "v1")).toBeNull();
+    expect(visitTurnCount(null, [], "v1")).toBeNull();
+    expect(visitTurnCount({ run_id: "v1", turn_n: 0 }, [], null)).toBeNull();
+    const src = fs.readFileSync(path.join(__dirname, "chat_drawer.tsx"), "utf8");
+    expect(src).toContain('closingTurns={busy === "closing" ? visitTurnCount(status, messages, runId) : null}');
+    const list = fs.readFileSync(path.join(__dirname, "chat_message_list.tsx"), "utf8");
+    expect(list).toContain("<ClosingNotice activity={closing} turns={closingTurns} />");
   });
 });

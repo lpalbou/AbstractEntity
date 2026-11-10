@@ -179,6 +179,20 @@ export interface ChatDrawerProps {
   replyFeed: ReplyFeed;
 }
 
+/** The open visit's served turn count: the larger of the polled status's `turn_n` (for this run) and the
+ * `turn_n` this run's replies carried (the poll can lag a turn just answered); null when neither is
+ * served (never a guessed zero). */
+export function visitTurnCount(status: { run_id?: string; turn_n?: number } | null, messages: readonly DrawerMessage[], runId: string | null): number | null {
+  if (!runId) return null;
+  const counts: number[] = [];
+  if (status?.run_id === runId && typeof status.turn_n === "number") counts.push(status.turn_n);
+  for (const m of messages) {
+    const d = m.detail as (ChatTurnResult & { run_id?: string; turn_n?: number }) | undefined;
+    if (d?.run_id === runId && typeof d.turn_n === "number") counts.push(d.turn_n);
+  }
+  return counts.length ? Math.max(...counts) : null;
+}
+
 /** His reply to a visit turn as the thread holds it: his words, the turn's facts as `detail` (the
  * probe the footer under his words opens; the visit lane's fields as served, `diary_entries` a list
  * of entries) and what the turn formed as `notices` (the badges in his bubble). */
@@ -1462,6 +1476,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             onNoticeOpen={openNotice}
             renderMentionCard={renderMentionCard}
             closing={busy === "closing" ? closingActivity : null}
+            closingTurns={busy === "closing" ? visitTurnCount(status, messages, runId) : null}
           />}
           {detailTurn ? <TurnDetailModal turn={detailTurn.turn} initialTab={detailTurn.tab} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (
