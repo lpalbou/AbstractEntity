@@ -195,3 +195,14 @@
   padding: 0;
   font-weight: 400;
 }
+
+/* On a touch screen the chevron keeps its drawn size and the kit's own
+ * 44 px invisible hit area (theme.css, pointer: coarse:
+ * .af-disclosure__chevron::after) rather than the app's 44 px button floor
+ * (entity.css #root button), which pushed each level 28 px further right:
+ * three levels deep (a type's memories) a title had half a phone's width. */
+@media (pointer: coarse) {
+  #root .gc_topics .gc_tp_list .af-disclosure__chevron:not(.af-disclosure__chevron--spacer) {
+    min-width: 0;
+  }
+}
