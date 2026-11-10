@@ -1087,6 +1087,9 @@ export function ledgerLine(env: ReplayEnvelope, topicSizes: TopicSizes = NO_TOPI
           const first = p["from"] === null ? "first recorded" : "previous not recorded";
           return line(`Phase: ${phaseWord(to)} (${first})`, causeDetail);
         }
+        // His own time's loop ending (after the gateway's revoke fix, 2026-11-10): the loop's exit
+        // announces idle -> idle, cause "observed". Said for what it is, pronoun-free.
+        if (from.toLowerCase() === "idle" && to.toLowerCase() === "idle" && cause === "observed") return line("Own time ended", "nothing more runs on its own");
         const stays = from.toLowerCase() === to.toLowerCase() ? LEDGER_PHASE_STAYS[to.toLowerCase()] : undefined;
         const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
         if (stays) return cause ? line(`${cap(cause.split("_").join(" "))} · ${stays}`, "") : line(cap(stays), causeDetail);

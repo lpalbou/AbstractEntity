@@ -258,7 +258,12 @@ describe("phase_changed (the gateway's marker, entity_phase._announce; the runti
     expect(sleepLine.title).toBe("⭢ Visit closed · stays asleep");
     expect(sleepLine.detail).toBe("");
     expect(ledgerLine(hostEnv(100940.0003, castorVisit)).title).toBe("⭢ Observed · the visit goes on");
-    expect(ledgerLine(hostEnv(186054.0003, { ...SERVED, name: "nerin", from: "idle", to: "idle", cause: "observed" })).title).toBe("⭢ Observed · stays idle");
+    // The own-time loop's exit (idle -> idle, observed; after the gateway's revoke fix): "Own time ended".
+    const ended = ledgerLine(hostEnv(186054.0003, { ...SERVED, name: "nerin", from: "idle", to: "idle", cause: "observed" }));
+    expect(ended.title).toBe("⭢ Own time ended");
+    expect(ended.detail).toBe("nothing more runs on its own");
+    // Idle with another cause keeps the generic words.
+    expect(ledgerLine(hostEnv(186055.0003, { ...SERVED, name: "nerin", from: "idle", to: "idle", cause: "operator_idle" })).title).toBe("⭢ Operator idle · stays idle");
     expect(ledgerLine(hostEnv(186064.0003, { ...SERVED, name: "nerin", from: "personal", to: "personal", cause: "observed" })).title).toBe("⭢ Observed · stays on his own time");
     expect(ledgerLine(hostEnv(40, { ...SERVED, from: "work", to: "work", cause: "task_complete" })).title).toBe("⭢ Task complete · keeps working");
     expect(ledgerLine(hostEnv(41, { ...SERVED, from: "stopped", to: "stopped", cause: "operator_stop" })).title).toBe("⭢ Operator stop · stays stopped");
