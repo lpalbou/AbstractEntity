@@ -118,8 +118,10 @@ describe("the canvas hides the closed memories until the toggle shows them", () 
 
   it("one pressed toggle, served only, '◌ <count> closed memories' (the count stays on a phone)", () => {
     const at = CANVAS.indexOf("{served && outside && outside.closed > 0 ? (");
-    expect(at).toBeGreaterThan(CANVAS.indexOf("⛶ <span"));
-    const block = CANVAS.slice(at, at + 700);
+    // Left of fit (backlog 0028: "closed memories should be to the left of the fit").
+    expect(at).toBeGreaterThan(CANVAS.indexOf('<div ref={motionRef} className="gc_motion_controls">'));
+    expect(at).toBeLessThan(CANVAS.indexOf('title="Fit view'));
+    const block = CANVAS.slice(at, CANVAS.indexOf("</button>", at));
     expect(block).toContain('className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}');
     expect(block).toContain("aria-pressed={showOutside}");
     expect(block).toContain("title={closedTitle(outside)}");

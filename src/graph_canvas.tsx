@@ -2704,6 +2704,21 @@ export function GraphCanvas({
         </button>
           </>
         )}
+        {served && outside && outside.closed > 0 ? (
+          // THE CLOSED MEMORIES: hidden by default; this pressed toggle
+          // shows them on their ring (graph_canvas_outside.ts). Left of fit
+          // (operator 2026-11-10 20:13, backlog 0028).
+          <button
+            className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}
+            aria-pressed={showOutside}
+            title={closedTitle(outside)}
+            aria-label={`${outside.closed} ${closedWord(outside.closed)}`}
+            onClick={() => setShowOutside((v) => !v)}
+          >
+            ◌ <span className="gc_btn_count">{outside.closed}</span>
+            <span className="gc_btn_word">{closedWord(outside.closed)}</span>
+          </button>
+        ) : null}
         <button
           className="gc_btn"
           title="Fit view — recenter the camera on the whole graph"
@@ -2726,20 +2741,6 @@ export function GraphCanvas({
         >
           ⛶ <span className="gc_btn_word">fit</span>
         </button>
-        {served && outside && outside.closed > 0 ? (
-          // THE CLOSED MEMORIES: hidden by default; this pressed toggle
-          // shows them on their ring (graph_canvas_outside.ts).
-          <button
-            className={`gc_btn gc_outside_toggle ${showOutside ? "gc_btn_on" : ""}`}
-            aria-pressed={showOutside}
-            title={closedTitle(outside)}
-            aria-label={`${outside.closed} ${closedWord(outside.closed)}`}
-            onClick={() => setShowOutside((v) => !v)}
-          >
-            ◌ <span className="gc_btn_count">{outside.closed}</span>
-            <span className="gc_btn_word">{closedWord(outside.closed)}</span>
-          </button>
-        ) : null}
       </div>
     </>
   );
