@@ -10,9 +10,12 @@
  *   most (0..10). The kit has no number or slider component: the three are number fields in the
  *   kit's setting rows (the modal's input style), sensitivity included.
  * - Sleep (phase contract v3 D2, operator 2026-11-09): when he is idle he goes to sleep on his own
- *   after N hours without sleep or N new memories (defaults 24 / 500; integers ≥ 1, hours ≤ 720).
- *   Two number fields like Memory's. A gateway whose profile has no `sleep` block yet gets one
- *   sentence in the card and the two fields disabled.
+ *   after N hours without sleep or N new memories (defaults 24 / 500; integers ≥ 1, hours ≤ 720),
+ *   or (operator 2026-11-10) once more than a share of his memories are not yet settled
+ *   (`sleep.after_fragmented_share`, default 0.15, 0 < x ≤ 1; the field shows and takes it as a
+ *   percentage, 15 %). Three number fields like Memory's. A gateway whose profile has no `sleep`
+ *   block yet gets one sentence in the card and the three fields disabled; a `sleep` block without
+ *   the share gets that sentence for the share's field only.
  *
  * Every change saves itself (`PUT …/cognition-profile`; a number on Enter or when the field is left),
  * then the page reads the profile again and shows what the gateway stores. Saves run one at a time;
@@ -67,7 +70,7 @@ export const MEMORY_HELP =
   "A rebuild is when a new memory or a surprise makes him revisit what he already understood. Every change saves itself when you press Enter or leave the field.";
 
 export type MemoryField = "shelf_size" | "sensitivity" | "cap_per_turn";
-export type SleepField = "after_hours" | "after_events";
+export type SleepField = "after_hours" | "after_events" | "after_fragmented_share";
 /** Every number field (the Memory card's and the Sleep card's): typed, then saved on Enter or leave. */
 export type NumberField = MemoryField | SleepField;
 
@@ -84,14 +87,25 @@ export const MEMORY_FIELDS: ReadonlyArray<{ id: MemoryField; label: string; help
   { id: "cap_per_turn", label: "Rebuilds per turn, at most", help: "A safety cap. 0 = only while he rests.", min: 0, max: 10, step: 1 },
 ];
 
-export const SLEEP_HELP = "When he is idle, he goes to sleep on his own once either is reached. Sleep is maintenance: he consolidates and enriches his memory.";
+export const SLEEP_HELP = "When he is idle, he goes to sleep on his own once any of these is reached. Sleep is maintenance: he consolidates and enriches his memory.";
 /** The Sleep card on a gateway whose profile has no `sleep` block yet (no silent hiding). */
 export const SLEEP_UNAVAILABLE = "This gateway does not offer the sleep settings yet.";
+/** The share's field on a gateway whose `sleep` block has no `after_fragmented_share` yet. */
+export const SLEEP_SHARE_UNAVAILABLE = "This gateway does not offer this sleep setting yet.";
+/** What "not yet settled" means (operator 2026-11-10; memory's `fragmented` read). */
+export const SLEEP_SHARE_HELP = "Memories placed only provisionally, without an embedding, or still waiting for their title or summary.";
 
-export const SLEEP_FIELDS: ReadonlyArray<{ id: SleepField; label: string; min: number; max?: number; step: number }> = [
+export const SLEEP_FIELDS: ReadonlyArray<{ id: SleepField; label: string; help?: string; unit?: string; min: number; max?: number; step: number }> = [
   { id: "after_hours", label: "Sleep after (hours without sleep)", min: 1, max: 720, step: 1 },
   { id: "after_events", label: "Sleep after (new memories)", min: 1, step: 1 },
+  // Served as a share (0.15), shown and typed as a percentage (15 %).
+  { id: "after_fragmented_share", label: "Sleep after (share of memories not yet settled)", help: SLEEP_SHARE_HELP, unit: "%", min: 1, max: 100, step: 1 },
 ];
+
+/** A share (0.15) as the percentage the field shows ("15"), without float noise (0.07 × 100). */
+export function percentText(share: number): string {
+  return String(Number((share * 100).toPrecision(12)));
+}
 
 // ------------------------------------------------------------- the answer
 
@@ -141,18 +155,20 @@ export function cognitionProfileOf(raw: unknown): EntityCognitionProfile {
   num(rebuild.cap_per_turn, "rebuild.cap_per_turn");
   oneOf(rebuild.source, SETTING_SOURCES, "rebuild.source");
   // v3 D2: absent on a gateway that does not serve it yet (the Sleep card says so); once there,
-  // both thresholds are numbers.
+  // both thresholds are numbers. The share (operator 2026-11-10) may be absent from a block an
+  // earlier gateway serves (its field says so); once there, it is a number.
   if (root.sleep !== undefined) {
     const sleep = obj(root.sleep, "sleep");
     num(sleep.after_hours, "sleep.after_hours");
     num(sleep.after_events, "sleep.after_events");
+    if (sleep.after_fragmented_share !== undefined) num(sleep.after_fragmented_share, "sleep.after_fragmented_share");
   }
   return root as unknown as EntityCognitionProfile;
 }
 
 /** What the page shows for a stored profile: each part's picker value and its line, and the number
- * fields (Memory's three, Sleep's two; "" while the gateway serves no sleep block) as their input
- * text. */
+ * fields (Memory's three, Sleep's three; "" while the gateway serves no sleep block, or no share) as
+ * their input text, the share as a percentage. */
 export interface ProfileValue {
   parts: Record<CognitionCapability, { picker: ProviderModelPickerValue; line: string }>;
   memory: Record<NumberField, string>;
@@ -179,6 +195,7 @@ export function profileValueOf(profile: EntityCognitionProfile): ProfileValue {
       cap_per_turn: String(profile.rebuild.cap_per_turn),
       after_hours: profile.sleep ? String(profile.sleep.after_hours) : "",
       after_events: profile.sleep ? String(profile.sleep.after_events) : "",
+      after_fragmented_share: profile.sleep?.after_fragmented_share !== undefined ? percentText(profile.sleep.after_fragmented_share) : "",
     },
   };
 }
@@ -220,7 +237,11 @@ export function profileSaveBody(change: ProfileChange, profile: EntityCognitionP
   // Sleep: only where the gateway serves the block (its fields are disabled otherwise).
   if (!profile.sleep) return null;
   if (change.field === "after_hours") return n === profile.sleep.after_hours ? null : { sleep: { after_hours: n } };
-  return n === profile.sleep.after_events ? null : { sleep: { after_events: n } };
+  if (change.field === "after_events") return n === profile.sleep.after_events ? null : { sleep: { after_events: n } };
+  // The share: typed as a percentage (15), written as the share (0.15); only where it is served.
+  const share = profile.sleep.after_fragmented_share;
+  if (share === undefined) return null;
+  return n === Number(percentText(share)) ? null : { sleep: { after_fragmented_share: n / 100 } };
 }
 
 // ------------------------------------------------------------ read and save
@@ -414,6 +435,10 @@ function NumberRow(props: {
   field: NumberField;
   label: string;
   help?: string;
+  /** What the number counts in, shown after the field ("%"). */
+  unit?: string;
+  /** The sentence of a field this gateway does not offer yet (shown under it). */
+  notice?: string | null;
   min: number;
   max?: number;
   step: number;
@@ -429,7 +454,7 @@ function NumberRow(props: {
   const { id, field, onField, onCommit } = props;
   return (
     <>
-      <AfSettingRow label={props.label} help={props.help} htmlFor={id} setting={props.setting} className="mcp_field">
+      <AfSettingRow label={props.label} help={props.help} htmlFor={id} setting={props.setting} className="mcp_field" trailing={props.unit}>
         <input
           id={id}
           type="number"
@@ -449,6 +474,11 @@ function NumberRow(props: {
           }}
         />
       </AfSettingRow>
+      {props.notice ? (
+        <div className="stg_callout" role="note" data-sleep-unavailable={field}>
+          <WordsLine text={props.notice} />
+        </div>
+      ) : null}
       <StatusLine state={props.state} at={field} />
     </>
   );
@@ -458,8 +488,10 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
   const ids = useId().replace(/:/g, "");
   const value = state.profile ? profileValueOf(state.profile) : null;
   const disabled = Boolean(refused) || state.phase !== "ready";
-  // The Sleep card: its fields wait for a gateway that serves the block.
+  // The Sleep card: its fields wait for a gateway that serves the block; the share's field, for one
+  // whose block has the share.
   const sleepServed = Boolean(state.profile?.sleep);
+  const shareServed = state.profile?.sleep?.after_fragmented_share !== undefined;
   return (
     <div className="stg_stack mcp" data-testid="entity-cognition-profile" data-phase={state.phase}>
       {state.phase === "unavailable" ? (
@@ -540,11 +572,14 @@ export function CognitionProfileView({ baseUrl, state, refused, onPart, onField,
             id={`${ids}-${f.id}`}
             field={f.id}
             label={f.label}
+            help={f.help}
+            unit={f.unit}
+            notice={f.id === "after_fragmented_share" && state.phase === "ready" && sleepServed && !shareServed ? SLEEP_SHARE_UNAVAILABLE : null}
             min={f.min}
             max={f.max}
             step={f.step}
             value={state.drafts.memory[f.id] ?? value?.memory[f.id] ?? ""}
-            disabled={disabled || !sleepServed}
+            disabled={disabled || !sleepServed || (f.id === "after_fragmented_share" && !shareServed)}
             dataAttr="data-sleep-field"
             setting={`sleep-${f.id}`}
             state={state}

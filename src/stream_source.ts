@@ -1959,10 +1959,18 @@ export interface EntityCognitionProfile {
     sources?: { sensitivity?: "profile" | "default"; cap_per_turn?: "profile" | "default" };
   };
   mind: { provider: string | null; model: string | null; thinking?: string | null; source: "entity" | "gateway" | "unset"; note?: string };
-  /** Phase contract v3 D2: an idle entity sleeps on his own once either threshold is reached —
-   * hours since his last sleep, or new memories formed since it (integers ≥ 1, hours ≤ 720;
-   * defaults 24 / 500). Absent on a gateway that does not serve it yet (the Sleep card says so). */
-  sleep?: { after_hours: number; after_events: number; source?: "profile" | "default" };
+  /** Phase contract v3 D2: an idle entity sleeps on his own once a threshold is reached — hours
+   * since his last sleep, or new memories formed since it (integers ≥ 1, hours ≤ 720; defaults
+   * 24 / 500), or (operator 2026-11-10) more than `after_fragmented_share` of his memories not yet
+   * settled (a share, 0 < x ≤ 1, default 0.15; absent on a gateway that does not serve it yet).
+   * The block is absent on a gateway that does not serve it yet (the Sleep card says so). */
+  sleep?: {
+    after_hours: number;
+    after_events: number;
+    after_fragmented_share?: number;
+    source?: "profile" | "default";
+    sources?: Partial<Record<"after_hours" | "after_events" | "after_fragmented_share", "profile" | "default">>;
+  };
 }
 
 /** A PUT body: any subset; an absent key keeps, `null` resets to the default. */
@@ -1970,7 +1978,7 @@ export interface CognitionProfilePut {
   capabilities?: Partial<Record<CognitionCapability, CognitionCapabilityChoice | null>>;
   recall?: { shelf_size: number | null };
   rebuild?: { sensitivity?: number | null; cap_per_turn?: number | null };
-  sleep?: { after_hours?: number | null; after_events?: number | null };
+  sleep?: { after_hours?: number | null; after_events?: number | null; after_fragmented_share?: number | null };
 }
 
 /** The raw answer, or null when the gateway has no such route (404: too old). The shape is checked

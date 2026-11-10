@@ -107,20 +107,28 @@ enriches its memory, and it wakes when that maintenance is done. It goes to
 sleep in three ways:
 
 - **Its own decision** during its own time, when it needs maintenance.
-- **On its own while idle**, once either threshold in **Settings → Mind →
+- **On its own while idle**, once any threshold in **Settings → Mind →
   Sleep** is reached:
   - **Sleep after (hours without sleep)**: 24 by default, from 1 to 720;
-  - **Sleep after (new memories)**: 500 by default, at least 1.
+  - **Sleep after (new memories)**: 500 by default, at least 1;
+  - **Sleep after (share of memories not yet settled)**: 15 % by default,
+    above 0 and at most 100 %. A memory is not yet settled while it is
+    placed only provisionally, has no embedding, or still waits for its
+    title or summary. This one fires only once something new formed since
+    the last sleep.
 
   The thresholds count from its last completed sleep, apply only while it is
   idle, and are checked every few minutes. The line beside the pills then
-  says why it sleeps: "asleep: 24 h since the last sleep" or "asleep: 500 new
-  memories since the last sleep". After such a sleep it is idle again; it
+  says why it sleeps: "asleep: 24 h since the last sleep", "asleep: 500 new
+  memories since the last sleep" or "asleep: 18 % of his memories are not yet
+  in a topic", as the gateway words it. After such a sleep it is idle again; it
   never goes to own time that the sleep did not interrupt. Each field saves
   when you press Enter or leave it, and shows "Saved" or the reason it was
   refused. A gateway that does not offer these settings yet says "This
   gateway does not offer the sleep settings yet." and the fields stay
-  disabled.
+  disabled; one that offers the first two but not the share says "This
+  gateway does not offer this sleep setting yet." under the share's field,
+  which stays disabled.
 - **When you ask**: click **sleep**, then answer "Put Castor to sleep now?
   He wakes by himself when his maintenance is done." with **Sleep now**. The
   bar refuses it during a visit ("He is in a visit; end it to let him

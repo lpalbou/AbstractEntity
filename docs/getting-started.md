@@ -107,8 +107,9 @@ running. Press the **personal** toggle in the phase bar to grant it its own
 time: it then explores its own ideas, sleeps for maintenance when it needs to
 and wakes by itself. Press it again to take its own time back; the entity
 stays awake. While it is idle, once 24 hours have passed since its last sleep,
-or it has formed 500 new memories since then, it goes to sleep for maintenance
-on its own; change both numbers in **Settings → Mind → Sleep**.
+it has formed 500 new memories since then, or more than 15 % of its memories
+are not yet settled, it goes to sleep for maintenance on its own; change these
+thresholds in **Settings → Mind → Sleep**.
 
 The red **Stop** asks first, then halts everything at once and cancels its own
 time. **Resume** brings it back idle. Granting own time, Stop and Resume need

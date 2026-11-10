@@ -19,7 +19,8 @@ Highlights:
 - **The five-state life cycle.** The phase bar shows idle, visit, work, personal and sleep; own
   time is the one toggle, work is his job queue, the red **Stop** halts everything and cancels his
   own time, and **Resume** brings him back idle. **Settings → Mind → Sleep** sets when an idle
-  entity sleeps for maintenance (24 hours or 500 new memories by default).
+  entity sleeps for maintenance (24 hours, 500 new memories, or 15 % of its memories not yet
+  settled, by default).
 - **`@` mentions.** Bring other entities into a visit or a flow-brain conversation; each answers
   once, under its own name and avatar, even when you send the same words again.
 - **What a reply kept, as badges** under his words (diary, lesson, interest, question,
@@ -36,6 +37,13 @@ Highlights:
 
 ### Details
 
+- **Settings → Mind → Sleep has a third threshold: "Sleep after (share of memories not yet
+  settled)".** An idle entity also goes to sleep once more than this share of its memories are
+  not yet settled: placed only provisionally, without an embedding, or still waiting for their
+  title or summary (15 % by default). The field shows and takes a percentage (type 20 for 20 %),
+  saves like the other two (Enter or leaving the field) with its own "Saved" or the gateway's
+  refusal, and a gateway that serves the other two thresholds but not this one says "This gateway
+  does not offer this sleep setting yet." under that field only, with the field disabled.
 - **His topics have their own rows in the ledger.** When his memory forms or changes a topic in
   his sleep, the ledger says "A topic took shape: <its title>" ("A topic took shape (title being
   written…)" while memory is still writing it), "A topic changed: <its title> (+5 memories)" for a

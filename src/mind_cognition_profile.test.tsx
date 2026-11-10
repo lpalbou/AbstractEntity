@@ -18,6 +18,8 @@ import {
   NO_MIND_YET,
   PROFILE_READING,
   SLEEP_HELP,
+  SLEEP_SHARE_HELP,
+  SLEEP_SHARE_UNAVAILABLE,
   SLEEP_UNAVAILABLE,
   afterSave,
   cognitionProfileOf,
@@ -25,6 +27,7 @@ import {
   profileController,
   profileSaveBody,
   profileValueOf,
+  percentText,
   readCognitionProfile,
   saveCognitionChange,
   type ProfileState,
@@ -42,7 +45,8 @@ const DEFAULTS: EntityCognitionProfile = {
   recall: { shelf_size: 50, source: "default", applies_to_running_loop: "on restart" },
   rebuild: { sensitivity: 0.5, cap_per_turn: 3, source: "default" },
   mind: { ...MIND, source: "entity" },
-  sleep: { after_hours: 24, after_events: 500, source: "default" },
+  // The live gateway's block (GET castor/cognition-profile, 2026-11-10): three thresholds, a source each.
+  sleep: { after_hours: 24, after_events: 500, after_fragmented_share: 0.15, sources: { after_hours: "default", after_events: "default", after_fragmented_share: "default" } },
 };
 const FORGE = { provider: "theforge-nvidia", model: "qwen/qwen3.8-27b" };
 const WITH_FORGE: EntityCognitionProfile = {
@@ -125,7 +129,7 @@ describe("profileValueOf: what the page shows for a stored profile", () => {
     for (const part of ["summaries", "understanding", "extraction"] as const) {
       expect(v.parts[part]).toEqual({ picker: { provider: "", model: "" }, line: "Same as the mind (gpt-5.6-terra)" });
     }
-    expect(v.memory).toEqual({ shelf_size: "50", sensitivity: "0.5", cap_per_turn: "3", after_hours: "24", after_events: "500" });
+    expect(v.memory).toEqual({ shelf_size: "50", sensitivity: "0.5", cap_per_turn: "3", after_hours: "24", after_events: "500", after_fragmented_share: "15" });
   });
 
   it("a part with its own model shows it in the picker (with its reasoning) and in its line", () => {
@@ -293,7 +297,7 @@ describe("a member who may not configure him", () => {
     expect(count(html, /<input[^>]*disabled=""[^>]*data-memory-field=/g)).toBe(3);
     expect(count(html, /<button[^>]*role="tab"[^>]*disabled=""/g)).toBe(6);
     expect(count(html, `data-af-tip="${NOT_CREATOR.replace(/'/g, "&#x27;")}"`)).toBe(3);
-    expect(count(html, /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(2);
+    expect(count(html, /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(3);
     // The stored state still reads truthfully.
     expect(count(html, "Same as the mind (gpt-5.6-terra)")).toBe(3);
     expect(inputValue(html, "shelf_size")).toBe("50");
@@ -555,22 +559,22 @@ describe("(5) words", () => {
 
 describe("Sleep: when he goes to sleep on his own while idle (v3 D2, operator 2026-11-09)", () => {
   const HOURS_RANGE = "Sleep after (hours) must be a whole number from 1 to 720.";
-  const withSleep = (after_hours: number, after_events: number): EntityCognitionProfile => ({ ...DEFAULTS, sleep: { after_hours, after_events, source: "profile" } });
+  const withSleep = (after_hours: number, after_events: number): EntityCognitionProfile => ({ ...DEFAULTS, sleep: { ...DEFAULTS.sleep!, after_hours, after_events } });
   const { sleep: _gone, ...NO_SLEEP } = DEFAULTS;
 
   it("the answer: the sleep block's two numbers are checked; a gateway without the block still reads", () => {
-    expect(cognitionProfileOf(structuredClone(DEFAULTS)).sleep).toEqual({ after_hours: 24, after_events: 500, source: "default" });
+    expect(cognitionProfileOf(structuredClone(DEFAULTS)).sleep).toEqual(DEFAULTS.sleep);
     expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: { after_hours: "24", after_events: 500 } })).toThrow(/sleep\.after_hours/);
     expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: { after_hours: 24 } })).toThrow(/sleep\.after_events/);
     expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: null })).toThrow(/no valid sleep\./);
     expect(cognitionProfileOf(structuredClone(NO_SLEEP)).sleep).toBeUndefined();
   });
 
-  it("the card: its title, the help line, the two fields with the stored 24 / 500, usable", () => {
+  it("the card: its title, the help line, the three fields with the stored 24 / 500 / 15 %, usable", () => {
     const html = page(ready(DEFAULTS));
     expect(html).toMatch(/af-settings-group__title"[^>]*>Sleep</);
     expect(html).toContain(SLEEP_HELP);
-    expect(SLEEP_HELP).toBe("When he is idle, he goes to sleep on his own once either is reached. Sleep is maintenance: he consolidates and enriches his memory.");
+    expect(SLEEP_HELP).toBe("When he is idle, he goes to sleep on his own once any of these is reached. Sleep is maintenance: he consolidates and enriches his memory.");
     expect(html).toContain("Sleep after (hours without sleep)");
     expect(html).toContain("Sleep after (new memories)");
     expect(html.indexOf("Sleep after (hours without sleep)")).toBeGreaterThan(html.indexOf("Rebuilds per turn, at most"));
@@ -580,7 +584,10 @@ describe("Sleep: when he goes to sleep on his own while idle (v3 D2, operator 20
     expect(inputTag(html, "after_events")).toMatch(/ min="1" step="1"/);
     expect(inputTag(html, "after_hours")).not.toContain("disabled");
     expect(inputTag(html, "after_events")).not.toContain("disabled");
+    expect(inputValue(html, "after_fragmented_share")).toBe("15");
+    expect(inputTag(html, "after_fragmented_share")).not.toContain("disabled");
     expect(html).not.toContain(SLEEP_UNAVAILABLE);
+    expect(html).not.toContain(SLEEP_SHARE_UNAVAILABLE);
   });
 
   it("what a change writes: only the threshold that moved, as typed (the gateway owns the ranges); the stored value writes nothing", () => {
@@ -644,11 +651,162 @@ describe("Sleep: when he goes to sleep on his own while idle (v3 D2, operator 20
     const html = page(ready(NO_SLEEP as EntityCognitionProfile));
     expect(SLEEP_UNAVAILABLE).toBe("This gateway does not offer the sleep settings yet.");
     expect(count(html, SLEEP_UNAVAILABLE)).toBe(1);
-    expect(count(html, /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(2);
+    expect(count(html, /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(3);
     expect(count(html, /<input[^>]*disabled=""[^>]*data-memory-field=/g)).toBe(0);
     expect(inputValue(html, "after_hours")).toBe("");
+    expect(inputValue(html, "after_fragmented_share")).toBe("");
+    // The card's one sentence covers the share too: no second sentence for its field.
+    expect(html).not.toContain(SLEEP_SHARE_UNAVAILABLE);
     // Reading, or a gateway without the whole route: no sleep sentence of its own (the page says it once).
     expect(page(PROFILE_READING)).not.toContain(SLEEP_UNAVAILABLE);
-    expect(count(page(PROFILE_READING), /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(2);
+    expect(page(PROFILE_READING)).not.toContain(SLEEP_SHARE_UNAVAILABLE);
+    expect(count(page(PROFILE_READING), /<input[^>]*disabled=""[^>]*data-sleep-field=/g)).toBe(3);
+  });
+});
+
+// ------------------------------------------------------------ the third trigger (operator 2026-11-10)
+
+describe("Sleep after (share of memories not yet settled): sleep.after_fragmented_share", () => {
+  const LABEL = "Sleep after (share of memories not yet settled)";
+  /** abstractruntime cognition_profile.py validate_sleep_after_fragmented_share, as the gateway sends it. */
+  const SHARE_RANGE = "The share of fragmented memories before he sleeps must be a number above 0 and at most 1 (0.15 = 15%).";
+  const withShare = (share: number): EntityCognitionProfile => ({
+    ...DEFAULTS,
+    sleep: { ...DEFAULTS.sleep!, after_fragmented_share: share, sources: { ...DEFAULTS.sleep!.sources, after_fragmented_share: "profile" } },
+  });
+  /** A gateway that serves the two first thresholds only (before 2026-11-10). */
+  const TWO_THRESHOLDS: EntityCognitionProfile = { ...DEFAULTS, sleep: { after_hours: 24, after_events: 500, source: "default" } };
+  /** The share's row: from its setting to the next row's. */
+  const shareRow = (html: string): string => {
+    const at = html.indexOf('data-setting="sleep-after_fragmented_share"');
+    expect(at).toBeGreaterThan(0);
+    const next = html.indexOf('data-setting="', at + 1);
+    return html.slice(at, next < 0 ? undefined : next);
+  };
+
+  it("the answer: the share is a number when served; a block without it still reads", () => {
+    expect(cognitionProfileOf(structuredClone(DEFAULTS)).sleep?.after_fragmented_share).toBe(0.15);
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: { ...DEFAULTS.sleep, after_fragmented_share: "0.15" } })).toThrow(/sleep\.after_fragmented_share/);
+    expect(() => cognitionProfileOf({ ...structuredClone(DEFAULTS), sleep: { ...DEFAULTS.sleep, after_fragmented_share: null } })).toThrow(/sleep\.after_fragmented_share/);
+    expect(cognitionProfileOf(structuredClone(TWO_THRESHOLDS)).sleep).toEqual({ after_hours: 24, after_events: 500, source: "default" });
+  });
+
+  it("shown as a percentage: 0.15 is 15, without float noise", () => {
+    expect(percentText(0.15)).toBe("15");
+    expect(percentText(0.07)).toBe("7");
+    expect(percentText(0.155)).toBe("15.5");
+    expect(percentText(1)).toBe("100");
+    expect(percentText(0.001)).toBe("0.1");
+    expect(profileValueOf(DEFAULTS).memory.after_fragmented_share).toBe("15");
+    expect(profileValueOf(withShare(0.07)).memory.after_fragmented_share).toBe("7");
+    expect(profileValueOf(TWO_THRESHOLDS).memory.after_fragmented_share).toBe("");
+  });
+
+  it("the field: its label, the help line in the operator's words, a % after it, 1..100, after the new-memories field", () => {
+    const html = page(ready(DEFAULTS));
+    expect(html).toContain(LABEL);
+    expect(SLEEP_SHARE_HELP).toBe("Memories placed only provisionally, without an embedding, or still waiting for their title or summary.");
+    const row = shareRow(html);
+    expect(row).toContain(LABEL);
+    expect(row).toContain(SLEEP_SHARE_HELP);
+    expect(row).toMatch(/<span class="af-setting-row__trailing">%<\/span>/);
+    expect(inputTag(html, "after_fragmented_share")).toMatch(/ min="1" max="100" step="1"/);
+    expect(inputTag(html, "after_fragmented_share")).toMatch(/inputMode="numeric"/i);
+    expect(html.indexOf(LABEL)).toBeGreaterThan(html.indexOf("Sleep after (new memories)"));
+    // The two other sleep fields carry no unit.
+    expect(count(html, 'class="af-setting-row__trailing"')).toBe(1);
+  });
+
+  it("what a change writes: the percentage typed, as a share; the stored value writes nothing; numbers go as typed", () => {
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "20" }, DEFAULTS)).toEqual({ sleep: { after_fragmented_share: 0.2 } });
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "12.5" }, DEFAULTS)).toEqual({ sleep: { after_fragmented_share: 0.125 } });
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "100" }, DEFAULTS)).toEqual({ sleep: { after_fragmented_share: 1 } });
+    // The gateway owns the range (0 < share <= 1) and refuses with its sentence.
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "0" }, DEFAULTS)).toEqual({ sleep: { after_fragmented_share: 0 } });
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "150" }, DEFAULTS)).toEqual({ sleep: { after_fragmented_share: 1.5 } });
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "15" }, DEFAULTS)).toBeNull();
+    expect(profileSaveBody({ field: "after_fragmented_share", text: " 15 " }, DEFAULTS)).toBeNull();
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "7" }, withShare(0.07))).toBeNull();
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "" }, DEFAULTS)).toBeNull();
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "abc" }, DEFAULTS)).toBeNull();
+    // Nothing to write to: no sleep block, or a block without the share.
+    const { sleep: _gone, ...noSleep } = DEFAULTS;
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "20" }, noSleep as EntityCognitionProfile)).toBeNull();
+    expect(profileSaveBody({ field: "after_fragmented_share", text: "20" }, TWO_THRESHOLDS)).toBeNull();
+    // The other two thresholds are untouched by the share.
+    expect(profileSaveBody({ field: "after_events", text: "15" }, DEFAULTS)).toEqual({ sleep: { after_events: 15 } });
+  });
+
+  it("a save: PUT the share with the token, read the profile again, Saved under that field only, 20 shown", async () => {
+    gateway({ PUT: [200, withShare(0.2)], GET: [200, withShare(0.2)] });
+    const outcome = await saveCognitionChange("http://gw.test", "nerin", "tok", profileSaveBody({ field: "after_fragmented_share", text: "20" }, DEFAULTS)!);
+    expect(calls.map((c) => [c.method, c.url, c.body, c.auth])).toEqual([
+      ["PUT", URL_OF, { sleep: { after_fragmented_share: 0.2 } }, "Bearer tok"],
+      ["GET", URL_OF, undefined, undefined],
+    ]);
+    const typed: ProfileState = { ...ready(DEFAULTS), drafts: { parts: {}, memory: { after_fragmented_share: "20" } } };
+    const after = afterSave(typed, "after_fragmented_share", outcome, "20");
+    expect(after.profile?.sleep?.after_fragmented_share).toBe(0.2);
+    expect(after.drafts.memory.after_fragmented_share).toBeUndefined();
+    const html = page(after);
+    expect(inputValue(html, "after_fragmented_share")).toBe("20");
+    expect(html).toMatch(/data-cognition-status="after_fragmented_share"[^>]*><div class="pc-md wl_line"><p[^>]*>Saved</);
+    expect(html).not.toContain('data-cognition-status="after_hours"');
+    expect(html).not.toContain('data-cognition-status="after_events"');
+  });
+
+  it("a refusal: the gateway's sentence as an error under the field, which returns to the stored 15", async () => {
+    gateway({ PUT: [400, { detail: SHARE_RANGE }], GET: [200, DEFAULTS] });
+    const outcome = await saveCognitionChange("http://gw.test", "nerin", "tok", profileSaveBody({ field: "after_fragmented_share", text: "150" }, DEFAULTS)!);
+    expect(calls.map((c) => [c.method, c.body])).toEqual([["PUT", { sleep: { after_fragmented_share: 1.5 } }]]);
+    expect(outcome).toEqual({ saved: false, sentence: SHARE_RANGE });
+    const typed: ProfileState = { ...ready(DEFAULTS), drafts: { parts: {}, memory: { after_fragmented_share: "150" } } };
+    const html = page(afterSave(typed, "after_fragmented_share", outcome, "150"));
+    expect(inputValue(html, "after_fragmented_share")).toBe("15");
+    expect(shareRow(html)).toMatch(new RegExp(`<div class="stg_error wsp_status_refused" role="alert"[^>]*data-tone="error"><div class="pc-md wl_line"><p[^>]*>${SHARE_RANGE.replace(/[.()]/g, "\\$&")}<`));
+  });
+
+  it("the controller: typed then Enter and leave saves once; its status beside the hours' own", async () => {
+    const h = harness(ready(DEFAULTS));
+    h.c.field("after_fragmented_share", "25");
+    h.c.commit("after_fragmented_share");
+    h.c.commit("after_fragmented_share");
+    h.c.field("after_hours", "900");
+    h.c.commit("after_hours");
+    await flush();
+    expect(h.sends).toEqual([{ sleep: { after_fragmented_share: 0.25 } }]);
+    h.replies[0](storedRead(withShare(0.25)));
+    await flush();
+    expect(h.sends[1]).toEqual({ sleep: { after_hours: 900 } });
+    h.replies[1]({ saved: false, sentence: "Hours before he sleeps must be a whole number from 1 to 720." });
+    await h.c.idle();
+    expect(h.sends).toHaveLength(2);
+    expect(h.state.status).toEqual({
+      after_fragmented_share: { text: "Saved", tone: "ok" },
+      after_hours: { text: "Hours before he sleeps must be a whole number from 1 to 720.", tone: "refused" },
+    });
+    expect(inputValue(page(h.state), "after_fragmented_share")).toBe("25");
+    // The stored value typed again writes nothing.
+    h.c.field("after_fragmented_share", "26");
+    h.c.field("after_fragmented_share", "25");
+    h.c.commit("after_fragmented_share");
+    await flush();
+    expect(h.sends).toHaveLength(2);
+  });
+
+  it("a sleep block without the share: the sentence under that field only, that field disabled, the other two usable", () => {
+    const html = page(ready(TWO_THRESHOLDS));
+    expect(SLEEP_SHARE_UNAVAILABLE).toBe("This gateway does not offer this sleep setting yet.");
+    expect(count(html, SLEEP_SHARE_UNAVAILABLE)).toBe(1);
+    expect(shareRow(html)).toContain(SLEEP_SHARE_UNAVAILABLE);
+    expect(html.indexOf(SLEEP_SHARE_UNAVAILABLE)).toBeGreaterThan(html.indexOf(LABEL));
+    expect(html).not.toContain(SLEEP_UNAVAILABLE);
+    expect(inputTag(html, "after_fragmented_share")).toContain('disabled=""');
+    expect(inputValue(html, "after_fragmented_share")).toBe("");
+    expect(inputTag(html, "after_hours")).not.toContain("disabled");
+    expect(inputTag(html, "after_events")).not.toContain("disabled");
+    expect(inputValue(html, "after_hours")).toBe("24");
+    // A member who may not configure him: still the sentence (it says what the gateway offers).
+    expect(count(page(ready(TWO_THRESHOLDS), NOT_CREATOR), SLEEP_SHARE_UNAVAILABLE)).toBe(1);
   });
 });

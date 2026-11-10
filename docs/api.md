@@ -127,11 +127,15 @@ writes and the live stream. Every path is under `/api/gateway/entities/{name}`.
   never falls back to older routes.
 - **Sleep thresholds.** Settings → Mind → Sleep reads `GET /cognition-profile`
   and saves one field at a time with `PUT /cognition-profile`:
-  `{"sleep": {"after_hours": 48}}` or `{"sleep": {"after_events": 500}}`
-  (integers of at least 1; hours at most 720). The answer is the whole
+  `{"sleep": {"after_hours": 48}}`, `{"sleep": {"after_events": 500}}`
+  (integers of at least 1; hours at most 720) or
+  `{"sleep": {"after_fragmented_share": 0.2}}` (a share above 0 and at most 1;
+  the field shows and takes it as a percentage, 20). The answer is the whole
   profile. A refusal shows the gateway's sentence under the field. A profile
   without a `sleep` block shows "This gateway does not offer the sleep
-  settings yet." and disables both fields.
+  settings yet." and disables the three fields; a `sleep` block without
+  `after_fragmented_share` shows "This gateway does not offer this sleep
+  setting yet." under that field and disables it alone.
 
 ### His topics (the graph's layout)
 
