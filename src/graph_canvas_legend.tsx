@@ -19,7 +19,7 @@
  * The ids a pick lights are computed once per fold (legendIds), never per
  * frame.
  */
-import React, { useEffect } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { KIND_COLORS, nodeClass, type RelationGlyph, relationGlyph } from "./graph_canvas";
 import { USAGE_HIGH, USAGE_LOW, USAGE_TITLE } from "./graph_usage";
@@ -111,6 +111,146 @@ export interface GraphLegendProps {
   onPick(pick: LegendPick | null): void;
 }
 
+/** THE ROW THAT NEVER CUTS A KEY (review round 6b F5; the operator's rule:
+ * "at most 2 lines at the bottom, never more; interactive"): of a row's keys,
+ * those that fit WHOLE in the legend's width show, in order; the rest gather
+ * in a final "+N more" chip whose popover lists them, each the same key (a
+ * toggle still toggles). `widths`: the keys' widths in order, `avail` the
+ * row's width, `more` the chip's width, `gap` the row's gap (px). How many
+ * keys show. */
+export function fitCount(widths: ReadonlyArray<number>, avail: number, more: number, gap: number): number {
+  const n = widths.length;
+  const total = widths.reduce((a, w) => a + w, 0) + gap * Math.max(0, n - 1);
+  if (total <= avail) return n;
+  let used = more;
+  let k = 0;
+  while (k < n && used + widths[k] + gap <= avail) {
+    used += widths[k] + gap;
+    k += 1;
+  }
+  return k;
+}
+
+export interface FitItem {
+  key: string;
+  node: React.ReactNode;
+}
+
+/** A row as shown: its first `shown` keys (null: every key, being measured),
+ * then the "+N more" chip and, open, its popover with the rest. */
+export function FitRowView({ className, label, items, shown, open, popId, onMore, rowRef, moreRef }: {
+  className: string;
+  label: string;
+  items: ReadonlyArray<FitItem>;
+  shown: number | null;
+  open: boolean;
+  popId: string;
+  onMore(): void;
+  rowRef?: React.Ref<HTMLDivElement>;
+  moreRef?: React.Ref<HTMLSpanElement>;
+}): React.ReactElement {
+  const measuring = shown === null;
+  const k = measuring ? items.length : Math.min(shown, items.length);
+  const rest = items.length - k;
+  return (
+    <div ref={rowRef} className={className}>
+      {items.slice(0, k).map((it) => (
+        <span key={it.key} className="gc_lg_key" data-fit="">
+          {it.node}
+        </span>
+      ))}
+      {measuring || rest > 0 ? (
+        // Measuring: the chip is out of the flow, only its width read (it never widens the box).
+        <span ref={moreRef} className={`gc_lg_more_wrap${measuring ? " gc_lg_off" : ""}`}>
+          <button
+            type="button"
+            className="gc_lg_item gc_lg_more"
+            aria-expanded={open}
+            aria-controls={popId}
+            title={`${rest} more of the ${label}: open to see and use them`}
+            onClick={onMore}
+          >
+            +{measuring ? items.length : rest} more
+          </button>
+          {open && rest > 0 ? (
+            <div id={popId} className="gc_lg_pop" role="group" aria-label={`More of the ${label}`}>
+              {items.slice(k).map((it) => (
+                <span key={it.key} className="gc_lg_key">
+                  {it.node}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** A row that fits its keys: measured when the canvas resizes, the docked
+ * Topics panel changes the legend's room, or its keys change — never per
+ * frame. A phone's row (display: contents: the legend is one scrolling row
+ * there) shows every key. */
+function FitRow({ className, label, items, sig }: { className: string; label: string; items: ReadonlyArray<FitItem>; sig: string }): React.ReactElement {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const moreRef = useRef<HTMLSpanElement | null>(null);
+  const [shown, setShown] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const popId = useId();
+  // Measure: every key in the flow (the box at its widest), read, then show what fits.
+  useLayoutEffect(() => {
+    if (shown !== null) return;
+    const row = rowRef.current;
+    if (!row) return;
+    if (getComputedStyle(row).display === "contents") {
+      setShown(items.length);
+      return;
+    }
+    const widths = Array.from(row.querySelectorAll<HTMLElement>(":scope > [data-fit]")).map((el) => el.offsetWidth);
+    const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+    setShown(fitCount(widths, row.clientWidth, moreRef.current?.offsetWidth ?? 0, gap));
+  }, [shown, items.length]);
+  // Again when its keys change, or the legend's room does (the canvas resizes; the docked panel's
+  // reserve is a style on the canvas's wrap).
+  useEffect(() => {
+    setShown(null);
+  }, [sig]);
+  useEffect(() => {
+    const wrap = rowRef.current?.closest(".entity_legend")?.parentElement;
+    if (!wrap) return;
+    const again = () => setShown(null);
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(again) : null;
+    ro?.observe(wrap);
+    const mo = typeof MutationObserver === "function" ? new MutationObserver(again) : null;
+    mo?.observe(wrap, { attributes: true, attributeFilter: ["style"] });
+    void document.fonts?.ready.then(again);
+    return () => {
+      ro?.disconnect();
+      mo?.disconnect();
+    };
+  }, []);
+  // Open: Escape or a press outside closes it (Escape one layer: the legend's pick waits for the next).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== "Escape" || ev.defaultPrevented) return;
+      ev.preventDefault();
+      setOpen(false);
+    };
+    const onDown = (ev: PointerEvent) => {
+      if (moreRef.current && ev.target instanceof Node && moreRef.current.contains(ev.target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [open]);
+  return <FitRowView className={className} label={label} items={items} shown={shown} open={open} popId={popId} onMore={() => setOpen((v) => !v)} rowRef={rowRef} moreRef={moreRef} />;
+}
+
 export function GraphLegend({ extraKinds, relationTypes, warmthAge, picked, onPick }: GraphLegendProps): React.ReactElement {
   // Escape lets a pick go (one Escape = one layer: a consumed key is left alone).
   useEffect(() => {
@@ -139,56 +279,82 @@ export function GraphLegend({ extraKinds, relationTypes, warmthAge, picked, onPi
       </button>
     );
   };
-  return (
-    <div className="entity_legend gc_legend2" role="group" aria-label="Legend — click an item to show where it is on the graph">
-      <div className="gc_lg_row gc_lg_row_kinds">
-        {CLASS_ITEMS.map((c) => item({ kind: "class", key: c.key }, `lg lg_${c.key}`, c.plural, c.word))}
-        {/* Kinds present in THIS life beyond the core six — lessons, world
-          * cards, dreams… named so the colours are readable (operator
-          * 2026-07-15: lesson/world_model were unnamed). */}
-        {extraKinds.map((k) =>
-          item({ kind: "kind", key: k }, "lg_kind", `his ${kindWord(k)} records`, (
-            <>
-              <i className="lg_kdot" style={{ background: KIND_COLORS[k] ?? KIND_COLORS.unknown }} aria-hidden="true" />
-              {kindWord(k)}
-            </>
-          )),
-        )}
-      </div>
-      <div className="gc_lg_row gc_lg_row_lines">
-        {/* THE USAGE SCALE (operator 2026-11-09): one grey-to-green key for
-          * memories and lines, ranked within this life (graph_usage.ts). */}
+  const kinds: FitItem[] = [
+    ...CLASS_ITEMS.map((c) => ({ key: `class:${c.key}`, node: item({ kind: "class", key: c.key }, `lg lg_${c.key}`, c.plural, c.word) })),
+    // Kinds present in THIS life beyond the core six — lessons, world cards,
+    // dreams… named so the colours are readable (operator 2026-07-15:
+    // lesson/world_model were unnamed).
+    ...extraKinds.map((k) => ({
+      key: `kind:${k}`,
+      node: item({ kind: "kind", key: k }, "lg_kind", `his ${kindWord(k)} records`, (
+        <>
+          <i className="lg_kdot" style={{ background: KIND_COLORS[k] ?? KIND_COLORS.unknown }} aria-hidden="true" />
+          {kindWord(k)}
+        </>
+      )),
+    })),
+  ];
+  const lines: FitItem[] = [
+    // THE USAGE SCALE (operator 2026-11-09): one grey-to-green key for
+    // memories and lines, ranked within this life (graph_usage.ts).
+    {
+      key: "scale",
+      node: (
         <span className="lg_edge" title={USAGE_TITLE}>
           <i className="gc_rl_scale" aria-hidden="true" />
           {USAGE_LOW} → {USAGE_HIGH}
         </span>
-        {/* THE AMBER FLASH (Q2's gap): a line of two memories he used
-          * together in his last moments (the canvas's recency window) flashes
-          * in the accent and fades. */}
+      ),
+    },
+    // THE AMBER FLASH (Q2's gap): a line of two memories he used together in
+    // his last moments (the canvas's recency window) flashes in the accent
+    // and fades.
+    {
+      key: "flash",
+      node: (
         <span className="lg_edge" title="An amber line: two memories he used together a moment ago. It fades as he goes on.">
           <i className="gc_lg_flash" aria-hidden="true" />
           just travelled
         </span>
-        {/* THE LIT LINES (the recall's paths in their ring's colour; said here
-          * only, the Context box keeps its rings: operator 2026-11-11). */}
+      ),
+    },
+    // THE LIT LINES (the recall's paths in their ring's colour; said here
+    // only, the Context box keeps its rings: operator 2026-11-11).
+    {
+      key: "lit",
+      node: (
         <span className="lg_edge" title={`${TRAVELLED_LEGEND}. ${TRAVELLED_TITLE} ${TRAVELLED_DIRECTION}.`} aria-label={TRAVELLED_LEGEND}>
           <i className="gc_rl_line" aria-hidden="true" />
           {TRAVELLED_KEY}
         </span>
-        {warmthAge ? (
-          <span className="lg_edge lg_stale" title="How long ago he last used a memory. The colours rank his use within his life; they do not fade while nothing runs.">
-            🥶 last selection {warmthAge} ago
-          </span>
-        ) : null}
-        {relationTypes.map((relation) =>
-          item({ kind: "relation", key: relation }, "lg_edge", `the “${relation}” links`, (
-            <>
-              <RelationGlyphSwatch glyph={relationGlyph(relation)} />
-              {relation}
-            </>
-          )),
-        )}
-      </div>
+      ),
+    },
+    ...(warmthAge
+      ? [
+          {
+            key: "stale",
+            node: (
+              <span className="lg_edge lg_stale" title="How long ago he last used a memory. The colours rank his use within his life; they do not fade while nothing runs.">
+                🥶 last selection {warmthAge} ago
+              </span>
+            ),
+          },
+        ]
+      : []),
+    ...relationTypes.map((relation) => ({
+      key: `relation:${relation}`,
+      node: item({ kind: "relation", key: relation }, "lg_edge", `the “${relation}” links`, (
+        <>
+          <RelationGlyphSwatch glyph={relationGlyph(relation)} />
+          {relation}
+        </>
+      )),
+    })),
+  ];
+  return (
+    <div className="entity_legend gc_legend2" role="group" aria-label="Legend — click an item to show where it is on the graph">
+      <FitRow className="gc_lg_row gc_lg_row_kinds" label="kinds" items={kinds} sig={kinds.map((k) => k.key).join("|")} />
+      <FitRow className="gc_lg_row gc_lg_row_lines" label="lines" items={lines} sig={`${lines.map((k) => k.key).join("|")}|${warmthAge ?? ""}`} />
     </div>
   );
 }

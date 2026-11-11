@@ -1034,24 +1034,63 @@
   gap: 3px;
 }
 
+/* Each row is ONE line that never cuts a key (review round 6b F5): the keys
+ * that fit whole show, the rest gather in a final "+N more" chip whose
+ * popover lists them (graph_canvas_legend FitRow, measured on resize). No
+ * sideways scroll: nothing is ever half out of sight. */
 .gc_lg_row {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 2px 6px;
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
   white-space: nowrap;
-}
-
-.gc_lg_row::-webkit-scrollbar {
-  display: none;
 }
 
 .gc_lg_row > * {
   flex: none;
+}
+
+.gc_lg_key {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Being measured: out of the flow and out of sight (never widens the box). */
+.gc_lg_off {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.gc_lg_more_wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.gc_lg_item.gc_lg_more {
+  border-color: var(--line);
+}
+
+/* The rest of a row, above it: the same keys (a toggle still toggles). */
+.gc_lg_pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 6px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .gc_lg_item {

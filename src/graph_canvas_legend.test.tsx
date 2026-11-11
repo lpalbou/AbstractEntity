@@ -9,9 +9,9 @@ import fs from "node:fs";
 import path from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { GraphLegend, legendIds, nextPick, pickKey, type LegendPick } from "./graph_canvas_legend";
+import { FitRowView, fitCount, GraphLegend, legendIds, nextPick, pickKey, type FitItem, type LegendPick } from "./graph_canvas_legend";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
 
@@ -153,12 +153,18 @@ describe("the view lights a pick and frames it", () => {
 });
 
 describe("two lines at most", () => {
-  it("wide canvas: a column of two rows, each one line that scrolls sideways", () => {
+  it("wide canvas: a column of two rows, each one line, never a sideways scroll that hides a key half", () => {
     expect(CSS).toMatch(/\.entity_legend\.gc_legend2 \{\n\s+flex-direction: column;\n\s+flex-wrap: nowrap;/);
     const row = CSS.slice(CSS.indexOf(".gc_lg_row {"), CSS.indexOf("}", CSS.indexOf(".gc_lg_row {")));
     expect(row).toContain("flex-wrap: nowrap;");
-    expect(row).toContain("overflow-x: auto;");
     expect(row).toContain("white-space: nowrap;");
+    expect(row).not.toMatch(/overflow/);
+    // A key being measured is out of the flow and out of sight; the rest of a row opens above it.
+    const off = CSS.slice(CSS.indexOf(".gc_lg_off {"), CSS.indexOf("}", CSS.indexOf(".gc_lg_off {")));
+    expect(off).toContain("position: absolute;");
+    expect(off).toContain("visibility: hidden;");
+    const pop = CSS.slice(CSS.indexOf(".gc_lg_pop {"), CSS.indexOf("}", CSS.indexOf(".gc_lg_pop {")));
+    expect(pop).toContain("bottom: calc(100% + 8px);");
   });
 
   it("phone-width canvas: its one scrollable row (the rows dissolve into it)", () => {
@@ -172,5 +178,64 @@ describe("two lines at most", () => {
     const touch = CSS.slice(CSS.lastIndexOf("@media (pointer: coarse) {"));
     expect(touch).toMatch(/\.entity_legend\.gc_legend2 \{\n\s+padding-block: 0;/);
     expect(touch).toContain(".entity_canvas_wrap:has(> .gc_legend2) {\n    --gc-motion-bottom: calc(var(--tap-min, 44px) + 18px);");
+  });
+});
+
+describe("a row never cuts a key: what fits whole shows, the rest is one '+N more' away (review round 6b F5)", () => {
+  it("fitCount: every key when they fit; else as many whole keys as leave room for the chip", () => {
+    expect(fitCount([100, 80, 60], 252, 70, 6)).toBe(3); // 100+6+80+6+60 = 252: they fit, no chip
+    expect(fitCount([100, 80, 60], 251, 70, 6)).toBe(1); // 70+106 = 176, +86 = 262 > 251: one, then the chip
+    expect(fitCount([100, 80, 60], 251, 40, 6)).toBe(2); // 40+106+86 = 232 <= 251: two and the chip
+    expect(fitCount([300], 200, 60, 6)).toBe(0); // nothing fits whole: the chip alone
+    expect(fitCount([], 100, 60, 6)).toBe(0);
+  });
+
+  const onClick = vi.fn();
+  const items: FitItem[] = ["identity", "memory", "diary", "lesson", "world"].map((w) => ({
+    key: w,
+    node: (
+      <button type="button" className="gc_lg_item" onClick={() => onClick(w)}>
+        {w}
+      </button>
+    ),
+  }));
+  const view = (shown: number | null, open: boolean) =>
+    renderToStaticMarkup(<FitRowView className="gc_lg_row" label="kinds" items={items} shown={shown} open={open} popId="pop" onMore={() => {}} />).replace(/<!-- -->/g, "");
+
+  it("the keys that fit show whole; the rest are in the chip's count, none half in the row", () => {
+    const html = view(3, false);
+    expect(html.match(/data-fit=""/g)).toHaveLength(3);
+    expect(html).toMatch(/>\+2 more<\/button>/);
+    expect(html).not.toContain(">lesson<");
+    expect(html).not.toContain(">world<");
+  });
+
+  it("opened, the chip lists the rest, the same keys (a toggle still toggles)", () => {
+    const html = view(3, true);
+    const pop = html.slice(html.indexOf('class="gc_lg_pop"'));
+    expect(pop).toContain('role="group" aria-label="More of the kinds"');
+    expect(pop).toContain(">lesson</button>");
+    expect(pop).toContain(">world</button>");
+    expect(html).toContain('aria-expanded="true" aria-controls="pop"');
+    // The popover's keys are the row's own elements: the same click.
+    const rest = items.slice(3).map((it) => it.node as React.ReactElement<{ onClick(): void }>);
+    rest[0].props.onClick();
+    expect(onClick).toHaveBeenCalledWith("lesson");
+  });
+
+  it("everything fits: no chip at all; measuring: every key in the flow, the chip out of it", () => {
+    expect(view(5, false)).not.toContain("gc_lg_more");
+    const measuring = view(null, false);
+    expect(measuring.match(/data-fit=""/g)).toHaveLength(5);
+    expect(measuring).toContain('class="gc_lg_more_wrap gc_lg_off"');
+  });
+
+  it("the legend's two rows are fitting rows (kinds and lines), measured on resize and on the panel's reserve, never per frame", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "graph_canvas_legend.tsx"), "utf8");
+    expect(src).toContain('<FitRow className="gc_lg_row gc_lg_row_kinds" label="kinds"');
+    expect(src).toContain('<FitRow className="gc_lg_row gc_lg_row_lines" label="lines"');
+    expect(src).toContain("ro?.observe(wrap);");
+    expect(src).toContain('mo?.observe(wrap, { attributes: true, attributeFilter: ["style"] });');
+    expect(src).not.toMatch(/requestAnimationFrame/);
   });
 });
