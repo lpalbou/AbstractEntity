@@ -111,3 +111,34 @@ describe("isUsableVector (a broken embedding is never a reading)", () => {
     expect(isUsableVector(null)).toBe(false);
   });
 });
+
+describe("the one read covers his whole life (backlog 0040: the monitor follows any position)", () => {
+  // Ten moments, an hour apart, in order.
+  const life = foldEnvelopes(
+    Array.from({ length: 10 }, (_, i) => {
+      const env = episode(`ex:m${i}`, `moment ${i}`);
+      const at = `2026-07-08T${String(i + 10).padStart(2, "0")}:00:00Z`;
+      return { ...env, observed_at: at, payload: { ...(env.payload as object), observed_at: at } } as ReplayEnvelope;
+    }),
+  );
+
+  it("spreads `limit` items from the first to the last, in order; all of them when there are no more", async () => {
+    const { spreadOverLife } = await import("./cognition_adapter");
+    const ten = Array.from({ length: 10 }, (_, i) => i);
+    expect(spreadOverLife(ten, 4)).toEqual([0, 3, 6, 9]);
+    expect(spreadOverLife(ten, 10)).toEqual(ten);
+    expect(spreadOverLife(ten, 50)).toEqual(ten);
+    expect(spreadOverLife(ten, 1)).toEqual([9]);
+    expect(new Set(spreadOverLife(Array.from({ length: 121 }, (_, i) => i), 120)).size).toBe(120);
+  });
+
+  it("with a limit, the read fetches his first, his latest and the moments evenly between, never his first ones only", async () => {
+    vi.spyOn(source, "fetchEntityEmbedding").mockResolvedValue({ pin: { model_id: "qwen3-0.6b", dimension: 4 }, match: "match" });
+    const read = vi.spyOn(source, "fetchRecordVerbatim").mockImplementation(async (_b, _e, id) => ({ record_id: id, text: "A long enough utterance to be scored honestly." }));
+    vi.spyOn(source, "embedTexts").mockImplementation(async (_b, texts) => ({ vectors: texts.map(() => [1, 0, 0, 0]), model: "qwen3-0.6b", dimension: 4 }));
+    const out = await scoreEntityUtterances("http://x", "castor", life, okScorer, { limit: 4 });
+    expect(read.mock.calls.map((c) => c[2]).sort()).toEqual(["ex:m0", "ex:m3", "ex:m6", "ex:m9"]);
+    expect(out.samples.map((s) => s.id)).toEqual(["ex:m0", "ex:m3", "ex:m6", "ex:m9"]);
+    vi.restoreAllMocks();
+  });
+});

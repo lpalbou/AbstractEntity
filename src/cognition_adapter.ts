@@ -27,7 +27,7 @@
 
 import { embedTexts, isEmbeddingsUnconfigured } from "./stream_source";
 import type { FoldState } from "./stream_fold";
-import { harvestCorpus, type HarvestOptions, type Utterance } from "./utterance_harvest";
+import { harvestableNodes, harvestCorpus, type HarvestOptions, type Utterance } from "./utterance_harvest";
 
 /** uic's scorer contract (c1824), typed as a seam — NOT an import of their
  * module. `createScorer(basis, {embedderId})` returns this; a mismatch in
@@ -108,6 +108,25 @@ export interface CognitionAdapterOptions extends HarvestOptions {
   includeText?: boolean;
 }
 
+/** `limit` items spread evenly from the first to the last, in order (all of them when there are no
+ * more than `limit`). */
+export function spreadOverLife<T>(items: readonly T[], limit: number): T[] {
+  if (items.length <= limit) return [...items];
+  if (limit < 2) return limit === 1 ? [items[items.length - 1]] : [];
+  return Array.from({ length: limit }, (_, i) => items[Math.round((i * (items.length - 1)) / (limit - 1))]);
+}
+
+/** The fold as the read sees it when his life holds more readable utterances than `limit` (backlog
+ * 0040: the monitor follows any position of his life): `limit` of them spread from his first to his
+ * latest, never his first `limit` only (on Castor's ~900 that left all but his first weeks on one
+ * reading). The harvest reads the fold only through harvestableNodes, so a fold holding just the
+ * picked nodes is the whole contract. */
+export function lifeSpreadFold(fold: FoldState, limit: number): FoldState {
+  const rows = harvestableNodes(fold);
+  if (rows.length <= limit) return fold;
+  return { ...fold, nodes: new Map(spreadOverLife(rows, limit).map(({ node }) => [node.id, node])) };
+}
+
 /**
  * Score an entity's utterances for the wave widget. Harvests the feed,
  * embeds each utterance through the gateway (pinned to the home's embedder),
@@ -126,7 +145,8 @@ export async function scoreEntityUtterances(
   const includeText = opts.includeText !== false;
   const embedBatch = Math.max(1, opts.embedBatch ?? 32);
 
-  const corpus = await harvestCorpus(baseUrl, entity, fold, opts);
+  // With a limit, the utterances spread over his whole life (lifeSpreadFold), not his first ones.
+  const corpus = await harvestCorpus(baseUrl, entity, opts.limit ? lifeSpreadFold(fold, opts.limit) : fold, opts);
   const warnings = [...corpus.warnings];
   const samples: ScoredSample[] = [];
 
