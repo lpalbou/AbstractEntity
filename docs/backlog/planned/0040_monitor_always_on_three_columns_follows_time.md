@@ -1,8 +1,8 @@
-# Planned: the monitor always on, in three columns with the lanes, following the time and his replies
+# Planned (built): the monitor always on, in three columns with the lanes, following the time and his replies
 
 ## Metadata
 - Created: 2026-11-11
-- Status: Planned
+- Status: Planned (built 56c1e38, 3691d0f, 6cf50dc, 49b9ebc, waiting for the operator's check)
 - Completed: N/A
 - Source: the operator, 2026-11-11 02:00 (relayed by the framework session)
 - Lane: W1 (round 6)

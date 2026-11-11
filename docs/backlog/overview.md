@@ -86,7 +86,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0036 | [The monitor uses the timeline's space: a large bloom with its petal labels, named tone channels, the time and its buttons stacked above the transport](planned/0036_monitor_larger_names_tree_controls_stacked.md) | M | W1 | |
 | 0037 | [A world-model revision is one ledger row, by its title, that opens it](planned/0037_world_model_revision_one_row_by_title.md) (built) | S | W2 | |
 | 0038 | [The Context box keeps its rings only and sits at the top controls' level](planned/0038_context_box_rings_only_at_top.md) (built) | S | W2 | |
-| 0040 | [The monitor always on, in three columns with the lanes, following the time and his replies](planned/0040_monitor_always_on_three_columns_follows_time.md) | M | W1 | |
+| 0040 | [The monitor always on, in three columns with the lanes, following the time and his replies](planned/0040_monitor_always_on_three_columns_follows_time.md) (built) | M | W1 | |
 
 ## Proposed (legacy names)
 
