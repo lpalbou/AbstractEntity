@@ -39,8 +39,8 @@ Highlights:
   you point at is a spotlight on the graph.
 - **What he is doing, live.** While a turn runs, the chat shows each thing he does, row by row,
   then folds the turn into one line above the message box.
-- **The Cognitive Monitor in the timeline.** Always on beside the lanes: it reads his words once
-  his life has loaded, follows the play head as you scrub or play, and live, each of his replies.
+- **The Cognitive Monitor in the timeline.** Always on beside the lanes: it reads his replies and moments (never his diary) once
+  his life has loaded and remembers each reading in the browser, follows the play head as you scrub or play, and live, each of his replies.
 - **Entity cards that act, and simpler controls.** Each entity on the home page is the shared
   card, with **Watch**, **Retry** when his own time stopped unexpectedly and **Resume** when he is
   stopped, three to a row on a desktop. On his page, one status line that never moves the
@@ -551,8 +551,10 @@ Highlights:
   tone channels by name (warmth, tension, reflection, structure, certainty), stacked over **● Live**
   with the position and the transport controls; and the bloom with its nine registers named around
   it (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness). It is always on,
-  with no button. Once his life has loaded, it reads his words once per entity, up to 120 of them
-  spread over his whole life, and keeps that reading while the page is open; every position is
+  with no button. Once his life has loaded, it reads his replies and moments (never his diary, so the reading
+  adds nothing to his Ledger), up to 120 picked at a fixed stride over his whole life so new
+  memories add picks without moving the others, and remembers each reading in the browser, so a
+  reload reads only what is new; every position is
   then a lookup in it, so the readings follow a scrub at once and the play head frame by frame, at
   any speed. Live during a visit, each reply of his updates the same bloom and channels as it lands,
   with the turn's conduct readings (effort, action, attention, rigor) by name beside them. Every
@@ -831,6 +833,12 @@ Highlights:
 
 ### Fixed
 
+- **A new visit starts a fresh conversation.** Opening a new visit in an open page used to keep the
+  previous visit's messages and its closing line above the new one (a reload showed it right).
+  The chat now belongs to one visit: a new visit starts empty, rejoining the same visit keeps its
+  own words, even after a failed reload of them. The earlier visit stays in his Ledger and Book.
+- **The graph legend never cuts a key.** Each legend row shows the keys that fit whole; the rest are
+  one **+N more** away, in a small list that works like the row (filters and relation toggles).
 - **Opening a reply's details no longer breaks the chat panel** (backlog 0033). After a turn that
   kept a diary entry, opening its details stopped the chat panel; the details now list each entry
   by its title ("a private entry" for a private one, "its title is still being written" while it

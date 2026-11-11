@@ -44,8 +44,9 @@ new memories since then, it sleeps for maintenance and comes back idle. See
 The expressive character of the entity's own words (visit replies, diary,
 summaries), scored against a fixed basis with the entity's own embedding model.
 It does not measure inner state, and sealed diary entries are never read. It
-is always on, part of the timeline: once his life has loaded it reads his words
-once per entity (up to 120, spread over his whole life) and shows the reading at
+is always on, part of the timeline: once his life has loaded it reads his replies
+and moments (never his diary; up to 120 picked over his whole life, each reading
+remembered in the browser so a reload reads only what is new) and shows the reading at
 the timeline's position, following a scrub or the play head, and, live during a
 visit, each reply as it lands. Every reading is
 named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear,

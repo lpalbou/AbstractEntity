@@ -109,19 +109,17 @@ cognitive monitor cannot run." on hover, and never opens his book.
 
 **Fix:** follow **set up**; it opens the gateway console's Multimodal page
 (`/console#defaults`), where an administrator sets the embedding route. Then
-reload his page: a failed read is not kept, so the next load reads his words.
+reload his page: a failed read is not kept, so the next load reads his replies and moments.
 The rest of the app works without embeddings.
 
 ## The Ledger shows "The book was read" after I open his page
 
-**Cause:** the Cognitive Monitor is always on. Each time the page loads, once
-his life has loaded, it reads up to 120 of his utterances once (spread over his
-whole life) and keeps that reading until you reload. His diary entries are read
-through the operator door, which records every read in his life; the Ledger
-groups those records into one counted row.
+**Cause:** the Cognitive Monitor no longer reads his diary (since 0.12.0's last fix), so opening
+his page adds nothing to his Ledger. A "The book was read" row comes from someone opening a
+diary entry (the Book, a DIARY chip, "reopen his words"), or from monitor reads made by an
+earlier 0.12.0 build.
 
-**Fix:** nothing is wrong; this is the record of the monitor's read. Moving
-along the timeline or playing reads nothing more.
+**Fix:** nothing is wrong; the row is the record of who read which entries.
 
 ## About shows "AbstractGateway: unavailable (…)"
 

@@ -61,9 +61,11 @@ consistent at any scrub position.
 
 The Cognitive Monitor, always on in the timeline, is the only surface whose
 data is not a direct fold read — it is a feed the app owns feeding a scorer uic
-owns. Once his life has loaded it reads his words once per entity, up to 120
-utterances spread over his whole life, and keeps the result while the page is
-open; every timeline position, and the play head while playing, is a lookup in
+owns. Once his life has loaded it reads his replies and moments (never his diary:
+no operator door, nothing written to his Ledger), up to 120 picked at a stride
+that only changes when his life doubles, and keeps each reading in the browser
+(localStorage, per gateway, entity and basis version), so a reload reads only
+new picks; every timeline position, and the play head while playing, is a lookup in
 that one read, never a new one. Live, each reply of his is read once as it
 lands (one embedding per distinct text):
 

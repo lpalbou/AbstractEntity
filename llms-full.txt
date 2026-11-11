@@ -149,7 +149,7 @@ for every launch flag.
 | Detail | One memory: its verbatim text, feelings and associations |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance; a world model's revision as one row by its title that opens it; feelings named by what they are about; on each step's row, icons with the counts of tools used, files read and files written (only those above 0) |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
-| Cognitive Monitor | Always on, part of the timeline: the lanes, then the five tone channels (warmth, tension, reflection, structure, certainty) stacked over **● Live**, the position and the transport controls, then the bloom with its nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness). It shows the expressive character of the entity's own words (not its inner state) at the timeline's position, following a scrub and the play head at any speed, and, live during a visit, each reply as it lands, with the turn's conduct readings (effort, action, attention, rigor). Once his life has loaded it reads his words once per entity (up to 120, spread over his whole life), after checking that the gateway has embeddings for him; without them it reads nothing and shows "no embeddings · set up" in the bloom's place. Its ⓘ card says what it reads, the channels' scale and its basis |
+| Cognitive Monitor | Always on, part of the timeline: the lanes, then the five tone channels (warmth, tension, reflection, structure, certainty) stacked over **● Live**, the position and the transport controls, then the bloom with its nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness). It shows the expressive character of the entity's own words (not its inner state) at the timeline's position, following a scrub and the play head at any speed, and, live during a visit, each reply as it lands, with the turn's conduct readings (effort, action, attention, rigor). Once his life has loaded it reads his replies and moments, never his diary (up to 120 picked over his whole life, each reading remembered in the browser so a reload reads only what is new), after checking that the gateway has embeddings for him; without them it reads nothing and shows "no embeddings · set up" in the bloom's place. Its ⓘ card says what it reads, the channels' scale and its basis |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
 of entities your account can see, and it becomes a chip inside your sentence; the
@@ -1101,8 +1101,9 @@ new memories since then, it sleeps for maintenance and comes back idle. See
 The expressive character of the entity's own words (visit replies, diary,
 summaries), scored against a fixed basis with the entity's own embedding model.
 It does not measure inner state, and sealed diary entries are never read. It
-is always on, part of the timeline: once his life has loaded it reads his words
-once per entity (up to 120, spread over his whole life) and shows the reading at
+is always on, part of the timeline: once his life has loaded it reads his replies
+and moments (never his diary; up to 120 picked over his whole life, each reading
+remembered in the browser so a reload reads only what is new) and shows the reading at
 the timeline's position, following a scrub or the play head, and, live during a
 visit, each reply as it lands. Every reading is
 named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear,
@@ -1293,19 +1294,17 @@ cognitive monitor cannot run." on hover, and never opens his book.
 
 **Fix:** follow **set up**; it opens the gateway console's Multimodal page
 (`/console#defaults`), where an administrator sets the embedding route. Then
-reload his page: a failed read is not kept, so the next load reads his words.
+reload his page: a failed read is not kept, so the next load reads his replies and moments.
 The rest of the app works without embeddings.
 
 ## The Ledger shows "The book was read" after I open his page
 
-**Cause:** the Cognitive Monitor is always on. Each time the page loads, once
-his life has loaded, it reads up to 120 of his utterances once (spread over his
-whole life) and keeps that reading until you reload. His diary entries are read
-through the operator door, which records every read in his life; the Ledger
-groups those records into one counted row.
+**Cause:** the Cognitive Monitor no longer reads his diary (since 0.12.0's last fix), so opening
+his page adds nothing to his Ledger. A "The book was read" row comes from someone opening a
+diary entry (the Book, a DIARY chip, "reopen his words"), or from monitor reads made by an
+earlier 0.12.0 build.
 
-**Fix:** nothing is wrong; this is the record of the monitor's read. Moving
-along the timeline or playing reads nothing more.
+**Fix:** nothing is wrong; the row is the record of who read which entries.
 
 ## About shows "AbstractGateway: unavailable (…)"
 
@@ -1513,9 +1512,11 @@ consistent at any scrub position.
 
 The Cognitive Monitor, always on in the timeline, is the only surface whose
 data is not a direct fold read — it is a feed the app owns feeding a scorer uic
-owns. Once his life has loaded it reads his words once per entity, up to 120
-utterances spread over his whole life, and keeps the result while the page is
-open; every timeline position, and the play head while playing, is a lookup in
+owns. Once his life has loaded it reads his replies and moments (never his diary:
+no operator door, nothing written to his Ledger), up to 120 picked at a stride
+that only changes when his life doubles, and keeps each reading in the browser
+(localStorage, per gateway, entity and basis version), so a reload reads only
+new picks; every timeline position, and the play head while playing, is a lookup in
 that one read, never a new one. Live, each reply of his is read once as it
 lands (one embedding per distinct text):
 
