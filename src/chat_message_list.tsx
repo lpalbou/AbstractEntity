@@ -7,11 +7,12 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMessageCard, type ChatMessage, type ChatMessageMention, type ChatNotice } from "@abstractframework/panel-chat";
+import { ChatMessageCard, WorkingDots, type ChatMessage, type ChatMessageMention, type ChatNotice } from "@abstractframework/panel-chat";
 
 import { ClosingNotice } from "./closing_notice";
 import type { LedgerLine } from "./ledger_lines";
 import { openTurnFact, TurnFactsRow, turnFactChips, type TurnPanelTab } from "./reply_notices_summary";
+import { pendingMentionMessage, type PendingMention } from "./visit_mentions";
 import type { ChatTurnResult } from "./stream_source";
 import { NO_IMAGE_PROPS, WordsLine } from "./words_line";
 
@@ -84,8 +85,12 @@ export function ChatMessageList({
   renderMentionCard,
   closing,
   closingTurns = null,
+  pendingMentions = [],
 }: {
   messages: DrawerMessage[];
+  /** The mentioned entities' answers on their way (operator round 6): one bubble each after the
+   * messages, the entity as author and three dots, until its reply is in the thread. */
+  pendingMentions?: readonly PendingMention[];
   /** A mention chip's card in a message's words (panel-chat 0.9.13): shown after a rest on it. */
   renderMentionCard?: (mention: ChatMessageMention) => React.ReactNode | null;
   /** While the visit closes: the reflection's acts so far. The closing notice is then the thread's
@@ -155,7 +160,7 @@ export function ChatMessageList({
   const closingRows = closing ? closing.length : -1;
   useEffect(() => {
     if (stickRef.current) bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, closingRows]);
+  }, [messages.length, closingRows, pendingMentions.length]);
 
   return (
     <div ref={listRef} className="pc-chat-thread cd_thread">
@@ -183,6 +188,11 @@ export function ChatMessageList({
               />
             </>
           )}
+        </div>
+      ))}
+      {pendingMentions.map((p) => (
+        <div key={p.key} className="cd_msg" data-role="pending">
+          <ChatMessageCard message={pendingMentionMessage(p)} renderFooter={() => <WorkingDots label={`${p.author.name || "The entity"} is answering`} />} {...NO_IMAGE_PROPS} />
         </div>
       ))}
       {closing ? (

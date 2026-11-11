@@ -28,7 +28,7 @@ import { entityReadAloudInput } from "./read_aloud";
 import { ChatComposer, useAvatarConversationPreferences, playConversationCue, conversationReply, type ChatMention, type ChatMentionSent, type ChatMessage, type ChatMessageMention, type ChatNotice } from "./vendor/abstractchat/conversation";
 import { VISIT_CLOSE_KIND, noticesField, openNotice as openNoticeIn } from "./turn_notices";
 import { mentionEntityCard } from "./mention_entity_card";
-import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, runMentions, sentMessageMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity } from "./visit_mentions";
+import { MENTIONS_UNAVAILABLE, alreadyAnsweredLine, chipsToRestore, entityMentions, flowMentionKey, heldAfterRun, meetOffers, mentionBody, mentionCandidatesFor, mentionMessageKey, mentionResendPlan, mirrorLine, orderedMentions, pendingAfterReply, pendingMentionsFor, runMentions, sentMessageMentions, visitMentionProps, withSessionAgent, type HeldMentions, type MentionableEntity, type PendingMention } from "./visit_mentions";
 import { avatarSendsDuringWork, avatarVisitHistory, completedVisitReply, flowConversationState, publicVisitMessages, visitIdentityRef, visitQuestion } from "./avatar_visit";
 import { AvatarVisitView } from "./avatar_visit_view";
 import { useAvatarVisit } from "./use_avatar_visit";
@@ -278,6 +278,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
    * never leak across run identities and kill a fresh visit. */
   const missStateRef = useRef<{ misses: number; missesForRun: string | null }>({ misses: 0, missesForRun: null });
   const [detailTurn, setDetailTurn] = useState<{ turn: ChatTurnResult; tab: TurnPanelTab } | null>(null);
+  // The mentioned entities' answers on their way, one bubble each in the thread (operator round 6).
+  const [pendingMentions, setPendingMentions] = useState<PendingMention[]>([]);
   // ONE substrate per entity (maintainer ruling 2026-07-09 06:32): the
   // drawer only DISPLAYS the gateway-stored mind; it is changed in the
   // controls strip (🧠) and resolved by the gateway on open — the visit
@@ -828,14 +830,18 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const sendMentions = useCallback(
     async (sessionId: string, message: string, text: string, sent: ChatMentionSent[], chips: ChatMention[], repeatOf: string | null, answeredBefore: string[] = [], notes: string[] = []): Promise<void> => {
       const nameOf = (id: string) => mentionRowsReadRef.current.find((r) => r.entity_id === id)?.name ?? null;
+      // Each entity's answer on its way is a bubble with its dots in the thread (operator round 6),
+      // replaced by its reply; whatever is still pending when the run ends had no answer coming.
+      setPendingMentions(pendingMentionsFor(message, sent, chips));
       const result = await runMentions(sent, {
         post: (m) => postMention(baseUrl, sessionId, mentionBody(text, m, repeatOf, message), token),
         onReply: (m, reply, author, mirrors) => {
           push({ role: "assistant", content: reply, title: m.name, ...(author ? { author } : {}) });
+          setPendingMentions((cur) => pendingAfterReply(cur, m));
           const line = mirrorLine(mirrors, nameOf);
           if (line) push({ role: "system", content: line });
         },
-      });
+      }).finally(() => setPendingMentions([]));
       for (const id of result.refused) mentionRefusedRef.current.add(id);
       if (result.unavailable) setMentionsUnavailable(MENTIONS_UNAVAILABLE);
       heldMentionsRef.current = heldAfterRun(sessionId, message, text, repeatOf, result, answeredBefore);
@@ -1477,6 +1483,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             renderMentionCard={renderMentionCard}
             closing={busy === "closing" ? closingActivity : null}
             closingTurns={busy === "closing" ? visitTurnCount(status, messages, runId) : null}
+            pendingMentions={pendingMentions}
           />}
           {detailTurn ? <TurnDetailModal turn={detailTurn.turn} initialTab={detailTurn.tab} entityName={entityName} source={{ baseUrl, entity }} onClose={() => setDetailTurn(null)} /> : null}
           {queueOffer ? (

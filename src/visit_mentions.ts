@@ -50,6 +50,7 @@ import {
   type ChatMention,
   type ChatMentionCandidate,
   type ChatMentionSent,
+  type ChatMessage,
   type ChatMessageMention,
   type MentionResend,
 } from "@abstractframework/panel-chat";
@@ -109,6 +110,34 @@ export function sentMessageMentions(typed: string, picked: readonly ChatMentionS
       ...(look ? { avatar: look } : {}),
     };
   });
+}
+
+/** An entity's answer on its way (operator round 6, 2026-11-11: "the 3 dancing dots in the chat
+ * itself, where the AI would answer, and with its @entity_name answering"): one per entity of the
+ * message, from the moment the mentions are asked until its reply is in the thread. */
+export type PendingMention = { key: string; mention: ChatMentionSent; author: ChatAuthor };
+
+/** The id prefix of a pending answer's bubble. */
+export const PENDING_MENTION_ID = "pending-mention:";
+
+/** The pending answers of a message's entity mentions, in the order they are asked (each entity once;
+ * the agent's chip rode the summon), named as its reply will be (the chip's name and look). */
+export function pendingMentionsFor(message: string, sent: readonly ChatMentionSent[], chips: readonly ChatMention[]): PendingMention[] {
+  return orderedMentions(entityMentions(sent)).map((m) => ({
+    key: `${message}:${m.index}`,
+    mention: m,
+    author: { kind: "entity", name: m.name, entity_id: null, identity_ref: null, avatar: chips.find((c) => c.kind === m.kind && c.id === m.id)?.avatar ?? null },
+  }));
+}
+
+/** The pending answers once `answered` replied: its bubble goes (the reply takes its place). */
+export function pendingAfterReply(pending: readonly PendingMention[], answered: Pick<ChatMentionSent, "id" | "index">): PendingMention[] {
+  return pending.filter((p) => !(p.mention.id === answered.id && p.mention.index === answered.index));
+}
+
+/** A pending answer's bubble: the entity as author, the kit's live state ("answering"), no words. */
+export function pendingMentionMessage(p: PendingMention): ChatMessage {
+  return { id: `${PENDING_MENTION_ID}${p.key}`, role: "assistant", content: "", author: p.author, live: { callId: `${PENDING_MENTION_ID}${p.key}`, reasoning: "", label: "answering" } };
 }
 
 /** The reserved slug that addresses the session agent in `mentions` (no entity can be named so). */
