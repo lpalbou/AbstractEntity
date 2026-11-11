@@ -127,13 +127,26 @@ describe("the live marker and the focus reach the graph", () => {
     expect(CANVAS).not.toContain("localStorage.removeItem(topicOffsetsStorageKey(");
   });
 
-  it("wide canvas: the motion buttons stay inside the room the lens row leaves them, so a click on freeze lands", () => {
+  it("wide canvas: the motion buttons are ONE row (toggle, fit, then freeze and settle), inside the room the top row leaves them, so every click lands", () => {
     const css = read("entity.css");
-    expect(css).toMatch(/\.entity_graph_overlay \{\n  position: absolute;\n  top: 10px;\n  left: 12px;\n  right: 200px;/);
+    expect(css).toMatch(/\.entity_graph_overlay \{\n  position: absolute;\n  top: 10px;\n  left: 12px;\n  right: 240px;/);
     const wide = css.slice(css.indexOf("@container entity-canvas (min-width: 860px) {"));
     const rule = wide.slice(wide.indexOf("  .gc_motion_controls {"), wide.indexOf("}", wide.indexOf("  .gc_motion_controls {")));
-    expect(rule).toContain("max-width: 180px;");
-    expect(rule).toContain("flex-wrap: wrap;");
+    // Operator 2026-11-11: the toggle "just to the left of the fit icon and on the same level": one row, never wrapped.
+    expect(rule).toContain("flex-wrap: nowrap;");
+    expect(rule).toContain("align-items: center;");
+    expect(rule).not.toContain("max-width");
+    expect(rule).not.toMatch(/flex-wrap:\s*wrap/);
+    // The order: the closed-memories toggle, fit, then freeze and settle when they show.
+    const controls = CANVAS.slice(CANVAS.indexOf('<div ref={motionRef} className="gc_motion_controls">'));
+    const toggle = controls.indexOf("gc_outside_toggle");
+    const fit = controls.indexOf('title="Fit view');
+    const freeze = controls.indexOf("❄ <span");
+    const settle = controls.indexOf("⏸ <span");
+    expect(toggle).toBeGreaterThan(0);
+    expect(fit).toBeGreaterThan(toggle);
+    expect(freeze).toBeGreaterThan(fit);
+    expect(settle).toBeGreaterThan(freeze);
   });
 });
 

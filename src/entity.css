@@ -5078,12 +5078,13 @@ body {
    ------------------------------------------------------------ */
 /* The overlay column pinned to the top-left of the graph: the search bar
  * (when open) sits ABOVE the row, both sharing the same left edge and
- * width (operator (h): search is a first-class bar above the row). */
+ * width (operator (h): search is a first-class bar above the row). It
+ * leaves the top right 240 px: the motion buttons' one row (2026-11-11). */
 .entity_graph_overlay {
   position: absolute;
   top: 10px;
   left: 12px;
-  right: 200px;
+  right: 240px;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -5523,14 +5524,15 @@ body {
   .entity_canvas_wrap > .entity_legend {
     max-width: min(calc(100% - 200px), calc(100% - var(--gc-tp-reserve, 0px) - 20px));
   }
-  /* The motion buttons stay inside the 200 px the lens row leaves them
-   * (.entity_graph_overlay right: 200px): the plain layout's three (freeze,
-   * settle, fit) and the served row (fit and the closed-memories toggle)
-   * wrap inside it, so the lens bar's box never lies over "freeze" and a
-   * click on it lands (1440 × 900, 2026-11-10). */
+  /* The motion buttons are ONE row at the top right (operator 2026-11-11:
+   * the closed-memories toggle "just to the left of the fit icon and on the
+   * same level"), inside the 240 px the top row leaves them
+   * (.entity_graph_overlay right: 240px), so the top row's box never lies
+   * over a button and a click lands: the served row (the toggle, fit) is
+   * about 210 px, the plain one (fit, freeze, settle) about 215. */
   .gc_motion_controls {
-    max-width: 180px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
     justify-content: flex-end;
   }
 }

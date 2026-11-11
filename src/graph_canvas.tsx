@@ -2785,32 +2785,10 @@ export function GraphCanvas({
       {/* Motion controls: icon + WORD labels (operator 2026-07-15 — the
         * bare 🌊⚓♻️🎯 emoji row read as mystery meat). aria-pressed marks
         * the freeze toggle's state. Served topics place every memory (no
-        * simulation): freeze and settle have nothing to do then. */}
+        * simulation): freeze and settle have nothing to do then. ONE row
+        * (operator 2026-11-11): the closed-memories toggle, fit, then freeze
+        * and settle when they show. */}
       <div ref={motionRef} className="gc_motion_controls">
-        {served ? null : (
-          <>
-        <button
-          className={`gc_btn ${motionUi === "frozen" ? "gc_btn_on" : ""}`}
-          aria-pressed={motionUi === "frozen"}
-          title={motionUi === "frozen" ? "Layout frozen — click to let it move again" : "Freeze the layout (nodes hold still)"}
-          onClick={() => {
-            simRef.current.frozen = !simRef.current.frozen;
-            setMotionUi(simRef.current.frozen ? "frozen" : "live");
-          }}
-        >
-          ❄ <span className="gc_btn_word">{motionUi === "frozen" ? "frozen" : "freeze"}</span>
-        </button>
-        <button
-          className="gc_btn"
-          title="Settle now — let the layout come to rest immediately"
-          onClick={() => {
-            simRef.current.alpha = 0;
-          }}
-        >
-          ⏸ <span className="gc_btn_word">settle</span>
-        </button>
-          </>
-        )}
         {served && outside && outside.closed > 0 ? (
           // THE CLOSED MEMORIES: hidden by default; this pressed toggle
           // shows them on their ring (graph_canvas_outside.ts). Left of fit
@@ -2848,6 +2826,30 @@ export function GraphCanvas({
         >
           ⛶ <span className="gc_btn_word">fit</span>
         </button>
+        {served ? null : (
+          <>
+        <button
+          className={`gc_btn ${motionUi === "frozen" ? "gc_btn_on" : ""}`}
+          aria-pressed={motionUi === "frozen"}
+          title={motionUi === "frozen" ? "Layout frozen — click to let it move again" : "Freeze the layout (nodes hold still)"}
+          onClick={() => {
+            simRef.current.frozen = !simRef.current.frozen;
+            setMotionUi(simRef.current.frozen ? "frozen" : "live");
+          }}
+        >
+          ❄ <span className="gc_btn_word">{motionUi === "frozen" ? "frozen" : "freeze"}</span>
+        </button>
+        <button
+          className="gc_btn"
+          title="Settle now — let the layout come to rest immediately"
+          onClick={() => {
+            simRef.current.alpha = 0;
+          }}
+        >
+          ⏸ <span className="gc_btn_word">settle</span>
+        </button>
+          </>
+        )}
       </div>
     </>
   );
