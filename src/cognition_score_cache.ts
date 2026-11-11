@@ -16,10 +16,11 @@ export interface KeyValueStorage {
 }
 
 export interface ScoreStore {
-  /** The kept reading of a record, by the read's id. */
-  get(id: string): ScoredSample | undefined;
-  /** Keep exactly these readings (the current picks), replacing the rest. */
-  save(samples: readonly ScoredSample[]): void;
+  /** The kept reading of a record, by the read's id: undefined = never read here; null = read, and it
+   * had no words to score (no verbatim, too short). */
+  get(id: string): ScoredSample | null | undefined;
+  /** Keep exactly these readings and these word-less ids (the current picks), replacing the rest. */
+  save(samples: readonly ScoredSample[], wordless: readonly string[]): void;
 }
 
 const PREFIX = "abstractentity.monitor.scores:";
@@ -38,22 +39,23 @@ export function scoreCacheKey(baseUrl: string, entity: string, basisVersion: str
 
 export function scoreStore(home: { baseUrl: string; entity: string }, basisVersion: string, storage: KeyValueStorage | null = browserStorage()): ScoreStore {
   const key = scoreCacheKey(home.baseUrl, home.entity, basisVersion);
-  let kept: Record<string, ScoredSample> = {};
+  let kept: Record<string, ScoredSample | null> = {};
   try {
     const raw = storage?.getItem(key);
-    if (raw) kept = JSON.parse(raw) as Record<string, ScoredSample>;
+    if (raw) kept = JSON.parse(raw) as Record<string, ScoredSample | null>;
   } catch {
     kept = {};
   }
   return {
-    get: (id) => kept[id],
-    save(samples) {
-      kept = Object.fromEntries(
-        samples.map((s) => {
+    get: (id) => (id in kept ? kept[id] : undefined),
+    save(samples, wordless) {
+      kept = Object.fromEntries([
+        ...samples.map((s): [string, ScoredSample] => {
           const { text: _text, request: _request, ...reading } = s;
           return [s.id, reading as ScoredSample];
         }),
-      );
+        ...wordless.map((id): [string, null] => [id, null]),
+      ]);
       try {
         storage?.setItem(key, JSON.stringify(kept));
       } catch {

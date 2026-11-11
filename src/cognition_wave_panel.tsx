@@ -151,9 +151,11 @@ export async function corpusPreflight(baseUrl: string, entity: string): Promise<
  * even the preflight). */
 export async function readLife(source: { baseUrl: string; entity: string }, fold: FoldState, basis: FrozenBasis, store: ScoreStore, limit = 120): Promise<Phase> {
   const picks = stablePicks(automaticReadItems(fold), limit);
-  const missing = picks.filter((row) => !store.get(readItemId(row)));
+  const missing = picks.filter((row) => store.get(readItemId(row)) === undefined);
   const warnings: string[] = [];
   const fresh = new Map<string, ScoredSample>();
+  // Picks read here before that had no words to score (no verbatim, too short): never asked again.
+  const wordless = new Set(picks.map(readItemId).filter((id) => store.get(id) === null));
   if (missing.length > 0) {
     // No embeddings (or another space): said at once, no record read.
     const stop = await corpusPreflight(source.baseUrl, source.entity);
@@ -167,10 +169,16 @@ export async function readLife(source: { baseUrl: string; entity: string }, fold
       const res = await scoreEntityUtterances(source.baseUrl, source.entity, foldOfRows(fold, missing), scorer);
       warnings.push(...res.warnings);
       for (const s of res.samples) fresh.set(s.id, s);
+      // A pick whose words could not be read is remembered as word-less, so a reload does not read it
+      // again — only when this read reached his records at all (an unreachable gateway reads none, and
+      // marks none). A pick read but not embedded (a failed batch) is not remembered: the next load
+      // embeds it.
+      const read = new Set(res.readIds);
+      if (read.size > 0) for (const row of missing) if (!read.has(readItemId(row))) wordless.add(readItemId(row));
     }
   }
-  const samples = picks.map((row) => fresh.get(readItemId(row)) ?? store.get(readItemId(row))).filter((s): s is ScoredSample => s !== undefined);
-  if (fresh.size > 0) store.save(samples);
+  const samples = picks.map((row) => fresh.get(readItemId(row)) ?? store.get(readItemId(row))).filter((s): s is ScoredSample => s != null);
+  if (missing.length > 0 && (fresh.size > 0 || wordless.size > 0)) store.save(samples, [...wordless]);
   // In the order of his life (sampleAt takes the last one formed at or before a position).
   samples.sort((a, b) => (a.seq ?? Infinity) - (b.seq ?? Infinity));
   return samples.length === 0 ? { name: "empty", warnings } : { name: "ready", samples, warnings };

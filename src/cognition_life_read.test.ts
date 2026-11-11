@@ -34,7 +34,7 @@ function life(moments: number): FoldState {
 }
 
 /** The gateway at fetch: which routes were asked, and how many texts were embedded. */
-function gateway() {
+function gateway(opts: { noWords?: string[]; embedFails?: boolean } = {}) {
   const seen = { pin: 0, probe: 0, embedCalls: 0, embedded: 0, records: 0, diary: 0, other: [] as string[] };
   vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
     const path = new URL(String(url), home.baseUrl).pathname;
@@ -47,11 +47,17 @@ function gateway() {
       else {
         seen.embedCalls++;
         seen.embedded += input.length;
+        if (opts.embedFails) return new Response("{}", { status: 500 });
       }
       return json({ model: fixtures.embedder_id, data: input.map((t, i) => ({ index: i, embedding: fixtures.cases[t.length % fixtures.cases.length].vector })) });
     }
     if (path.includes("/diary/")) return (seen.diary++, json({ entry: { entry_id: "x", text: "a diary entry long enough to be read and scored", written_at: "" } }));
-    if (path.endsWith("/verbatim")) return (seen.records++, json({ text: `Castor: the words of ${decodeURIComponent(path.split("/").at(-2) ?? "")}, long enough to score` }));
+    if (path.endsWith("/verbatim")) {
+      seen.records++;
+      const id = decodeURIComponent(path.split("/").at(-2) ?? "");
+      if (opts.noWords?.includes(id)) return new Response(JSON.stringify({ detail: "no verbatim for this record" }), { status: 404 });
+      return json({ text: `Castor: the words of ${id}, long enough to score` });
+    }
     seen.other.push(path);
     return json({});
   });
@@ -137,6 +143,28 @@ describe("the automatic read", () => {
     seen = gateway();
     await readLife(home, life(705), basis, scoreStore(home, "another-basis", storage));
     expect(seen.records).toBe(89);
+  });
+
+  it("a record without words is read once, then remembered as such: the reload asks nothing", async () => {
+    const storage = memoryStorage();
+    let seen = gateway({ noWords: ["ex:episode-4"] });
+    const first = await readLife(home, life(10), basis, scoreStore(home, basis.version, storage));
+    expect(seen.records).toBe(10);
+    expect(first.name === "ready" && first.samples).toHaveLength(9);
+    seen = gateway({ noWords: ["ex:episode-4"] });
+    await readLife(home, life(10), basis, scoreStore(home, basis.version, storage));
+    expect(seen).toEqual({ pin: 0, probe: 0, embedCalls: 0, embedded: 0, records: 0, diary: 0, other: [] });
+  });
+
+  it("a failed embedding is not remembered: the next load embeds those picks", async () => {
+    const storage = memoryStorage();
+    gateway({ embedFails: true });
+    const first = await readLife(home, life(5), basis, scoreStore(home, basis.version, storage));
+    expect(first.name).toBe("empty");
+    const seen = gateway();
+    const next = await readLife(home, life(5), basis, scoreStore(home, basis.version, storage));
+    expect(seen.embedded).toBe(5);
+    expect(next.name === "ready" && next.samples).toHaveLength(5);
   });
 
   it("a browser that keeps nothing reads again, never wrong", async () => {

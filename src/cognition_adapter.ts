@@ -97,6 +97,9 @@ export interface CognitionRunResult {
   counts: ReturnType<typeof import("./utterance_harvest").countBySource>;
   /** Non-fatal notes: embedder mismatch, embed failures, scorer refusals. */
   warnings: string[];
+  /** The ids whose words were read (scored or not): an id of the fold missing here had no words to
+   * read (no verbatim, too short, a refused read). */
+  readIds: string[];
 }
 
 export interface CognitionAdapterOptions extends HarvestOptions {
@@ -209,7 +212,7 @@ export async function scoreEntityUtterances(
     });
   }
 
-  return { samples, embedderId: corpus.embedderId, counts: corpus.counts, warnings };
+  return { samples, embedderId: corpus.embedderId, counts: corpus.counts, warnings, readIds: corpus.utterances.map((u) => u.id) };
 }
 
 /** Thrown when the scorer refuses the vector space (embedder/dim mismatch):
