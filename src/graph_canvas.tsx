@@ -867,9 +867,10 @@ export function GraphCanvas({
       measureContextRef.current = null;
     };
   }, []);
+  // The panel moved, docked, came (his topics read, the toggle on) or folded: the band changes.
   useEffect(() => {
     measureContextRef.current?.();
-  }, [panelFloat, panelDock, pagePanel]);
+  }, [panelFloat, panelDock, pagePanel, showTopics, topicsView, topicsOpen]);
   // The page panel lives outside the canvas's host: its moves reach the
   // titles' overlay rects through this.
   useEffect(() => {

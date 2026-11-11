@@ -461,7 +461,9 @@ describe("the Context box at the top controls' level (operator 2026-11-11)", () 
     expect(eff).toContain("ro?.observe(motion);");
     expect(eff).toContain("mo?.observe(overlay, { childList: true, subtree: true });");
     expect(eff).toContain('console.error("#SEAM no .entity_graph_overlay over the graph: the Context box keeps its place under the top row");');
-    expect(eff).toContain("}, [panelFloat, panelDock, pagePanel]);");
+    // Re-measured when the panel moves, docks, comes (his topics read, the toggle on) or folds (review of the first shot: the
+    // panel came after the first measure and the box ran under it).
+    expect(eff).toContain("}, [panelFloat, panelDock, pagePanel, showTopics, topicsView, topicsOpen]);");
     // Its vars on the stack (the box's own --gc-rl-*), at the top controls' 10 px, above the top row's stretched box.
     expect(CANVAS).toContain('...(contextAt ? { "--gc-rl-top": "10px", "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),');
     expect(decl(rule(CSS, ".entity_graph_overlay"), "top")).toBe("10px");
