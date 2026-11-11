@@ -841,6 +841,11 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
           const line = mirrorLine(mirrors, nameOf);
           if (line) push({ role: "system", content: line });
         },
+        // Refused but the next ones are still asked: its bubble goes and its sentence shows now (F3).
+        onSkipped: (m, sentence) => {
+          setPendingMentions((cur) => pendingAfterReply(cur, m));
+          setMentionStatus(sentence);
+        },
       }).finally(() => setPendingMentions([]));
       for (const id of result.refused) mentionRefusedRef.current.add(id);
       if (result.unavailable) setMentionsUnavailable(MENTIONS_UNAVAILABLE);

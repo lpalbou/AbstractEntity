@@ -11,7 +11,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ChatMessageList, type DrawerMessage } from "./chat_message_list";
-import { pendingAfterReply, pendingMentionMessage, pendingMentionsFor, PENDING_MENTION_ID } from "./visit_mentions";
+import { pendingAfterReply, pendingMentionMessage, pendingMentionsFor, PENDING_MENTION_ID, runMentions } from "./visit_mentions";
+import type { MentionWire } from "./stream_source";
 
 const LOOK = { style: "watch-halo", color: "#336699" };
 const castor = { id: "castor", name: "Castor", kind: "entity" as const, index: 0, start: 4 };
@@ -50,6 +51,28 @@ describe("an answer on its way is a bubble with its dots", () => {
     expect(drawer).toContain("}).finally(() => setPendingMentions([]));");
     expect(drawer).toContain("pendingMentions={pendingMentions}");
     expect(drawer).not.toContain("is answering");
+  });
+});
+
+describe("a refusal that does not stop the run takes its bubble away at once (review F3)", () => {
+  it("said before the next entity is asked; the drawer drops its bubble and shows its sentence then", async () => {
+    const events: string[] = [];
+    const wires = [
+      { status: 409, body: { detail: "x", code: "in_another_conversation" }, code: "in_another_conversation" },
+      { status: 404, body: { detail: "missing", code: "entity_not_found" }, code: "entity_not_found" },
+      { status: 200, body: { run_id: "r", reply: "Here.", author: null, mention_index: 2, mirrors: [] }, code: null },
+    ];
+    const vega = { id: "vega", name: "Vega", kind: "entity" as const, index: 2, start: 20 };
+    await runMentions([castor, nerin, vega], {
+      post: async (m) => (events.push(`ask:${m.id}`), wires.shift()! as MentionWire),
+      onReply: (m) => void events.push(`reply:${m.id}`),
+      onSkipped: (m, sentence) => void events.push(`skip:${m.id}:${sentence}`),
+    });
+    expect(events.map((e) => e.split(":").slice(0, 2).join(":"))).toEqual(["ask:castor", "skip:castor", "ask:nerin", "skip:nerin", "ask:vega", "reply:vega"]);
+    expect(events[1]).toBe("skip:castor:Castor is in another conversation.");
+    const onSkipped = drawer.slice(drawer.indexOf("onSkipped: (m, sentence) => {"), drawer.indexOf("}).finally(() => setPendingMentions([]));"));
+    expect(onSkipped).toContain("setPendingMentions((cur) => pendingAfterReply(cur, m));");
+    expect(onSkipped).toContain("setMentionStatus(sentence);");
   });
 });
 

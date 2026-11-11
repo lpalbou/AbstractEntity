@@ -264,6 +264,9 @@ export type MentionRunDeps = {
   /** A reply, shown as a turn with its author as soon as it arrives, and where else the gateway
    * said it (`mirrors`). */
   onReply(mention: ChatMentionSent, reply: string, author: ChatAuthor | null, mirrors: MentionMirror[]): void;
+  /** A refusal that does not stop the run (another conversation, cannot be mentioned), with its
+   * sentence, before the next entity is asked (review round 6 F3: its bubble danced on). */
+  onSkipped?(mention: ChatMentionSent, sentence: string): void;
 };
 
 export type MentionRunResult = {
@@ -325,6 +328,7 @@ export async function runMentions(mentions: readonly ChatMentionSent[], deps: Me
       result.unsent = ordered.slice(i);
       return result;
     }
+    deps.onSkipped?.(mention, outcome.sentence);
   }
   return result;
 }
