@@ -193,6 +193,14 @@ export function visitTurnCount(status: { run_id?: string; turn_n?: number } | nu
   return counts.length ? Math.max(...counts) : null;
 }
 
+/** The thread a visit opens on (operator 2026-11-11 10:21: "i clicked visit and... it reopened the
+ * last visit"): a visit other than the one the thread holds starts a fresh thread (the previous
+ * visit's words, its close and its notices stay in his ledger and book, not in this drawer); the
+ * same visit keeps its own. */
+export function threadForOpenedVisit<M>(thread: readonly M[], threadRun: string | null, openedRun: string): readonly M[] {
+  return threadRun === openedRun ? thread : [];
+}
+
 /** His reply to a visit turn as the thread holds it: his words, the turn's facts as `detail` (the
  * probe the footer under his words opens; the visit lane's fields as served, `diary_entries` a list
  * of entries) and what the turn formed as `notices` (the badges in his bubble). */
@@ -310,6 +318,9 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   /** Seq high-water when the current turn started — live envelopes above
    * it render as realtime activity lines under the thinking shimmer. */
   const turnStartSeqRef = useRef<number>(Infinity);
+  /** The visit run whose messages the thread holds (a rejoin's or an open's): a different visit
+   * opening starts a fresh thread (`threadForOpenedVisit`). */
+  const threadRunRef = useRef<string | null>(null);
   /** Chat ids we already rehydrated — the transcript fetch runs once per
    * adopted session, not once per status poll. */
   const rehydratedRef = useRef<Set<string>>(new Set());
@@ -501,6 +512,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             }
           }
           idRef.current = mid;
+          threadRunRef.current = ownRunId;
           setMessages(rebuilt);
         })
         .finally(() => setHydrating(false))
@@ -626,6 +638,13 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
     setNote("Opening — if he is busy with his own time, he finishes what he is doing, then the visit opens…");
     const onOpened = (r: Awaited<ReturnType<typeof openVisit>>) => {
       setSeatBusy(false);
+      // A new visit starts a fresh thread: the last visit's words, close and notices are not this one's.
+      if (threadRunRef.current !== r.run_id) {
+        setMessages((prev) => threadForOpenedVisit(prev, threadRunRef.current, r.run_id) as DrawerMessage[]);
+        setPendingMentions([]);
+        setDetailTurn(null);
+      }
+      threadRunRef.current = r.run_id;
       setRunId(r.run_id);
       setOpenedRef(r.identity_ref ? { runId: r.run_id, ref: r.identity_ref } : null);
       setVisitSession(typeof r.session_id === "string" && r.session_id ? { runId: r.run_id, sessionId: r.session_id } : null);
