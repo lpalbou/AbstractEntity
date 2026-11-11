@@ -174,8 +174,8 @@ export interface ChatDrawerProps {
    * formed: a diary entry, a lesson, …) opens the record it names. `false` = it opened nothing (the
    * record has not reached the view yet): the badge opens its own panel. */
   onOpenRecord(graphId: string): boolean;
-  /** The Cognitive Monitor's feed (docked above the timeline, backlog 0018): the drawer publishes
-   * the reply in view of the open conversation; only the open monitor reads it. */
+  /** The Cognitive Monitor's feed (in the timeline, always on; backlogs 0018, 0040): the drawer
+   * publishes the reply in view of the open conversation; the monitor reads it. */
   replyFeed: ReplyFeed;
 }
 
@@ -1183,7 +1183,7 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
   const foreignVisit = status?.open && !runId;
 
   // The newest assistant reply feeds the Cognitive Monitor (scored once
-  // per distinct text, by the open monitor only). Derived, not stored — cheap.
+  // per distinct text, by the monitor). Derived, not stored — cheap.
   const latestReply = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant" && typeof messages[i].content === "string") return messages[i].content as string;
@@ -1270,8 +1270,8 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
 
   // THE MONITOR'S FEED (backlog 0018: the monitor lives with the timeline, nothing of it at the top
   // of the chat): the reply in view of the open conversation — the newest, or the one scrolled to —
-  // with the latest turn's conduct facts. A set equal to the last one notifies nobody; a closed
-  // monitor subscribes to nothing.
+  // with the latest turn's conduct facts. A set equal to the last one notifies nobody. A reply
+  // reaches the drawer whole (the turn answers once), so the monitor reads it per message.
   const { replyFeed } = props;
   useEffect(() => {
     replyFeed.set(

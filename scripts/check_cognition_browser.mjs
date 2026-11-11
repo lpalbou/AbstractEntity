@@ -1,6 +1,10 @@
-// The Cognitive Monitor in the timeline (backlog 0032), mounted for real (CognitionWavePanel over a
-// ReplyFeed, in the timeline's monitor slot as the page mounts it) with bounded deterministic
-// embedding replies; no gateway, no live writes (every /api call is answered here).
+// The Cognitive Monitor in the timeline, always on (backlog 0040), mounted for real: the Timeline with
+// its monitor (CognitionWavePanel over a ReplyFeed, as the page mounts it) over a small synthetic life,
+// with bounded deterministic embedding replies; no gateway, no live writes (every /api call is answered
+// here). Checks: no toggle; the one read starts by itself once the life has loaded and never again on a
+// scrub or a play head frame; the readings follow the position and the head; a reply's reading lands in
+// the same places; no embeddings says so in the bloom's place; three columns (phone: lanes on top), one
+// block height whatever the monitor says.
 // Run: node scripts/check_cognition_browser.mjs --playwright ../abstractcode/web [--shots <directory>]
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -11,193 +15,288 @@ const root = new URL("../", import.meta.url).pathname;
 const arg = name => { const index = process.argv.indexOf(`--${name}`); return index < 0 ? "" : process.argv[index + 1]; };
 const { chromium } = arg("playwright") ? createRequire(resolve(arg("playwright"), "package.json"))("@playwright/test") : await import("@playwright/test");
 const fixtures = JSON.parse(readFileSync(resolve(root, "src/fixtures/cognition_gate_vectors.json")));
-const neutral = fixtures.cases.find((row) => row.id === "neutral_meeting");
-const joy = fixtures.cases.find((row) => row.id === "joy_control");
+const pick = (id) => fixtures.cases.find((row) => row.id === id);
+const neutral = pick("neutral_meeting"), joy = pick("joy_control"), fear = pick("fearful_control"), storm = pick("storm_caution_neutral");
+// His words in the life: four summaries at indices 5, 15, 25, 35 of forty events (the others are
+// lessons, world revisions and dreams: marks on the lanes, nothing to read).
+const SAID = { 5: neutral, 15: joy, 25: fear, 35: storm };
 const shots = resolve(arg("shots") || resolve(root, "untracked/cognition-browser"));
 mkdirSync(shots, { recursive: true });
 mkdirSync(resolve(root, "untracked"), { recursive: true });
 const temp = mkdtempSync(resolve(root, "untracked/cognition-harness-"));
 writeFileSync(resolve(temp, "index.html"), '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><div id="root"></div><script type="module" src="./main.tsx"></script></html>');
 writeFileSync(resolve(temp, "main.tsx"), `
+// First: verbatim_view -> episode_view -> words_line -> verbatim_view
+// is an import cycle, and entering it at verbatim_view (timeline -> graph_canvas does) reads NO_IMAGE
+// before it is initialised.
+import "/src/words_line.tsx";
 import React,{useEffect,useMemo,useState} from "react";
 import {createRoot} from "react-dom/client";
+import {Timeline} from "/src/timeline.tsx";
 import {CognitionWavePanel} from "/src/cognition_wave_panel.tsx";
 import {createReplyFeed} from "/src/cognition_wave_inline.tsx";
-import {createFoldState} from "/src/stream_fold.ts";
+import {foldEnvelopes} from "/src/stream_fold.ts";
+import {createPlayhead} from "/src/replay_clock.ts";
 import "@abstractframework/ui-kit/theme.css";
 import "/src/entity.css";
+const SAID=${JSON.stringify(Object.fromEntries(Object.keys(SAID).map((k) => [k, true])))};
+const FILL=["lesson","world_model","dream"];
+const LIFE=Array.from({length:40},(_,i)=>{const seq=i+1,at=new Date(Date.UTC(2026,6,8,0,i*30)).toISOString(),kind=SAID[i]?"summary":FILL[i%3],id="ex:"+kind+"-"+i;
+return {stream:"abstractmemory.replay",stream_version:1,seq,observed_at:at,scope:"life",owner_id:"entity:castor",trace_id:null,turn_id:null,run_id:null,family:"binding",
+payload:{record_id:id,scope:"life",owner_id:"entity:castor",search_state:"indexed",prompt_state:"active",lifecycle:"formed",source:"remember",reason:null,observed_at:at,binding_id:"b-"+id,seq},
+display:{record_id:id,kind,title:kind+" "+i}};});
 const EFFORT={think_ms:24800,tool_rounds:0,memories_recalled:44,memories_formed:1};
 function Test(){
 const feed=useMemo(createReplyFeed,[]);
-const fold=useMemo(createFoldState,[]);
-const [text,setText]=useState(${JSON.stringify(neutral.text)});
+const head=useMemo(createPlayhead,[]);
+const fold=useMemo(()=>foldEnvelopes(LIFE),[]);
+const [ready,setReady]=useState(false);
+const [index,setIndex]=useState(39);
+const [live,setLive]=useState(false);
+const [playing,setPlaying]=useState(false);
 const [entity,setEntity]=useState("castor");
-const [live,setLive]=useState(true);
+const [reply,setReply]=useState(null);
 // The chat drawer's part: the reply in view of the open conversation, or none.
-useEffect(()=>{feed.set(text?{latestReply:text,focusReply:null,focusAt:null,effort:EFFORT,effortKey:"turn-1",tools:null}:null);},[feed,text]);
-return <main style={{margin:"30px auto",boxSizing:"border-box"}}>
-<div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-<button onClick={()=>setText(${JSON.stringify(neutral.text)})}>Neutral</button>
-<button onClick={()=>setText(${JSON.stringify(joy.text)})}>Joy</button>
-<button onClick={()=>setText(null)}>Empty</button>
-<button onClick={()=>setEntity("mismatch")}>Other entity</button>
-<button onClick={()=>setLive(v=>!v)}>Replay</button>
+useEffect(()=>{feed.set(reply?{latestReply:reply,focusReply:null,focusAt:null,effort:EFFORT,effortKey:"turn-"+reply.length,tools:null}:null);},[feed,reply]);
+useEffect(()=>{window.__head=head;},[head]);
+const say=(t)=>()=>setReply(t);
+return <main style={{boxSizing:"border-box"}}>
+<div style={{display:"flex",gap:8,margin:"12px 16px",flexWrap:"wrap"}}>
+<button onClick={()=>setReady(true)}>Life loaded</button>
+<button onClick={()=>setIndex(2)}>Early</button>
+<button onClick={()=>setIndex(7)}>At A</button>
+<button onClick={()=>setIndex(27)}>At B</button>
+<button onClick={()=>setPlaying(v=>!v)}>Playing</button>
+<button onClick={()=>setLive(v=>!v)}>Live</button>
+<button onClick={say(${JSON.stringify(neutral.text)})}>Neutral</button>
+<button onClick={say(${JSON.stringify(joy.text)})}>Joy</button>
+<button onClick={say(null)}>Empty</button>
+<button onClick={()=>setEntity("noembed")}>Other entity</button>
 </div>
-<div className="entity_timeline et_grid et_monitor_open"><div className="et_monitor_slot" style={{gridRow:"1 / span 5"}}>
-<CognitionWavePanel fold={fold} source={{baseUrl:"",entity}} scrubSeq={0} live={live} replyFeed={feed}/>
-</div></div>
+<div style={{height:240}} />
+<Timeline envelopes={LIFE} scrubIndex={live?LIFE.length-1:index} playing={playing} speed={100} live={live} liveAvailable inferredSessionSeqs={[]}
+ onScrub={setIndex} onTogglePlay={()=>setPlaying(v=>!v)} onSpeed={()=>{}} onToggleLive={()=>setLive(v=>!v)} playhead={head}
+ monitor={(seq)=><CognitionWavePanel lifeFold={()=>fold} ready={ready} source={{baseUrl:"",entity}} scrubSeq={seq} live={live} replyFeed={feed}/>} />
 </main>}
 document.documentElement.classList.add("theme-catppuccin-mocha");
 createRoot(document.getElementById("root")).render(<Test/>);
 `);
+const vectorOf = (text) => (fixtures.cases.find((row) => row.text === text) ?? neutral).vector;
+const textOf = (id) => { const i = Number(id.split("-").pop()); return SAID[i]?.text ?? ""; };
 const server = await createServer({ root, server: { host: "127.0.0.1", port: 4189, strictPort: true }, logLevel: "error" });
 let browser;
+const errors = [];
+// The harness's answers; `hold` keeps a reply's embed pending until released.
+const routeApi = async (page, calls, hold) => page.route("**/api/**", async route => {
+  const url = new URL(route.request().url());
+  const json = data => route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
+  if (url.pathname.endsWith("/embedding")) {
+    calls.pin.push(url.pathname);
+    // No embedder resolved for the other entity: the read stops there (no book, no embed).
+    if (url.pathname.includes("/noembed/")) return json({pin:{model_id:fixtures.embedder_id},resolved_embedder:null,match:"unknown"});
+    return json({pin:{model_id:fixtures.embedder_id},resolved_embedder:fixtures.embedder_id,match:"match"});
+  }
+  if (url.pathname.endsWith("/verbatim")) { calls.verbatim.push(url.pathname); return json({record_id:url.pathname.split("/").at(-2),text:textOf(decodeURIComponent(url.pathname.split("/").at(-2)))}); }
+  if (url.pathname.endsWith("/embeddings")) {
+    const input = route.request().postDataJSON().input;
+    const reply = input.length === 1 && (input[0] === neutral.text || input[0] === joy.text) && calls.corpusDone;
+    (reply ? calls.reply : calls.embed).push(input.length);
+    if (reply && hold) await new Promise(release => hold.push({ input: input[0], release }));
+    return json({model:fixtures.embedder_id,data:input.map((t,i)=>({index:i,embedding:vectorOf(t)}))});
+  }
+  calls.other.push(url.pathname);
+  return json({});
+});
+const newCalls = () => ({ pin: [], verbatim: [], embed: [], reply: [], other: [], corpusDone: false });
 try {
   await server.listen();
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}) });
-  const page = await browser.newPage({ viewport: { width: 900, height: 650 } });
-  const errors = [], pending = [];
-  let pinRelease;
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const page = await ctx.newPage();
   page.on("pageerror", error => errors.push(String(error)));
-  let pinHeld = false;
-  await page.route("**/api/**", async route => {
-    const url = new URL(route.request().url());
-    const json = data => route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
-    if (url.pathname.endsWith("/embedding")) {
-      // The other entity's pin is held once (its answer lands after the conversation emptied).
-      if (url.pathname.includes("/mismatch/")) { if (!pinHeld) { pinHeld = true; await new Promise(resolve => { pinRelease = resolve; }); } return json({pin:{model_id:"different-embedding-space"}}); }
-      // The door's embedder resolved (the monitor's read checks it first, corpusPreflight).
-      return json({pin:{model_id:fixtures.embedder_id},resolved_embedder:fixtures.embedder_id,match:"match"});
-    }
-    if (url.pathname.endsWith("/embeddings")) {
-      const input = route.request().postDataJSON().input[0];
-      // The read's check of the embedding route answers at once (only the replies' embeds are held).
-      if (input !== neutral.text && input !== joy.text) return json({model:fixtures.embedder_id,data:[{index:0,embedding:neutral.vector}]});
-      await new Promise(resolve => pending.push({input,release:resolve}));
-      const item = input === neutral.text ? neutral : joy;
-      return json({model:fixtures.embedder_id,data:[{index:0,embedding:item.vector}]});
-    }
-    return json({});
-  });
+  page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text()}`));
+  const calls = newCalls(), pending = [];
+  await routeApi(page, calls, pending);
   await page.goto(`http://127.0.0.1:4189/${relative(root,temp)}/index.html`);
-  const waitFor = async pred => { for(let i=0;i<100;i++){if(pred())return;await new Promise(r=>setTimeout(r,20));}throw new Error("harness request did not arrive"); };
-  const dock = page.locator(".et_monitor_slot");
-  // Live with a conversation: the reply in view, per message; no title, no button, no framing block.
-  await dock.locator('[data-reading-state="conversation"]').waitFor();
-  assert.equal(await dock.locator("button").count(),0,"no button in the monitor");
-  assert.equal(await dock.getByText("Cognitive Monitor").count(),0,"no title in the monitor");
-  await page.getByText("reading…", {exact:true}).waitFor();
-  await waitFor(()=>pending.length===1);
-  await page.screenshot({path:resolve(shots,"entity-cognition-reading.png")});
-  await page.getByRole("button",{name:"Joy",exact:true}).click();
-  await waitFor(()=>pending.length===2);
-  await page.getByRole("button",{name:"Neutral",exact:true}).click();
-  assert.equal(pending.length,2,"A→B→A shares the pending A embed");
+  const waitFor = async pred => { for(let i=0;i<150;i++){if(pred())return;await new Promise(r=>setTimeout(r,20));}throw new Error("harness request did not arrive"); };
+  const click = name => page.getByRole("button",{name,exact:true}).click();
+  const radar = page.locator(".entity_timeline .et_radar");
+  const state = () => radar.getAttribute("data-reading-state");
+  const value = (name) => page.evaluate((n) => [...document.querySelectorAll('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_item')].find((e) => e.querySelector(".cm_tone_name")?.textContent === n)?.querySelector(".cm_tone_val")?.textContent ?? null, name);
+  const values = () => page.locator('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_val').allTextContents();
+  const height = () => page.evaluate(() => Math.round(document.querySelector(".entity_timeline").getBoundingClientRect().height));
+
+  // ALWAYS ON: no toggle in the timeline, the monitor's places drawn; nothing read while the life loads.
+  await radar.waitFor();
+  assert.equal(await page.locator(".entity_timeline").getByText(/Monitor/).count(), 0, "no Monitor button");
+  assert.equal(await page.locator(".entity_timeline button[aria-pressed]").count(), 0, "no toggle in the timeline");
+  assert.equal(await page.locator(".et_readings button, .et_radar button").count(), 0, "no button in the monitor");
+  assert.equal(await page.getByText("Cognitive Monitor").count(), 0, "no title in the monitor");
+  await page.waitForTimeout(300);
+  assert.equal(await state(), "idle");
+  assert.equal(calls.verbatim.length + calls.embed.length, 0, "nothing read before his life has loaded");
+  const heights = { idle: await height() };
+  // His life loaded: the one read starts by itself, his book opened once per readable record.
+  await click("Life loaded");
+  await page.locator('.et_radar[data-reading-state="ready"]').waitFor();
+  calls.corpusDone = true;
+  const readOnce = { verbatim: calls.verbatim.length, embed: calls.embed.length };
+  assert.equal(readOnce.verbatim, 4, "his four readable records, each read once");
+  heights.ready = await height();
+  console.log(`  read: ${readOnce.verbatim} records, ${readOnce.embed} embed calls (route check included)`);
+
+  // FOLLOWS THE POSITION: a lookup in the one read.
+  await click("Early");
+  await page.locator(".et_radar_note").getByText("nothing said yet here", { exact: true }).waitFor();
+  assert.equal(await value("warmth"), "—", "no words before his first");
+  await click("At A");
+  await page.waitForFunction(() => document.querySelector('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_val')?.textContent !== "—");
+  const atA = await values();
+  const moodA = await page.locator(".et_radar .cm_canvas_box").getAttribute("title");
+  await page.screenshot({ path: resolve(shots, "entity-cognition-at-a.png") });
+  await click("At B");
+  await page.waitForFunction((a) => [...document.querySelectorAll('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_val')].map((e) => e.textContent).join() !== a, atA.join());
+  const atB = await values();
+  const moodB = await page.locator(".et_radar .cm_canvas_box").getAttribute("title");
+  await page.screenshot({ path: resolve(shots, "entity-cognition-at-b.png") });
+  for (const v of [...atA, ...atB]) assert.match(v, /^[−-]?\d\.\d\d$/, `a signed score, never a mark: ${v}`);
+  assert.notDeepEqual(atA, atB, "two positions, two readings");
+  assert.match(moodA, /^closest to [a-z]+ \([−-]?\d\.\d\d\)$/, "the bloom's hover names the closest register (by name) and its similarity");
+  console.log(`  at A: ${moodA} [${atA.join(" ")}]; at B: ${moodB} [${atB.join(" ")}]`);
+
+  // FOLLOWS THE PLAY HEAD: each frame the head moves (the committed position stays early).
+  await click("Early");
+  await click("Playing");
+  const atHead = (i) => page.evaluate(async (idx) => {
+    window.__head.set(idx);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return [...document.querySelectorAll('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_val')].map((e) => e.textContent);
+  }, i);
+  assert.deepEqual(await atHead(27), atB, "the head at B: B's reading within two frames");
+  assert.deepEqual(await atHead(7), atA, "the head back at A: A's reading within two frames");
+  // A 100x sweep, one head position per frame: the readings change as the head passes each utterance.
+  const sweep = [];
+  for (let i = 0; i < 40; i++) sweep.push((await atHead(i)).join(" "));
+  const changes = sweep.filter((v, i) => i > 0 && v !== sweep[i - 1]).length;
+  assert.equal(changes, 4, `the sweep shows each of his four utterances as the head passes it (${changes} changes)`);
+  await click("Playing");
+  await page.evaluate(() => window.__head.set(null));
+  assert.deepEqual({ verbatim: calls.verbatim.length, embed: calls.embed.length }, readOnce, "no scrub and no head frame reads again");
+
+  // LIVE, his conversation open: the reply in view, per message, in the same places.
+  await click("Live");
+  await click("Neutral");
+  await page.locator(".et_radar_note").getByText("reading…", { exact: true }).waitFor();
+  await waitFor(() => pending.length === 1);
+  assert.equal(await page.locator('.et_radar[data-reading-state="conversation"]').count(), 1);
+  await click("Joy");
+  await waitFor(() => pending.length === 2);
+  await click("Neutral");
+  assert.equal(pending.length, 2, "A→B→A shares the pending A embed");
   pending[0].release();
-  const live = page.locator('.cm_panel[data-reading-state="live"]');
-  await live.waitFor();
-  // The signed tone row: a named group of the five channels, each with its signed score.
-  const row = page.getByRole("group",{name:"Tone of the phrasing"});
-  const codes = async () => row.locator(".cm_tone_name").allTextContents();
-  const values = () => row.locator(".cm_tone_val").allTextContents();
-  assert.deepEqual(await codes(),["warmth","tension","reflection","structure","certainty"],"five tone channels by name, in order (no 3-letter code)");
-  const neutralValues = await values();
-  for (const v of neutralValues) assert.match(v,/^[−-]?\d\.\d\d$/,`a signed score, never a mark: ${v}`);
+  await page.waitForFunction(() => !document.querySelector(".et_radar_note") && document.querySelector('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_val')?.textContent !== "—");
+  const neutralReply = await values();
+  assert.deepEqual(await page.locator('.et_readings [aria-label="Conduct of this turn"] .cm_tone_name').allTextContents(), ["effort", "action", "attention", "rigor"], "the turn's conduct by name beside the channels");
   pending[1].release();
   await page.waitForTimeout(80);
-  assert.deepEqual(await values(),neutralValues,"late B cannot replace the visible A reading");
-  await page.screenshot({path:resolve(shots,"entity-cognition-neutral.png")});
-  // The bloom's hover names the closest register (the reading's one line has no mood dot any more).
-  const mood = () => page.locator(".cm_panel .cm_canvas_box").getAttribute("title");
-  const neutralMood = await mood();
-  await page.getByRole("button",{name:"Joy",exact:true}).click();
-  await page.waitForFunction((t) => document.querySelector(".cm_panel .cm_canvas_box")?.getAttribute("title") !== t, neutralMood);
-  await page.waitForTimeout(300);
-  console.log(`  neutral: ${neutralMood} [${neutralValues.join(" ")}]; joy: ${await mood()} [${(await values()).join(" ")}]`);
-  assert.match(await mood(),/^closest to [a-z]+ \([−-]?\d\.\d\d\)$/,"the bloom's hover names the closest register (by name, no code) and its similarity");
-  assert.notDeepEqual(await values(),neutralValues,"the joy control reads differently on the row");
-  await page.screenshot({path:resolve(shots,"entity-cognition-joy.png")});
-  // The replay: his words at the timeline's position, read by itself on opening (here: nothing
-  // readable, the harness's life is empty); the conversation's reading goes.
-  await page.getByRole("button",{name:"Replay",exact:true}).click();
-  await dock.getByText("nothing readable yet", {exact:true}).waitFor();
-  assert.equal(await dock.locator(".cm_panel").count(),0,"on the replay the conversation's reading is not shown");
-  await page.screenshot({path:resolve(shots,"entity-cognition-replay.png")});
-  // Back to live: the reading mounts again and shows the reply already read, without a second embed.
-  await page.getByRole("button",{name:"Replay",exact:true}).click();
-  await live.waitFor();
-  await page.waitForTimeout(150);
-  assert.equal(pending.length,2,"a reply already read is never embedded again (the cache outlives the reading's mount)");
-  // Another entity whose home embeds in another space: its pin answers after the conversation
-  // emptied; the next reply is never shown as a reading.
-  await page.getByRole("button",{name:"Other entity",exact:true}).click();
-  await waitFor(()=>Boolean(pinRelease));
-  await page.getByRole("button",{name:"Empty",exact:true}).click();
-  pinRelease(); await page.waitForTimeout(80);
-  await page.getByRole("button",{name:"Neutral",exact:true}).click();
-  await page.locator('.cm_panel[data-reading-state="unavailable"]').waitFor();
-  await page.getByText("not read",{exact:true}).first().waitFor();
-  assert.equal(await page.getByRole("group",{name:"Tone of the phrasing"}).count(),0,"mismatched model shows no tone row");
-  // Desktop and phone with touch (coarse pointer, 44 px targets): the five named channels are a column inside the
-  // bloom column (never a lone code), the page does not scroll sideways, the values keep a 4.5:1
-  // contrast on the dock.
-  for (const [width,touch] of [[1440,false],[400,true]]) {
-    const ctx = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: touch, isMobile: touch });
-    const phone = await ctx.newPage();
-    phone.on("pageerror", error => errors.push(String(error)));
-    await phone.route("**/api/**", async route => {
-      const url = new URL(route.request().url());
-      const json = data => route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
-      if (url.pathname.endsWith("/embedding")) return json({pin:{model_id:fixtures.embedder_id},resolved_embedder:fixtures.embedder_id,match:"match"});
-      if (url.pathname.endsWith("/embeddings")) { const input = route.request().postDataJSON().input[0]; return json({model:fixtures.embedder_id,data:[{index:0,embedding:(input===neutral.text?neutral:joy).vector}]}); }
-      return json({});
+  assert.deepEqual(await values(), neutralReply, "a late B cannot replace the visible A reading");
+  heights.conversation = await height();
+  await page.screenshot({ path: resolve(shots, "entity-cognition-reply.png") });
+  await click("Joy");
+  await page.waitForFunction((a) => [...document.querySelectorAll('.et_readings [aria-label="Tone of the phrasing"] .cm_tone_val')].map((e) => e.textContent).join() !== a, neutralReply.join());
+  const joyReply = await values();
+  assert.equal(calls.reply.length, 2, "one embed per distinct reply (neutral, joy), never per chunk");
+  console.log(`  replies: neutral [${neutralReply.join(" ")}], joy [${joyReply.join(" ")}]`);
+  // Live without a reply: his words at the head again (the latest utterance).
+  await click("Empty");
+  await page.locator('.et_radar[data-reading-state="ready"]').waitFor();
+  assert.equal(await page.locator('[aria-label="Conduct of this turn"]').count(), 0, "the conduct goes with the conversation");
+  await click("Live");
+
+  // NO EMBEDDINGS: one short line in the bloom's place; his book never opened; the block keeps its height.
+  const before = calls.verbatim.length;
+  await click("Other entity");
+  await page.locator(".et_radar_instead").getByText("no embeddings", { exact: false }).waitFor();
+  assert.equal(calls.verbatim.length, before, "no book read without embeddings");
+  heights.noEmbeddings = await height();
+  await page.screenshot({ path: resolve(shots, "entity-cognition-no-embeddings.png") });
+  console.log(`  block height: ${JSON.stringify(heights)}`);
+  assert.equal(new Set(Object.values(heights)).size, 1, `one block height whatever the monitor says: ${JSON.stringify(heights)}`);
+  await ctx.close();
+
+  // LAYOUT at 1440, 1280 and a 400 px phone with touch: three columns (phone: the lanes on top).
+  for (const [width, touch] of [[1440, false], [1280, false], [400, true]]) {
+    const lctx = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: touch, isMobile: touch });
+    const lp = await lctx.newPage();
+    lp.on("pageerror", error => errors.push(String(error)));
+    await routeApi(lp, newCalls(), null);
+    await lp.goto(`http://127.0.0.1:4189/${relative(root,temp)}/index.html`);
+    await lp.getByRole("button", { name: "Life loaded", exact: true }).click();
+    await lp.getByRole("button", { name: "At B", exact: true }).click();
+    await lp.locator('.et_radar[data-reading-state="ready"]').waitFor();
+    await lp.waitForTimeout(400);
+    const layout = await lp.evaluate(() => {
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      const block = r(".entity_timeline"), readings = r(".et_readings"), top = r(".et_right_top"), transport = r(".et_right"), rad = r(".et_radar");
+      const lanes = [...document.querySelectorAll(".et_lane")].map((e) => e.getBoundingClientRect());
+      const track = r(".et_track_wrap");
+      const rowEl = document.querySelector('.et_readings [aria-label="Tone of the phrasing"]');
+      const tops = [...rowEl.querySelectorAll(".cm_tone_name")].map((c) => Math.round(c.getBoundingClientRect().top));
+      const perLine = [...new Set(tops)].map((t) => tops.filter((x) => x === t).length);
+      const rgb = (s) => s.match(/[\d.]+/g).map(Number);
+      const lum = ([R, G, B]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(R) + 0.7152 * f(G) + 0.0722 * f(B); };
+      const bg = (el) => { for (let e = el; e; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c.length >= 3 && !(c.length === 4 && c[3] === 0)) return c.slice(0, 3); } return [255, 255, 255]; };
+      const contrast = (el) => { const a = lum(rgb(getComputedStyle(el).color).slice(0, 3)), b = lum(bg(el)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+      const box = document.querySelector(".et_radar .cm_canvas_box"), cb = box.getBoundingClientRect();
+      const names = [...box.querySelectorAll(".cm_overlay_code")].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
+      const others = [...document.querySelectorAll(".et_readings .cm_tone_name, .et_readings .cm_tone_val, .et_right_top *, .et_right *")].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
+      const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      const R = (x) => Math.round(x);
+      return {
+        block: R(block.height), blockRight: R(block.right),
+        lanesRight: R(Math.max(...lanes.map((l) => l.right), track.right)), lanesBottom: R(Math.max(...lanes.map((l) => l.bottom), track.bottom)),
+        readings: { left: R(readings.left), right: R(readings.right), top: R(readings.top), bottom: R(readings.bottom) },
+        rights: [R(readings.right), R(top.right), R(transport.right)], topBottom: R(top.bottom), transportTop: R(transport.top), readingsBottom: R(readings.bottom), topTop: R(top.top),
+        midLeft: R(Math.min(readings.left, top.left, transport.left)),
+        radar: { left: R(rad.left), right: R(rad.right), top: R(rad.top), bottom: R(rad.bottom), width: R(rad.width), height: R(rad.height) },
+        perLine, petals: names.length, boxStyleW: parseFloat(box.style.width), boxW: R(cb.width),
+        overlaps: names.flatMap((n) => others.filter((o) => hit(n.r, o.r)).map((o) => `${n.t} x ${o.t}`)),
+        outOfBox: names.filter((n) => n.r.left < cb.left - 1 || n.r.right > cb.right + 1).map((n) => n.t),
+        scroll: document.documentElement.scrollWidth, inner: innerWidth,
+        valContrast: Math.min(...[...rowEl.querySelectorAll(".cm_tone_val")].map(contrast)),
+      };
     });
-    await phone.goto(`http://127.0.0.1:4189/${relative(root,temp)}/index.html`);
-    await phone.getByRole("button",{name:"Joy",exact:true}).click();
-    await phone.locator('.cm_panel[data-reading-state="live"] .cm_tone_list').waitFor();
-    await phone.waitForTimeout(400);
-    const layout = await phone.evaluate(() => {
-      const rowEl = document.querySelector(".cm_tone_list"), box = document.querySelector(".cw_panel.cw_compact").getBoundingClientRect();
-      const tops = [...rowEl.querySelectorAll(".cm_tone_name")].map(c => Math.round(c.getBoundingClientRect().top));
-      const perLine = [...new Set(tops)].map(t => tops.filter(x => x === t).length);
-      const rgb = s => s.match(/[\d.]+/g).map(Number);
-      const lum = ([r,g,b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b); };
-      const bg = el => { for (let e = el; e; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c.length < 4 || c[3] > 0.9) { if (c.length >= 3 && !(c.length === 4 && c[3] === 0)) return c.slice(0,3); } } return [255,255,255]; };
-      const contrast = el => { const a = lum(rgb(getComputedStyle(el).color).slice(0,3)), b = lum(bg(el)); return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05); };
-      const dockEl = document.querySelector(".et_monitor_slot");
-      const monitorEl = document.querySelector(".cw_panel.cw_compact");
-      return { perLine, inside: [...rowEl.querySelectorAll(".cm_tone_name, .cm_tone_val")].every(c => { const r = c.getBoundingClientRect(); return r.left >= box.left - 1 && r.right <= box.right + 1 && r.bottom <= box.bottom + 1; }),
-        scroll: document.documentElement.scrollWidth, inner: innerWidth, dockScroll: dockEl.scrollWidth, dockWidth: dockEl.clientWidth,
-        monitorHeight: Math.round(monitorEl.getBoundingClientRect().height),
-        // The bloom's names: inside their box (kept at its styled width), never over the channels or the gauge's names.
-        ...(() => {
-          const box = document.querySelector(".cm_panel .cm_canvas_box"), cb = box.getBoundingClientRect();
-          const names = [...box.querySelectorAll(".cm_overlay_code")].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
-          const others = [...document.querySelectorAll(".cm_tone_name, .cm_tone_val, .cm_gauge_name, .cm_gauge_val")].map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
-          const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-          return { boxStyleW: parseFloat(box.style.width), boxW: Math.round(cb.width), petals: names.length,
-            overlaps: names.flatMap((n) => others.filter((o) => hit(n.r, o.r)).map((o) => `${n.t} x ${o.t}`)),
-            outOfBox: names.filter((n) => n.r.left < cb.left - 1 || n.r.right > cb.right + 1).map((n) => n.t) };
-        })(),
-        valContrast: Math.min(...[...rowEl.querySelectorAll(".cm_tone_val")].map(contrast)) };
-    });
-    console.log(`  ${width}${touch ? " touch" : ""}: bloom box ${layout.boxW}/${layout.boxStyleW} px, name overlaps ${layout.overlaps.length}, names per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, monitor ${layout.monitorHeight} px tall, scrollWidth ${layout.scroll}/${layout.inner}, slot ${layout.dockScroll}/${layout.dockWidth}`);
-    assert.ok(layout.inside, `the named channels stay inside the monitor at ${width}`);
+    console.log(`  ${width}${touch ? " touch" : ""}: block ${layout.block} px; lanes ..${layout.lanesRight} | middle ${layout.midLeft}..${layout.rights.join("/")} | radar ${layout.radar.left}..${layout.radar.right} (${layout.radar.width}x${layout.radar.height}); names ${layout.petals}, overlaps ${layout.overlaps.length}, channels per line ${layout.perLine.join("+")}, value contrast ${layout.valContrast.toFixed(2)}, scrollWidth ${layout.scroll}/${layout.inner}`);
     assert.equal(layout.petals, 9, `nine register names around the bloom at ${width}`);
-    assert.equal(layout.boxW, layout.boxStyleW, `the bloom's box keeps its ${layout.boxStyleW} px at ${width} (measured ${layout.boxW})`);
+    assert.equal(layout.boxW, layout.boxStyleW, `the bloom's box keeps its ${layout.boxStyleW} px at ${width}`);
     assert.deepEqual(layout.outOfBox, [], `the register names stay in the bloom's box at ${width}`);
-    assert.deepEqual(layout.overlaps, [], `no register name over a channel or a conduct name at ${width}`);
-    assert.deepEqual(layout.perLine,[1,1,1,1,1],`one channel per line at ${width}: ${layout.perLine}`);
-    assert.ok(layout.monitorHeight <= (width >= 768 ? 160 : 260), `the monitor stays within its room (${layout.monitorHeight} px) at ${width}`);
+    assert.deepEqual(layout.overlaps, [], `no register name over a channel or a control at ${width}`);
+    assert.deepEqual(layout.perLine, [1, 1, 1, 1, 1], `one channel per line at ${width}`);
+    assert.ok(layout.readingsBottom <= layout.topTop + 1 && layout.topBottom <= layout.transportTop + 1, `the channels over Live over the transport at ${width}`);
     assert.ok(layout.scroll <= layout.inner, `no sideways scroll at ${width}`);
-    assert.equal(layout.inner, width, `the page keeps its ${width} px width (nothing wider forced a zoom-out)`);
-    assert.ok(layout.dockScroll <= layout.dockWidth, `the monitor never scrolls sideways at ${width}`);
+    assert.equal(layout.inner, width, `the page keeps its ${width} px width`);
     assert.ok(layout.valContrast >= 4.5, `value contrast ${layout.valContrast.toFixed(2)} at ${width}`);
-    await phone.screenshot({path:resolve(shots,`entity-cognition-joy-${width}${touch?"-touch":""}.png`),fullPage:true});
-    await ctx.close();
+    if (width >= 768) {
+      assert.ok(Math.max(...layout.rights) - Math.min(...layout.rights) <= 1, `the channels, Live and the transport right-aligned at ${width}: ${layout.rights}`);
+      assert.ok(layout.lanesRight < layout.midLeft && Math.max(...layout.rights) < layout.radar.left, `lanes | middle | radar, left to right at ${width}`);
+      assert.ok(layout.blockRight - layout.radar.right <= 16, `the radar at the block's right edge at ${width} (${layout.blockRight - layout.radar.right} px)`);
+      assert.deepEqual([layout.radar.width, layout.radar.height], [210, 150], `the radar's fixed box at ${width}`);
+      assert.ok(layout.block <= 166, `the block keeps the open monitor's height (${layout.block} px) at ${width}`);
+    } else {
+      assert.ok(layout.readings.top >= layout.lanesBottom && layout.radar.top >= layout.lanesBottom, `the lanes on top on a phone`);
+      // The channels hug the bloom; Live and the transport under them at the block's right edge.
+      assert.ok(layout.radar.left - layout.readings.right >= 0 && layout.radar.left - layout.readings.right <= 16, `the channels beside the bloom on a phone (${layout.readings.right} | ${layout.radar.left})`);
+      assert.ok(layout.topTop >= layout.radar.bottom, `Live under the channels and the bloom on a phone`);
+      assert.ok(Math.abs(layout.rights[1] - layout.radar.right) <= 1 && Math.abs(layout.rights[2] - layout.radar.right) <= 1, `Live and the transport at the block's right edge on a phone: ${layout.rights}`);
+    }
+    await lp.screenshot({ path: resolve(shots, `entity-cognition-layout-${width}${touch ? "-touch" : ""}.png`), fullPage: true });
+    await lctx.close();
   }
-  assert.deepEqual(errors,[]);
-  console.log("cognition browser (the monitor in the timeline): live reply reading, focus race, the five named channels, joy, replay mode, detached mismatch, 1440 + 400 touch layout and contrast passed");
+  assert.deepEqual(errors, []);
+  console.log("cognition browser (the monitor always on in the timeline): no toggle, one read once his life loaded, follows the position and the play head with no re-read, replies in the same places (per message, focus race), no embeddings in the bloom's place, one block height, three columns at 1440/1280 and the phone layout at 400 touch passed");
+} catch (e) {
+  console.log(`page errors: ${JSON.stringify(errors.slice(0, 5))}`);
+  throw e;
 } finally {
-  await browser?.close(); await server.close(); rmSync(temp,{recursive:true,force:true});
+  await browser?.close(); await server.close(); rmSync(temp, { recursive: true, force: true });
 }

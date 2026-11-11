@@ -13,7 +13,7 @@
 //   create    → the create-entity form
 //   detail    → one entity: memory graph + side panel (Detail tab), replay at the end
 //   talk      → the Chat tab (conversation + composer)
-//   cognition → the Cognitive Monitor in the timeline (its Monitor toggle)
+//   cognition → the Cognitive Monitor in the timeline (always on, read once his life has loaded)
 //   settings  → the entity Settings panel
 //   about     → the About dialog
 //
@@ -232,10 +232,8 @@ export default {
       name: "cognition",
       async run(page) {
         await closeOverlays(page);
-        // The Cognitive Monitor in the timeline, opened by its toggle (pressed = open): its press reads.
-        const toggle = page.locator("button.et_monitor");
-        if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
-        await page.locator(".et_monitor_slot .cw_compact").waitFor({ state: "visible", timeout: 10000 });
+        // The Cognitive Monitor in the timeline, always on (backlog 0040): wait for its reading.
+        await page.locator('.entity_timeline .et_radar[data-reading-state]:not([data-reading-state="idle"]):not([data-reading-state="scoring"])').waitFor({ state: "visible", timeout: 60000 });
       },
       settle: 1200,
     },

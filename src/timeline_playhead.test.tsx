@@ -24,8 +24,6 @@ function render(over: Partial<TimelineProps>): string {
     onTogglePlay: () => undefined,
     onSpeed: () => undefined,
     onToggleLive: () => undefined,
-    monitorOpen: false,
-    onToggleMonitor: () => undefined,
     monitor: null,
     ...over,
   };
@@ -55,6 +53,20 @@ describe("time panel position", () => {
   it("with no head yet (the first frame) it shows the committed position", () => {
     expect(position(render({ playing: true, playhead: createPlayhead() }))).toBe("10");
     expect(position(render({ playing: true }))).toBe("10");
+  });
+
+  it("the monitor is handed the seq of the position drawn: the head while playing (every frame it moves), the committed one paused", () => {
+    const seen: number[] = [];
+    const monitor = (seq: number) => (seen.push(seq), <span className="probe">{seq}</span>);
+    const head = createPlayhead();
+    head.set(30);
+    expect(render({ playing: true, playhead: head, monitor })).toContain('<span class="probe">31</span>');
+    head.set(31);
+    expect(render({ playing: true, playhead: head, monitor })).toContain('<span class="probe">32</span>');
+    expect(render({ playing: false, playhead: head, monitor })).toContain('<span class="probe">10</span>');
+    // Before the first event: 0, as the page's own position seq.
+    expect(render({ scrubIndex: -1, monitor })).toContain('<span class="probe">0</span>');
+    expect(seen).toEqual([31, 32, 10, 0]);
   });
 
   it("live rides the end, never a stale head", () => {

@@ -96,12 +96,14 @@ describe("toolCallsOf: the turn report's calls, with their served success", () =
     expect(toolCallsOf({ tool_details: [], tools_ran: [] })).toBeNull();
   });
 
-  it("the mounts use them: the drawer feeds toolCallsOf, the code row prints conductCell and explains it on hover", () => {
+  it("the mounts use them: the drawer feeds toolCallsOf, the monitor's conduct list prints conductCell over the kit's reads and explains it on hover", () => {
     const drawer = readFileSync(new URL("./chat_drawer.tsx", import.meta.url), "utf8");
     const inline = readFileSync(new URL("./cognition_wave_inline.tsx", import.meta.url), "utf8");
     expect(drawer).toMatch(/return toolCallsOf\(d\);/);
-    expect(inline).toMatch(/conductCell\(gaugeAxes\.find\(\(g\) => g\.id === a\.id\), effort, tools\)/);
-    expect(inline).toMatch(/<span className="cm_gauge_val">\{cell\?\.short \?\? ""\}<\/span>/);
-    expect(inline).toMatch(/<ExplainedCode key=\{a\.id\} className="cm_gauge_code" style=\{\{ color: a\.color \}\} explain=\{conductExplainer\(a, cell\)\}>/);
+    // The kit's reads as its gauge computed them (backlog 0040: the list, no drawing).
+    expect(inline).toContain("const axes = conductAxes(effort ?? null, tools ?? [], baseline);");
+    expect(inline).toMatch(/conductCell\(axes\.find\(\(g\) => g\.id === a\.id\), effort, tools\)/);
+    expect(inline).toMatch(/<span className="cm_tone_val">\{cell\?\.short \?\? "—"\}<\/span>/);
+    expect(inline).toMatch(/<ExplainedCode key=\{a\.id\} className="cm_tone_item" style=\{\{ color: a\.color \}\} explain=\{conductExplainer\(a, cell\)\}>/);
   });
 });

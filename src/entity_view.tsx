@@ -1320,11 +1320,9 @@ export function EntityView(): React.ReactElement {
   // would set it one render later): one page render per commit, not two.
   // Speed is read live, so changing it never restarts the loop.
   const playhead = useMemo(createPlayhead, []);
-  // THE COGNITIVE MONITOR (operator 2026-11-10, backlogs 0018, 0032): inside
-  // the timeline, right of the lanes, opened by its Monitor toggle and mounted
-  // only while open; the timeline drives it. The chat drawer publishes the reply
-  // in view into the feed; only the open monitor subscribes.
-  const [monitorOpen, setMonitorOpen] = useState(false);
+  // THE COGNITIVE MONITOR (operator 2026-11-11, backlog 0040): inside the
+  // timeline, always on; the timeline drives it. The chat drawer publishes the
+  // reply in view into the feed; the monitor subscribes.
   const replyFeed = useMemo(createReplyFeed, []);
   const speedRef = useRef(speed);
   speedRef.current = speed;
@@ -1624,12 +1622,9 @@ export function EntityView(): React.ReactElement {
 
   // The search query is per-life state: a stale query would invisibly dim
   // the next entity's graph (func review P1) — switching entities resets it.
-  // The monitor too: its press is the act that reads an entity's words
-  // (backlog 0032), so another entity's page opens with it closed.
   useEffect(() => {
     setSearchText("");
     setSearchOpen(false);
-    setMonitorOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityName, sourceLabel]);
 
@@ -1673,9 +1668,16 @@ export function EntityView(): React.ReactElement {
   };
   const docsFetch = useMemo(() => makeEntityDocsFetch(() => docsTargetRef.current.base, () => docsTargetRef.current.token), []);
 
-  // The monitor on screen (so mounted, and its toggle pressed): open, his page, past the content gate,
-  // and not beside the avatar view (which takes the whole main area; the toggle waits until it closes).
-  const monitorOnScreen = monitorShown({ open: monitorOpen, locked: gatewayLocked, roster: indexBase !== null && !entityName, avatar: avatarChat });
+  // The monitor, always on (backlog 0040): mounted on his page past the content gate. Its one read of
+  // his words waits for his life to load and covers all of it, whatever the position: the page's fold
+  // when it is at the head, else one fold of the whole life (once per home, at pull time).
+  const monitorOnScreen = monitorShown({ locked: gatewayLocked, roster: indexBase !== null && !entityName });
+  const lifeLoaded = envelopes.length > 0 && bootProgress === null;
+  const lifeFold = () => {
+    const cache = foldCacheRef.current;
+    const last = envelopes.length - 1;
+    return cache && cache.index === last && envelopes[last]?.seq === cache.last_seq ? cache.state : foldUpToIndex(envelopes, last, null).state;
+  };
 
   return (
     <div className="entity_app" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
@@ -2432,20 +2434,21 @@ export function EntityView(): React.ReactElement {
           }}
           onSpeed={setSpeed}
           onToggleLive={toggleLive}
-          monitorOpen={monitorOnScreen}
-          onToggleMonitor={avatarChat ? null : () => setMonitorOpen((v) => !v)}
-          // THE COGNITIVE MONITOR, inside the timeline (backlog 0032): mounted only on screen
-          // (monitorShown: open, his page, past the content gate, not beside the avatar view).
+          // THE COGNITIVE MONITOR, inside the timeline and always on (backlog 0040): the timeline hands it
+          // the seq of the position it draws (the play head every frame while playing).
           monitor={
-            monitorOnScreen ? (
-              <CognitionWavePanel
-                fold={fold}
-                source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
-                scrubSeq={scrubSeq}
-                live={live}
-                replyFeed={replyFeed}
-              />
-            ) : null
+            monitorOnScreen
+              ? (seq) => (
+                  <CognitionWavePanel
+                    lifeFold={lifeFold}
+                    ready={lifeLoaded}
+                    source={sourceKind === "gateway" && entityName ? { baseUrl: gatewayUrl.trim().replace(/\/+$/, ""), entity: entityName } : null}
+                    scrubSeq={seq}
+                    live={live}
+                    replyFeed={replyFeed}
+                  />
+                )
+              : null
           }
           playhead={playhead}
         />

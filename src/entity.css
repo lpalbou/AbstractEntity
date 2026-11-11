@@ -238,25 +238,9 @@ body {
   font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
 }
 
-/* ---- THE COGNITIVE MONITOR's reading of his conversation, per message (operator 2026-07-15;
- * inside the timeline since 2026-11-10, backlog 0032): the bloom, the tone row and the conduct
- * gauge in one row, then its short line (as of, not read). */
-.cm_panel {
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--standing) 5%, transparent);
-  padding: 6px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.cm_head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
+/* ---- THE COGNITIVE MONITOR's shared bits (the timeline's monitor, backlog 0040): the "as of" of a
+ * reply scrolled to, a refusal sentence, the bloom's box. */
 .cm_asof {
-  margin-left: auto;
   font-size: max(calc(10px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
   color: color-mix(in srgb, var(--bond) 75%, var(--text));
   white-space: nowrap;
@@ -269,64 +253,8 @@ body {
 .cm_err[data-monitor-note] {
   white-space: normal;
 }
-/* COMPACT two-slot row (operator 2026-07-15 23:41: "terrible usage of
- * vertical space"; 23:50: "2 side-by-side") — interpretation sentence,
- * right-hand legend and the effort fact-card are all GONE; the row holds
- * (a) the mood bloom and (b) the focus & effort widget side by side. */
-.cm_body {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  justify-content: center;
-  min-width: 0;
-}
 .cm_canvas_box {
   position: relative;
-}
-/* Slot (b) is uic's AfConductGauge (kit-styled); the interim app widget
- * and its em_* styles are retired (swap contract, commons#2474). */
-
-/* The gauge's INTERACTIVE code row (operator dm#22 (a)-(c)): ours, spread
- * across the full width, 20% smaller than the bloom codes, hover+click.
- * The canvas draws no labels (labels:false, uic bloom parity). Since
- * 2026-08-01 each code stacks its LIVE compact value beneath it, so the
- * row sits in FLOW under the canvas (an overlay two lines tall would
- * cover the figure's roots and buds). */
-.cm_gauge_box {
-  position: relative;
-}
-.cm_gauge_codes {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 4px;
-  margin-top: 2px;
-}
-.cm_gauge_code {
-  background: none;
-  border: none;
-  padding: 0 2px;
-  cursor: pointer;
-  font-family: var(--font-mono, Menlo, Monaco, Consolas, monospace);
-  /* 20% smaller than the bloom's 10px overlay codes (dm#22 (c)). */
-  font-size: max(calc(8px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  letter-spacing: 0.4px;
-  opacity: 0.9;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-}
-.cm_gauge_code:hover {
-  opacity: 1;
-  text-decoration: underline;
-}
-/* The live compact value under each code (the kit's `short`): dim, so the
- * colored code stays the anchor and the number reads as its annotation. */
-.cm_gauge_val {
-  font-size: max(calc(8px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  color: var(--text-dim);
-  letter-spacing: 0;
-  min-height: calc(9px * var(--font-scale, 1));
 }
 
 /* A tone channel's value (the names' list, .cm_tone_list): the secondary text colour, aligned digits. */
@@ -2882,14 +2810,16 @@ body {
    on the right. */
 .entity_timeline.et_grid {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) auto auto;
+  grid-template-columns: max-content minmax(0, 1fr) max-content auto;
   align-items: center;
   column-gap: 10px;
   row-gap: 2px;
 }
-/* Four columns (backlog 0036): the lanes' labels, the lanes and the bar, the monitor (empty when closed),
- * the controls. Each item names its column, so the lanes never flow into the monitor's or the controls'
- * cells. Live, Monitor and the position sit over the last two lanes' rows, the transport on the bar's. */
+/* Three columns and no empty space (operator 2026-11-11 02:00, backlog 0040): the lanes (their labels,
+ * the lanes and the bar: the remaining width) | the five tone channels over the first four lanes' rows,
+ * ● Live and the position on the fifth's, the transport on the bar's, right-aligned, as wide as the
+ * widest of them | the monitor's bloom, a fixed width, the block's six rows (five lanes and the bar).
+ * Each item names its cells, so the lanes never flow into the others'. */
 .entity_timeline.et_grid > .et_lane_label {
   grid-column: 1;
 }
@@ -2897,15 +2827,25 @@ body {
 .entity_timeline.et_grid > .et_track_wrap {
   grid-column: 2;
 }
-.entity_timeline.et_grid > .et_right_top {
-  grid-column: 4;
-  grid-row: 4 / span 2;
+.entity_timeline.et_grid > .et_readings {
+  grid-column: 3;
+  grid-row: 1 / span 4;
   align-self: end;
   justify-self: end;
 }
-.entity_timeline.et_grid > .et_right {
-  grid-column: 4;
+.entity_timeline.et_grid > .et_right_top {
+  grid-column: 3;
+  grid-row: 5;
   justify-self: end;
+}
+.entity_timeline.et_grid > .et_right {
+  grid-column: 3;
+  grid-row: 6;
+  justify-self: end;
+}
+.entity_timeline.et_grid > .et_radar {
+  grid-column: 4;
+  grid-row: 1 / span 6;
 }
 .et_right_top {
   display: inline-flex;
@@ -4160,36 +4100,51 @@ body {
 
 /* ----------------------------------------------------- cognition wave
  * uic's mood instrument, mounted (vendored pending the kit package): THE COGNITIVE MONITOR, inside
- * the timeline (backlog 0032). Its place is the free space right of the lanes, above the transport
- * (the lanes' rows of the third column); compact, about 110 px tall at most, so the timeline grows by
- * about 40 px while it is open and the graph keeps its height. On a phone it takes the lanes' place. */
-.et_monitor_slot {
-  grid-column: 3;
-  min-width: 0;
-  align-self: stretch;
+ * the timeline and always on (backlog 0040). Its readings sit in the middle column above Live and the
+ * transport (.et_readings), its bloom in the last column (.et_radar), a fixed box that sets the block's
+ * one height, whatever its state says (an empty place behind the content gate keeps the size). */
+.et_readings {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
+  gap: 14px;
 }
-/* At most the block's own height (the lanes' five 16 px rows, the bar's row and their 2 px gaps):
- * opening it never grows the timeline, whatever its state says (one short line; the reason in its
- * hover). */
-.cw_panel.cw_compact {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  max-height: 160px;
-  /* Visible: the bloom's top and bottom petal labels reach a few px into the block's padding (the
-   * max-height still holds the layout; the labels never leave their box sideways). */
-  overflow: visible;
+.et_radar {
+  position: relative;
+  width: 210px;
+  height: 150px;
+}
+/* What the bloom's place says when no bloom can be drawn (no embeddings, a failed read, an exported
+ * view): one short line in its middle. */
+.et_radar_instead {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+/* The one short line over the bloom (reading…, nothing said yet here, as of 14:02): its bottom right
+ * corner, clear of the register names. */
+.et_radar_note {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+/* The ⓘ, whose hover says what it reads (his words, never his inner state) and the basis it reads
+ * with: the top right corner. */
+.et_radar > .cw_about {
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 /* The bloom's register names (backlog 0036: no code, "smaller font"): the bloom's own small type,
  * under the type floor (its documented exception, as the graph's canvas labels), so nine names fit
  * around the bloom; the canvas centred in its wider box. */
-.cw_compact .cm_overlay {
+.et_radar .cm_overlay {
   --ent-type-floor: 0px;
 }
-.cw_compact .cm_overlay_code {
+.et_radar .cm_overlay_code {
   font-family: inherit;
   font-weight: 500;
   letter-spacing: 0;
@@ -4198,29 +4153,8 @@ body {
   position: absolute;
   top: 0;
 }
-/* The named bloom's box keeps its size (its names are laid out for it): never the row's shrinkable
- * item, or the names leave it and print over the channels. */
-.cw_compact .cm_canvas_box {
-  flex: none;
-}
-/* While open the monitor is the main thing right of the lanes (they are bars and narrow fine). */
-.et_monitor_slot:not(:empty) {
-  min-width: 420px;
-}
-.cw_compact .cm_body,
-.cw_compact .cm_panel.cm_compact,
-.cw_compact .cm_panel.cm_compact .cm_body {
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 0;
-  border: none;
-  background: none;
-}
-/* The five channels by name (backlog 0036): a column, each name smaller than its value. */
+/* The five channels by name (backlog 0036), and during a visit the turn's conduct beside them: a
+ * column each, each name smaller than its value. */
 .cm_tone_list {
   display: grid;
   grid-template-columns: max-content max-content;
@@ -4243,55 +4177,6 @@ body {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-/* The conduct gauge with its four names beside it (backlog 0036: no code), each name smaller than its value. */
-.cw_compact .cm_gauge_box {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-.cw_compact .cm_gauge_box .cm_gauge_codes {
-  flex-direction: column;
-  gap: 1px;
-  margin-top: 0;
-  padding: 0;
-}
-.cw_compact .cm_gauge_box .cm_gauge_code {
-  flex-direction: row;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  font-family: inherit;
-}
-.cm_gauge_name {
-  font-size: max(10px, calc(var(--ent-type-floor, 12px) - 2px));
-}
-.cw_compact .cm_reading_state {
-  color: var(--text-dim);
-  font-size: max(calc(10.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
-  border: 1px dashed color-mix(in srgb, var(--text-dim) 35%, transparent);
-  border-radius: 50%;
-}
-.cw_compact .cm_head {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.cw_compact .cm_head:empty {
-  display: none;
-}
-/* The monitor's own one-word state (reading…, nothing said yet here…) and its ⓘ, whose hover says what
- * it reads (his words, never his inner state) and the basis it reads with. */
-.cw_state {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  flex: none;
-  max-width: 150px;
-  white-space: nowrap;
-}
 .cw_about {
   color: var(--text-dim);
   cursor: help;
@@ -4306,75 +4191,51 @@ body {
 .cw_note_error {
   color: color-mix(in srgb, var(--scar) 55%, var(--text));
 }
-/* The Monitor toggle in the timeline's transport: pressed = the monitor is open. */
-.et_monitor {
-  color: var(--text-dim);
-  font-family: inherit;
-}
-.et_monitor[aria-pressed="true"] {
-  color: var(--ea-accent);
-  border-color: var(--ea-accent);
-  background: color-mix(in srgb, var(--ea-accent) 14%, var(--bg-raise));
-}
-/* Phone (the lanes fill the width): the open monitor takes the lanes' place, above the bar. */
+/* Phone (backlog 0040): the lanes and the bar on top, the full width; below them the channels with the
+ * bloom beside them, then Live and the position, then the transport, each on the full width at the
+ * right (the position "22:06 UTC · 47359/157864" and the 44 px transport do not fit beside the bloom
+ * on 400 px: there they would wrap to four rows). */
 @media (max-width: 767.98px) {
-  /* In the lanes' place: at least their height (five 16 px rows and four 2 px gaps), taller while
-   * open when the named bloom needs it (the block gives it back on closing). */
-  .et_monitor_slot {
-    grid-column: 1 / -1;
-    grid-row: auto !important;
-    justify-content: flex-start;
-    min-width: 0;
-    min-height: 88px;
+  .entity_timeline.et_grid {
+    grid-template-columns: max-content minmax(0, 1fr) auto;
+  }
+  .entity_timeline.et_grid > .et_lane,
+  .entity_timeline.et_grid > .et_track_wrap {
+    grid-column: 2 / -1;
   }
   .entity_timeline.et_grid .et_lane_label {
     height: 16px;
     line-height: 16px;
   }
-  .et_monitor_slot:empty {
-    display: none;
+  .entity_timeline.et_grid > .et_readings {
+    grid-column: 1 / 3;
+    grid-row: 7;
+    align-self: center;
   }
-  /* The phone's width, never the desktop's 420 px floor (no sideways scroll). */
-  .et_monitor_slot:not(:empty) {
-    min-width: 0;
+  .entity_timeline.et_grid > .et_radar {
+    grid-column: 3;
+    grid-row: 7;
   }
-  .entity_timeline.et_monitor_open .et_lane_label:not(.et_time_label),
-  .entity_timeline.et_monitor_open .et_lane {
-    display: none;
+  .entity_timeline.et_grid > .et_right_top,
+  .entity_timeline.et_grid > .et_right {
+    grid-column: 1 / -1;
+    justify-self: end;
   }
-  /* One row in the lanes' place (the named bloom, useMonitorBloomSize, and the channels), never a
-   * tall wrapped column; the gauge, live with a conversation, wraps under them. */
-  .cw_panel.cw_compact {
-    max-height: none;
-    flex-wrap: wrap;
+  .entity_timeline.et_grid > .et_right_top {
+    grid-row: 8;
+    padding-left: 0;
   }
-  /* With a conversation open the reading's row (bloom, channels, gauge) wraps: the gauge on a second
-   * line, never a squeezed bloom. */
-  .cw_compact .cm_panel.cm_compact .cm_body {
-    flex-wrap: wrap;
+  .entity_timeline.et_grid > .et_right {
+    grid-row: 9;
+  }
+  .et_radar {
+    width: 160px;
+    height: 120px;
   }
   /* The register names alone around the phone's bloom (each number in its name's card, on a
    * long-press). */
-  .cw_compact .cm_overlay_num {
+  .et_radar .cm_overlay_num {
     display: none;
-  }
-  /* Its state wraps in a narrow column beside the channels, so a long one ("no embeddings · set
-   * up") never adds a row. */
-  .cw_compact .cw_state {
-    max-width: 72px;
-    white-space: normal;
-  }
-  .cw_panel.cw_compact,
-  .cw_compact .cm_body {
-    gap: 6px;
-  }
-  /* The controls: Live, Monitor and the position on their own row above the transport, at the right. */
-  .entity_timeline.et_grid > .et_right_top {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    justify-self: stretch;
-    justify-content: flex-end;
-    padding-left: 0;
   }
   .et_right_top .et_pos {
     margin-left: 0;
@@ -5919,12 +5780,7 @@ body {
     border-left: none;
     padding-left: 0;
   }
-  .entity_timeline.et_grid {
-    grid-template-columns: max-content minmax(0, 1fr);
-  }
-  .entity_timeline.et_grid .et_right {
-    grid-column: 1 / -1;
-  }
+  /* The grid's phone columns: the monitor's phone block (backlog 0040). */
   .et_pos {
     min-width: 0;
     margin-left: auto;

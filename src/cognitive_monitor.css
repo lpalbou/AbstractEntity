@@ -1,7 +1,3 @@
-/* The conduct codes' values ("40.1s", "44+1", "1m35s") never wrap either. */
-.cm_gauge_codes .cm_gauge_val {
-  white-space: nowrap;
-}
 /* The codes are labels, not buttons (operator 2026-11-07): no pointer cursor, no underline; the
  * help cursor says a card is behind them; focusable for keyboard users (the card opens on focus).
  * A long-press opens the card on touch, so the page must not select text or open a callout. */
@@ -11,9 +7,6 @@
   user-select: none;
   -webkit-touch-callout: none;
   border-radius: 3px;
-}
-.cm_gauge_code.cm_explained:hover {
-  text-decoration: none;
 }
 .cm_explained:focus-visible {
   outline: 2px solid var(--accent, currentColor);
@@ -51,12 +44,4 @@
 .cm_overlay_code.cm_explained .cm_overlay_num {
   text-align: center;
   line-height: 1;
-}
-/* The conduct row spans the whole gauge box (no side padding) so four values such as
- * "1m35s 1 120+12 1/1" fit a 147 px box at the 14 px touch type floor. */
-.cm_gauge_box > .cm_gauge_codes {
-  padding: 0;
-}
-.cm_gauge_box .cm_gauge_code.cm_explained {
-  padding: 0 1px;
 }

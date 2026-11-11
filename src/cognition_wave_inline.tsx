@@ -3,18 +3,24 @@
  * part of the monitor inside the timeline (cognition_wave_panel.tsx;
  * operator 2026-11-10, backlogs 0018 and 0032: "the cognitive monitor lives
  * at the bottom with the temporal replay, evolving with the replay and per
- * message, so nothing of it at the top"). The DIAGRAM is the kit's
- * `AfCognitionBloom` (co-designed component, c2242: nine registers incl.
- * GRAVITY, morph-gated breath, settledness-gated valence vignette, optional
- * effort column); this app owns the FEED (embed → scorer → register values),
- * the DOM 3-letter code overlay with each value, and scroll-follow. No
- * sentence comments on the values (operator 2026-11-07).
+ * message, so nothing of it at the top"; 2026-11-11, backlog 0040: "when we
+ * visit and type a message, we should see the cognitive monitor updating in
+ * real time"). It draws in the SAME places as the replay's reading
+ * (MonitorReading): the tone channels in the timeline's middle column, the
+ * bloom in its last. The DIAGRAM is the kit's `AfCognitionBloom` (co-designed
+ * component, c2242: nine registers incl. GRAVITY, morph-gated breath); this
+ * app owns the FEED (embed → scorer → register values), the register names
+ * around it with each value, and scroll-follow. No sentence comments on the
+ * values (operator 2026-11-07).
  *
  * THE FEED (createReplyFeed): the chat drawer publishes the reply in view —
  * the newest assistant reply, or the one scrolled to (`focusReply`) — into a
- * small store; only the open monitor subscribes, so a closed monitor costs
- * no render and no read. Each distinct text scores once (embed-per-unique-
- * text, cached). "as of" is labeled when not the latest.
+ * small store the monitor subscribes to. A reply reaches the drawer whole
+ * (the visit's turn answers once), so the reading is PER MESSAGE: each
+ * distinct text is embedded once (cached per home), never per chunk. "as of"
+ * is labeled when not the latest. The turn's conduct (effort, action,
+ * attention, rigor) is listed beside the tone channels, by name, during a
+ * visit.
  *
  * Honesty (unchanged): reads the expressive character of his WORDS, never
  * inner state; a known pin↔basis embedder mismatch renders NOTHING (sticky).
@@ -25,9 +31,8 @@ import {
   AF_MEDIA,
   useAfMedia,
   AfCognitionBloom,
-  AfConductGauge,
+  conductAxes,
   runningMedian,
-  type ConductAxis,
   type ConductBaseline,
   type ConductFacts,
   type ConductToolCall,
@@ -35,7 +40,7 @@ import {
 
 import { isUsableVector, readingFromScore } from "./cognition_adapter";
 import { BloomAxisOverlay, bloomScoresOf, CONDUCT_AXES, conductCell, conductExplainer, dominantEmotion, simText, ToneRow } from "./cognitive_monitor";
-import { ExplainedCode } from "./code_explainer";
+import { ExplainedCode, type ExplainerContent } from "./code_explainer";
 import { embeddingsSetupUrl, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
 import { proxyConnectionStatus } from "./gateway_session";
 import { createScorer, type FrozenBasis, type VendorScorer } from "./vendor/cognition/cognition_scorer";
@@ -62,7 +67,7 @@ export interface ReplyFeedValue {
   tools: ConductToolCall[] | null;
 }
 
-/** The chat drawer → monitor channel: the drawer sets, the open monitor subscribes. A set equal
+/** The chat drawer → monitor channel: the drawer sets, the monitor subscribes. A set equal
  * field by field to the current value notifies nobody. */
 export interface ReplyFeed {
   get(): ReplyFeedValue | null;
@@ -98,10 +103,10 @@ export function createReplyFeed(): ReplyFeed {
 }
 /** The bloom inside the timeline (backlog 0036, "better use the space given"): its canvas (the kit
  * draws the petals within 0.38 of it, so a 150 px canvas is a ~114 px bloom) and a box wider than
- * tall for the register names around it. The conduct gauge with its names beside it. */
+ * tall for the register names around it. The box is the timeline's last column (backlog 0040), its
+ * height the block's. */
 const BLOOM = { canvas: 150, box: 210 };
 const BLOOM_PHONE = { canvas: 120, box: 160 };
-const GAUGE = 72;
 
 /** The bloom's canvas and box for this screen. */
 export function useMonitorBloomSize(): { canvas: number; box: number } {
@@ -118,6 +123,50 @@ export function NamedBloom({ size, scores, emotions }: { size: { canvas: number;
         <AfCognitionBloom scores={scores} options={{ labels: false, vignette: false }} size={size.canvas} />
       </div>
       <BloomAxisOverlay width={size.box} height={size.canvas} emotions={emotions ?? {}} />
+    </>
+  );
+}
+
+/** The monitor's two places in the timeline (backlog 0040), the same for the replay's reading and a
+ * reply's: the tone channels (and, during a visit, the turn's conduct beside them) in the middle
+ * column above Live and the transport, and the bloom with its register names in the last column, the
+ * block's full height. `instead`: what the bloom's place says when no bloom can be drawn (no
+ * embeddings, a failed read, an exported view); `note`: the one short line over the bloom (reading…,
+ * nothing said yet here, as of 14:02). The ⓘ's card says what this reads and with which basis. */
+export interface MonitorReadingProps {
+  state: string;
+  emotions: Record<string, number> | undefined;
+  scores: Record<string, number> | undefined;
+  instead: React.ReactNode | null;
+  note: React.ReactNode | null;
+  about: ExplainerContent;
+  conduct?: React.ReactNode;
+}
+
+export function MonitorReading({ state, emotions, scores, instead, note, about, conduct }: MonitorReadingProps): React.ReactElement {
+  const bloom = useMonitorBloomSize();
+  const bloomScores = useMemo(() => bloomScoresOf(emotions), [emotions]);
+  const mood = useMemo(() => dominantEmotion(emotions), [emotions]);
+  return (
+    <>
+      <div className="et_readings">
+        {conduct}
+        <ToneRow scores={scores} />
+      </div>
+      <div className="et_radar" data-reading-state={state}>
+        {instead === null ? (
+          <div className="cm_canvas_box" style={{ width: bloom.box, height: bloom.canvas }} title={mood ? `closest to ${mood.axis.name} (${simText(mood.value)})` : undefined}>
+            {/* The tree's labels (backlog 0036): each register's name at its petal, its number under it. */}
+            <NamedBloom size={bloom} scores={bloomScores} emotions={emotions} />
+          </div>
+        ) : (
+          <div className="et_radar_instead">{instead}</div>
+        )}
+        {note ? <span className="et_radar_note">{note}</span> : null}
+        <ExplainedCode className="cw_about" explain={about}>
+          ⓘ
+        </ExplainedCode>
+      </div>
     </>
   );
 }
@@ -145,6 +194,8 @@ function homeReads(baseUrl: string, entity: string): ScoringReads<ScoredText> {
 export interface CognitionWaveInlineProps {
   baseUrl: string;
   entity: string;
+  /** The ⓘ's card (the panel's: what this reads, the basis). */
+  about: ExplainerContent;
   /** The newest assistant reply text; null before the first reply. */
   latestReply: string | null;
   /** The assistant reply the operator is LOOKING AT (scroll-follow) — the
@@ -153,19 +204,19 @@ export interface CognitionWaveInlineProps {
   focusReply?: string | null;
   /** Timestamp label for focusReply when it is not the latest ("as of"). */
   focusAt?: string | null;
-  /** The latest turn's mechanical conduct facts — slot (b)'s feed
-   * (uic's AfConductGauge, adopted c2474; the interim app widget is
-   * retired). Absent fields never zero-fake. */
+  /** The latest turn's mechanical conduct facts — the conduct list's feed
+   * (the kit's conductAxes reads, c2474; listed by name since backlog 0040,
+   * no drawing). Absent fields never zero-fake. */
   effort?: ConductFacts | null;
   /** Stable per-TURN key for the baseline deposit (adversary P2: the facts
    * object re-mints per render — identity dedup triple-counted turns). */
   effortKey?: string | null;
-  /** The turn's tool calls (name + ok when known) — the gauge's ACT/RIG
-   * inputs (toolCallsOf). */
+  /** The turn's tool calls (name + ok when known) — the action and rigor
+   * reads' inputs (toolCallsOf). */
   tools?: ConductToolCall[] | null;
 }
 
-/** A turn's tool calls for the conduct gauge, from the turn report: every
+/** A turn's tool calls for the conduct reads, from the turn report: every
  * `tool_details` entry (with `ok` from its `success`, served by the visit
  * lane's ledger fold since 2026-07-18; absent = unknown, never ok), then the
  * `tools_ran` names no detail covers. null when the turn ran none. */
@@ -210,7 +261,7 @@ export function CognitionWaveInline(props: CognitionWaveInlineProps): React.Reac
   return <CognitionWaveSession key={JSON.stringify([props.baseUrl, props.entity])} {...props} />;
 }
 
-function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusAt, effort, effortKey, tools }: CognitionWaveInlineProps): React.ReactElement | null {
+function CognitionWaveSession({ baseUrl, entity, about, latestReply, focusReply, focusAt, effort, effortKey, tools }: CognitionWaveInlineProps): React.ReactElement {
   const scorerRef = useRef<VendorScorer | null>(null);
   const embedderRef = useRef<string | null>(null);
   const setupRef = useRef<Promise<void> | null>(null);
@@ -224,10 +275,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
   const [status, setStatus] = useState<"idle" | "scoring" | "live" | "error" | "unavailable" | "unconfigured">("idle");
   const [note, setNote] = useState<string | null>(null);
   const [current, setCurrent] = useState<ScoredText | null>(null);
-  /** Live axis readings from the gauge (values/reasons for the code-row
-   * tooltips — the kit reports them via onAxes). */
-  const [gaugeAxes, setGaugeAxes] = useState<ConductAxis[]>([]);
-  /** Session baseline for the conduct gauge (uic's contract: consumer-owned
+  /** Session baseline for the conduct reads (uic's contract: consumer-owned
    * running medians of our OWN turn history — the arcs read relative to
    * this visit, never an invented absolute). */
   const historyRef = useRef<{ think_ms: number[]; tokens_out: number[]; tool_rounds: number[]; memories_recalled: number[] }>({
@@ -242,7 +290,7 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
    * self-inclusive median pinned a steady cadence's EFF at exactly 0.5
    * forever (v/(2·median-of-values-including-v)), and recomputing after the
    * deposit made the same turn's reading CHANGE between renders. Turn 1 has
-   * no baseline — the gauge downgrades honestly ("first turns"). */
+   * no baseline — the reads downgrade honestly ("first turns"). */
   const baselineRef = useRef<ConductBaseline>({});
   const baseline = useMemo<ConductBaseline>(() => {
     const h = historyRef.current;
@@ -335,67 +383,56 @@ function CognitionWaveSession({ baseUrl, entity, latestReply, focusReply, focusA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownText, baseUrl, entity]);
 
-  // Every register at its measured similarity on the radar's one fixed scale (bloomScoresOf
-  // sends all nine explicitly; a register the basis lacks sits on the inner ring, its label "—").
-  const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
-  const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
-  const bloom = useMonitorBloomSize();
-  /** Each conduct code's value and reason: the row prints `short`, the hover card the rest. */
-  const conduct = useMemo(() => Object.fromEntries(CONDUCT_AXES.map((a) => [a.id, conductCell(gaugeAxes.find((g) => g.id === a.id), effort, tools)])), [gaugeAxes, effort, tools]);
-
-  // Nothing until a reply arrives. Failed or incompatible readings stay visible as such.
-  if (status === "idle") return null;
+  /** Each conduct read's value and reason (the kit's conductAxes over the turn's facts, against this
+   * visit's baseline): the list prints `short`, the hover card the rest. */
+  const conduct = useMemo(() => {
+    // As the kit's own drawing computed them (its onAxes): no calls served = an empty list.
+    const axes = conductAxes(effort ?? null, tools ?? [], baseline);
+    return Object.fromEntries(CONDUCT_AXES.map((a) => [a.id, conductCell(axes.find((g) => g.id === a.id), effort, tools)]));
+  }, [effort, tools, baseline]);
+  const shown = status === "live" && current ? current : null;
 
   return (
-    <div className="cm_panel cm_compact" data-reading-state={status}>
-      {/* THE READING, compact (backlog 0032): the bloom (its closest register in the hover), the tone
-        * channels with their signed scores, and FOCUS & EFFORT, the mechanical facts of the latest
-        * turn (uic's AfConductGauge; every code carries its value, a 300 ms hover or a long-press opens
-        * its card). No sentence comments on the values. */}
-      <div className="cm_body">
-        <div
-          className="cm_canvas_box"
-          style={{ width: bloom.box, height: bloom.canvas }}
-          title={mood ? `closest to ${mood.axis.name} (${simText(mood.value)})` : undefined}
-        >
-          {status === "live" && current ? (
-            <NamedBloom size={bloom} scores={bloomScores} emotions={current.emotions} />
-          ) : (
-            <div role="status" className="cm_reading_state" style={{ width: bloom.box, height: bloom.canvas, display: "grid", placeItems: "center", textAlign: "center", boxSizing: "border-box" }}>
-              {status === "scoring" ? "reading…" : "not read"}
-            </div>
-          )}
-        </div>
-        {/* The five tone channels, each with its signed score (both poles show). */}
-        {status === "live" && current ? <ToneRow scores={current.scores} /> : null}
-        <div className="cm_gauge_box">
-          <AfConductGauge facts={effort ?? null} tools={tools ?? null} baseline={baseline} size={GAUGE} labels={false} onAxes={setGaugeAxes} />
-          <div className="cm_gauge_codes">
-            {CONDUCT_AXES.map((a) => {
-              const cell = conduct[a.id];
-              return (
-                <ExplainedCode key={a.id} className="cm_gauge_code" style={{ color: a.color }} explain={conductExplainer(a, cell)}>
-                  <span className="cm_gauge_name">{a.name}</span>
-                  <span className="cm_gauge_val">{cell?.short ?? ""}</span>
-                </ExplainedCode>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <div className="cm_head">
-        {!isLatest ? (
+    <MonitorReading
+      state="conversation"
+      emotions={shown?.emotions}
+      scores={shown?.scores}
+      // A failed or incompatible reading says so in the bloom's place (the reason in its hover).
+      instead={
+        status === "error" || status === "unavailable" ? (
+          <span className="cw_note cw_note_error" title={note || undefined}>
+            could not read
+          </span>
+        ) : status === "unconfigured" ? (
+          <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cw_note cw_note_error" short />
+        ) : null
+      }
+      // Never the previous reply's bloom under a new reply's label: the bloom is empty while it reads.
+      note={
+        status === "scoring" ? (
+          "reading…"
+        ) : !isLatest ? (
           <span className="cm_asof" title="The monitor is showing the mood at the message you scrolled to — scroll to the bottom for the latest.">
             as of {focusAt ? new Date(focusAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "an earlier message"}
           </span>
-        ) : null}
-        {status === "error" || status === "unavailable" ? (
-          <span className="cm_err" title={note || undefined}>
-            not read
-          </span>
-        ) : null}
-        {status === "unconfigured" ? <EmbeddingsUnconfiguredNote baseUrl={baseUrl} message={note || ""} className="cm_err" short /> : null}
-      </div>
-    </div>
+        ) : null
+      }
+      about={about}
+      // The turn's conduct by name, beside the tone channels (backlog 0036: no code); a 300 ms hover or
+      // a long-press opens each one's card.
+      conduct={
+        <div className="cm_tone_list cm_conduct_list" role="group" aria-label="Conduct of this turn">
+          {CONDUCT_AXES.map((a) => {
+            const cell = conduct[a.id];
+            return (
+              <ExplainedCode key={a.id} className="cm_tone_item" style={{ color: a.color }} explain={conductExplainer(a, cell)}>
+                <span className="cm_tone_name">{a.name}</span>
+                <span className="cm_tone_val">{cell?.short ?? "—"}</span>
+              </ExplainedCode>
+            );
+          })}
+        </div>
+      }
+    />
   );
 }

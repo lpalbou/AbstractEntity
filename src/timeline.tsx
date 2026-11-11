@@ -4,13 +4,15 @@
  * defining events: world model, lessons, episodic events, diary"; "stop
  * and play should be on the right along with previous/next").
  *
- * One grid so every lane lines up with the scrub bar beneath it:
- *   label | lane of marks       |
- *   …     | …                   |
- *   time  | scrub bar + ticks   | transport ⏮ ◀ ▶/❚❚ ▶ ⏭ · speed · Live · Monitor · position
- * The Cognitive Monitor, when open, sits between the lanes and the controls, the block's full height
- * (backlogs 0032, 0036); on a phone it takes the lanes' place. Live, the Monitor toggle and the
- * position sit in their own row above the transport.
+ * One grid so every lane lines up with the scrub bar beneath it, in three columns with no empty space
+ * (operator 2026-11-11 02:00, backlog 0040):
+ *   label | lane of marks       | the five tone channels |
+ *   …     | …                   |                        | the Cognitive Monitor's bloom,
+ *   …     | …                   | ● Live · position      | the block's full height
+ *   time  | scrub bar + ticks   | ⏮ ◀ ▶/❚❚ ▶ ⏭ · speed    |
+ * The monitor is always on (no toggle): its readings follow the position drawn, the play head every
+ * frame while playing. On a phone the lanes are on top; below them the channels with the bloom beside
+ * them, then Live and the position, then the transport.
  * Position = envelope index (even pacing across the life), display =
  * journal seq. A mark is a memory he formed — a lived moment, a diary
  * entry, a lesson, a world-model revision, a dream — at the place it
@@ -45,12 +47,10 @@ export interface TimelineProps {
   onTogglePlay(): void;
   onSpeed(speed: number): void;
   onToggleLive(): void;
-  /** The Cognitive Monitor in this panel (backlog 0032): on screen or not, and its toggle; null while
-   * it cannot show (beside the avatar view): the toggle is then disabled and says why. */
-  monitorOpen: boolean;
-  onToggleMonitor: (() => void) | null;
-  /** The open monitor, placed right of the lanes (null when closed). */
-  monitor: React.ReactNode;
+  /** The Cognitive Monitor, always on (backlog 0040): its readings and its bloom at the journal seq of
+   * the position drawn (the play head while playing); null while it cannot show (behind the content
+   * gate), its two places then kept empty at their size. */
+  monitor: ((seq: number) => React.ReactNode) | null;
   /** A defining event was clicked: move time to it and open its memory. */
   onOpenEvent?(index: number, recordId: string): void;
   /** The play head while playing (the panel follows it every frame). */
@@ -126,6 +126,8 @@ export function Timeline(props: TimelineProps): React.ReactElement {
   const head = useSyncExternalStore(store.subscribe, store.get, store.get);
   const scrubIndex = playing && !live && head !== null ? Math.min(head, max) : props.scrubIndex;
   const current = envelopes[scrubIndex];
+  // The monitor's moment: the seq at the position drawn (0 before the first event, as the page's).
+  const seq = scrubIndex >= 0 && current ? current.seq : 0;
   // Where the slider puts an event: its range runs from -1 to max and its
   // thumb (--et-thumb wide) travels the track minus one thumb width, so a
   // mark uses the same arithmetic to sit exactly above that position.
@@ -215,12 +217,7 @@ export function Timeline(props: TimelineProps): React.ReactElement {
   }, [byLane, span]);
 
   return (
-    <div className={`entity_timeline et_grid${props.monitor ? " et_monitor_open" : ""}`}>
-      {/* The monitor's place: between the lanes and the controls, the block's full height (the lanes'
-        * rows and the time row; backlog 0036). */}
-      <div className="et_monitor_slot" style={{ gridRow: `1 / span ${LANES.length + 1}` }}>
-        {props.monitor}
-      </div>
+    <div className="entity_timeline et_grid">
       {LANES.map((lane) => (
         <React.Fragment key={lane.id}>
           <span className="et_lane_label" style={{ color: lane.color }}>
@@ -256,8 +253,8 @@ export function Timeline(props: TimelineProps): React.ReactElement {
           onChange={(e) => props.onScrub(Number(e.target.value))}
         />
       </div>
-      {/* Live, the Monitor toggle and the position: their own row above the transport (operator
-        * 2026-11-10 23:07, backlog 0036: "put the time and the 2 buttons above"), right-aligned. */}
+      {/* Live and the position: their own row under the tone channels, above the transport (operator
+        * 2026-11-11 02:00, backlog 0040), right-aligned in the middle column. */}
       <div className="et_right_top">
         <button
           className={`et_btn et_live ${live ? "et_live_on" : ""}`}
@@ -266,22 +263,6 @@ export function Timeline(props: TimelineProps): React.ReactElement {
           title={liveAvailable ? "Follow the live journal" : "Live tail needs a gateway source"}
         >
           ● Live
-        </button>
-        {/* THE COGNITIVE MONITOR's toggle (operator 2026-11-10, backlogs 0018, 0032): pressed = the
-          * monitor is open in this panel, right of the lanes, following this replay and, live, each
-          * reply; the press is what reads his words. */}
-        <button
-          className="et_btn et_monitor"
-          aria-pressed={props.monitorOpen}
-          onClick={props.onToggleMonitor ?? undefined}
-          disabled={props.onToggleMonitor === null}
-          title={
-            props.onToggleMonitor === null
-              ? "Cognitive monitor: not shown beside the avatar view"
-              : "Cognitive monitor: how his words read at this point of the replay and, live, at each reply"
-          }
-        >
-          🧠 Monitor
         </button>
         <span className="et_pos" title="the time at the scrub position · event position / total (hover the bar's marks for each event)">
           {scrubIndex >= 0 && current ? `${clockUtc(current.observed_at)} UTC` : "—"} · {scrubIndex + 1}/{envelopes.length}
@@ -333,6 +314,16 @@ export function Timeline(props: TimelineProps): React.ReactElement {
           />
         </span>
       </div>
+      {/* THE COGNITIVE MONITOR, always on (backlog 0040): the tone channels above Live in the middle
+        * column, the bloom in the last column. Behind the content gate its places stay, empty. */}
+      {props.monitor ? (
+        props.monitor(seq)
+      ) : (
+        <>
+          <div className="et_readings" />
+          <div className="et_radar" />
+        </>
+      )}
     </div>
   );
 }

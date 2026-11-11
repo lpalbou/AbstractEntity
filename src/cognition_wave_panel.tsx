@@ -1,16 +1,16 @@
 /**
- * THE COGNITIVE MONITOR, inside the timeline (operator 2026-11-10, backlog 0032: "the monitor should
- * open in the empty space above" the timeline's controls, beside the lanes; never a strip that takes
- * the graph's height). The timeline's Monitor toggle opens it; it is mounted only while open, so a
- * closed monitor renders and reads nothing. Compact (about 110 px tall): a small bloom and the five
- * tone channels; live with his conversation open, the reply in view with its conduct gauge. No title,
- * no framing block, no button: the press on Monitor is the act that starts the one read of his words
- * (kept per entity for the page's life); the basis and the framing are the ⓘ's hover. The timeline
- * drives it:
- * - LIVE with his conversation open in the chat: the reply in view, read per message
+ * THE COGNITIVE MONITOR, inside the timeline and always on (operator 2026-11-11 02:00, backlog 0040:
+ * "remove the cognitive monitor button and let it always on"; the five channel readings stacked above
+ * Live and the transport, next to the lanes, "then to the right, the radar"; "goal: no empty space").
+ * Two places in the timeline's grid (MonitorReading): the tone channels in the middle column, the
+ * bloom with its nine register names in the last column, the block's full height. No title, no
+ * framing block, no button: the basis and the framing are the ⓘ's hover. One read of his words per
+ * entity, started once his life has loaded (kept for the page's life); the timeline drives what it
+ * shows:
+ * - LIVE with his conversation open in the chat: the reply in view, read per message as it lands
  *   (cognition_wave_inline.tsx, fed by the chat drawer's ReplyFeed).
- * - Otherwise: his words at the replay position, the utterance formed at or before the timeline's
- *   seq, from that one read.
+ * - Otherwise: his words at the position drawn (the play head every frame while playing), the
+ *   utterance formed at or before its seq, LOOKED UP in that one read (sampleAt), never read again.
  *
  * The entity app's mount of uic's cognition-wave monitor (the split ruled on
  * the hub: uic owns the scorer + basis + renderer, this owns the feed +
@@ -38,15 +38,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
-import { ExplainedCode, type ExplainerContent } from "./code_explainer";
-import { basisProvenanceNote, bloomScoresOf, CHANNEL_AXES, dominantEmotion, simText, ToneRow, TONE_POLES } from "./cognitive_monitor";
+import type { ExplainerContent } from "./code_explainer";
+import { basisProvenanceNote, CHANNEL_AXES, TONE_POLES } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
 import { EMBEDDINGS_UNCONFIGURED, embedTexts, fetchEntityEmbedding, isEmbeddingsUnconfigured } from "./stream_source";
-import { CognitionWaveInline, EmbeddingsUnconfiguredNote, NamedBloom, useMonitorBloomSize, type ReplyFeed } from "./cognition_wave_inline";
+import { CognitionWaveInline, EmbeddingsUnconfiguredNote, MonitorReading, type ReplyFeed } from "./cognition_wave_inline";
 import { createScorer, type FrozenBasis } from "./vendor/cognition/cognition_scorer";
 
-// The frozen basis is ~190 KB of numbers; lazy-load it so opening the
-// monitor (not the default view) is what pays for it, not first paint.
+// The frozen basis is ~190 KB of numbers; lazy-load it so first paint never
+// waits for it (the monitor loads it once mounted).
 // Cached after the first load. When the kit package ships, this becomes a normal
 // import from the package (still code-splittable).
 async function loadBasis(): Promise<FrozenBasis> {
@@ -57,13 +57,16 @@ async function loadBasis(): Promise<FrozenBasis> {
 }
 
 export interface CognitionWavePanelProps {
-  fold: FoldState;
+  /** His whole life's fold, read at pull time: the one read covers every position, whatever the
+   * position when it starts (the page's own fold is the state AT its position). */
+  lifeFold: () => FoldState;
+  /** His life has loaded (the read waits for it: a read of a half-loaded life would be kept). */
+  ready: boolean;
   /** Gateway base + entity; null on an exported file (scoring needs the
    * gateway embeddings route + operator doors). */
   source: { baseUrl: string; entity: string } | null;
-  /** The timeline's position (journal seq): the monitor shows the utterance
-   * formed at or before it — cognition, graph and discussion correlate on
-   * one axis. */
+  /** The position drawn (journal seq; the play head while playing): the monitor shows the utterance
+   * formed at or before it — cognition, graph and discussion correlate on one axis. */
   scrubSeq: number;
   /** The timeline follows the live journal: the reply in view in his open
    * conversation (when there is one) is read, per message. */
@@ -91,29 +94,28 @@ export function sampleAt(samples: readonly ScoredSample[], seq: number): ScoredS
   return best;
 }
 
-/** The corpus read, kept per gateway + entity for the page's life: the monitor
- * mounts only while open, and a re-open must not cost his words another read.
- * A read in flight is its promise (a re-open while scoring waits on it).
+/** The corpus read, kept per gateway + entity for the page's life: a return to his page must not cost
+ * his words another read. A read in flight is its promise (a remount while scoring waits on it).
  * Never evicted: one entry per home visited, one ~120-sample corpus each. */
 const corpusReads = new Map<string, Phase | Promise<Phase>>();
 export const corpusKey = (source: { baseUrl: string; entity: string } | null): string => (source ? `${source.baseUrl}\u0000${source.entity}` : "");
 
-/** What the monitor shows for a home on (re)opening: the kept read, "scoring" while one is in
- * flight, else the resting state. */
+/** What the monitor shows for a home on mounting: the kept read, "scoring" while one is in flight,
+ * else the resting state. */
 export function keptCorpus(key: string): Phase {
   const kept = corpusReads.get(key);
   return kept === undefined ? { name: "idle" } : kept instanceof Promise ? { name: "scoring" } : kept;
 }
 
-/** The read in flight for a home (a re-open waits on it), or null. */
+/** The read in flight for a home (a remount waits on it), or null. */
 export function corpusInFlight(key: string): Promise<Phase> | null {
   const kept = corpusReads.get(key);
   return kept instanceof Promise ? kept : null;
 }
 
 /** THE ONE PULL for a home: starts `read` unless one is in flight (null then, nothing starts). A
- * read is kept for the page's life; a failed one (no embeddings, an error) is not, so the next press
- * tries again (after the route is set up, say). */
+ * read is kept for the page's life; a failed one (no embeddings, an error) is not, so the next visit
+ * to his page tries again (after the route is set up, say). */
 export function startCorpusRead(key: string, read: () => Promise<Phase>): Promise<Phase> | null {
   if (corpusInFlight(key)) return null;
   const pending = read();
@@ -157,40 +159,42 @@ export function monitorAbout(provenance: string | null, calibration: string | nu
   };
 }
 
-/** The monitor's one short line (its height never depends on it; the full reason in the hover). */
-export function MonitorState({ phase, source, conversation, nothingHere }: { phase: Phase; source: { baseUrl: string } | null; conversation: boolean; nothingHere: boolean }): React.ReactElement | null {
-  if (!source) return <span className="cw_note">exported view: not read</span>;
-  if (conversation) return null;
-  if (phase.name === "scoring") return <span className="cw_note">reading…</span>;
-  if (phase.name === "ready") return nothingHere ? <span className="cw_note">nothing said yet here</span> : null;
-  if (phase.name === "empty") return <span className="cw_note" title={phase.warnings.join(" · ") || undefined}>nothing readable yet</span>;
-  if (phase.name === "error") return <span className="cw_note cw_note_error" title={[phase.message, ...phase.warnings].join(" · ")}>could not read</span>;
-  if (phase.name === "unconfigured") return <EmbeddingsUnconfiguredNote baseUrl={source.baseUrl} message={phase.message} className="cw_note cw_note_error" short />;
-  return null;
+/** What the replay's reading says, in one short line each (the block's height never depends on it;
+ * the full reason in the hover): `instead` takes the bloom's place when no bloom can be drawn (an
+ * exported view, no embeddings, a failed read); `note` sits over the bloom (reading…, nothing
+ * readable yet, nothing said yet here). */
+export function monitorLines(phase: Phase, source: { baseUrl: string } | null, nothingHere: boolean): { instead: React.ReactElement | null; note: React.ReactElement | null } {
+  if (!source) return { instead: <span className="cw_note">exported view: not read</span>, note: null };
+  if (phase.name === "unconfigured") return { instead: <EmbeddingsUnconfiguredNote baseUrl={source.baseUrl} message={phase.message} className="cw_note cw_note_error" short />, note: null };
+  if (phase.name === "error") return { instead: <span className="cw_note cw_note_error" title={[phase.message, ...phase.warnings].join(" · ")}>could not read</span>, note: null };
+  if (phase.name === "scoring") return { instead: null, note: <span className="cw_note">reading…</span> };
+  if (phase.name === "empty") return { instead: null, note: <span className="cw_note" title={phase.warnings.join(" · ") || undefined}>nothing readable yet</span> };
+  if (phase.name === "ready" && nothingHere) return { instead: null, note: <span className="cw_note">nothing said yet here</span> };
+  return { instead: null, note: null };
 }
 
-/** Whether the monitor is on screen, so mounted: open, his page (not the roster), his content not
- * behind the content gate, and not beside the avatar view (which takes the whole main area). */
-export function monitorShown(state: { open: boolean; locked: boolean; roster: boolean; avatar: boolean }): boolean {
-  return state.open && !state.locked && !state.roster && !state.avatar;
+/** Whether the monitor is mounted: always on his page (backlog 0040), unless his content is behind
+ * the content gate (it reads his words). */
+export function monitorShown(state: { locked: boolean; roster: boolean }): boolean {
+  return !state.locked && !state.roster;
 }
 
-export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: CognitionWavePanelProps): React.ReactElement {
+export function CognitionWavePanel({ lifeFold, ready, source, scrubSeq, live, replyFeed }: CognitionWavePanelProps): React.ReactElement {
   const key = corpusKey(source);
   const [phase, setPhase] = useState<Phase>(() => keptCorpus(key));
   const [basis, setBasis] = useState<FrozenBasis | null>(null);
   const feed = useSyncExternalStore(replyFeed.subscribe, replyFeed.get, replyFeed.get);
 
-  // The fold is read AT PULL TIME from a ref — NEVER a scoring-effect
-  // dependency. This is THE flood fix (agency c2155): `fold` is a fresh
+  // His life's fold is read AT PULL TIME from a ref — NEVER a scoring-effect
+  // dependency. This is THE flood fix (agency c2155): the fold is a fresh
   // object on every replay envelope (live tail) and every scrub, so an
   // effect keyed on it re-ran the whole harvest — ~120 diary/episode door
   // reads EACH — continuously while the old Wave tab was open (~995 gateway
   // hits in 3 min + diary_read marker pollution). The c1824 ruling is ONE
-  // operator-driven pull, never per-render sampling; the harvest now fires
-  // ONLY from the explicit button below, over a snapshot of the current fold.
-  const foldRef = useRef(fold);
-  foldRef.current = fold;
+  // pull, never per-render sampling: the harvest fires once per home, when
+  // his life has loaded, over his whole life.
+  const lifeFoldRef = useRef(lifeFold);
+  lifeFoldRef.current = lifeFold;
   const sourceRef = useRef(source);
   sourceRef.current = source;
 
@@ -205,7 +209,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   const calibration = useMemo(() => (basis ? basisProvenanceNote(basis.calibrated_on) : null), [basis]);
 
   // The basis (provenance line, the ⓘ's calibration note) loads with the
-  // open monitor; nothing is read or scored by it.
+  // monitor; nothing is read or scored by it.
   useEffect(() => {
     let alive = true;
     void loadBasis().then((b) => alive && setBasis(b));
@@ -215,8 +219,9 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   }, []);
 
   // Switching entity (or losing the gateway) shows THAT mind's kept read, or
-  // the resting state — never carries one mind's wave onto another, and
-  // never auto-scores the new one. A read in flight lands when it ends.
+  // the resting state — never carries one mind's wave onto another (the new
+  // one is read once its life has loaded, below). A read in flight lands
+  // when it ends.
   useEffect(() => {
     let alive = true;
     const flight = corpusInFlight(key);
@@ -229,17 +234,16 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
     };
   }, [key]);
 
-  // THE PRESS IS THE ACT (backlog 0032): opening the monitor (it mounts only then) starts the one
-  // read of his words when this home has none kept; a position change never reads.
+  // ALWAYS ON (backlog 0040): once his life has loaded, the one read of his words starts when this
+  // home has none kept; a position change never reads (the effect is keyed by the home and the load).
   useEffect(() => {
-    if (keptCorpus(key).name === "idle") runScore();
+    if (ready && keptCorpus(key).name === "idle") runScore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, ready]);
 
-  // THE ONE PULL (explicit operator act only: the press that opened the monitor). Reads a snapshot of the
-  // current fold, harvests the entity's own words, embeds + scores once,
-  // and caches the samples. A live/scrub fold change does NOT re-run this;
-  // the operator re-reads on demand with the same button.
+  // THE ONE PULL (once per home, when his life has loaded). Reads his whole life's fold, harvests the
+  // entity's own words, embeds + scores once, and caches the samples. A live/scrub fold change does
+  // NOT re-run this.
   const runScore = useCallback(() => {
     if (!source) return;
     const read = startCorpusRead(key, async (): Promise<Phase> => {
@@ -252,7 +256,7 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
           embedderId: b.embedder_id,
           ...(typeof b.abstention_floor === "number" ? { abstention: { floor: b.abstention_floor } } : {}),
         });
-        const res = await scoreEntityUtterances(source.baseUrl, source.entity, foldRef.current, scorer, { limit: 120 });
+        const res = await scoreEntityUtterances(source.baseUrl, source.entity, lifeFoldRef.current(), scorer, { limit: 120 });
         return res.samples.length === 0 ? { name: "empty", warnings: res.warnings } : { name: "ready", samples: res.samples, warnings: res.warnings };
       } catch (e) {
         if (isEmbeddingsUnconfigured(e)) return { name: "unconfigured", message: e.message };
@@ -267,52 +271,36 @@ export function CognitionWavePanel({ fold, source, scrubSeq, live, replyFeed }: 
   // The kit's AfCognitionBloom owns the physics + render (morph gate,
   // vignette, GRAVITY). The CURRENT sample follows the timeline: the last
   // utterance formed at or before its seq (a scan over the ~120-sample
-  // corpus; samples are chronological, seqs are formation anchors). A
-  // position BEFORE any utterance selects nothing — showing the first one
-  // there would display words not yet spoken at that point.
+  // corpus; samples are chronological, seqs are formation anchors), so a
+  // scrub or each frame of a 100x replay is a lookup and the bloom morphs to
+  // it. A position BEFORE any utterance selects nothing — showing the first
+  // one there would display words not yet spoken at that point.
   const samples = phase.name === "ready" ? phase.samples : null;
   const current = useMemo(() => (samples ? sampleAt(samples, scrubSeq) : null), [samples, scrubSeq]);
 
   // LIVE, his conversation open in the chat: the reply in view, per message.
   const conversation = live && source && feed && (feed.focusReply ?? feed.latestReply) ? feed : null;
 
-  const bloomScores = useMemo(() => bloomScoresOf(current?.emotions), [current]);
-  const mood = useMemo(() => dominantEmotion(current?.emotions), [current]);
   // The ⓘ's hover: what this reads (never his inner state), and the basis it reads with.
   const about = useMemo(() => monitorAbout(provenance, calibration), [provenance, calibration]);
-  const bloom = useMonitorBloomSize();
 
-  return (
-    <div className="cw_panel cw_compact" data-reading-state={conversation ? "conversation" : phase.name}>
-      {conversation && source ? (
-        // Per message: each distinct reply is read once (cached), the reply scrolled to retunes it.
-        <CognitionWaveInline
-          baseUrl={source.baseUrl}
-          entity={source.entity}
-          latestReply={conversation.latestReply}
-          focusReply={conversation.focusReply}
-          focusAt={conversation.focusAt}
-          effort={conversation.effort}
-          effortKey={conversation.effortKey}
-          tools={conversation.tools}
-        />
-      ) : (
-        <div className="cm_body cw_reading">
-          {/* Same input and labels as the conversation's reading: every register on the bloom (its
-            * closest one in the hover), each tone channel with its signed score beside it. */}
-          <div className="cm_canvas_box" style={{ width: bloom.box, height: bloom.canvas }} title={mood ? `closest to ${mood.axis.name} (${simText(mood.value)})` : undefined}>
-            {/* The tree's labels back (backlog 0036): each register's name at its petal, its number under it. */}
-            <NamedBloom size={bloom} scores={bloomScores} emotions={current?.emotions} />
-          </div>
-          <ToneRow scores={current?.scores} />
-        </div>
-      )}
-      <div className="cw_state">
-        <ExplainedCode className="cw_about" explain={about}>
-          ⓘ
-        </ExplainedCode>
-        <MonitorState phase={phase} source={source} conversation={Boolean(conversation)} nothingHere={!current} />
-      </div>
-    </div>
-  );
+  if (conversation && source) {
+    // Per message, in the same places: each distinct reply is read once (cached), the reply scrolled
+    // to retunes it.
+    return (
+      <CognitionWaveInline
+        baseUrl={source.baseUrl}
+        entity={source.entity}
+        about={about}
+        latestReply={conversation.latestReply}
+        focusReply={conversation.focusReply}
+        focusAt={conversation.focusAt}
+        effort={conversation.effort}
+        effortKey={conversation.effortKey}
+        tools={conversation.tools}
+      />
+    );
+  }
+  const { instead, note } = monitorLines(phase, source, !current);
+  return <MonitorReading state={phase.name} emotions={current?.emotions} scores={current?.scores} instead={instead} note={note} about={about} />;
 }

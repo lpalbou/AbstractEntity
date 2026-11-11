@@ -113,25 +113,20 @@ async function main() {
     await shot(page, name + (ok ? "" : "_MISS"));
   }
 
-  // 4b) The Cognitive Monitor in the timeline (backlog 0032): its toggle
-  // (pressed = open) is the act that reads his words, once. Wait for the life
-  // to finish streaming first (the harvest reads the fold; a partial boot
-  // yields an empty corpus), then press and wait for the reading.
+  // 4b) The Cognitive Monitor in the timeline, always on (backlog 0040): it
+  // reads his words once his life has loaded. Wait for the life to finish
+  // streaming, then for the reading.
   for (let i = 0; i < 15; i++) {
     const booting = await page.evaluate(() => document.body.textContent?.includes("partial view") ?? false);
     if (!booting) break;
     await sleep(2000);
   }
-  const opened = await page.evaluate(() => {
-    const b = document.querySelector("button.et_monitor");
-    if (b && b.getAttribute("aria-pressed") !== "true") b.click();
-    return Boolean(b);
-  });
+  const opened = await page.evaluate(() => Boolean(document.querySelector(".entity_timeline .et_radar[data-reading-state]")));
   if (opened) {
     // Scoring reads every utterance through the doors — poll for the
     // reading instead of guessing a fixed wait.
     for (let i = 0; i < 45; i++) {
-      const state = await page.evaluate(() => document.querySelector(".et_monitor_slot .cw_compact")?.getAttribute("data-reading-state") ?? null);
+      const state = await page.evaluate(() => document.querySelector(".entity_timeline .et_radar")?.getAttribute("data-reading-state") ?? null);
       if (state && state !== "idle" && state !== "scoring") break;
       await sleep(2000);
     }
