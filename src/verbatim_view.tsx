@@ -25,13 +25,10 @@ import type { VerbatimSource } from "./verbatim_modal";
 import { isDiaryShaped, parseLivedExchange } from "./episode_parse";
 import { LivedExchangeView } from "./episode_view";
 import { readUnderstanding, type UnderstandingRead } from "./understanding";
+import { NO_IMAGE } from "./no_image";
 
-/** No image in text a model or a page wrote is ever loaded — not even a
- * same-origin one: the app's /api proxy carries the operator's session, so
- * an image pointing at a diary record would read it and the gateway would
- * mark that read in his biography (adversarial review 2026-11-07). Every
- * image renders as a link. */
-export const NO_IMAGE = (): boolean => false;
+/** The no-image rule lives in a leaf module (no_image.ts: an import cycle runs through this file). */
+export { NO_IMAGE };
 
 /** His words as Markdown; images are links, never loaded. */
 export function Words({ text, className }: { text: string; className: string }): React.ReactElement {

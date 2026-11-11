@@ -15,15 +15,13 @@
 
 import React from "react";
 
-import { NO_IMAGE, Words } from "./verbatim_view";
+import { Words } from "./verbatim_view";
 import "./words_line.css";
 
-/** The same image rule as `Words`, for the kit components that draw
- * Markdown themselves (ChatMessageCard, AvatarConversation's cards): every
- * image is a link, none ever loads — a same-origin one would read a diary
- * record through the app's proxy, recorded in his biography. Spread it on
- * the component or into its message props. */
-export const NO_IMAGE_PROPS = { images: "link", inlineImage: NO_IMAGE } as const;
+/** The same image rule as `Words` for the kit components that draw Markdown themselves, from the leaf
+ * module (no_image.ts), never through verbatim_view: this file is in an import cycle with it and
+ * builds nothing from it when it loads (`Words` is only used at render time). */
+export { NO_IMAGE_PROPS } from "./no_image";
 
 /** A short text through the shared renderer, in its container's type,
  * colour and weight. Memoised: a live list re-renders its rows on every
