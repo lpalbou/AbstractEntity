@@ -53,8 +53,8 @@ silently, and a single malformed line that must never brick the view.
 - **Reading surfaces** — **Book** (`book_reader.tsx`): the diary as a
   chronological journal; **Health** (`health_panel.tsx` + `health_metrics.ts`):
   memory-shape metrics + on-disk footprint; **Cognitive Monitor**
-  (`cognition_wave_panel.tsx`, opened with **Monitor** in the timeline):
-  uic's text-mood instrument, shown inside the timeline right of its lanes.
+  (`cognition_wave_panel.tsx`, always on in the timeline): uic's text-mood
+  instrument, its readings following the timeline's position and his replies.
 - **Visits** (`chat_drawer.tsx`, `workspace_panel.tsx`) — turns with cycle
   visibility, steering, per-phase grants; the fabricated-liveness guard.
 - **Meets** (`meet_reader.tsx`, `meet_console.tsx`) — read a past shared

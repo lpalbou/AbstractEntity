@@ -53,17 +53,19 @@ consistent at any scrub position.
 | Detail | selected node + `fetchRecordVerbatim` / `fetchDiaryEntry` | verbatim, feelings, associations |
 | Book | `FoldState` diary nodes (`selectDiaryEntries`) | day-grouped journal → diary door on click |
 | Health | `computeHealthMetrics(FoldState)` + `fetchEntityFootprint` | re-use / concentration / forgetting / kind mix + on-disk bytes |
-| Cognitive Monitor | `harvestUtterances` → `embedTexts` → vendored scorer, at the timeline's position; live with the chat open, the reply in view | scored samples → the bloom |
+| Cognitive Monitor | `harvestUtterances` → `embedTexts` → vendored scorer, one read per entity once his life has loaded; the reading at the timeline's position (the play head while playing); live, each reply | scored samples → the bloom and the tone channels |
 | Ledger | `FoldState` beats/host markers (`ledgerLine`), including the gateway's `step_tools` marker per step | the continuous life ledger, with each step's tool and file counts |
 | Meet console | `openMeet` / `relayMeet` / `closeMeet` / `fetchMeetStatus` | live two-leg transcript |
 
 ## The Cognitive Monitor pipeline (the one multi-step seam)
 
-The Cognitive Monitor, opened with **Monitor** and shown inside the timeline,
-right of the lanes, is the only surface whose data is not a direct fold read —
-it is a feed the app owns feeding a scorer uic owns. It reads nothing while it
-is closed; opening it is what reads his words, once per entity, kept while the
-page is open:
+The Cognitive Monitor, always on in the timeline, is the only surface whose
+data is not a direct fold read — it is a feed the app owns feeding a scorer uic
+owns. Once his life has loaded it reads his words once per entity, up to 120
+utterances spread over his whole life, and keeps the result while the page is
+open; every timeline position, and the play head while playing, is a lookup in
+that one read, never a new one. Live, each reply of his is read once as it
+lands (one embedding per distinct text):
 
 ```
 FoldState + chat transcript

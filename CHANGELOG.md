@@ -39,9 +39,8 @@ Highlights:
   you point at is a spotlight on the graph.
 - **What he is doing, live.** While a turn runs, the chat shows each thing he does, row by row,
   then folds the turn into one line above the message box.
-- **The Cognitive Monitor in the timeline.** **Monitor**, after **Live** in the timeline's
-  controls, opens it in the timeline's free space and reads his words; it follows the replay, and
-  live, the reply in view.
+- **The Cognitive Monitor in the timeline.** Always on beside the lanes: it reads his words once
+  his life has loaded, follows the play head as you scrub or play, and live, each of his replies.
 - **Entity cards that act, and simpler controls.** Each entity on the home page is the shared
   card, with **Watch**, **Retry** when his own time stopped unexpectedly and **Resume** when he is
   stopped, three to a row on a desktop. On his page, one status line that never moves the
@@ -139,7 +138,7 @@ Highlights:
   the play head at every speed, and after a pause and a resume. Coming back to a tab left hidden
   while it played holds the graph back two seconds at most.
 - **A topic tells what his memory knows of it.** Unfold a topic in the Topics panel and, above its
-  memories, it says when they were formed ("since 7 Jul 2026 · last 13 Jul 2026"), how often they
+  memories, its facts show when they were formed ("since 7 Jul 2026 · last 13 Jul 2026"), how often they
   were used in the last 7 days, the one used most, how many of its memories bridge to other
   topics, what his last sleep changed ("+6 joined · 2 moved out", "split from “Tolstoy's late
   letters”") and the pairs of memories most used together. Memories and topics are named by their
@@ -216,8 +215,8 @@ Highlights:
   shows what the path means: "<recalled memory> — reached from <memory held in mind> · <relation>",
   where the relation is the one recorded when the two memories were formed (summarizes,
   continues, written_amid, derived_from, mentions, reflected_in…), or "used together" when they
-  are joined by use alone. The Context box says it in words too: "from what he held in mind → to
-  what he recalled".
+  are joined by use alone. The legend under the graph says it in words too: "lit lines", with
+  the path's rule and direction on hover.
 - **Hovering the graph waits for you to stop.** A memory's card and its highlight, and a lit
   line's words, appear only after the pointer has rested on it for 150 ms; sweeping across the
   graph shows nothing, and leaving before then cancels. A click still acts at once.
@@ -272,8 +271,10 @@ Highlights:
   Context view, the line he travelled to reach each recalled memory is lit in the colour of its
   ring, and the rest is dimmed. The Context box now explains the rings: present by right (memories
   he always keeps in mind), continuity (memories that followed from the last ones) and matched
-  (memories found for this message) and the lit lines; the grey-to-green scale is said once, in
-  the legend under the graph. It is open on
+  (memories found for this message), under its count line; the lit lines and the grey-to-green
+  scale are said once, in the legend under the graph. On a wide graph it sits level with the top
+  controls, centred in the room between them and the layout buttons or the docked Topics panel
+  (backlog 0038). It is open on
   a wide screen and folded on a phone; opened on a phone, it ends above the graph's layout
   buttons and scrolls inside, so it never hides them.
 - **Hover a recall in the ledger to see it in the graph.** Resting the mouse on "He holds these in
@@ -545,27 +546,24 @@ Highlights:
   graph. Rest on a type, or reach it with the keyboard, to light those memories on the graph;
   click it (or press Enter or →) to unfold its memories, newest first, and the panel scrolls to
   show them.
-- **The Cognitive Monitor opens in the timeline** (backlog 0018, 0032 and 0036). The timeline's
-  position, **● Live** and **🧠 Monitor** sit in their own row above the transport controls.
-  **Monitor** opens the monitor in the space right of the lanes, between them and the controls,
-  and closes it again; the timeline grows a little only while it is open, and the graph gets that
-  height back when it closes. Every reading is named, never coded: the bloom with its nine
-  registers around it (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm,
-  tenderness), the five tone channels by name (warmth, tension, reflection, structure,
-  certainty), each in smaller type than its value, and, for a reply, the conduct readings beside
-  its gauge (effort, action, attention, rigor). Opening it is what reads his words, once per
-  entity, kept while the page is open, so reopening it shows the reading at once; another entity's
-  page opens with it closed. Before reading, it checks that his home has an embedding
-  model and that the embedding route answers in his memory's space; when not, it reads nothing (his
-  book is never opened) and says "no embeddings · set up" or "could not read", the whole reason on
-  hover, and the next opening tries again. It follows the timeline: while you replay, his words at
-  the timeline's position; live with his conversation open, the reply in view, with its conduct
-  gauge. A short line says when it is reading or has nothing to show. Each name opens a small
-  card with its value, and the ⓘ (hover, focus or a long press) says what the monitor reads (his
-  words, not his inner state), the five tone channels with their poles on one −1 to +1 scale, and
-  the basis. On a phone it takes the place of the timeline's lanes, at the phone's width, until
-  you close it. Beside the Avatar view it is not shown, and its toggle says why. A closed monitor
-  reads nothing.
+- **The Cognitive Monitor is part of the timeline** (backlog 0018, 0032, 0036 and 0040). The
+  timeline block is three columns of one fixed height (165 px on a desktop): the lanes; the five
+  tone channels by name (warmth, tension, reflection, structure, certainty), stacked over **● Live**
+  with the position and the transport controls; and the bloom with its nine registers named around
+  it (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness). It is always on,
+  with no button. Once his life has loaded, it reads his words once per entity, up to 120 of them
+  spread over his whole life, and keeps that reading while the page is open; every position is
+  then a lookup in it, so the readings follow a scrub at once and the play head frame by frame, at
+  any speed. Live during a visit, each reply of his updates the same bloom and channels as it lands,
+  with the turn's conduct readings (effort, action, attention, rigor) by name beside them. Every
+  reading is named, never coded; each name opens a small card with its value, and the ⓘ (hover,
+  focus or a long press) says what the monitor reads (his words, not his inner state), the
+  channels' −1 to +1 scale and the basis. Short notes say "reading…", "nothing readable yet" or
+  "nothing said yet here". Before reading, it checks that his home has an embedding model and that
+  the embedding route answers in his memory's space; when not, it reads nothing (his book is never
+  opened) and shows "no embeddings · set up" or "could not read" in the bloom's place, the whole
+  reason on hover; opening his page again tries again. On a phone the lanes come first, then the
+  channels beside the bloom, then **● Live** and the transport, at the phone's width.
 - **"just travelled" in the legend.** The legend's second line names the amber line: two memories
   he used together a moment ago. It fades as he goes on.
 - **The live activity panel says what he is doing** (operator 2026-11-10, Entity backlog 0010,
@@ -639,6 +637,11 @@ Highlights:
   back to the card it was; the next click unfolds it again. The topic stays focused on the graph
   until you let it go. Focusing another topic, in the panel or by its title on the graph, folds the
   one unfolded before: one topic is unfolded at a time.
+- **A topic's facts are labelled values** (backlog 0039). An unfolded card's facts read as short
+  labels and values on a line that wraps (Used 1,407x · 7 days, Bridges 109 memories, Changed since
+  sleep +5 · −2, Placement stale until his next sleep), numbers with thousands separators. **Most
+  used** is a row of its own, the memory's title on one line: rest on it to light that memory,
+  click it to frame it and keep it lit, as a path row.
 - **The side tabs in a new order** (backlog 0029): Chat, Card, Health, Book, World, Lessons, Detail
   and Ledger (Health first until you are signed in), on the phone's strip too.
 - **The World tab says what it is** (backlog 0031), in two lines: "His world model: how he
@@ -673,7 +676,10 @@ Highlights:
   name you picked with `@` shows in your sent message as the chip it was while you typed; resting
   on it for 150 ms shows the entity's card (the same card as the home page, its tile read once and
   kept five minutes). A conversation reopened later shows the plain words, since the gateway keeps
-  no mentions. The Docs assistant uses the same chat kit.
+  no mentions. While a mentioned entity's answer is on its way, it is a bubble in the conversation
+  with that entity's name and working dots, replaced by the answer when it lands; a mention that is
+  refused (another conversation, cannot be mentioned) takes its bubble away at once and says why.
+  Your message shows once. The Docs assistant uses the same chat kit.
 - **No information lines above the message box.** The "<name> will read this conversation's
   history" notice and the "<name> stays out of this message." line are gone; the line above the
   composer only says how the last send went (a refusal, or "Mia is in another conversation."). A
@@ -701,7 +707,8 @@ Highlights:
   visit; feelings may move, a summary forms…", then lists the reflection's acts as they land ("He
   wrote in his book", feelings moved). It follows the end of the conversation as acts arrive and
   never floats over earlier messages; the "watching his stream for the reflection's acts…" line is
-  gone.
+  gone. A visit closed without a single message says only "Nothing to keep: no words were
+  shared." (AbstractRuntime 0.19.4 forms nothing for it).
 - **A focused topic is a spotlight on the graph** (operator's test round 2, 2026-11-10: "today
   barely" visible). Its circle is tinted, ringed at full strength and glows; each of its memories
   carries a ring in the topic's colour; everything else sits under a veil, and the other circles
@@ -726,8 +733,8 @@ Highlights:
   0021: "why so many isolated nodes sit on the periphery arc?"). The ring outside his topics held
   records his memory never puts in a topic: memories closed when a newer version replaced them or
   when they were retracted, engine records, and the link between two versions of a topic. The
-  graph no longer draws them by default. A pressed toggle just before **fit** (backlog 0028) names
-  what it shows,
+  graph no longer draws them by default. A pressed toggle just left of **fit**, on the same row
+  (backlog 0028), names what it shows,
   "◌ 132 closed memories" (the count alone on a narrow graph), says on hover how they were closed
   ("132 closed memories: 132 replaced by a newer version") and shows them on their ring. Engine
   records stay hidden and are never counted; a record you open from the Ledger tab still shows.
@@ -770,7 +777,7 @@ Highlights:
 - **Cognitive Monitor: the numbers speak.** No sentence under the bloom; each tone channel prints
   its signed score; "—" marks a value that does not exist; every reading is named, and resting on
   a name for a moment (or a long press on a phone) opens a small card explaining it with this
-  reply's value; failed tool calls reach the gauge.
+  reply's value; failed tool calls count in the conduct readings.
 - **A lived moment reads facts and summary first.** Clicking an episode now shows what kind of
   moment it was (his own time with its tick, a conversation or a visit with its turn, and with
   whom), how many lookups he made and of what kind, the record's facts, then its summary: the
@@ -817,8 +824,8 @@ Highlights:
   beside the phase bar say "phase rules modulated" or "phase rules drift". The phase graph and the
   cognition map stay in `spec/`, and AbstractGateway serves both.
 - **The Wave tab, the monitor at the top of the chat and the monitor's ⓘ window** (backlog 0018
-  and 0032). The Cognitive Monitor opens in the timeline instead (see Added); its ⓘ card says what
-  it reads, its five tone channels and its basis.
+  and 0032). The Cognitive Monitor is part of the timeline instead (see Added); its ⓘ card says
+  what it reads, its channels' scale and its basis.
 - **The graph's reset button** (backlog 0020). **fit** stays, and where you dragged a topic's circle
   is kept.
 

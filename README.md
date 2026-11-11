@@ -19,8 +19,9 @@ graph is laid out by the topics his memory forms in his sleep: its lines stay da
 trails he walked, which light green up to bright, and the paths he travelled to each recalled
 memory. The **Topics** panel opens at the top right, and you can move it anywhere on the page and
 resize it; each topic is a card in its colour, with its memory types and the paths he travelled
-most. A legend you can click shows where each kind of memory or link sits, and **Monitor** beside
-**Live** opens the Cognitive Monitor inside the timeline. On a desktop the home page shows three
+most. A legend you can click shows where each kind of memory or link sits, and the Cognitive
+Monitor is always on in the timeline, following the time as you replay. On a desktop the home page
+shows three
 entities per row. All of this needs AbstractGateway 0.21.0. See the [changelog](CHANGELOG.md#0120---2026-11-10) and
 [Reading the memory graph](#reading-the-memory-graph).
 
@@ -139,7 +140,7 @@ for every launch flag.
 | Detail | One memory: its verbatim text, feelings and associations |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance; a world model's revision as one row by its title that opens it; feelings named by what they are about; on each step's row, icons with the counts of tools used, files read and files written (only those above 0) |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
-| Cognitive Monitor | Opened with **🧠 Monitor**, in the row above the timeline's transport controls beside **● Live** and the position, in the space right of the lanes (the timeline grows a little while it is open): the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Every reading is named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness), the five tone channels (warmth, tension, reflection, structure, certainty) and, for a reply, the conduct readings (effort, action, attention, rigor). Opening it is what reads his words (once per entity while the page is open), after checking that the gateway has embeddings for him; without them it reads nothing and says "no embeddings · set up". Its ⓘ card says what it reads, the channels' scale and its basis |
+| Cognitive Monitor | Always on, part of the timeline: the lanes, then the five tone channels (warmth, tension, reflection, structure, certainty) stacked over **● Live**, the position and the transport controls, then the bloom with its nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness). It shows the expressive character of the entity's own words (not its inner state) at the timeline's position, following a scrub and the play head at any speed, and, live during a visit, each reply as it lands, with the turn's conduct readings (effort, action, attention, rigor). Once his life has loaded it reads his words once per entity (up to 120, spread over his whole life), after checking that the gateway has embeddings for him; without them it reads nothing and shows "no embeddings · set up" in the bloom's place. Its ⓘ card says what it reads, the channels' scale and its basis |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
 of entities your account can see, and it becomes a chip inside your sentence; the
@@ -147,6 +148,8 @@ sent message keeps the chip, and resting on it shows that entity's card (a
 conversation reopened later shows the plain words). When you send,
 the entity you are talking with answers first, then each entity you picked, one
 after the other in your order, so the second one reads the first one's answer.
+While a mentioned entity's answer is on its way, it shows as a bubble with that
+entity's name and working dots, replaced by the answer when it lands.
 Each answer shows who wrote it: the entity's avatar, its name and an "entity"
 tag. An entity busy elsewhere is skipped with "Pollux is in another
 conversation."; one that cannot answer puts your words and its chip back in the
@@ -159,7 +162,8 @@ diary entry shows no words). Click a badge to open its record. Under the badges,
 left-aligned row of small chips sums up the turn: "44 memories" opens the turn's
 Context tab, "1 formed" and "1 diary" open that record in Detail, and "0 tools" opens
 the turn's Tools tab. While a visit closes, its last row says "Closing — reflection
-runs now", with an italic line under it, and lists the reflection's acts as they land.
+runs now", with an italic line under it, and lists the reflection's acts as they land; a visit
+closed without any message says "Nothing to keep: no words were shared."
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -219,12 +223,14 @@ line is the path he travelled to reach a recalled memory, in its ring's colour: 
 followed from the last memories, blue for this message's match. The links his memory names
 (`continues`, `derived_from`, `mentions` and the others) are always the same quiet dark grey, with a
 mark at the end they point to (an arrow, a double chevron, a circle, a diamond, a square or a bar);
-the legend lists them by name. The Context box over the graph says what each ring and the lit lines mean.
+the legend lists them by name, along with the amber "just travelled" line and the "lit lines" (hover
+for their meaning). The Context box over the graph, level with the top controls on a wide graph,
+shows the count of what he held in mind and what each ring means.
 
 Click a kind or a link type in the legend to light where those memories sit and frame them; click
 it again, or press Escape, to let go. Memories closed when a newer version replaced them, or when
-they were retracted, stay hidden until you press the "◌ N closed memories" toggle just before
-**fit**.
+they were retracted, stay hidden until you press the "◌ N closed memories" toggle, just left of
+**fit** on the same row.
 
 With **topics** on, each topic is a circle with its title, and the **Topics** panel lists them,
 each a card in its circle's colour. On a wide graph the panel opens docked at the top right, under
@@ -234,9 +240,10 @@ bottom right (only the edge under the pointer moves; a docked panel grows downwa
 docked); **put back** docks it again. Your browser remembers where you left it. Click a topic to
 focus and unfold it; click it again (or press Enter or Space) to fold it back to its card.
 Focusing another topic folds the one unfolded before, so one topic is unfolded at a time.
-Unfold a topic for what his memory knows of it: its **Memory types** fold (rest on a type to light
-those memories, click it to list them) and its paths most travelled (rest on a pair to light the two
-memories, click it to frame them). A focused topic also shows as a one-line chip in the toolbar;
+Unfold a topic for what his memory knows of it: its facts as short labelled values (Used,
+Bridges, Changed since sleep), its **Most used** memory (rest on it to light it, click it to frame
+it), its **Memory types** fold (rest on a type to light those memories, click it to list them) and
+its paths most travelled (rest on a pair to light the two memories, click it to frame them). A focused topic also shows as a one-line chip in the toolbar;
 click it, or unpress **topics**, to let it go.
 
 ## Responsive layout
@@ -263,9 +270,9 @@ monitor.
   layout buttons (freeze, settle, fit) show their symbols only, and the
   **Topics** panel stays in place: it sits under the Context box and opens as a
   sheet over the graph.
-- **Cognitive Monitor:** on a phone the open monitor takes the place of the
-  timeline's lanes, at the phone's width; press **Monitor** again to get them
-  back.
+- **Timeline and Cognitive Monitor:** on a phone the lanes come first, then
+  the tone channels beside the bloom, then **● Live** and the transport, at
+  the phone's width.
 - **Full-width panels on phones:** below 768 px the chat transcript, the
   ledger, the health panel and the entity list are flat sections without card
   borders, with a thin line between items and text that starts at the screen

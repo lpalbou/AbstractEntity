@@ -28,8 +28,9 @@ graph is laid out by the topics his memory forms in his sleep: its lines stay da
 trails he walked, which light green up to bright, and the paths he travelled to each recalled
 memory. The **Topics** panel opens at the top right, and you can move it anywhere on the page and
 resize it; each topic is a card in its colour, with its memory types and the paths he travelled
-most. A legend you can click shows where each kind of memory or link sits, and **Monitor** beside
-**Live** opens the Cognitive Monitor inside the timeline. On a desktop the home page shows three
+most. A legend you can click shows where each kind of memory or link sits, and the Cognitive
+Monitor is always on in the timeline, following the time as you replay. On a desktop the home page
+shows three
 entities per row. All of this needs AbstractGateway 0.21.0. See the [changelog](CHANGELOG.md#0120---2026-11-10) and
 [Reading the memory graph](#reading-the-memory-graph).
 
@@ -148,7 +149,7 @@ for every launch flag.
 | Detail | One memory: its verbatim text, feelings and associations |
 | Ledger | The continuous life ledger: memories formed, recalled, committed, appraised, diary and maintenance; a world model's revision as one row by its title that opens it; feelings named by what they are about; on each step's row, icons with the counts of tools used, files read and files written (only those above 0) |
 | Meet console | Two entities in one conversation: steer it, watch both sides, read it afterwards |
-| Cognitive Monitor | Opened with **🧠 Monitor**, in the row above the timeline's transport controls beside **● Live** and the position, in the space right of the lanes (the timeline grows a little while it is open): the expressive character of the entity's own words (not its inner state), at the timeline's position while you replay and, live with the chat open, for the reply in view. Every reading is named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness), the five tone channels (warmth, tension, reflection, structure, certainty) and, for a reply, the conduct readings (effort, action, attention, rigor). Opening it is what reads his words (once per entity while the page is open), after checking that the gateway has embeddings for him; without them it reads nothing and says "no embeddings · set up". Its ⓘ card says what it reads, the channels' scale and its basis |
+| Cognitive Monitor | Always on, part of the timeline: the lanes, then the five tone channels (warmth, tension, reflection, structure, certainty) stacked over **● Live**, the position and the transport controls, then the bloom with its nine registers (joy, discovery, surprise, anxiety, fear, sadness, gravity, calm, tenderness). It shows the expressive character of the entity's own words (not its inner state) at the timeline's position, following a scrub and the play head at any speed, and, live during a visit, each reply as it lands, with the turn's conduct readings (effort, action, attention, rigor). Once his life has loaded it reads his words once per entity (up to 120, spread over his whole life), after checking that the gateway has embeddings for him; without them it reads nothing and shows "no embeddings · set up" in the bloom's place. Its ⓘ card says what it reads, the channels' scale and its basis |
 
 In a conversation, type `@` to bring another entity in: pick it from the list
 of entities your account can see, and it becomes a chip inside your sentence; the
@@ -156,6 +157,8 @@ sent message keeps the chip, and resting on it shows that entity's card (a
 conversation reopened later shows the plain words). When you send,
 the entity you are talking with answers first, then each entity you picked, one
 after the other in your order, so the second one reads the first one's answer.
+While a mentioned entity's answer is on its way, it shows as a bubble with that
+entity's name and working dots, replaced by the answer when it lands.
 Each answer shows who wrote it: the entity's avatar, its name and an "entity"
 tag. An entity busy elsewhere is skipped with "Pollux is in another
 conversation."; one that cannot answer puts your words and its chip back in the
@@ -168,7 +171,8 @@ diary entry shows no words). Click a badge to open its record. Under the badges,
 left-aligned row of small chips sums up the turn: "44 memories" opens the turn's
 Context tab, "1 formed" and "1 diary" open that record in Detail, and "0 tools" opens
 the turn's Tools tab. While a visit closes, its last row says "Closing — reflection
-runs now", with an italic line under it, and lists the reflection's acts as they land.
+runs now", with an italic line under it, and lists the reflection's acts as they land; a visit
+closed without any message says "Nothing to keep: no words were shared."
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,
@@ -228,12 +232,14 @@ line is the path he travelled to reach a recalled memory, in its ring's colour: 
 followed from the last memories, blue for this message's match. The links his memory names
 (`continues`, `derived_from`, `mentions` and the others) are always the same quiet dark grey, with a
 mark at the end they point to (an arrow, a double chevron, a circle, a diamond, a square or a bar);
-the legend lists them by name. The Context box over the graph says what each ring and the lit lines mean.
+the legend lists them by name, along with the amber "just travelled" line and the "lit lines" (hover
+for their meaning). The Context box over the graph, level with the top controls on a wide graph,
+shows the count of what he held in mind and what each ring means.
 
 Click a kind or a link type in the legend to light where those memories sit and frame them; click
 it again, or press Escape, to let go. Memories closed when a newer version replaced them, or when
-they were retracted, stay hidden until you press the "◌ N closed memories" toggle just before
-**fit**.
+they were retracted, stay hidden until you press the "◌ N closed memories" toggle, just left of
+**fit** on the same row.
 
 With **topics** on, each topic is a circle with its title, and the **Topics** panel lists them,
 each a card in its circle's colour. On a wide graph the panel opens docked at the top right, under
@@ -243,9 +249,10 @@ bottom right (only the edge under the pointer moves; a docked panel grows downwa
 docked); **put back** docks it again. Your browser remembers where you left it. Click a topic to
 focus and unfold it; click it again (or press Enter or Space) to fold it back to its card.
 Focusing another topic folds the one unfolded before, so one topic is unfolded at a time.
-Unfold a topic for what his memory knows of it: its **Memory types** fold (rest on a type to light
-those memories, click it to list them) and its paths most travelled (rest on a pair to light the two
-memories, click it to frame them). A focused topic also shows as a one-line chip in the toolbar;
+Unfold a topic for what his memory knows of it: its facts as short labelled values (Used,
+Bridges, Changed since sleep), its **Most used** memory (rest on it to light it, click it to frame
+it), its **Memory types** fold (rest on a type to light those memories, click it to list them) and
+its paths most travelled (rest on a pair to light the two memories, click it to frame them). A focused topic also shows as a one-line chip in the toolbar;
 click it, or unpress **topics**, to let it go.
 
 ## Responsive layout
@@ -272,9 +279,9 @@ monitor.
   layout buttons (freeze, settle, fit) show their symbols only, and the
   **Topics** panel stays in place: it sits under the Context box and opens as a
   sheet over the graph.
-- **Cognitive Monitor:** on a phone the open monitor takes the place of the
-  timeline's lanes, at the phone's width; press **Monitor** again to get them
-  back.
+- **Timeline and Cognitive Monitor:** on a phone the lanes come first, then
+  the tone channels beside the bloom, then **● Live** and the transport, at
+  the phone's width.
 - **Full-width panels on phones:** below 768 px the chat transcript, the
   ledger, the health panel and the entity list are flat sections without card
   borders, with a thin line between items and text that starts at the screen
@@ -625,9 +632,9 @@ rules drift" when the two copies disagree (`spec_sync.ts`).
 | Stream | `stream_types.ts`, `stream_source.ts` (gateway client, NDJSON/SSE), `stream_fold.ts` (pure fold), `replay_cache.ts` (IndexedDB life cache), `temporal_activation.ts` |
 | Graph | `graph_canvas.tsx`, `graph_canvas_legend.tsx` (the two-line legend; a click on a kind or link type lights where it sits), `graph_canvas_outside.ts` (the closed memories and their toggle), `graph_canvas_spotlight.ts` (a focused or hovered topic), `graph_canvas_camera.ts` (the camera glide), `context_toggle.tsx` + `context_legend.tsx` (the **Context** toggle and the Context box), `force_layout.ts` (the plain layout, before topics are served), `communities.ts` (reads his topics, payload version 2), `communities_source.ts` (fetches them), `topic_map.tsx` (the live `communities_changed` marker and `placed` events), `topic_layout.ts` (topics as the layout: circles, seats, drags), `topic_labels.ts` (titles on the canvas), `topics_panel.tsx` + `topics_panel.css` (the Topics panel: one card per topic, its facts, its memory types and paths most travelled, lighting and framing their memories on the graph), `overlay_stack.ts` (the Topics panel's place: docked top right, or moved anywhere in the window and resized on a wide graph, remembered per browser; on a phone-width graph the Context legend and the panel in one column, never over each other), `recall_emphasis.ts` (the recall highlight and the travelled paths), `hover_intent.ts` (hover waits 150 ms), `replay_clock.ts` (playback pacing), `hover_card.ts`, `node_label.ts` |
 | Life cycle | `phase_bar_source.ts` (the gateway seam: `life_state`, the `personal` toggle, `lifecycle`, sleep now), `phase_bar.ts` (what the bar shows for one answer, pure), `phase_bar_writes.ts` (writes in flight; Stop never waits), `phase_bar_controls.tsx` (the pills, Stop/Resume, Retry and the inline questions, on the entity page and the roster tiles), `mind_cognition_profile.tsx` (Settings → Mind, including the Sleep card) |
-| Panels | `inspector.tsx`, `identity_card.tsx` + `self_brief.tsx` (his self-knowledge brief on the Card tab), `timeline.tsx` (the lanes, the transport, the row above it with the position, **Live** and the **Monitor** toggle, and the monitor's place right of the lanes), `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts`, `files_view.tsx` (the **Files** button: Settings → Files in a dialog of its own) |
+| Panels | `inspector.tsx`, `identity_card.tsx` + `self_brief.tsx` (his self-knowledge brief on the Card tab), `timeline.tsx` (three columns of one height: the lanes; the tone channels over **Live**, the position and the transport; the monitor's bloom), `ledger_panel.tsx`, `ledger_lines.ts`, `turn_detail_modal.tsx`, `verbatim_modal.tsx`, `phase_time.ts`, `files_view.tsx` (the **Files** button: Settings → Files in a dialog of its own) |
 | Reading surfaces | `book_reader.tsx`, `book_reader_select.ts`, `health_panel.tsx`, `health_metrics.ts`, `lessons_world_panels.tsx` |
-| Cognitive Monitor (inside the timeline, right of the lanes) | `cognition_wave_panel.tsx` (the monitor: the bloom with its nine registers named and the five tone channels by name, for his words at the timeline's position, read once per entity when it opens, or for the reply in view), `cognitive_monitor.tsx` (the names, their cards and the ⓘ card), `cognition_wave_inline.tsx` (one reply's reading and the chat's reply feed), `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
+| Cognitive Monitor (always on, in the timeline) | `cognition_wave_panel.tsx` (the monitor: the bloom with its nine registers named and the five tone channels by name, for his words at the timeline's position, from one read per entity once his life has loaded, or for each reply live), `cognitive_monitor.tsx` (the names, their cards and the ⓘ card), `cognition_wave_inline.tsx` (one reply's reading and the chat's reply feed), `utterance_harvest.ts`, `text_cache.ts`, `cognition_adapter.ts`, `vendor/cognition/` (scorer and basis vendored from AbstractUIC) |
 | Visits (chat) | `chat_drawer.tsx`, `chat_message_list.tsx`, `turn_notices.ts` (the badges of what a reply formed, read from the served notices), `visit_mentions.ts` (`@` mentions: the list, one call per mention in order, resend of the unanswered ones, the chips kept on the sent message), `mention_entity_card.tsx` (the entity's card on a mention chip), `use_flow_conversation.ts`, `flow_lane.ts`, `visit_status_poll.ts`, `live_activity.ts` + `use_live_activity.ts` + `turn_pulse_bars.tsx` (the live activity panel: what he does during a turn, row by row, from his visit's ledger or the flow brain's run view, then the turn folded into one line), `tool_claim_guard.ts`, `tool_descriptor.ts`, `workspace_panel.tsx` (Settings), `mind_voice_settings.tsx` (Settings → mind: the kit's shared picker), `identity_settings.tsx` (Settings → identity: the kit's `IdentityPanel` wired to the gateway: design, colour, voice with a sample, history; framework ADR 0052), `track_record_panel.tsx` (Settings → track record), `identity_avatar.tsx` + `use_identity_look.ts` (the entity drawn by its identity, in Settings and in the Avatar view), `entity_voice.tsx` (speak and dictate in a visit: the kit's `useGatewayVoice` on the gateway voice routes; Settings → voice listener half = the kit's `AfVoiceSection`) |
 | Optional Avatar conversation | `avatar_visit.ts` (explicit public projection and privacy boundary), `use_avatar_visit.ts` (public visit state), `avatar_visit_view.tsx` (avatar, questions and permissions), `vendor/abstractchat/` (canonical AbstractUIC presenter). Shares the chat's composer and execution paths; does not read private life envelopes for public text. |
 | Meets | `meet_console.tsx`, `meet_reader.tsx`; in a visit, an entity picked as an `@` chip offers a meet (`visit_mentions.ts` `meetOffers`; nothing is read out of the typed words) |
@@ -1093,11 +1100,11 @@ new memories since then, it sleeps for maintenance and comes back idle. See
 
 The expressive character of the entity's own words (visit replies, diary,
 summaries), scored against a fixed basis with the entity's own embedding model.
-It does not measure inner state, and sealed diary entries are never read. Open
-it with **Monitor**, after **Live** in the timeline's controls: it shows inside
-the timeline, right of the lanes, and opening it is what reads his words (once
-per entity while the page is open). It follows his words at the timeline's
-position or, live with the chat open, the reply in view. Every reading is
+It does not measure inner state, and sealed diary entries are never read. It
+is always on, part of the timeline: once his life has loaded it reads his words
+once per entity (up to 120, spread over his whole life) and shows the reading at
+the timeline's position, following a scrub or the play head, and, live during a
+visit, each reply as it lands. Every reading is
 named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear,
 sadness, gravity, calm, tenderness) and the five tone channels (warmth,
 tension, reflection, structure, certainty, each from −1 to +1). Its ⓘ card says
@@ -1280,14 +1287,25 @@ the entity was created with. The rest of the app is unaffected.
 
 **Cause:** the gateway has no embedding model for the entity, or its embedding
 route answers 503, so the monitor cannot score. Before reading anything it
-checks this, and stops there: it shows "no embeddings · set up", with the
-sentence "Embeddings are not configured on this gateway, so the cognitive
-monitor cannot run." on hover, and never opens his book.
+checks this, and stops there: it shows "no embeddings · set up" in the bloom's
+place, with the sentence "Embeddings are not configured on this gateway, so the
+cognitive monitor cannot run." on hover, and never opens his book.
 
 **Fix:** follow **set up**; it opens the gateway console's Multimodal page
 (`/console#defaults`), where an administrator sets the embedding route. Then
-close and open the monitor again: a failed read is not kept, so the next opening
-reads his words. The rest of the app works without embeddings.
+reload his page: a failed read is not kept, so the next load reads his words.
+The rest of the app works without embeddings.
+
+## The Ledger shows "The book was read" after I open his page
+
+**Cause:** the Cognitive Monitor is always on. Each time the page loads, once
+his life has loaded, it reads up to 120 of his utterances once (spread over his
+whole life) and keeps that reading until you reload. His diary entries are read
+through the operator door, which records every read in his life; the Ledger
+groups those records into one counted row.
+
+**Fix:** nothing is wrong; this is the record of the monitor's read. Moving
+along the timeline or playing reads nothing more.
 
 ## About shows "AbstractGateway: unavailable (…)"
 
@@ -1392,8 +1410,8 @@ silently, and a single malformed line that must never brick the view.
 - **Reading surfaces** — **Book** (`book_reader.tsx`): the diary as a
   chronological journal; **Health** (`health_panel.tsx` + `health_metrics.ts`):
   memory-shape metrics + on-disk footprint; **Cognitive Monitor**
-  (`cognition_wave_panel.tsx`, opened with **Monitor** in the timeline):
-  uic's text-mood instrument, shown inside the timeline right of its lanes.
+  (`cognition_wave_panel.tsx`, always on in the timeline): uic's text-mood
+  instrument, its readings following the timeline's position and his replies.
 - **Visits** (`chat_drawer.tsx`, `workspace_panel.tsx`) — turns with cycle
   visibility, steering, per-phase grants; the fabricated-liveness guard.
 - **Meets** (`meet_reader.tsx`, `meet_console.tsx`) — read a past shared
@@ -1487,17 +1505,19 @@ consistent at any scrub position.
 | Detail | selected node + `fetchRecordVerbatim` / `fetchDiaryEntry` | verbatim, feelings, associations |
 | Book | `FoldState` diary nodes (`selectDiaryEntries`) | day-grouped journal → diary door on click |
 | Health | `computeHealthMetrics(FoldState)` + `fetchEntityFootprint` | re-use / concentration / forgetting / kind mix + on-disk bytes |
-| Cognitive Monitor | `harvestUtterances` → `embedTexts` → vendored scorer, at the timeline's position; live with the chat open, the reply in view | scored samples → the bloom |
+| Cognitive Monitor | `harvestUtterances` → `embedTexts` → vendored scorer, one read per entity once his life has loaded; the reading at the timeline's position (the play head while playing); live, each reply | scored samples → the bloom and the tone channels |
 | Ledger | `FoldState` beats/host markers (`ledgerLine`), including the gateway's `step_tools` marker per step | the continuous life ledger, with each step's tool and file counts |
 | Meet console | `openMeet` / `relayMeet` / `closeMeet` / `fetchMeetStatus` | live two-leg transcript |
 
 ## The Cognitive Monitor pipeline (the one multi-step seam)
 
-The Cognitive Monitor, opened with **Monitor** and shown inside the timeline,
-right of the lanes, is the only surface whose data is not a direct fold read —
-it is a feed the app owns feeding a scorer uic owns. It reads nothing while it
-is closed; opening it is what reads his words, once per entity, kept while the
-page is open:
+The Cognitive Monitor, always on in the timeline, is the only surface whose
+data is not a direct fold read — it is a feed the app owns feeding a scorer uic
+owns. Once his life has loaded it reads his words once per entity, up to 120
+utterances spread over his whole life, and keeps the result while the page is
+open; every timeline position, and the play head while playing, is a lookup in
+that one read, never a new one. Live, each reply of his is read once as it
+lands (one embedding per distinct text):
 
 ```
 FoldState + chat transcript

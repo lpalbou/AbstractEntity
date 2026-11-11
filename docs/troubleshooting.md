@@ -103,14 +103,25 @@ the entity was created with. The rest of the app is unaffected.
 
 **Cause:** the gateway has no embedding model for the entity, or its embedding
 route answers 503, so the monitor cannot score. Before reading anything it
-checks this, and stops there: it shows "no embeddings · set up", with the
-sentence "Embeddings are not configured on this gateway, so the cognitive
-monitor cannot run." on hover, and never opens his book.
+checks this, and stops there: it shows "no embeddings · set up" in the bloom's
+place, with the sentence "Embeddings are not configured on this gateway, so the
+cognitive monitor cannot run." on hover, and never opens his book.
 
 **Fix:** follow **set up**; it opens the gateway console's Multimodal page
 (`/console#defaults`), where an administrator sets the embedding route. Then
-close and open the monitor again: a failed read is not kept, so the next opening
-reads his words. The rest of the app works without embeddings.
+reload his page: a failed read is not kept, so the next load reads his words.
+The rest of the app works without embeddings.
+
+## The Ledger shows "The book was read" after I open his page
+
+**Cause:** the Cognitive Monitor is always on. Each time the page loads, once
+his life has loaded, it reads up to 120 of his utterances once (spread over his
+whole life) and keeps that reading until you reload. His diary entries are read
+through the operator door, which records every read in his life; the Ledger
+groups those records into one counted row.
+
+**Fix:** nothing is wrong; this is the record of the monitor's read. Moving
+along the timeline or playing reads nothing more.
 
 ## About shows "AbstractGateway: unavailable (…)"
 

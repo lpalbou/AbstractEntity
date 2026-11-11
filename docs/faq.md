@@ -43,11 +43,11 @@ new memories since then, it sleeps for maintenance and comes back idle. See
 
 The expressive character of the entity's own words (visit replies, diary,
 summaries), scored against a fixed basis with the entity's own embedding model.
-It does not measure inner state, and sealed diary entries are never read. Open
-it with **Monitor**, after **Live** in the timeline's controls: it shows inside
-the timeline, right of the lanes, and opening it is what reads his words (once
-per entity while the page is open). It follows his words at the timeline's
-position or, live with the chat open, the reply in view. Every reading is
+It does not measure inner state, and sealed diary entries are never read. It
+is always on, part of the timeline: once his life has loaded it reads his words
+once per entity (up to 120, spread over his whole life) and shows the reading at
+the timeline's position, following a scrub or the play head, and, live during a
+visit, each reply as it lands. Every reading is
 named: the bloom's nine registers (joy, discovery, surprise, anxiety, fear,
 sadness, gravity, calm, tenderness) and the five tone channels (warmth,
 tension, reflection, structure, certainty, each from −1 to +1). Its ⓘ card says
