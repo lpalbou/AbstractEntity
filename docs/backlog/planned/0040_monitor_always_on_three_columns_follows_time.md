@@ -2,7 +2,7 @@
 
 ## Metadata
 - Created: 2026-11-11
-- Status: Planned (built 56c1e38, 3691d0f, 6cf50dc, 49b9ebc, waiting for the operator's check)
+- Status: Planned (built 56c1e38, 3691d0f, 6cf50dc, 49b9ebc; the automatic read made ledger-free and cached, review round 6b F4: e834520, 53e7fb2; waiting for the operator's check)
 - Completed: N/A
 - Source: the operator, 2026-11-11 02:00 (relayed by the framework session)
 - Lane: W1 (round 6)
@@ -47,6 +47,15 @@ visit and type a message, we should see the cognitive monitor updating in real t
 4. Live, during a visit: each reply of his updates the same bloom and channels as it lands (per
    message: the chat drawer receives a reply whole, and one reading costs one embedding of the text).
 5. Phone: the lanes on top, the readings with the controls and the bloom below, no sideways scroll.
+
+## Review round 6b F4 (2026-11-11)
+The always-on read cost 128 requests per page load and wrote 38 "The book was read" events in his journal
+(diary reads through the operator door); its spread picks moved with every new record. Now: no diary
+entry in the automatic read (his replies and moments only, through the plain record route), stable picks
+(every 2^k-th readable item, k from the life's size), each pick's reading kept in the browser per entity
+and basis version, and a record without words remembered as such. Measured on the hermetic app: a fresh
+browser 2 setting reads, 4 embedding calls, 75 record reads, 0 diary reads, journal +0; a reload 0, 0, 1
+(the record the page reads anyway), 0, journal +0.
 
 ## Non-goals
 No new data, no new scorer, no per-chunk reading.
