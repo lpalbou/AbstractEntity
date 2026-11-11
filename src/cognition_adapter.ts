@@ -27,7 +27,7 @@
 
 import { embedTexts, isEmbeddingsUnconfigured } from "./stream_source";
 import type { FoldState } from "./stream_fold";
-import { harvestableNodes, harvestCorpus, type HarvestOptions, type Utterance } from "./utterance_harvest";
+import { harvestableNodes, harvestCorpus, type HarvestableNode, type HarvestOptions, type Utterance } from "./utterance_harvest";
 
 /** uic's scorer contract (c1824), typed as a seam — NOT an import of their
  * module. `createScorer(basis, {embedderId})` returns this; a mismatch in
@@ -108,23 +108,31 @@ export interface CognitionAdapterOptions extends HarvestOptions {
   includeText?: boolean;
 }
 
-/** `limit` items spread evenly from the first to the last, in order (all of them when there are no
- * more than `limit`). */
-export function spreadOverLife<T>(items: readonly T[], limit: number): T[] {
-  if (items.length <= limit) return [...items];
-  if (limit < 2) return limit === 1 ? [items[items.length - 1]] : [];
-  return Array.from({ length: limit }, (_, i) => items[Math.round((i * (items.length - 1)) / (limit - 1))]);
+/** THE AUTOMATIC READ's items (review round 6b F4): his replies and moments (episodes, summaries) in
+ * the order of his life, never a diary entry — reading one goes through the diary door, which records
+ * the read in his life ("The book was read"); a record's words come through the plain record route,
+ * which records nothing. */
+export function automaticReadItems(fold: FoldState): HarvestableNode[] {
+  return harvestableNodes(fold).filter((row) => row.source !== "diary");
 }
 
-/** The fold as the read sees it when his life holds more readable utterances than `limit` (backlog
- * 0040: the monitor follows any position of his life): `limit` of them spread from his first to his
- * latest, never his first `limit` only (on Castor's ~900 that left all but his first weeks on one
- * reading). The harvest reads the fold only through harvestableNodes, so a fold holding just the
- * picked nodes is the whole contract. */
-export function lifeSpreadFold(fold: FoldState, limit: number): FoldState {
-  const rows = harvestableNodes(fold);
-  if (rows.length <= limit) return fold;
-  return { ...fold, nodes: new Map(spreadOverLife(rows, limit).map(({ node }) => [node.id, node])) };
+/** The read's id for an item: the record's graph id, as the harvest names its sample. */
+export const readItemId = (row: HarvestableNode): string => row.node.graph_id ?? row.node.id;
+
+/** STABLE PICKS over his life (review round 6b F4): every `stride`-th item in order (indices 0, s, 2s,
+ * …), the stride the smallest power of two that keeps them within `limit` (2^ceil(log2(N / limit))).
+ * A new item adds a pick at the end and never moves the others; the stride, so the picks, changes only
+ * when his life doubles (then the even multiples stay). All of them up to `limit`. */
+export function stablePicks<T>(items: readonly T[], limit: number): T[] {
+  if (items.length <= limit) return [...items];
+  const stride = 2 ** Math.ceil(Math.log2(items.length / limit));
+  return items.filter((_, i) => i % stride === 0);
+}
+
+/** A fold holding only `rows` (the harvest reads the fold only through harvestableNodes), so the
+ * harvest reads exactly those records. */
+export function foldOfRows(fold: FoldState, rows: readonly HarvestableNode[]): FoldState {
+  return { ...fold, nodes: new Map(rows.map(({ node }) => [node.id, node])) };
 }
 
 /**
@@ -145,8 +153,7 @@ export async function scoreEntityUtterances(
   const includeText = opts.includeText !== false;
   const embedBatch = Math.max(1, opts.embedBatch ?? 32);
 
-  // With a limit, the utterances spread over his whole life (lifeSpreadFold), not his first ones.
-  const corpus = await harvestCorpus(baseUrl, entity, opts.limit ? lifeSpreadFold(fold, opts.limit) : fold, opts);
+  const corpus = await harvestCorpus(baseUrl, entity, fold, opts);
   const warnings = [...corpus.warnings];
   const samples: ScoredSample[] = [];
 

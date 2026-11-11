@@ -26,10 +26,6 @@ mkdirSync(resolve(root, "untracked"), { recursive: true });
 const temp = mkdtempSync(resolve(root, "untracked/cognition-harness-"));
 writeFileSync(resolve(temp, "index.html"), '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><div id="root"></div><script type="module" src="./main.tsx"></script></html>');
 writeFileSync(resolve(temp, "main.tsx"), `
-// First: verbatim_view -> episode_view -> words_line -> verbatim_view
-// is an import cycle, and entering it at verbatim_view (timeline -> graph_canvas does) reads NO_IMAGE
-// before it is initialised.
-import "/src/words_line.tsx";
 import React,{useEffect,useMemo,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {Timeline} from "/src/timeline.tsx";
@@ -229,11 +225,24 @@ try {
     const lctx = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: touch, isMobile: touch });
     const lp = await lctx.newPage();
     lp.on("pageerror", error => errors.push(String(error)));
-    await routeApi(lp, newCalls(), null);
-    await lp.goto(`http://127.0.0.1:4189/${relative(root,temp)}/index.html`);
+    const lcalls = newCalls();
+    await routeApi(lp, lcalls, null);
+    const url = `http://127.0.0.1:4189/${relative(root,temp)}/index.html`;
+    await lp.goto(url);
     await lp.getByRole("button", { name: "Life loaded", exact: true }).click();
-    await lp.getByRole("button", { name: "At B", exact: true }).click();
     await lp.locator('.et_radar[data-reading-state="ready"]').waitFor();
+    if (width === 1440) {
+      // A reload with nothing new reads and embeds nothing: the readings come from this browser's cache.
+      const before = { verbatim: lcalls.verbatim.length, embed: lcalls.embed.length, pin: lcalls.pin.length };
+      await lp.reload();
+      await lp.getByRole("button", { name: "Life loaded", exact: true }).click();
+      await lp.locator('.et_radar[data-reading-state="ready"]').waitFor();
+      await lp.waitForTimeout(300);
+      const reload = { verbatim: lcalls.verbatim.length - before.verbatim, embed: lcalls.embed.length - before.embed, pin: lcalls.pin.length - before.pin };
+      console.log(`  first load: ${before.verbatim} record reads, ${before.embed} embed calls; reload: ${JSON.stringify(reload)}`);
+      assert.deepEqual(reload, { verbatim: 0, embed: 0, pin: 0 }, "a reload with nothing new asks the gateway nothing");
+    }
+    await lp.getByRole("button", { name: "At B", exact: true }).click();
     await lp.waitForTimeout(400);
     const layout = await lp.evaluate(() => {
       const r = (sel) => document.querySelector(sel).getBoundingClientRect();

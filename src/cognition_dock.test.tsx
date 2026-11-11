@@ -155,8 +155,9 @@ describe("his words read once per home, on demand (the corpus read)", () => {
     // only (an effect cannot run in a server render).
     expect(PANEL.match(/\brunScore\b/g)).toHaveLength(2);
     expect(PANEL).toMatch(/useEffect\(\(\) => \{\s*if \(ready && keptCorpus\(key\)\.name === "idle"\) runScore\(\);\s*\/\/ eslint-disable-next-line react-hooks\/exhaustive-deps\s*\}, \[key, ready\]\);/);
-    // Over his whole life, read at pull time, spread over it.
-    expect(PANEL).toContain("scoreEntityUtterances(source.baseUrl, source.entity, lifeFoldRef.current(), scorer, { limit: 120 })");
+    // Over his whole life, read at pull time: his replies and moments at stable picks, through the
+    // browser's score cache (cognition_life_read.test.ts drives it).
+    expect(PANEL).toContain("return await readLife(source, lifeFoldRef.current(), b, scoreStore(source, b.version));");
     const effects = [...PANEL.matchAll(/useEffect\(\(\) => \{[\s\S]*?\}, \[([^\]]*)\]\);/g)].map((m) => m[1]);
     expect(effects.length).toBeGreaterThan(0);
     for (const deps of effects) expect(deps).not.toMatch(/scrubSeq|runScore|fold/);
@@ -340,6 +341,8 @@ describe("the ⓘ names what the codes are (backlog 0032 review F4)", () => {
       { label: "certainty", value: "assured (+1) to hedging (−1)" },
     ]);
     expect(about.note).toContain("each from −1 to +1");
+    // What the automatic read covers (review round 6b F4): never his diary.
+    expect(about.note).toContain("It reads his replies and moments, not his diary");
     expect(about.note).toContain("basis v1.0.0 · generic registers");
   });
 });
@@ -375,9 +378,9 @@ describe("no embeddings: said at once, his book never opened (backlog 0032 revie
     vi.unstubAllGlobals();
   });
 
-  it("the panel's read asks the preflight first, before the harvest", () => {
-    const run = PANEL.slice(PANEL.indexOf("const runScore = useCallback("));
-    expect(run.indexOf("await corpusPreflight(source.baseUrl, source.entity)")).toBeGreaterThan(-1);
+  it("the read asks the preflight first, before the harvest, and only when a pick is not scored yet", () => {
+    const run = PANEL.slice(PANEL.indexOf("export async function readLife("), PANEL.indexOf("/** The ⓘ's card"));
+    expect(run).toMatch(/if \(missing\.length > 0\) \{\s*\/\/ [^\n]*\n\s*const stop = await corpusPreflight\(source\.baseUrl, source\.entity\);/);
     expect(run.indexOf("await corpusPreflight(")).toBeLessThan(run.indexOf("scoreEntityUtterances("));
   });
 

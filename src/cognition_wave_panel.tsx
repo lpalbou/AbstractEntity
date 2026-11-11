@@ -37,7 +37,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { scoreEntityUtterances, type ScoredSample } from "./cognition_adapter";
+import { automaticReadItems, foldOfRows, readItemId, scoreEntityUtterances, stablePicks, type ScoredSample } from "./cognition_adapter";
+import { scoreStore, type ScoreStore } from "./cognition_score_cache";
 import type { ExplainerContent } from "./code_explainer";
 import { basisProvenanceNote, CHANNEL_AXES, TONE_POLES } from "./cognitive_monitor";
 import type { FoldState } from "./stream_fold";
@@ -124,9 +125,8 @@ export function startCorpusRead(key: string, read: () => Promise<Phase>): Promis
   return pending;
 }
 
-/** Before his words are read (each read of his book is recorded in his life, one marker per entry,
- * the transparency contract): the home's embedder and the embedding route, so a read that cannot
- * score never opens his book. null = go on; else the phase to show. */
+/** Before his words are read (only when a pick is not scored yet): the home's embedder and the
+ * embedding route, so a read that cannot score reads no record. null = go on; else the phase to show. */
 export async function corpusPreflight(baseUrl: string, entity: string): Promise<Phase | null> {
   const home = await fetchEntityEmbedding(baseUrl, entity);
   // The door resolves no embedder: the embeddings route has none either (it answers 503).
@@ -143,6 +143,39 @@ export async function corpusPreflight(baseUrl: string, entity: string): Promise<
   return null;
 }
 
+/** THE AUTOMATIC READ (review round 6b F4: performance first, the ledger stays honest): his replies
+ * and moments, never his diary (automaticReadItems: no diary door, so nothing is written in his
+ * life), at most `limit` of them at stable picks over his life (stablePicks: a new record adds a pick
+ * at the end, the rest stay); a pick already scored in this browser comes from the score cache, so
+ * only new picks are read (the plain record route) and embedded. Nothing new: no request at all (not
+ * even the preflight). */
+export async function readLife(source: { baseUrl: string; entity: string }, fold: FoldState, basis: FrozenBasis, store: ScoreStore, limit = 120): Promise<Phase> {
+  const picks = stablePicks(automaticReadItems(fold), limit);
+  const missing = picks.filter((row) => !store.get(readItemId(row)));
+  const warnings: string[] = [];
+  const fresh = new Map<string, ScoredSample>();
+  if (missing.length > 0) {
+    // No embeddings (or another space): said at once, no record read.
+    const stop = await corpusPreflight(source.baseUrl, source.entity);
+    if (stop && missing.length === picks.length) return stop;
+    if (stop) warnings.push(`${missing.length} newer records not read: ${"message" in stop ? stop.message : stop.name}`);
+    else {
+      const scorer = createScorer(basis, {
+        embedderId: basis.embedder_id,
+        ...(typeof basis.abstention_floor === "number" ? { abstention: { floor: basis.abstention_floor } } : {}),
+      });
+      const res = await scoreEntityUtterances(source.baseUrl, source.entity, foldOfRows(fold, missing), scorer);
+      warnings.push(...res.warnings);
+      for (const s of res.samples) fresh.set(s.id, s);
+    }
+  }
+  const samples = picks.map((row) => fresh.get(readItemId(row)) ?? store.get(readItemId(row))).filter((s): s is ScoredSample => s !== undefined);
+  if (fresh.size > 0) store.save(samples);
+  // In the order of his life (sampleAt takes the last one formed at or before a position).
+  samples.sort((a, b) => (a.seq ?? Infinity) - (b.seq ?? Infinity));
+  return samples.length === 0 ? { name: "empty", warnings } : { name: "ready", samples, warnings };
+}
+
 /** The ⓘ's card (hover, focus or a long-press): what the monitor reads, the five tone channels with
  * their poles on one −1..+1 scale, and the basis it reads with. */
 export function monitorAbout(provenance: string | null, calibration: string | null): ExplainerContent {
@@ -155,7 +188,13 @@ export function monitorAbout(provenance: string | null, calibration: string | nu
       label: a.name,
       value: `${TONE_POLES[a.id].positive[0]} (+1) to ${TONE_POLES[a.id].negative[0]} (−1)`,
     })),
-    note: ["The bloom: how close his words are to each register. The tone channels: each from −1 to +1.", provenance, calibration].filter(Boolean).join(" "),
+    note: [
+      "It reads his replies and moments, not his diary: up to 120 through his life, each at the moment it formed, and live, each reply of his. The bloom: how close his words are to each register. The tone channels: each from −1 to +1.",
+      provenance,
+      calibration,
+    ]
+      .filter(Boolean)
+      .join(" "),
   };
 }
 
@@ -241,23 +280,15 @@ export function CognitionWavePanel({ lifeFold, ready, source, scrubSeq, live, re
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ready]);
 
-  // THE ONE PULL (once per home, when his life has loaded). Reads his whole life's fold, harvests the
-  // entity's own words, embeds + scores once, and caches the samples. A live/scrub fold change does
-  // NOT re-run this.
+  // THE ONE PULL (once per home, when his life has loaded): readLife over his whole life's fold (his
+  // replies and moments, stable picks, the browser's score cache), kept for the page's life. A
+  // live/scrub fold change does NOT re-run this.
   const runScore = useCallback(() => {
     if (!source) return;
     const read = startCorpusRead(key, async (): Promise<Phase> => {
       try {
-        // No embeddings (or another space): said at once, his book never opened.
-        const stop = await corpusPreflight(source.baseUrl, source.entity);
-        if (stop) return stop;
         const b = await loadBasis();
-        const scorer = createScorer(b, {
-          embedderId: b.embedder_id,
-          ...(typeof b.abstention_floor === "number" ? { abstention: { floor: b.abstention_floor } } : {}),
-        });
-        const res = await scoreEntityUtterances(source.baseUrl, source.entity, lifeFoldRef.current(), scorer, { limit: 120 });
-        return res.samples.length === 0 ? { name: "empty", warnings: res.warnings } : { name: "ready", samples: res.samples, warnings: res.warnings };
+        return await readLife(source, lifeFoldRef.current(), b, scoreStore(source, b.version));
       } catch (e) {
         if (isEmbeddingsUnconfigured(e)) return { name: "unconfigured", message: e.message };
         return { name: "error", message: (e as Error).message, warnings: (e as { warnings?: string[] }).warnings ?? [] };
