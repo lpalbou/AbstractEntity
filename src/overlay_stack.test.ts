@@ -17,6 +17,9 @@ import {
   CONTEXT_BAND_MIN,
   CONTEXT_BOX_MAX,
   contextBand,
+  contextPlace,
+  LEGEND_FOOT_BAND,
+  panelReachesFoot,
   legendReserve,
   moveFloat,
   movePanel,
@@ -406,7 +409,13 @@ describe("the floating panel (backlog 0017, 0027)", () => {
     expect(12 + at(560 + 20)).toBeLessThan(W - 10 - 560);
     expect(12 + at(evalCss("min(320px, calc(1040px - 32px)) + 20px", {}, 0))).toBeLessThan(W - 10 - 320);
     expect(at(0)).toBe(W - 200);
-    expect(CANVAS).toContain('const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet");');
+    // Only when the docked panel reaches the legend's band (round-6 review F2: the default 58 % panel never does).
+    expect(CANVAS).toContain('const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet" && panelAtFoot);');
+    expect(CANVAS).toContain("setPanelAtFoot(p !== null && p.width > 0 && panelReachesFoot(p.bottom, c.bottom));");
+    expect(panelReachesFoot(528, 768)).toBe(false); // castor docked at 1440: 58 % of the canvas
+    expect(panelReachesFoot(760, 768)).toBe(true); // resized to the foot
+    expect(panelReachesFoot(768 - LEGEND_FOOT_BAND + 1, 768)).toBe(true);
+    expect(panelReachesFoot(768 - LEGEND_FOOT_BAND, 768)).toBe(false);
     expect(CANVAS).toContain('wrap.style.setProperty("--gc-tp-reserve", footReserve);');
   });
 
@@ -447,6 +456,16 @@ describe("the Context box at the top controls' level (operator 2026-11-11)", () 
     expect(CONTEXT_BAND_GAP).toBe(12);
   });
 
+  it("round-6 review F1: beside the top row at its own top (search closed: 10; search open: the row's lower place), else under the row, never at a fixed offset", () => {
+    // Search closed: the row at the canvas's top 10 px, its last button at 162.
+    expect(contextPlace({ top: 10, bottom: 39, right: 162 }, 637)).toEqual({ top: 10, centre: Math.round((162 + 12 + 637 - 12) / 2), max: 637 - 12 - 162 - 12 });
+    // Search open: the search bar above, the row at 48 px: the box at the row's own top, beside it.
+    expect(contextPlace({ top: 48, bottom: 77, right: 162 }, 637).top).toBe(48);
+    // No room beside it (a long chip): under the row, the stylesheet's centring.
+    expect(contextPlace({ top: 48, bottom: 77, right: 600 }, 637)).toEqual({ top: 77 + CONTEXT_BAND_GAP, centre: null, max: null });
+    expect(contextPlace({ top: 10, bottom: 39, right: 600 }, 637).top).toBe(39 + CONTEXT_BAND_GAP);
+  });
+
   it("a band too narrow: none (it keeps its place under the top row)", () => {
     expect(contextBand(500, 500 + 2 * CONTEXT_BAND_GAP + CONTEXT_BAND_MIN - 1)).toBeNull();
     expect(contextBand(500, 500 + 2 * CONTEXT_BAND_GAP + CONTEXT_BAND_MIN)).not.toBeNull();
@@ -456,7 +475,11 @@ describe("the Context box at the top controls' level (operator 2026-11-11)", () 
   it("the canvas measures it when the canvas, the motion buttons or the top row's buttons change, never per frame, and only on a wide canvas", () => {
     const eff = CANVAS.slice(CANVAS.indexOf("  const [contextAt, setContextAt]"), CANVAS.indexOf("  // The page panel lives outside the canvas's host"));
     expect(eff).toContain('if (getComputedStyle(stackEl).display !== "contents") {');
-    expect(eff).toContain("const next = contextBand(topRowRight, rightLimit);");
+    // The top row by its own element (round-6 review F1: an open search bar sits above it).
+    expect(eff).toContain('const row = overlay.querySelector(".entity_lens_bar");');
+    expect(eff).toContain("const next = contextPlace({ top: rr.top - c.top, bottom: rr.bottom - c.top, right: rowRight }, rightLimit);");
+    expect(eff).not.toContain("> 40");
+    expect(eff).toContain('console.error("#SEAM no .entity_lens_bar in the graph\'s top overlay: the Context box keeps its place under it");');
     expect(eff).toContain("ro?.observe(canvas);");
     expect(eff).toContain("ro?.observe(motion);");
     expect(eff).toContain("mo?.observe(overlay, { childList: true, subtree: true });");
@@ -465,7 +488,8 @@ describe("the Context box at the top controls' level (operator 2026-11-11)", () 
     // panel came after the first measure and the box ran under it).
     expect(eff).toContain("}, [panelFloat, panelDock, pagePanel, showTopics, topicsView, topicsOpen]);");
     // Its vars on the stack (the box's own --gc-rl-*), at the top controls' 10 px, above the top row's stretched box.
-    expect(CANVAS).toContain('...(contextAt ? { "--gc-rl-top": "10px", "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),');
+    expect(CANVAS).toContain('...(contextAt ? { "--gc-rl-top": `${contextAt.top}px` } : {}),');
+    expect(CANVAS).toContain('...(contextAt && contextAt.centre !== null && contextAt.max !== null ? { "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),');
     expect(decl(rule(CSS, ".entity_graph_overlay"), "top")).toBe("10px");
   });
 });

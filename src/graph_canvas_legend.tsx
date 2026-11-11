@@ -24,7 +24,7 @@ import React, { useEffect } from "react";
 import { KIND_COLORS, nodeClass, type RelationGlyph, relationGlyph } from "./graph_canvas";
 import { USAGE_HIGH, USAGE_LOW, USAGE_TITLE } from "./graph_usage";
 import type { FoldState } from "./stream_fold";
-import { TRAVELLED_DIRECTION, TRAVELLED_LEGEND, TRAVELLED_TITLE } from "./recall_emphasis";
+import { TRAVELLED_DIRECTION, TRAVELLED_KEY, TRAVELLED_LEGEND, TRAVELLED_TITLE } from "./recall_emphasis";
 
 /** The memory classes the legend names first (the canvas's colours). */
 export type LegendClass = "identity" | "memory" | "diary" | "standing" | "scar" | "bond";
@@ -171,9 +171,9 @@ export function GraphLegend({ extraKinds, relationTypes, warmthAge, picked, onPi
         </span>
         {/* THE LIT LINES (the recall's paths in their ring's colour; said here
           * only, the Context box keeps its rings: operator 2026-11-11). */}
-        <span className="lg_edge" title={`${TRAVELLED_TITLE} ${TRAVELLED_DIRECTION}.`}>
+        <span className="lg_edge" title={`${TRAVELLED_LEGEND}. ${TRAVELLED_TITLE} ${TRAVELLED_DIRECTION}.`} aria-label={TRAVELLED_LEGEND}>
           <i className="gc_rl_line" aria-hidden="true" />
-          {TRAVELLED_LEGEND}
+          {TRAVELLED_KEY}
         </span>
         {warmthAge ? (
           <span className="lg_edge lg_stale" title="How long ago he last used a memory. The colours rank his use within his life; they do not fade while nothing runs.">

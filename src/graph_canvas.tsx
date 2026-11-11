@@ -80,7 +80,7 @@ import {
   type SeatedFold,
 } from "./topic_layout";
 import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
-import { contextBand, legendReserve, moveFloat, overlayStack, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizeFloat, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
+import { contextPlace, legendReserve, moveFloat, overlayStack, panelReachesFoot, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizeFloat, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -803,7 +803,10 @@ export function GraphCanvas({
   // between the top row's last button and the motion buttons (or the docked
   // panel). Measured when the canvas, the motion buttons or the top row's
   // buttons resize or come and go, and when the panel moves; never per frame.
-  const [contextAt, setContextAt] = useState<{ centre: number; max: number } | null>(null);
+  const [contextAt, setContextAt] = useState<{ top: number; centre: number | null; max: number | null } | null>(null);
+  /** The docked panel's bottom reaches the kinds legend's band (it then
+   * takes the legend's room: legendReserve). */
+  const [panelAtFoot, setPanelAtFoot] = useState(false);
   const measureContextRef = useRef<(() => void) | null>(null);
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -819,40 +822,47 @@ export function GraphCanvas({
     const measure = () => {
       if (getComputedStyle(stackEl).display !== "contents") {
         setContextAt(null);
+        setPanelAtFoot(false);
         return;
       }
       const c = canvas.getBoundingClientRect();
-      // The top row's last button: of the overlay's children on its first line, the right edge of
-      // what they hold (the top row's own box stretches to the overlay's width).
-      let topRowRight = 0;
-      for (const child of Array.from(overlay.children)) {
-        const r = child.getBoundingClientRect();
-        if (r.height === 0 || r.top - c.top > 40) continue;
-        const kids = child.children.length > 0 ? Array.from(child.children) : [child];
-        for (const k of kids) topRowRight = Math.max(topRowRight, k.getBoundingClientRect().right - c.left);
+      const docked = panelFloatRef.current.at === null ? floatRef.current?.querySelector(".gc_topics") : null;
+      const p = docked ? docked.getBoundingClientRect() : null;
+      setPanelAtFoot(p !== null && p.width > 0 && panelReachesFoot(p.bottom, c.bottom));
+      // THE TOP ROW, by its own element (round-6 review F1: an open search bar sits above it, so its
+      // place is never "the first 40 px"): its box, and the right edge of its last button (its own box
+      // stretches to the overlay's width).
+      const row = overlay.querySelector(".entity_lens_bar");
+      if (!row) {
+        console.error("#SEAM no .entity_lens_bar in the graph's top overlay: the Context box keeps its place under it");
+        setContextAt(null);
+        return;
       }
+      const rr = row.getBoundingClientRect();
+      let rowRight = 0;
+      for (const k of Array.from(row.children)) rowRight = Math.max(rowRight, k.getBoundingClientRect().right - c.left);
       let rightLimit = motion.getBoundingClientRect().left - c.left;
-      const panel = panelFloatRef.current.at === null ? floatRef.current?.querySelector(".gc_topics") : null;
-      if (panel) {
-        const p = panel.getBoundingClientRect();
-        if (p.width > 0) rightLimit = Math.min(rightLimit, p.left - c.left);
-      }
-      const next = contextBand(topRowRight, rightLimit);
-      setContextAt((prev) => (prev && next && prev.centre === next.centre && prev.max === next.max ? prev : next));
+      if (p && p.width > 0) rightLimit = Math.min(rightLimit, p.left - c.left);
+      const next = contextPlace({ top: rr.top - c.top, bottom: rr.bottom - c.top, right: rowRight }, rightLimit);
+      setContextAt((prev) => (prev && prev.top === next.top && prev.centre === next.centre && prev.max === next.max ? prev : next));
     };
-    measureContextRef.current = measure;
-    measure();
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => measure()) : null;
     const watch = () => {
       ro?.disconnect();
       ro?.observe(canvas);
       ro?.observe(motion);
+      if (floatRef.current) ro?.observe(floatRef.current);
       for (const child of Array.from(overlay.children)) {
         ro?.observe(child);
         for (const k of Array.from(child.children)) ro?.observe(k);
       }
     };
+    measureContextRef.current = () => {
+      watch();
+      measure();
+    };
     watch();
+    measure();
     // A button comes or goes (a focused topic's chip, the search bar): watch it too.
     const mo = typeof MutationObserver === "function" ? new MutationObserver(() => {
       watch();
@@ -2626,7 +2636,9 @@ export function GraphCanvas({
   // THE KINDS LEGEND'S ROOM (review F2): the legend is the canvas wrap's
   // child, not the stack's, so the docked panel's width reaches it as a
   // custom property on the wrap (entity.css reads --gc-tp-reserve there).
-  const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet");
+  // Only a docked panel open on its list that reaches the legend's band takes its room (round-6 review F2:
+  // the default 58 % panel never does, and the legend's keys were cut for nothing).
+  const footReserve = legendReserve(panelView ? panelFloat : null, stack.topics === "sheet" && panelAtFoot);
   useEffect(() => {
     const wrap = canvasRef.current?.parentElement;
     if (!wrap) return;
@@ -2849,7 +2861,8 @@ export function GraphCanvas({
           panelView || contextAt
             ? ({
                 ...(panelView ? { "--gc-tp-top-reserve": topReserve(panelFloat) } : {}),
-                ...(contextAt ? { "--gc-rl-top": "10px", "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),
+                ...(contextAt ? { "--gc-rl-top": `${contextAt.top}px` } : {}),
+                ...(contextAt && contextAt.centre !== null && contextAt.max !== null ? { "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),
               } as React.CSSProperties)
             : undefined
         }

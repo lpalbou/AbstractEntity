@@ -223,3 +223,23 @@ export function contextBand(topRowRight: number, rightLimit: number): { centre: 
   if (!(right - left >= CONTEXT_BAND_MIN)) return null;
   return { centre: Math.round((left + right) / 2), max: Math.round(Math.min(CONTEXT_BOX_MAX, right - left)) };
 }
+
+/** Where the Context box goes (round-6 review F1): beside the top row (its
+ * top at the row's top, centred in the band) when the band holds it; else
+ * under the row (its top at the row's foot + CONTEXT_BAND_GAP, centred as the
+ * stylesheet does), never at a fixed offset: an open search bar puts the row
+ * lower. `row`: the top row's own box and the right edge of its last
+ * button, canvas px. */
+export function contextPlace(row: { top: number; bottom: number; right: number }, rightLimit: number): { top: number; centre: number | null; max: number | null } {
+  const band = contextBand(row.right, rightLimit);
+  return band ? { top: Math.round(row.top), centre: band.centre, max: band.max } : { top: Math.round(row.bottom + CONTEXT_BAND_GAP), centre: null, max: null };
+}
+
+/** The canvas's foot band the kinds legend lives in (px from the canvas's
+ * bottom): a docked panel whose bottom reaches it takes the legend's room. */
+export const LEGEND_FOOT_BAND = 90;
+
+/** Whether a docked panel reaches the kinds legend's band (canvas px). */
+export function panelReachesFoot(panelBottom: number, canvasBottom: number): boolean {
+  return panelBottom > canvasBottom - LEGEND_FOOT_BAND;
+}

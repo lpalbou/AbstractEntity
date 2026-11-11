@@ -463,6 +463,10 @@ export function recallLegendRows(e: RecallEmphasis): RecallLegendRow[] {
 /** The graph's legend at the bottom says what a lit line is (operator
  * 2026-11-11: never twice; the Context box keeps its rings only). */
 export const TRAVELLED_LEGEND = "lit lines: his path to each recalled memory, in its ring's colour";
+/** Its words in the legend's row, short (round-6 review F2: the row is one
+ * scrolling line and the whole sentence was cut mid-word); the sentence is
+ * its hover and its accessible name. */
+export const TRAVELLED_KEY = "lit lines";
 /** The lit lines' direction, in words (operator 2026-11-09), under the row
  * and drawn on the canvas as an arrowhead at the recalled memory. */
 export const TRAVELLED_DIRECTION = "from what he held in mind → to what he recalled";

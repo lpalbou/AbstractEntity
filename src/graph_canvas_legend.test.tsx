@@ -95,7 +95,9 @@ describe("the legend's markup", () => {
     expect(lines).toMatch(/<span class="lg_edge" title="An amber line: two memories he used together a moment ago\. It fades as he goes on\."><i class="gc_lg_flash" aria-hidden="true"><\/i>just travelled<\/span>/);
     expect(lines.indexOf("just travelled")).toBeGreaterThan(lines.indexOf("rarely used → most used"));
     // The lit lines (the recall's paths), said here only (operator 2026-11-11), after the amber line; a key, not a toggle.
-    expect(lines).toMatch(/<span class="lg_edge" title="[^"]+"><i class="gc_rl_line" aria-hidden="true"><\/i>lit lines: his path to each recalled memory, in its ring&#x27;s colour<\/span>/);
+    // Its words short in the row (round-6 review F2: the whole sentence was cut mid-word in the one scrolling line); the
+    // sentence is its hover and its accessible name.
+    expect(lines).toMatch(/<span class="lg_edge" title="lit lines: his path to each recalled memory, in its ring&#x27;s colour\. [^"]+" aria-label="lit lines: his path to each recalled memory, in its ring&#x27;s colour"><i class="gc_rl_line" aria-hidden="true"><\/i>lit lines<\/span>/);
     expect(lines.indexOf("lit lines:")).toBeGreaterThan(lines.indexOf("just travelled"));
     expect(lines).toContain("last selection 2h ago");
     expect(lines).toContain("written_amid</button>");
