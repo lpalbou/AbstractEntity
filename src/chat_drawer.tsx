@@ -467,7 +467,17 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
       } catch {
         // presentation state only
       }
-      if (rehydratedRef.current.has(ownRunId)) {
+      // The thread is this visit's from the rejoin on, whatever its transcript read gives (review
+      // round 6b: recorded only on a successful read, a failed read left the thread unowned and a
+      // later open of the SAME visit cleared it); another visit's thread goes first.
+      const sameVisit = threadRunRef.current === ownRunId;
+      if (!sameVisit) {
+        setMessages([]);
+        setPendingMentions([]);
+        setDetailTurn(null);
+      }
+      threadRunRef.current = ownRunId;
+      if (sameVisit && rehydratedRef.current.has(ownRunId)) {
         setRunId(ownRunId);
         return;
       }
@@ -512,7 +522,6 @@ export function ChatDrawer(props: ChatDrawerProps): React.ReactElement {
             }
           }
           idRef.current = mid;
-          threadRunRef.current = ownRunId;
           setMessages(rebuilt);
         })
         .finally(() => setHydrating(false))
