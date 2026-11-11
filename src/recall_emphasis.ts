@@ -460,7 +460,9 @@ export function recallLegendRows(e: RecallEmphasis): RecallLegendRow[] {
   return (["self", "stm", "matched"] as const).map((cls) => ({ cls, count: e.counts[cls], name: RECALL_CLASS_WORDS[cls], meaning: RECALL_CLASS_MEANING[cls] }));
 }
 
-export const TRAVELLED_LEGEND = "lit lines: the path he travelled to reach each one, in the colour of its ring";
+/** The graph's legend at the bottom says what a lit line is (operator
+ * 2026-11-11: never twice; the Context box keeps its rings only). */
+export const TRAVELLED_LEGEND = "lit lines: his path to each recalled memory, in its ring's colour";
 /** The lit lines' direction, in words (operator 2026-11-09), under the row
  * and drawn on the canvas as an arrowhead at the recalled memory. */
 export const TRAVELLED_DIRECTION = "from what he held in mind → to what he recalled";

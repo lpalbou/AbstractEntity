@@ -80,7 +80,7 @@ import {
   type SeatedFold,
 } from "./topic_layout";
 import { memberOpensIn, topicCountWords, topicRequestStep, TopicsPanel, topicsNote, type TopicsView } from "./topics_panel";
-import { legendReserve, moveFloat, overlayStack, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizeFloat, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
+import { contextBand, legendReserve, moveFloat, overlayStack, PANEL_DOCKED, PANEL_DRAG_SLOP, PANEL_GAP, PANEL_STORAGE_KEY, panelVars, parsePanelFloat, resizeFloat, serializePanelFloat, topReserve, type PanelDock, type PanelFloat } from "./overlay_stack";
 import type { TailPlacement } from "./topic_map";
 import { placeTopicLabel, wrapTopicLabel, type Rect } from "./topic_labels";
 import { TITLE_BEING_WRITTEN } from "./untitled";
@@ -798,6 +798,78 @@ export function GraphCanvas({
       window.removeEventListener("resize", measure);
     };
   }, []);
+  // THE CONTEXT BOX AT THE TOP (overlay_stack contextBand; operator
+  // 2026-11-11): on a wide canvas, at the top controls' level in the band
+  // between the top row's last button and the motion buttons (or the docked
+  // panel). Measured when the canvas, the motion buttons or the top row's
+  // buttons resize or come and go, and when the panel moves; never per frame.
+  const [contextAt, setContextAt] = useState<{ centre: number; max: number } | null>(null);
+  const measureContextRef = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const host = canvas?.parentElement;
+    const motion = motionRef.current;
+    const stackEl = stackRef.current;
+    if (!canvas || !host || !motion || !stackEl) return;
+    const overlay = host.querySelector(".entity_graph_overlay");
+    if (!overlay) {
+      console.error("#SEAM no .entity_graph_overlay over the graph: the Context box keeps its place under the top row");
+      return;
+    }
+    const measure = () => {
+      if (getComputedStyle(stackEl).display !== "contents") {
+        setContextAt(null);
+        return;
+      }
+      const c = canvas.getBoundingClientRect();
+      // The top row's last button: of the overlay's children on its first line, the right edge of
+      // what they hold (the top row's own box stretches to the overlay's width).
+      let topRowRight = 0;
+      for (const child of Array.from(overlay.children)) {
+        const r = child.getBoundingClientRect();
+        if (r.height === 0 || r.top - c.top > 40) continue;
+        const kids = child.children.length > 0 ? Array.from(child.children) : [child];
+        for (const k of kids) topRowRight = Math.max(topRowRight, k.getBoundingClientRect().right - c.left);
+      }
+      let rightLimit = motion.getBoundingClientRect().left - c.left;
+      const panel = panelFloatRef.current.at === null ? floatRef.current?.querySelector(".gc_topics") : null;
+      if (panel) {
+        const p = panel.getBoundingClientRect();
+        if (p.width > 0) rightLimit = Math.min(rightLimit, p.left - c.left);
+      }
+      const next = contextBand(topRowRight, rightLimit);
+      setContextAt((prev) => (prev && next && prev.centre === next.centre && prev.max === next.max ? prev : next));
+    };
+    measureContextRef.current = measure;
+    measure();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => measure()) : null;
+    const watch = () => {
+      ro?.disconnect();
+      ro?.observe(canvas);
+      ro?.observe(motion);
+      for (const child of Array.from(overlay.children)) {
+        ro?.observe(child);
+        for (const k of Array.from(child.children)) ro?.observe(k);
+      }
+    };
+    watch();
+    // A button comes or goes (a focused topic's chip, the search bar): watch it too.
+    const mo = typeof MutationObserver === "function" ? new MutationObserver(() => {
+      watch();
+      measure();
+    }) : null;
+    mo?.observe(overlay, { childList: true, subtree: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      mo?.disconnect();
+      window.removeEventListener("resize", measure);
+      measureContextRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    measureContextRef.current?.();
+  }, [panelFloat, panelDock, pagePanel]);
   // The page panel lives outside the canvas's host: its moves reach the
   // titles' overlay rects through this.
   useEffect(() => {
@@ -2772,7 +2844,14 @@ export function GraphCanvas({
         className="gc_overlay_stack"
         data-legend={stack.legend}
         data-topics={stack.topics}
-        style={panelView ? ({ "--gc-tp-top-reserve": topReserve(panelFloat) } as React.CSSProperties) : undefined}
+        style={
+          panelView || contextAt
+            ? ({
+                ...(panelView ? { "--gc-tp-top-reserve": topReserve(panelFloat) } : {}),
+                ...(contextAt ? { "--gc-rl-top": "10px", "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),
+              } as React.CSSProperties)
+            : undefined
+        }
       >
         {recallShown && recall ? (
           // THE CONTEXT LEGEND (operator 2026-11-09): the rings counted; what

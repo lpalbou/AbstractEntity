@@ -3,11 +3,12 @@
  * context, it shows [rings: 6 present by right, 11 continuity, 14 matched]
  * but i am unsure how to interpret it?"). Where the recall line already
  * lived, over the graph: the summary counts the rings; unfolded it says,
- * in his words, what each ring colour means, what the lit lines are (and
- * which way they read: from what he held in mind to what he recalled). The
- * grey-to-green fill is the graph's own legend's (operator 2026-11-10: "it's
- * in the legend at the bottom"), never said twice. Compact: open on a wide
- * screen, folded on a phone.
+ * in his words, what each ring colour means. The lit lines and the
+ * grey-to-green fill are the graph's own legend's at the bottom (operator
+ * 2026-11-10 and 2026-11-11: "it's already in the legend in the bottom"),
+ * never said twice. At the top controls' level on a wide canvas, between
+ * the top row and the motion buttons (graph_canvas measures the band);
+ * open on a wide screen, folded on a phone.
  *
  * Its fold control is a real disclosure (review S3, 2026-11-09): a button
  * with aria-expanded controlling the key. The count is announced once,
@@ -18,7 +19,7 @@
  */
 import React, { useEffect, useId, useState } from "react";
 
-import { recallLegendParts, recallLegendRows, recallLegendText, TRAVELLED_DIRECTION, TRAVELLED_LEGEND, TRAVELLED_TITLE, type RecallEmphasis } from "./recall_emphasis";
+import { recallLegendParts, recallLegendRows, recallLegendText, type RecallEmphasis } from "./recall_emphasis";
 
 /** How long the count rests before the live region says it (a scrub
  * through ten recalls is announced once, at the one it stops on). */
@@ -62,13 +63,6 @@ export function ContextLegend({ recall, open, onToggle }: { recall: RecallEmphas
             <span className="gc_rl_meaning">{row.meaning}</span>
           </div>
         ))}
-        <div className="gc_rl_row" title={TRAVELLED_TITLE}>
-          <i className="gc_rl_line" aria-hidden="true" />
-          <span className="gc_rl_meaning">
-            {TRAVELLED_LEGEND}
-            <span className="gc_rl_more">{TRAVELLED_DIRECTION}</span>
-          </span>
-        </div>
       </div>
     </div>
   );

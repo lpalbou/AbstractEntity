@@ -1,7 +1,7 @@
 /**
  * The Context legend (operator live test 2026-11-09: "when i click on
  * context, it shows [rings: …] but i am unsure how to interpret it?"): the
- * ring colours in his words, the lit lines (the grey-to-green fill is the graph's legend's only). Rendered
+ * ring colours in his words (the lit lines and the grey-to-green fill are the graph's legend's only). Rendered
  * with react-dom/server from a real fold's recall; the wiring into the
  * canvas and the graph's key is pinned on the source.
  */
@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import { ContextLegend } from "./context_legend";
 import { foldEnvelopes } from "./stream_fold";
 import type { ReplayEnvelope } from "./stream_types";
-import { recallEmphasis, TRAVELLED_DIRECTION } from "./recall_emphasis";
+import { recallEmphasis } from "./recall_emphasis";
 
 function env(seq: number, family: ReplayEnvelope["family"], payload: Record<string, unknown>, extra: Partial<ReplayEnvelope> = {}): ReplayEnvelope {
   return { stream: "abstractmemory.replay", stream_version: 1, seq, family, observed_at: "2026-11-09T10:00:00+00:00", scope: "life", owner_id: "entity:test", trace_id: null, turn_id: null, run_id: null, payload, ...extra } as ReplayEnvelope;
@@ -45,7 +45,10 @@ describe("ContextLegend", () => {
     expect(key).toContain("present by right:memories he always keeps in mind");
     expect(key).toContain("continuity:memories that followed from the last ones");
     expect(key).toContain("matched:memories found for this message");
-    expect(key).toContain("lit lines: the path he travelled to reach each one, in the colour of its ring");
+    // The lit lines are said by the graph's legend at the bottom only (operator 2026-11-11: "i asked you to
+    // remove that since it's already in the legend in the bottom").
+    expect(key).not.toMatch(/lit lines|travelled|held in mind/);
+    expect(html).not.toContain("gc_rl_line");
     // The fill (dark grey -> green) is said by the graph's legend at the bottom only (operator 2026-11-10:
     // "remove the line about fill dark grey … because it's in the legend at the bottom").
     expect(key).not.toMatch(/fill|rarely used|most used|ranked within his own life/);
@@ -54,17 +57,17 @@ describe("ContextLegend", () => {
     for (const cls of ["self", "stm", "matched"]) expect(html).toContain(`<i class="gc_rl_ring gc_rl_${cls}" aria-hidden="true"></i><span class="gc_rl_name">`);
   });
 
-  it("the lit lines' row says their direction in words (operator 2026-11-09)", () => {
-    const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
-    expect(TRAVELLED_DIRECTION).toBe("from what he held in mind → to what he recalled");
-    expect(html).toContain(`<span class="gc_rl_more">${TRAVELLED_DIRECTION}</span>`);
-  });
-
-  it("every row reads without a tooltip: the lit lines carry their meaning as a visible line (review N4)", () => {
+  it("the open key is the three rings only", () => {
     const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
     const rows = html.match(/<div class="gc_rl_row"[^>]*>[\s\S]*?<\/div>/g)!;
-    expect(rows).toHaveLength(4);
-    for (const row of rows.slice(3)) expect(row).toMatch(/<span class="gc_rl_more">[^<]+<\/span>/);
+    expect(rows).toHaveLength(3);
+    for (const [i, cls] of ["self", "stm", "matched"].entries()) expect(rows[i]).toContain(`gc_rl_ring gc_rl_${cls}`);
+  });
+
+  it("every row reads without a tooltip: each ring row says its meaning as a visible line (review N4)", () => {
+    const html = renderToStaticMarkup(<ContextLegend recall={recall()} open onToggle={() => {}} />);
+    const rows = html.match(/<div class="gc_rl_row"[^>]*>[\s\S]*?<\/div>/g)!;
+    for (const row of rows) expect(row).toMatch(/<span class="gc_rl_meaning">[^<]+<\/span>/);
   });
 
   it("the fold control is a real disclosure: a button with aria-expanded controlling the key, never a live region (review S3)", () => {

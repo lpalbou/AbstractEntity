@@ -13,6 +13,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTEXT_BAND_GAP,
+  CONTEXT_BAND_MIN,
+  CONTEXT_BOX_MAX,
+  contextBand,
   legendReserve,
   moveFloat,
   movePanel,
@@ -101,7 +105,7 @@ describe("the mapping", () => {
 
 describe("the canvas wiring", () => {
   it("the legend renders in the stack; the panel's box sits in the stack on a phone, over the page (portaled) on a wide canvas", () => {
-    const at = CANVAS.indexOf('className="gc_overlay_stack"\n        data-legend={stack.legend}\n        data-topics={stack.topics}\n        style={panelView ? ({ "--gc-tp-top-reserve": topReserve(panelFloat) } as React.CSSProperties) : undefined}\n      >');
+    const at = CANVAS.indexOf('className="gc_overlay_stack"\n        data-legend={stack.legend}\n        data-topics={stack.topics}\n        style={\n          panelView || contextAt');
     expect(at).toBeGreaterThan(0);
     const legend = CANVAS.indexOf("<ContextLegend recall={recall} open={legendOpen} onToggle={setLegendOpen} />", at);
     const inline = CANVAS.indexOf("{pagePanel ? null : panelBox}", at);
@@ -136,7 +140,7 @@ describe("the canvas wiring", () => {
     expect(CANVAS).toContain("const panelView = showTopics && topicsView ? topicsPanelView ?? topicsView : null;");
     expect(CANVAS).toContain('!panelView ? "none" : topicsOpen && topicsNote(panelView) === null ? "open" : "line",');
     expect(CANVAS).toContain('!(recallShown && recall) ? "none" : legendOpen ? "open" : "folded",');
-    expect(CANVAS).toContain("{panelView ? (");
+    expect(CANVAS).toContain("const panelBox = panelView ? (");
     expect(CANVAS).toContain("{recallShown && recall ? (");
   });
 });
@@ -168,10 +172,12 @@ describe("the stylesheet", () => {
     expect(decl(head, "cursor")).toBe("grab");
     expect(decl(head, "touch-action")).toBe("none");
     expect(decl(head, "user-select")).toBe("none");
-    // The Context legend is centred in the width the docked panel leaves.
+    // The Context box: at the top controls' level in the measured band, else under the top row in the width the docked panel leaves.
     const legend = rule(CANVAS_CSS, ".gc_recall_legend");
-    expect(decl(legend, "left")).toBe("calc((100% - var(--gc-tp-top-reserve, 0px)) / 2)");
-    expect(decl(legend, "max-width")).toBe("min(760px, calc(100% - var(--gc-tp-top-reserve, 0px) - 32px))");
+    expect(decl(legend, "top")).toBe("var(--gc-rl-top, 48px)");
+    expect(decl(legend, "left")).toBe("var(--gc-rl-centre, calc((100% - var(--gc-tp-top-reserve, 0px)) / 2))");
+    expect(decl(legend, "max-width")).toBe("var(--gc-rl-max, min(760px, calc(100% - var(--gc-tp-top-reserve, 0px) - 32px)))");
+    expect(decl(legend, "z-index")).toBe("var(--gc-rl-z, auto)");
   });
 
   it("a phone keeps the stack: the float box draws nothing, its grip and corner are gone", () => {
@@ -430,5 +436,34 @@ describe("the floating panel (backlog 0017, 0027)", () => {
     expect(CANVAS.match(/const panelEl = floatRef\.current\?\.querySelector\("\.gc_topics"\);/g)?.length).toBe(2);
     expect(decl(rule(CANVAS_CSS, ".gc_tp_dock"), "right")).toBe("var(--tap-min, 32px)");
     expect(decl(rule(CANVAS_CSS, '.gc_topics_float[data-docked="false"] .gc_tp_head'), "padding-right")).toBe("calc(var(--tap-min, 32px) + 72px)");
+  });
+});
+
+describe("the Context box at the top controls' level (operator 2026-11-11)", () => {
+  it("centred in the band between the top row's last button and the motion buttons (or the docked panel), at most 760 px", () => {
+    // castor at 1440 x 900: the top row ends at 255 - 93 (canvas px 162); the docked panel starts at 730 - 0.
+    expect(contextBand(162, 637)).toEqual({ centre: Math.round((162 + 12 + 637 - 12) / 2), max: 637 - 12 - 162 - 12 });
+    expect(contextBand(100, 2000)).toEqual({ centre: 1050, max: CONTEXT_BOX_MAX });
+    expect(CONTEXT_BAND_GAP).toBe(12);
+  });
+
+  it("a band too narrow: none (it keeps its place under the top row)", () => {
+    expect(contextBand(500, 500 + 2 * CONTEXT_BAND_GAP + CONTEXT_BAND_MIN - 1)).toBeNull();
+    expect(contextBand(500, 500 + 2 * CONTEXT_BAND_GAP + CONTEXT_BAND_MIN)).not.toBeNull();
+    expect(contextBand(600, 300)).toBeNull();
+  });
+
+  it("the canvas measures it when the canvas, the motion buttons or the top row's buttons change, never per frame, and only on a wide canvas", () => {
+    const eff = CANVAS.slice(CANVAS.indexOf("  const [contextAt, setContextAt]"), CANVAS.indexOf("  // The page panel lives outside the canvas's host"));
+    expect(eff).toContain('if (getComputedStyle(stackEl).display !== "contents") {');
+    expect(eff).toContain("const next = contextBand(topRowRight, rightLimit);");
+    expect(eff).toContain("ro?.observe(canvas);");
+    expect(eff).toContain("ro?.observe(motion);");
+    expect(eff).toContain("mo?.observe(overlay, { childList: true, subtree: true });");
+    expect(eff).toContain('console.error("#SEAM no .entity_graph_overlay over the graph: the Context box keeps its place under the top row");');
+    expect(eff).toContain("}, [panelFloat, panelDock, pagePanel]);");
+    // Its vars on the stack (the box's own --gc-rl-*), at the top controls' 10 px, above the top row's stretched box.
+    expect(CANVAS).toContain('...(contextAt ? { "--gc-rl-top": "10px", "--gc-rl-centre": `${contextAt.centre}px`, "--gc-rl-max": `${contextAt.max}px`, "--gc-rl-z": "6" } : {}),');
+    expect(decl(rule(CSS, ".entity_graph_overlay"), "top")).toBe("10px");
   });
 });

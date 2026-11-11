@@ -206,3 +206,20 @@ export function topReserve(f: PanelFloat): string {
 export function legendReserve(f: PanelFloat | null, openList: boolean): string {
   return f && f.at === null && openList ? topReserve(f) : "0px";
 }
+
+/** THE CONTEXT BOX AT THE TOP (operator 2026-11-11: "this context legend
+ * should be higher, at the same vertical offset than the other fit button"):
+ * on a wide canvas it sits in the band the top row leaves, from just past
+ * its last button to just short of the motion buttons (or the docked Topics
+ * panel, whichever starts further left), canvas px. Too narrow (under
+ * CONTEXT_BAND_MIN), null: it keeps its place under the top row. */
+export const CONTEXT_BAND_MIN = 360;
+export const CONTEXT_BAND_GAP = 12;
+export const CONTEXT_BOX_MAX = 760;
+
+export function contextBand(topRowRight: number, rightLimit: number): { centre: number; max: number } | null {
+  const left = topRowRight + CONTEXT_BAND_GAP;
+  const right = rightLimit - CONTEXT_BAND_GAP;
+  if (!(right - left >= CONTEXT_BAND_MIN)) return null;
+  return { centre: Math.round((left + right) / 2), max: Math.round(Math.min(CONTEXT_BOX_MAX, right - left)) };
+}

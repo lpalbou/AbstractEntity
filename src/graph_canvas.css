@@ -10,13 +10,17 @@
  * the canvas. */
 .gc_recall_legend {
   position: absolute;
-  top: 48px;
-  /* Centred in the width the docked Topics panel leaves it (overlay_stack
-   * panelVars --gc-tp-top-reserve: its width and gaps; none while it is
-   * moved or absent). */
-  left: calc((100% - var(--gc-tp-top-reserve, 0px)) / 2);
+  /* At the top controls' level (operator 2026-11-11), centred in the band
+   * the top row leaves between its last button and the motion buttons or
+   * the docked Topics panel (graph_canvas measures it: --gc-rl-*; z above
+   * the top row's own stretched box, never over a button). The band too
+   * narrow: under the top row, centred in the width the docked panel leaves
+   * (--gc-tp-top-reserve). */
+  top: var(--gc-rl-top, 48px);
+  left: var(--gc-rl-centre, calc((100% - var(--gc-tp-top-reserve, 0px)) / 2));
   transform: translateX(-50%);
-  max-width: min(760px, calc(100% - var(--gc-tp-top-reserve, 0px) - 32px));
+  max-width: var(--gc-rl-max, min(760px, calc(100% - var(--gc-tp-top-reserve, 0px) - 32px)));
+  z-index: var(--gc-rl-z, auto);
   padding: 4px 10px;
   background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
   border: 1px solid var(--line);

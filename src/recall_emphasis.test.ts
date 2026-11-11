@@ -329,7 +329,7 @@ describe("recallLegendText", () => {
       { cls: "stm", count: 1, name: "continuity", meaning: "memories that followed from the last ones" },
       { cls: "matched", count: 0, name: "matched", meaning: "memories found for this message" },
     ]);
-    expect(TRAVELLED_LEGEND).toBe("lit lines: the path he travelled to reach each one, in the colour of its ring");
+    expect(TRAVELLED_LEGEND).toBe("lit lines: his path to each recalled memory, in its ring's colour");
   });
 });
 
