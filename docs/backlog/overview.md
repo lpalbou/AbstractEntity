@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 31 |
+| Planned | 32 |
 | Proposed | 6 |
 | Completed | 10 |
 | Deprecated | 0 |
 
-`planned/` holds 36 files: the 31 planned items and five completed records (0002-0005, 0039) whose
+`planned/` holds 37 files: the 32 planned items and five completed records (0002-0005, 0039) whose
 move to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -86,6 +86,7 @@ closed: close them after the operator's check, with 0011's placement stated.
 | 0036 | [The monitor uses the timeline's space: a large bloom with its petal labels, named tone channels, the time and its buttons stacked above the transport](planned/0036_monitor_larger_names_tree_controls_stacked.md) | M | W1 | |
 | 0037 | [A world-model revision is one ledger row, by its title, that opens it](planned/0037_world_model_revision_one_row_by_title.md) (built) | S | W2 | |
 | 0038 | [The Context box keeps its rings only and sits at the top controls' level](planned/0038_context_box_rings_only_at_top.md) (built) | S | W2 | |
+| 0040 | [The monitor always on, in three columns with the lanes, following the time and his replies](planned/0040_monitor_always_on_three_columns_follows_time.md) | M | W1 | |
 
 ## Proposed (legacy names)
 
