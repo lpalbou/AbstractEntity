@@ -278,6 +278,7 @@ try {
     assert.ok(layout.valContrast >= 4.5, `value contrast ${layout.valContrast.toFixed(2)} at ${width}`);
     if (width >= 768) {
       assert.ok(Math.max(...layout.rights) - Math.min(...layout.rights) <= 1, `the channels, Live and the transport right-aligned at ${width}: ${layout.rights}`);
+      assert.ok(Math.abs(layout.readings.left - layout.midLeft) <= 1, `the channels as wide as the middle column at ${width} (no empty space beside them): ${layout.readings.left} vs ${layout.midLeft}`);
       assert.ok(layout.lanesRight < layout.midLeft && Math.max(...layout.rights) < layout.radar.left, `lanes | middle | radar, left to right at ${width}`);
       assert.ok(layout.blockRight - layout.radar.right <= 16, `the radar at the block's right edge at ${width} (${layout.blockRight - layout.radar.right} px)`);
       assert.deepEqual([layout.radar.width, layout.radar.height], [210, 150], `the radar's fixed box at ${width}`);

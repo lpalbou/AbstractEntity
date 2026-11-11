@@ -64,7 +64,9 @@ describe("the timeline: three columns, the monitor always on (backlog 0040)", ()
 
   it("the grid: the lanes | the channels over Live over the transport | the bloom over the block's six rows", () => {
     expect(CSS).toMatch(/\.entity_timeline\.et_grid \{\s*display: grid;\s*grid-template-columns: max-content minmax\(0, 1fr\) max-content auto;/);
-    expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_readings \{\s*grid-column: 3;\s*grid-row: 1 \/ span 4;\s*align-self: end;\s*justify-self: end;/);
+    expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_readings \{\s*grid-column: 3;\s*grid-row: 1 \/ span 4;\s*align-self: end;\s*justify-self: stretch;/);
+    // The channels as wide as the column: names at its left, values at its right edge (no empty space).
+    expect(CSS).toMatch(/\.et_readings > \.cm_tone_list \{\s*flex: 1 1 0;\s*grid-template-columns: minmax\(0, 1fr\) max-content;/);
     expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_right_top \{\s*grid-column: 3;\s*grid-row: 5;\s*justify-self: end;/);
     expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_right \{\s*grid-column: 3;\s*grid-row: 6;\s*justify-self: end;/);
     expect(CSS).toMatch(/\.entity_timeline\.et_grid > \.et_radar \{\s*grid-column: 4;\s*grid-row: 1 \/ span 6;/);

@@ -2817,8 +2817,8 @@ body {
 }
 /* Three columns and no empty space (operator 2026-11-11 02:00, backlog 0040): the lanes (their labels,
  * the lanes and the bar: the remaining width) | the five tone channels over the first four lanes' rows,
- * ● Live and the position on the fifth's, the transport on the bar's, right-aligned, as wide as the
- * widest of them | the monitor's bloom, a fixed width, the block's six rows (five lanes and the bar).
+ * ● Live and the position on the fifth's, the transport on the bar's, right-aligned, the column as wide
+ * as the widest of them and the channels as wide as the column | the monitor's bloom, a fixed width, the block's six rows (five lanes and the bar).
  * Each item names its cells, so the lanes never flow into the others'. */
 .entity_timeline.et_grid > .et_lane_label {
   grid-column: 1;
@@ -2831,7 +2831,7 @@ body {
   grid-column: 3;
   grid-row: 1 / span 4;
   align-self: end;
-  justify-self: end;
+  justify-self: stretch;
 }
 .entity_timeline.et_grid > .et_right_top {
   grid-column: 3;
@@ -4107,6 +4107,12 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 14px;
+}
+/* As wide as the column (no empty space beside them): each name at the column's left, its value at its
+ * right edge, over Live and the transport; a visit's conduct takes half the width. */
+.et_readings > .cm_tone_list {
+  flex: 1 1 0;
+  grid-template-columns: minmax(0, 1fr) max-content;
 }
 .et_radar {
   position: relative;
