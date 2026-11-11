@@ -10,11 +10,11 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 | --- | --- |
 | Planned | 31 |
 | Proposed | 6 |
-| Completed | 9 |
+| Completed | 10 |
 | Deprecated | 0 |
 
-`planned/` holds 35 files: the 31 planned items and four completed records (0002-0005) whose move
-to `completed/` is pending. 0001 is folded into 0017 and closes with it.
+`planned/` holds 36 files: the 31 planned items and five completed records (0002-0005, 0039) whose
+move to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
 
@@ -114,6 +114,7 @@ pass).
 | 0003 | [Topic focus: animated camera](planned/0003_topic_focus_animated_camera.md) (file still under planned/, move pending) | 2026-11-10 | built 1af01a3, 43be8a1; CHANGELOG [Unreleased] |
 | 0004 | [Legend: two lines at most, interactive](planned/0004_legend_two_lines_and_interactive.md) (file still under planned/, move pending) | 2026-11-10 | built 4d2ee64; CHANGELOG [Unreleased] |
 | 0005 | [Topic members grouped by memory type](planned/0005_topic_members_by_memory_type.md) (file still under planned/, move pending) | 2026-11-10 | built 97a1650; CHANGELOG [Unreleased] |
+| 0039 | [An expanded topic's facts as labelled facts, not sentences](planned/0039_topic_facts_labelled.md) (file still under planned/, move pending) | 2026-11-11 | built 6b0d568 (W3); hermetic shots in the record |
 
 ## Deprecated
 
@@ -121,7 +122,7 @@ None.
 
 ## Process
 
-- A new item takes the next unused `NNNN_` prefix (next: 0039) and the template's sections
+- A new item takes the next unused `NNNN_` prefix (next: 0040) and the template's sections
   (metadata, ADR status, context or the operator's words, current code reality, scope, expected
   outcomes, validation, size).
 - Completing an item: set `Status: Completed` and `Completed: <date>`, add what was done and its
