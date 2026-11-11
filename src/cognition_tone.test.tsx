@@ -197,9 +197,11 @@ describe("the tone row (what both mounts show under the bloom)", () => {
   it("both mounts render the row and neither renders a sentence about the values (the browser check covers the live mount)", () => {
     const inline = readFileSync(new URL("./cognition_wave_inline.tsx", import.meta.url), "utf8");
     const wave = readFileSync(new URL("./cognition_wave_panel.tsx", import.meta.url), "utf8");
-    expect(inline).toMatch(/<ToneRow scores=\{current\.scores\}/);
-    // The replay reading: the row at every position ("—" before his first words there).
-    expect(wave).toMatch(/<ToneRow scores=\{current\?\.scores\}/);
+    // One row for both (MonitorReading, backlog 0040): the reply's scores once read, the replay's at
+    // every position ("—" before his first words there).
+    expect(inline).toContain("<ToneRow scores={scores} />");
+    expect(inline).toMatch(/scores=\{shown\?\.scores\}/);
+    expect(wave).toContain("scores={current?.scores}");
     for (const src of [inline, wave]) {
       expect(src).not.toMatch(/ReadingLine|interpretWave|readingTitle/);
       expect(src).not.toContain("cm_reading_line");
