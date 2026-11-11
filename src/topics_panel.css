@@ -209,3 +209,65 @@
     min-width: 0;
   }
 }
+
+/* THE FACTS BLOCK (operator 2026-11-11, Entity backlog 0039: "terrible to
+ * have so much unformatted text"): label / value pairs on a line that wraps
+ * (the label in the meta colour, the value in the text colour, numbers in
+ * figures of one width); the most used memory a labelled row of its own, its
+ * title on one line (whole once lit, like a path); the paths' head the same
+ * label. A 4-6 px rhythm, no sentence. */
+.gc_topics .gc_tp_facts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 2px 0;
+  color: var(--text);
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.gc_topics .gc_tp_fact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gc_topics .gc_tp_label {
+  flex: none;
+  color: var(--text-dim);
+  font-size: max(calc(11px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+}
+
+.gc_topics .gc_tp_value {
+  min-width: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.gc_topics .gc_tp_hub {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: max(calc(11.5px * var(--font-scale, 1)), var(--ent-type-floor, 0px));
+  cursor: pointer;
+}
+
+.gc_topics .gc_tp_hub .gc_tp_hub_title {
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gc_topics .gc_tp_hub.gc_tp_hub_lit .gc_tp_hub_title {
+  overflow: visible;
+  white-space: normal;
+}

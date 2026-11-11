@@ -144,8 +144,24 @@ export const FACTS_WINDOW_DAYS = 7;
 export const VERDICT_SENTENCE: Record<typeof NO_COMMON_SUBJECT, string> = {
   [NO_COMMON_SUBJECT]: "He found no common subject in these memories.",
 };
-export const CENTROID_STALE_NOTE = "placement may be stale until his next sleep";
-export const PATHS_HEAD = "paths most travelled";
+/** The facts block's labels (operator 2026-11-11, Entity backlog 0039:
+ * "terrible to have so much unformatted text"): each fact a short label in
+ * the meta colour and its value, never a sentence. */
+export const FACT_LABELS = {
+  activity: "Used",
+  bridges: "Bridges",
+  changed: "Changed since sleep",
+  stale: "Placement",
+  hub: "Most used",
+} as const;
+export const CENTROID_STALE_NOTE = "stale until his next sleep";
+export const PATHS_HEAD = "Paths most travelled";
+
+/** A count with its thousands separated ("1,407"). */
+const NUMBER = new Intl.NumberFormat("en-US");
+export function countWords(n: number): string {
+  return NUMBER.format(n);
+}
 /** The most paths a topic lists: memory's own top (abstractmemory
  * community_index.FACTS_PATHS_TOP; pinned by the test). */
 export const PATHS_SHOWN = 5;
@@ -214,7 +230,12 @@ export function agoWords(iso: string, nowMs: number, timeZone?: string): string 
 }
 
 export type TopicFact =
-  | { kind: "kinds" | "span" | "activity" | "hub" | "bridges" | "changed" | "stale"; text: string }
+  /** The lead lines, in the topic's own row. */
+  | { kind: "kinds" | "span"; text: string }
+  /** A fact of the facts block: its label and its value. */
+  | { kind: "activity" | "bridges" | "changed" | "stale"; label: string; value: string }
+  /** Its most used memory: the title, and the record id the graph lights. */
+  | { kind: "hub"; label: string; value: string; id: string }
   | { kind: "paths"; text: string; paths: TopicPath[] };
 
 /** A pair of memories most used together: their titles (a, b), how often,
@@ -245,24 +266,22 @@ export function topicFacts(c: ServedCommunity, titleOf: (graphId: string) => str
   if (last) span.push(`last formed ${agoWords(last, nowMs, timeZone)}`);
   if (first && !(last && dayWords(first, timeZone) === dayWords(last, timeZone))) span.push(`since ${dayWords(first, timeZone)}`);
   if (span.length) out.push({ kind: "span", text: span.join(" · ") });
-  if (f.activity !== undefined) {
-    const n = f.activity;
-    out.push({ kind: "activity", text: n === 0 ? `not used in the last ${FACTS_WINDOW_DAYS} days` : `used ${n} ${n === 1 ? "time" : "times"} in the last ${FACTS_WINDOW_DAYS} days` });
-  }
+  if (f.activity !== undefined) out.push({ kind: "activity", label: FACT_LABELS.activity, value: `${countWords(f.activity)}× · ${FACTS_WINDOW_DAYS} days` });
   const hub = f.hub ? titleOf(f.hub) : null;
-  if (hub) out.push({ kind: "hub", text: `most used: ${hub}` });
+  if (hub && f.hub) out.push({ kind: "hub", label: FACT_LABELS.hub, value: hub, id: f.hub });
   const bridges = f.bridges?.length ?? 0;
-  if (bridges > 0) out.push({ kind: "bridges", text: `${bridges} ${bridges === 1 ? "memory bridges" : "memories bridge"} to other topics` });
+  if (bridges > 0) out.push({ kind: "bridges", label: FACT_LABELS.bridges, value: `${countWords(bridges)} ${bridges === 1 ? "memory" : "memories"}` });
   const ch = f.changed;
   if (ch) {
+    // "+5 · −2": memories joined, moved out.
     const parts: string[] = [];
-    if (ch.added > 0) parts.push(`+${ch.added} joined`);
-    if (ch.moved > 0) parts.push(`${ch.moved} moved out`);
+    if (ch.added > 0) parts.push(`+${countWords(ch.added)}`);
+    if (ch.moved > 0) parts.push(`−${countWords(ch.moved)}`);
     if (ch.splitFrom) {
       const origin = ch.splitFrom !== c.key ? topicTitleOf(ch.splitFrom) : null;
       parts.push(origin ? `split from “${origin}”` : "split from a larger topic");
     }
-    if (parts.length) out.push({ kind: "changed", text: `changed since his last sleep: ${parts.join(" · ")}` });
+    if (parts.length) out.push({ kind: "changed", label: FACT_LABELS.changed, value: parts.join(" · ") });
   }
   const paths: TopicPath[] = [];
   for (const p of f.paths ?? []) {
@@ -271,18 +290,24 @@ export function topicFacts(c: ServedCommunity, titleOf: (graphId: string) => str
     if (a && b && paths.length < PATHS_SHOWN) paths.push({ a, b, count: p.count, from: p.from, to: p.to });
   }
   if (paths.length) out.push({ kind: "paths", text: PATHS_HEAD, paths });
-  if (c.centroidStale) out.push({ kind: "stale", text: CENTROID_STALE_NOTE });
+  if (c.centroidStale) out.push({ kind: "stale", label: FACT_LABELS.stale, value: CENTROID_STALE_NOTE });
   return out;
 }
 
 /** A path in words: "a ↔ b (4)" (its row's text). */
 export function pathText(p: Pick<TopicPath, "a" | "b" | "count">): string {
-  return `${p.a} ↔ ${p.b} (${p.count})`;
+  return `${p.a} ↔ ${p.b} (${countWords(p.count)})`;
 }
 
-/** The facts as one line of text (the row's accessible text). */
+/** A fact as one line of text: "Used 1,407× · 7 days" (a row's typeahead text). */
+export function factText(f: TopicFact): string {
+  if (f.kind === "paths") return `${f.text}: ${f.paths.map(pathText).join("; ")}`;
+  return "label" in f ? `${f.label} ${f.value}` : f.text;
+}
+
+/** The facts as one line of text (the row's typeahead text). */
 export function factsText(facts: TopicFact[]): string {
-  return facts.map((f) => (f.kind === "paths" ? `${f.text}: ${f.paths.map(pathText).join("; ")}` : f.text)).join(". ");
+  return facts.map(factText).join(". ");
 }
 
 /** Topics biggest first (the count each row says; ties by key: stable). */
@@ -291,9 +316,11 @@ export function topicOrder(communities: ServedCommunity[]): ServedCommunity[] {
 }
 
 export type TopicRowData =
-  | { kind: "topic"; c: ServedCommunity; loaded: number; lead: TopicFact[] }
+  | { kind: "topic"; c: ServedCommunity; loaded: number; lead: Array<Extract<TopicFact, { kind: "kinds" | "span" }>> }
   | { kind: "facts"; c: ServedCommunity; facts: TopicFact[] }
   | { kind: "paths_head"; c: ServedCommunity }
+  /** Its most used memory, a row of its own: `ids`, that memory's graph node id. */
+  | { kind: "hub"; c: ServedCommunity; fact: Extract<TopicFact, { kind: "hub" }>; ids: string[] }
   /** `ids`: its two memories' graph node ids (the fold's rows). */
   | { kind: "path"; c: ServedCommunity; path: TopicPath; ids: string[] }
   | { kind: "types"; c: ServedCommunity }
@@ -307,6 +334,7 @@ export const topicRowKey = (key: string) => `topic:${key}`;
 export const memberRowKey = (key: string, row: string) => `member:${key}:${row}`;
 export const factsRowKey = (key: string) => `facts:${key}`;
 export const pathsHeadRowKey = (key: string) => `paths:${key}`;
+export const hubRowKey = (key: string) => `hub:${key}`;
 export const pathRowKey = (key: string, p: Pick<TopicPath, "from" | "to">) => `path:${key}:${p.from}:${p.to}`;
 export const unloadedRowKey = (key: string) => `unloaded:${key}`;
 export const groupRowKey = (key: string, memoryKind: string) => `group:${key}:${memoryKind}`;
@@ -398,12 +426,17 @@ export function topicRows(
     const open = expanded.has(c.key);
     const nodes = (rowsOf.get(c.key) ?? []).map((r) => fold.nodes.get(r)).filter((n): n is NodeState => Boolean(n));
     const all = open ? topicFacts(c, titleOf, topicTitleOf, undefined, nowMs) : [];
-    const lead = all.filter((f) => LEAD_FACTS.has(f.kind));
+    const lead = all.filter((f): f is Extract<TopicFact, { kind: "kinds" | "span" }> => LEAD_FACTS.has(f.kind));
     out.push({ key: topicRowKey(c.key), entityId: c.key, depth: 0, expandable: true, expanded: open, textValue: topicTitle(c, TITLE_BEING_WRITTEN), data: { kind: "topic", c, loaded: nodes.length, lead } });
     if (!open) continue;
-    const facts = all.filter((f) => !LEAD_FACTS.has(f.kind) && f.kind !== "paths");
+    const facts = all.filter((f) => !LEAD_FACTS.has(f.kind) && f.kind !== "paths" && f.kind !== "hub");
     if (facts.length) {
       out.push({ key: factsRowKey(c.key), entityId: factsRowKey(c.key), parentKey: topicRowKey(c.key), depth: 1, expandable: false, selectable: false, textValue: factsText(facts), data: { kind: "facts", c, facts } });
+    }
+    const hub = all.find((f): f is Extract<TopicFact, { kind: "hub" }> => f.kind === "hub");
+    if (hub) {
+      const key = hubRowKey(c.key);
+      out.push({ key, entityId: key, parentKey: topicRowKey(c.key), depth: 1, expandable: false, textValue: factText(hub), data: { kind: "hub", c, fact: hub, ids: [rowOf(hub.id)] } });
     }
     const paths = all.find((f): f is Extract<TopicFact, { kind: "paths" }> => f.kind === "paths");
     if (paths) {
@@ -673,7 +706,7 @@ export function panelLights(host: PanelLightsHost, timers?: HoverIntentTimers): 
   return {
     setRows(rows) {
       idsOf = new Map();
-      for (const r of rows) if (r.data?.kind === "path" || r.data?.kind === "group") idsOf.set(r.key, r.data.ids);
+      for (const r of rows) if (r.data?.kind === "path" || r.data?.kind === "group" || r.data?.kind === "hub") idsOf.set(r.key, r.data.ids);
       if (pinned !== null && !idsOf.has(pinned)) pinned = null;
       update();
       const key = revealing;
@@ -806,20 +839,34 @@ export function renderTopicRow(row: TopicRow, ctx: RowContext): React.ReactNode 
     );
   }
   if (d.kind === "facts") {
+    // Label / value pairs on a line that wraps (backlog 0039): never a sentence.
     return (
       <span className="gc_tp_facts gc_tp_card" style={cardOf.get(d.c.key)} data-facts={d.c.key} data-tkey={d.c.key}>
-        {d.facts.map((f) => (
-          <span key={f.kind} className={`gc_tp_fact gc_tp_fact_${f.kind}`}>
-            {f.text}
-          </span>
-        ))}
+        {d.facts.map((f) =>
+          "label" in f ? (
+            <span key={f.kind} className={`gc_tp_fact gc_tp_fact_${f.kind}`}>
+              <span className="gc_tp_label">{f.label}</span>
+              <span className="gc_tp_value">{f.value}</span>
+            </span>
+          ) : null,
+        )}
+      </span>
+    );
+  }
+  if (d.kind === "hub") {
+    // A labelled row: its memory's title on one line, the whole title once lit; lit and framed like a path.
+    const lit = shownRow === row.key;
+    return (
+      <span className={`gc_tp_hub gc_tp_card${lit ? " gc_tp_hub_lit" : ""}`} style={cardOf.get(d.c.key)} data-rows={row.key} data-tkey={d.c.key} onClick={() => ctx.clickPath(row.key)}>
+        <span className="gc_tp_label">{d.fact.label}</span>
+        <span className="gc_tp_value gc_tp_hub_title">{d.fact.value}</span>
       </span>
     );
   }
   if (d.kind === "paths_head") {
     return (
       <span className="gc_tp_paths_head gc_tp_card" style={cardOf.get(d.c.key)} data-tkey={d.c.key}>
-        {row.textValue}
+        <span className="gc_tp_label">{row.textValue}</span>
       </span>
     );
   }
@@ -831,7 +878,7 @@ export function renderTopicRow(row: TopicRow, ctx: RowContext): React.ReactNode 
         <span className="gc_tp_path_end">{d.path.a}</span>
         <span className="gc_tp_path_sep">↔</span>
         <span className="gc_tp_path_end">{d.path.b}</span>
-        <span className="gc_tp_path_count">({d.path.count})</span>
+        <span className="gc_tp_path_count">({countWords(d.path.count)})</span>
       </span>
     );
   }
@@ -1019,7 +1066,7 @@ export function TopicsPanel({ view, fold, rowsOf, waiting, focused, open, onTogg
             const d = row.data;
             if (!d) return;
             if (d.kind === "topic") clickTopic(d.c.key);
-            else if (d.kind === "path") lights.clickPath(row.key);
+            else if (d.kind === "path" || d.kind === "hub") lights.clickPath(row.key);
             else if (d.kind === "types" || d.kind === "group") toggleOpen(row.key);
             else if (d.kind === "member") onOpenMember(d.node);
           }}

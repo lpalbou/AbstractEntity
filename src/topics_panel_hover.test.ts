@@ -164,7 +164,7 @@ describe("the panel and the canvas are wired to it", () => {
     expect(PANEL).toContain("const stillInside = e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget);");
     expect(PANEL).toMatch(/hover\.blur\(stillInside\);\n\s+lights\.blur\(stillInside\);/);
     // Every row of a topic says which topic it is.
-    for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_paths_head", "gc_tp_path", "gc_tp_types_head", "gc_tp_group", "gc_tp_unloaded", "gc_tp_member"]) {
+    for (const cls of ["gc_tp_topic", "gc_tp_facts", "gc_tp_hub", "gc_tp_paths_head", "gc_tp_path", "gc_tp_types_head", "gc_tp_group", "gc_tp_unloaded", "gc_tp_member"]) {
       const line = PANEL.split("\n").find((l) => l.includes("<span") && l.includes(`"${cls}`) || (l.includes("<span") && l.includes(`\`${cls}`)));
       expect(line, cls).toBeTruthy();
       expect(line, cls).toContain("data-tkey={");
@@ -289,12 +289,12 @@ describe("rowsHover (a path, a memory type)", () => {
 
   it("the panel: a path's click and Enter go to the lights (panelLights.clickPath: topics_panel_lights.test.tsx)", () => {
     expect(PANEL).toContain("onClick={() => ctx.clickPath(row.key)}");
-    expect(PANEL).toContain('else if (d.kind === "path") lights.clickPath(row.key);');
+    expect(PANEL).toContain('else if (d.kind === "path" || d.kind === "hub") lights.clickPath(row.key);');
     expect(PANEL).toContain("const ctx: RowContext = { focused, shownRow, cardOf, colorOf, clickTopic, clickPath: lights.clickPath, toggleOpen, openMember: onOpenMember };");
   });
 
   it("a type's memories: looked up on a hover, grouped once per answer and fold (never per render)", () => {
-    expect(PANEL).toContain('for (const r of rows) if (r.data?.kind === "path" || r.data?.kind === "group") idsOf.set(r.key, r.data.ids);');
+    expect(PANEL).toContain('for (const r of rows) if (r.data?.kind === "path" || r.data?.kind === "group" || r.data?.kind === "hub") idsOf.set(r.key, r.data.ids);');
     expect(PANEL).toContain("const groupsOf = useMemo(() => groupsCache(), [communities, rowsOf, fold]);");
     expect(PANEL).toContain("topicRows(communities, expanded, rowsOf, fold, { opened, groupsOf })");
     // A type's click unfolds its memories (and the panel scrolls to them); it does not frame.

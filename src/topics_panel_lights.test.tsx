@@ -428,3 +428,27 @@ describe("a click on an unfolded topic folds it back to the card it was; the nex
     expect(topicRowOf(null)).toBeNull();
   });
 });
+
+// ------------------------------------------------------------ the most used memory (backlog 0039)
+
+describe("the most used memory: its row lights and frames that memory, like a path (backlog 0039)", () => {
+  const withHub = DATA.communities.map((c) => ({ ...c, facts: { ...c.facts, hub: "ex:episode-2" } }));
+  const rows = topicRows(withHub, new Set(["harbour"]), ROWS_OF, FOLD);
+  it("resting on it lights exactly its memory; leaving lets go; a click frames it and keeps it lit", () => {
+    expect(rows.map((r) => r.data?.kind)).toEqual(["topic", "hub", "paths_head", "path", "types"]);
+    const { lights, advance, calls } = setup(rows);
+    const li = rendered("hub:harbour", rows);
+    expect(inside(li, "gc_tp_label").getAttribute("class")).toBe("gc_tp_label");
+    lights.pointerOver(inside(li, "gc_tp_hub_title"), "mouse");
+    advance(HOVER_INTENT_MS - 1);
+    expect(calls.hover).toEqual([]);
+    advance(1);
+    expect(calls.hover).toEqual([["ex:episode-2"]]);
+    expect(calls.shown).toEqual(["hub:harbour"]);
+    lights.pointerLeave("mouse");
+    expect(calls.hover).toEqual([["ex:episode-2"], null]);
+    lights.clickPath("hub:harbour");
+    expect(calls.frame).toEqual([["ex:episode-2"]]);
+    expect(calls.hover).toEqual([["ex:episode-2"], null, ["ex:episode-2"]]);
+  });
+});

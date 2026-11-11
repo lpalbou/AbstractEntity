@@ -24,6 +24,7 @@ import {
   EMPTY_TOPIC_SENTENCE,
   FACTS_WINDOW_DAYS,
   factsText,
+  factText,
   memberOpensIn,
   memoriesWord,
   NO_TOPICS,
@@ -293,40 +294,52 @@ const titles: Record<string, string> = { "ex:episode-1": "the archive opens", "e
 const NOW = Date.parse("2026-11-10T12:00:00Z");
 
 describe("the topic view: what memory counts of it, in words", () => {
-  it("each fact in end-user words, memories and topics by their titles", () => {
+  it("each fact a label and a value (backlog 0039), memories and topics by their titles", () => {
     const facts = topicFacts(servedCommunity("harbour"), (id) => titles[id] ?? null, (k) => (k === "tides" ? "Tide tables" : null), "UTC", NOW);
     expect(facts).toEqual([
-      // What it holds by type (memory's kinds), and when its newest memory formed.
+      // What it holds by type (memory's kinds), and when its newest memory formed: the topic row's own lines.
       { kind: "kinds", text: "3 episodes" },
       { kind: "span", text: "last formed yesterday · since 7 Jul 2026" },
-      { kind: "activity", text: "used 12 times in the last 7 days" },
-      { kind: "hub", text: "most used: tide tables" },
-      { kind: "bridges", text: "2 memories bridge to other topics" },
-      { kind: "changed", text: "changed since his last sleep: +2 joined · 1 moved out · split from “Tide tables”" },
+      { kind: "activity", label: "Used", value: "12× · 7 days" },
+      // Its most used memory: the title, and the record id the graph lights.
+      { kind: "hub", label: "Most used", value: "tide tables", id: "ex:episode-2" },
+      { kind: "bridges", label: "Bridges", value: "2 memories" },
+      { kind: "changed", label: "Changed since sleep", value: "+2 · −1 · split from “Tide tables”" },
       // The pair whose other memory the graph does not hold is not said (never an id).
       // Each pair keeps its two memories' record ids (the graph lights and frames them).
       { kind: "paths", text: PATHS_HEAD, paths: [{ a: "the archive opens", b: "tide tables", count: 4, from: "ex:episode-1", to: "ex:episode-2" }] },
-      { kind: "stale", text: CENTROID_STALE_NOTE },
+      { kind: "stale", label: "Placement", value: CENTROID_STALE_NOTE },
     ]);
-    expect(CENTROID_STALE_NOTE).toBe("placement may be stale until his next sleep");
-    expect(factsText(facts)).toContain("paths most travelled: the archive opens ↔ tide tables (4)");
+    expect(CENTROID_STALE_NOTE).toBe("stale until his next sleep");
+    expect(factsText(facts)).toContain("Used 12× · 7 days. Most used tide tables. Bridges 2 memories");
+    expect(factsText(facts)).toContain("Paths most travelled: the archive opens ↔ tide tables (4)");
+  });
+
+  it("numbers with their thousands separated: uses, bridges, changes, a path's count", () => {
+    const harbour = servedCommunity("harbour");
+    const big = topicFacts({ ...harbour, kinds: new Map(), centroidStale: false, facts: { activity: 1407, bridges: Array.from({ length: 1109 }, (_, i) => `ex:b-${i}`), changed: { added: 1250, moved: 2, splitFrom: null }, paths: [{ from: "ex:episode-1", to: "ex:episode-2", count: 12345 }] } }, (id) => titles[id] ?? null, () => null, "UTC", NOW);
+    expect(big.map((f) => ("label" in f ? [f.label, f.value] : f.kind))).toEqual([["Used", "1,407× · 7 days"], ["Bridges", "1,109 memories"], ["Changed since sleep", "+1,250 · −2"], "paths"]);
+    expect(pathText({ a: "a", b: "b", count: 12345 })).toBe("a ↔ b (12,345)");
   });
 
   it("a fact that is empty, absent or would have to show an id is not said", () => {
     const tides = topicFacts(servedCommunity("tides"), () => "x", () => null, "UTC", NOW);
-    expect(tides).toEqual([{ kind: "kinds", text: "1 episode" }, { kind: "activity", text: "not used in the last 7 days" }]);
+    expect(tides).toEqual([{ kind: "kinds", text: "1 episode" }, { kind: "activity", label: "Used", value: "0× · 7 days" }]);
     // Nothing the graph holds: no hub, no paths; a split from no served topic (or itself) is "a larger topic".
     const harbour = servedCommunity("harbour");
     const bare = topicFacts(harbour, () => null, () => null, "UTC", NOW);
     expect(bare.map((f) => f.kind)).toEqual(["kinds", "span", "activity", "bridges", "changed", "stale"]);
-    expect(bare.find((f) => f.kind === "changed")?.text).toBe("changed since his last sleep: +2 joined · 1 moved out · split from a larger topic");
+    expect(bare.find((f) => f.kind === "changed")).toEqual({ kind: "changed", label: "Changed since sleep", value: "+2 · −1 · split from a larger topic" });
     const self = { ...harbour, kinds: new Map(), facts: { changed: { added: 0, moved: 0, splitFrom: "harbour" } } };
-    expect(topicFacts(self, () => null, () => "The harbour archive", "UTC", NOW)).toEqual([{ kind: "changed", text: "changed since his last sleep: split from a larger topic" }, { kind: "stale", text: CENTROID_STALE_NOTE }]);
+    expect(topicFacts(self, () => null, () => "The harbour archive", "UTC", NOW)).toEqual([
+      { kind: "changed", label: "Changed since sleep", value: "split from a larger topic" },
+      { kind: "stale", label: "Placement", value: CENTROID_STALE_NOTE },
+    ]);
     // Facts and kinds not served at all: nothing said; one use, one bridge in the singular; one day said once.
     expect(topicFacts({ ...harbour, kinds: new Map(), centroidStale: false, facts: {} }, () => "x", () => "y", "UTC", NOW)).toEqual([]);
     expect(topicFacts({ ...harbour, kinds: new Map([["episode", 0]]), centroidStale: false, facts: {} }, () => "x", () => "y", "UTC", NOW)).toEqual([]);
     const one = topicFacts({ ...harbour, kinds: new Map(), centroidStale: false, facts: { activity: 1, bridges: ["ex:episode-1"], span: { first: "2026-11-09T08:00:00+00:00", last: "2026-11-09T20:00:00+00:00" } } }, () => null, () => null, "UTC", NOW);
-    expect(one.map((f) => f.text)).toEqual(["last formed 16 hours ago", "used 1 time in the last 7 days", "1 memory bridges to other topics"]);
+    expect(one.map(factText)).toEqual(["last formed 16 hours ago", "Used 1× · 7 days", "Bridges 1 memory"]);
     // Only a first day served: since that day.
     const firstOnly = topicFacts({ ...harbour, kinds: new Map(), centroidStale: false, facts: { span: { first: "2026-07-07T12:00:00+00:00", last: null } } }, () => null, () => null, "UTC", NOW);
     expect(firstOnly).toEqual([{ kind: "span", text: "since 7 Jul 2026" }]);
@@ -348,16 +361,41 @@ describe("the topic view: what memory counts of it, in words", () => {
     expect(words).not.toContain("|since ");
     expect(words).not.toContain("last formed");
     expect(words).not.toContain("3 episodes");
-    expect(words).toContain("|used 12 times in the last 7 days|");
-    // Titles from the graph's nodes.
-    expect(words).toContain("|most used: tide tables for the week|");
-    expect(words).toContain("|2 memories bridge to other topics|");
-    expect(words).toContain("|changed since his last sleep: +2 joined · 1 moved out · split from “Tide tables”|");
-    expect(words).toContain(`|${CENTROID_STALE_NOTE}|`);
-    // The paths are rows of their own (backlog 0015), not lines of this one.
+    // Label / value pairs (backlog 0039), in this order, each its label in the meta style and its value.
+    const pairs = [...facts.matchAll(/<span class="gc_tp_fact gc_tp_fact_(\w+)"><span class="gc_tp_label">([^<]+)<\/span><span class="gc_tp_value">([^<]+)<\/span><\/span>/g)].map((m) => [m[1], m[2], m[3]]);
+    expect(pairs).toEqual([
+      ["activity", "Used", "12× · 7 days"],
+      ["bridges", "Bridges", "2 memories"],
+      ["changed", "Changed since sleep", "+2 · −1 · split from “Tide tables”"],
+      ["stale", "Placement", CENTROID_STALE_NOTE],
+    ]);
+    // Nothing else in the block: no sentence (the prose the first cut wrote).
+    expect(text(`<span ${facts}`).replace(/\|/g, "")).toBe(pairs.map(([, l, v]) => `${l}${v}`).join(""));
+    expect(words).not.toMatch(/times in the last|memories bridge to|changed since his last sleep|most used:|placement may be/i);
+    // The most used memory and the paths are rows of their own, not lines of this one.
+    expect(words).not.toContain("Most used");
     expect(words).not.toContain(PATHS_HEAD);
     expect(facts).not.toContain("gc_tp_path");
     expect(facts).not.toContain("ex:");
+  });
+
+  it("the most used memory is a labelled row of its own: its title on one line, lit and framed like a path", () => {
+    const html = render(FACTS_VIEW, { focused: "harbour" });
+    const at = html.indexOf('class="gc_tp_hub gc_tp_card"');
+    expect(at).toBeGreaterThan(html.indexOf("gc_tp_facts"));
+    expect(at).toBeLessThan(html.indexOf("gc_tp_paths_head"));
+    const row = html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at));
+    // Focusable (the keyboard reaches it), says its topic and the row the lights know.
+    expect(row).not.toContain("aria-disabled");
+    expect(row).toContain('data-tkey="harbour"');
+    expect(row).toContain('data-rows="hub:harbour"');
+    expect(row).toContain('<span class="gc_tp_label">Most used</span><span class="gc_tp_value gc_tp_hub_title">tide tables for the week</span>');
+    const css = fs.readFileSync(path.resolve(__dirname, "topics_panel.css"), "utf8");
+    expect(css).toMatch(/\.gc_topics \.gc_tp_hub \.gc_tp_hub_title \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
+    expect(css).toMatch(/\.gc_topics \.gc_tp_hub\.gc_tp_hub_lit \.gc_tp_hub_title \{[^}]*white-space: normal;/);
+    // The paths' head: the same label.
+    const head = html.slice(html.indexOf("gc_tp_paths_head"), html.indexOf("</li>", html.indexOf("gc_tp_paths_head")));
+    expect(head).toContain(`<span class="gc_tp_label">${PATHS_HEAD}</span>`);
   });
 
   it("the verdict 'no common subject' is said under the summary, as his author's", () => {
@@ -533,7 +571,7 @@ describe("the paths most travelled: one row each, lit and framed from the panel 
   it("after the facts: a static head, then one focusable row per pair — 'a ↔ b (count)', its two memories' graph node ids", () => {
     const rows = harbourRows(FOLD);
     const at = rows.findIndex((r) => r.data?.kind === "paths_head");
-    expect(rows[at - 1].data?.kind).toBe("facts");
+    expect(rows.slice(at - 2, at).map((r) => r.data?.kind)).toEqual(["facts", "hub"]);
     expect(rows[at]).toMatchObject({ depth: 1, selectable: false, textValue: PATHS_HEAD });
     const paths = rows.filter((r) => r.data?.kind === "path");
     // The pair naming a memory the graph does not hold (ex:gone-9) is not said.
