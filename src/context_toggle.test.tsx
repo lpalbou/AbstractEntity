@@ -53,7 +53,11 @@ describe("wiring: the toggle is the one control of the recall highlight", () => 
   it("only the toggle writes the choice (Escape, an empty-canvas click or a selection never clear it)", () => {
     expect(view.match(/setContextOn\(/g)).toHaveLength(1);
     expect(view).toContain("writeContextChoice(sessionStore(), next)");
-    expect(canvas).not.toMatch(/showContext\s*=|setContext/);
+    // The canvas never writes the choice: no assignment to its showContext prop, no call to the view's setter or to the
+    // stored choice (identifiers by their whole name: the canvas's own setContextAt, the Context box's place, is not one).
+    expect(canvas).not.toMatch(/\bshowContext\s*=(?!=)/);
+    expect(canvas).not.toMatch(/\bsetContextOn\b/);
+    expect(canvas).not.toMatch(/\bwriteContextChoice\b/);
   });
 });
 
