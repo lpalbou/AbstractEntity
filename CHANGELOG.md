@@ -6,6 +6,7 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [0.12.1] - 2026-11-14
 
+- Each pending entity reply shows one set of working dots in its message body.
 - Confirmed diary resolutions remove answered questions and repaired problems from the
   Questions lens. Detail shows **Resolved** or **Repaired** while preserving the original record.
 - Resolution links remain correct when history loads in either order or you scrub the timeline.

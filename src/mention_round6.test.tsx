@@ -35,13 +35,15 @@ describe("an answer on its way is a bubble with its dots", () => {
     const user: DrawerMessage = { id: "m1", role: "user", content: "hey @Castor @Nerin" };
     const out = renderToStaticMarkup(<ChatMessageList messages={[user]} onDetail={() => undefined} pendingMentions={pending} />);
     expect(out.match(/pc-working-dots"/g)?.length).toBe(2);
-    expect(out.indexOf("Castor is answering")).toBeGreaterThan(out.indexOf('data-mid="m1"'));
+    expect(out.indexOf('class="pc-chat-role">Castor</span>')).toBeGreaterThan(out.indexOf('data-mid="m1"'));
+    expect(out).toContain('class="pc-chat-role">Nerin</span>');
+    expect(out.match(/aria-label="answering"/g)?.length).toBe(2);
     const afterCastor = pendingAfterReply(pending, castor);
     expect(afterCastor.map((p) => p.author.name)).toEqual(["Nerin"]);
     const replied: DrawerMessage = { id: "m2", role: "assistant", content: "Castor here.", author: entity("Castor") };
     const next = renderToStaticMarkup(<ChatMessageList messages={[user, replied]} onDetail={() => undefined} pendingMentions={afterCastor} />);
     expect(next.match(/pc-working-dots"/g)?.length).toBe(1);
-    expect(next).not.toContain("Castor is answering");
+    expect(next.match(/aria-label="answering"/g)?.length).toBe(1);
     expect(renderToStaticMarkup(<ChatMessageList messages={[user]} onDetail={() => undefined} />)).not.toContain("pc-working-dots");
   });
 
