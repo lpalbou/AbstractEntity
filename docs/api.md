@@ -183,8 +183,9 @@ The app reads payload version 2 as memory serves it: `version`, `version_seq`,
 - **Diary resolution.** With AbstractGateway 0.21.1, diary records can carry
   `resolves_status`, `resolved_record_id` and `resolves`. A confirmed
   `resolved_open_question` or `repaired_open_problem` links to the corresponding
-  question or problem within the same entity. The Questions lens hides that
-  typed target; Detail labels it Resolved or Repaired. Private projections omit
+  question or problem within the same entity. Detail labels that typed target
+  Resolved or Repaired. The graph uses search, topics and its clickable legend;
+  no Questions lens control is exposed. Private projections omit
   their question/problem type and remain generic diary records; the app does not
   infer that type from a resolution link. Ambiguous aliases and records
   without an owner remain open. These links do not close beliefs or rewrite
