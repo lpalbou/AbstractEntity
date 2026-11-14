@@ -180,6 +180,13 @@ The app reads payload version 2 as memory serves it: `version`, `version_seq`,
   `GET /card`), the app shows the record's title and "Older record: its
   summary was cut when saved; he rewrites it in his sleep." instead of the
   cut words. Without the flag, the words show as stored.
+- **Diary resolution.** With AbstractGateway 0.21.1, diary records can carry
+  `resolves_status`, `resolved_record_id` and `resolves`. A confirmed
+  `resolved_open_question` or `repaired_open_problem` links to the corresponding
+  question or problem within the same entity. The Questions lens hides that
+  target; Detail labels it Resolved or Repaired. Ambiguous aliases and records
+  without an owner remain open. These links do not close beliefs or rewrite
+  the original diary entry. Timeline scrubbing uses only the visible prefix.
 - **A Stop during an open.** A visit open answered with 409
   `stopped_use_resume` shows the gateway's sentence and **Resume and visit**.
 

@@ -96,6 +96,9 @@ export interface NodeState {
    * stream's display block carries it — the Questions lens + card keys.
    * null until memory ships diary_type on diary displays (dm#27). */
   diary_type: string | null;
+  resolves?: string | null;
+  resolves_status?: string | null;
+  resolved_record_id?: string | null;
   /** Diary projections render content-free (engine-side redaction). */
   diary: boolean;
   redacted: boolean;
@@ -431,6 +434,13 @@ function detectBookkeeping(node: NodeState, display: DisplayBlock): void {
 }
 
 function applyDisplayToNode(node: NodeState, display: DisplayBlock): void {
+  // Content-free resolution metadata also survives private act-only displays.
+  for (const key of ["resolves", "resolves_status", "resolved_record_id"] as const) {
+    const value = display[key];
+    if (typeof value === "string" && value.trim()) node[key] = value.trim();
+  }
+  if (typeof display.entry_id === "string" && display.entry_id) node.entry_id = display.entry_id;
+  if (typeof display.diary_type === "string" && display.diary_type) node.diary_type = display.diary_type;
   if (display.redacted === "diary") {
     node.diary = true;
     node.redacted = true;
@@ -748,6 +758,10 @@ function resolveUsageNode(state: FoldState, rowId: string, display: DisplayBlock
       node.redacted = node.redacted || graphNode.redacted;
       node.closed = node.closed ?? graphNode.closed;
       if (!node.entry_id) node.entry_id = graphNode.entry_id;
+      if (!node.diary_type) node.diary_type = graphNode.diary_type;
+      for (const key of ["resolves", "resolves_status", "resolved_record_id"] as const) {
+        if (!node[key]) node[key] = graphNode[key];
+      }
       if (!node.born_at) node.born_at = graphNode.born_at;
       if (!node.token_estimate) node.token_estimate = graphNode.token_estimate;
       if (!node.visit_id) node.visit_id = graphNode.visit_id;
