@@ -168,8 +168,8 @@ closed without any message says "Nothing to keep: no words were shared."
 The **Questions** lens hides a question once a diary entry confirms its resolution,
 and a problem once an entry confirms its repair. Detail keeps the original record
 and labels it **Resolved** or **Repaired**. Scrubbing before that entry shows the
-question open again. These markers need AbstractGateway 0.21.1; private entries do
-not expose their words.
+question open again. These markers need AbstractGateway 0.21.1. Private entries
+remain generic diary records: their words and question/problem type stay hidden.
 
 Chat also offers an optional **Avatar** view. It brings the entity to the center
 of the scene with one live line of what it reports, a Findings panel and the same composer,

@@ -31,7 +31,9 @@ describe('confirmed diary resolution',()=>{
     const confirmed=binding(3,'ex:a',{entry_id:'diary_a',resolves:'diary_q',resolves_status:'resolved_open_question'});
     expect(lensIds(foldEnvelopes([q,confirmed]),temporal,'questions')).toEqual(new Set());
   });
-  it('keeps private resolution content-free and does not treat another owner as its resolver',()=>{
+  it('keeps typed redacted replay content-free and does not treat another owner as its resolver',()=>{
+    // Redacted exports of typed public/legacy entries. Actual private projections
+    // omit their type and remain generic notes, outside the Questions lens.
     const q=binding(1,'ex:q',{entry_id:'diary_q',diary_type:'question',redacted:'diary'});
     const a=binding(2,'ex:a',{entry_id:'diary_a',resolves:'diary_q',resolves_status:'resolved_open_question',redacted:'diary'});
     const fold=foldEnvelopes([q,a]);

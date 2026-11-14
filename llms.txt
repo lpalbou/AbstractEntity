@@ -1,8 +1,9 @@
 # AbstractEntity
 
 Version 0.12.1. Confirmed diary resolutions hide answered questions and repaired
-problems from Questions and label their original records in Detail. Requires
-AbstractGateway 0.21.1 for these fields; private words remain private.
+problems from Questions and label their typed original records in Detail. Requires
+AbstractGateway 0.21.1 for these fields. Private projections remain generic diary
+records; neither their words nor their question/problem type is inferred.
 
 > The Entity app for AbstractFramework, published on npm as `@abstractframework/entity`: create entities (AI companions with a lasting memory that live on your AbstractGateway), talk with them, watch their memory as a live graph, and read their diaries. A thin React client served by the `abstractentity` command with no server state of its own; every view is read from the gateway and the memory engine's replay stream.
 

@@ -184,7 +184,9 @@ The app reads payload version 2 as memory serves it: `version`, `version_seq`,
   `resolves_status`, `resolved_record_id` and `resolves`. A confirmed
   `resolved_open_question` or `repaired_open_problem` links to the corresponding
   question or problem within the same entity. The Questions lens hides that
-  target; Detail labels it Resolved or Repaired. Ambiguous aliases and records
+  typed target; Detail labels it Resolved or Repaired. Private projections omit
+  their question/problem type and remain generic diary records; the app does not
+  infer that type from a resolution link. Ambiguous aliases and records
   without an owner remain open. These links do not close beliefs or rewrite
   the original diary entry. Timeline scrubbing uses only the visible prefix.
 - **A Stop during an open.** A visit open answered with 409
