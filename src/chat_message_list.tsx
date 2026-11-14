@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChatMessageCard, WorkingDots, type ChatMessage, type ChatMessageMention, type ChatNotice } from "@abstractframework/panel-chat";
+import { ChatMessageCard, type ChatMessage, type ChatMessageMention, type ChatNotice } from "@abstractframework/panel-chat";
 
 import { ClosingNotice } from "./closing_notice";
 import type { LedgerLine } from "./ledger_lines";
@@ -192,7 +192,7 @@ export function ChatMessageList({
       ))}
       {pendingMentions.map((p) => (
         <div key={p.key} className="cd_msg" data-role="pending">
-          <ChatMessageCard message={pendingMentionMessage(p)} renderFooter={() => <WorkingDots label={`${p.author.name || "The entity"} is answering`} />} {...NO_IMAGE_PROPS} />
+          <ChatMessageCard message={pendingMentionMessage(p)} {...NO_IMAGE_PROPS} />
         </div>
       ))}
       {closing ? (
