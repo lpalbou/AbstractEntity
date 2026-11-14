@@ -1,4 +1,4 @@
-# 1215: Show confirmed diary-question resolution in Questions and Detail
+# 1215: Preserve confirmed diary-question resolution in replay and Detail
 
 > Package: AbstractEntity, AbstractRuntime, AbstractMemory, AbstractGateway
 
@@ -14,7 +14,7 @@
 
 ## Current code reality
 
-NodeState/display fold did not retain resolution verdicts and Questions filtered only belief closure. A diary resolution therefore left an answered question under open Questions.
+NodeState/display fold did not retain resolution verdicts, so Detail could not identify a confirmed resolution. The pure graph-lens helper also ignored diary resolution, but the app removed lens controls on 2026-11-10; helper behavior does not establish an exposed Questions view.
 
 ## Scope and expected outcome
 
@@ -28,8 +28,9 @@ Targeted fold/lens/detail tests; privacy, ownership, duplicates, refusal, book-i
 
 2026-11-14: actual Runtime diary writes and SQLite Memory replay feed the Entity fold, lens and
 Detail plus shared panel-chat badges (four question/answer privacy combinations). Typed public
-targets leave Questions and show Resolved, including with a private answer. Actual private
-targets deliberately project as generic notes: they remain absent from Questions, their Detail
+targets show Resolved in Detail, including with a private answer. Pure lens-helper assertions
+also pass, but do not prove a Questions control in the shipped app. Actual private
+targets deliberately project as generic notes: their Detail
 does not invent a question type, and their badge hides the title. Replay/reload and no fabricated
 belief closure pass. This preserves the private projection policy. Evidence is the framework's
 `untracked/release-recovery-2026-11-13/resolution-{chain,ui}-proof` scripts and logs.
@@ -37,3 +38,8 @@ belief closure pass. This preserves the private projection policy. Evidence is t
 ## Release acceptance
 
 Code, tests and coredoc reach remote main; all exact-commit gates green; changed artifacts published in dependency order. Root/site publication remains held for operator GO.
+
+2026-11-14 browser-review correction: current app controls are graph search, topics and the
+clickable legend. No Questions lens is exposed. README/API/release notes and AI indexes describe
+Detail and timeline behavior without restoring the deliberately removed control. Earlier
+fold/lens/SSR evidence is helper/component evidence, not a browser Questions-view proof.

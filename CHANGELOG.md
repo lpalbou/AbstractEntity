@@ -4,15 +4,21 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-11-14
+
+- Correct the README and served AI guides to describe resolution markers in Detail and
+  timeline replay. The graph uses search, topics and its clickable legend; it exposes no
+  Questions lens. App behavior is unchanged.
+
 ## [0.12.1] - 2026-11-14
 
 - Each pending entity reply shows one set of working dots in its message body.
-- Confirmed diary resolutions remove answered questions and repaired problems from the
-  Questions lens. Detail shows **Resolved** or **Repaired** while preserving the original record.
+- Confirmed diary resolutions label answered public questions and repaired public problems
+  **Resolved** or **Repaired** in Detail while preserving the original record.
 - Resolution links remain correct when history loads in either order or you scrub the timeline.
   Ambiguous or ownerless links leave the question open. Private entries keep their words private.
 - Private projections keep their generic diary type; their question/problem type is not inferred
-  to add a Detail marker or place them in Questions.
+  to add a Detail marker.
 - Requires AbstractGateway 0.21.1 for resolution notices and the corresponding diary metadata.
 
 ## [0.12.0] - 2026-11-10
