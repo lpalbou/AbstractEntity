@@ -60,6 +60,9 @@ export interface DisplayBlock {
   /** Diary projection type (question | problem | idea | note | …) — live
    * on diary bindings; drives the hint chip's kind tint. */
   diary_type?: string;
+  resolves?: string;
+  resolves_status?: string;
+  resolved_record_id?: string;
   /** Engine bookkeeping markers (plan item 3 / M1b): the engram claim and
    * the reembed claim are engine state, not memories — the engine excludes
    * them from the self and from shelves, and the view must not draw them

@@ -8,12 +8,12 @@ the root backlog (`abstractframework/docs/backlog/`); an item here names its roo
 
 | State | Count |
 | --- | --- |
-| Planned | 32 |
+| Planned | 33 |
 | Proposed | 6 |
 | Completed | 10 |
 | Deprecated | 0 |
 
-`planned/` holds 37 files: the 32 planned items and five completed records (0002-0005, 0039) whose
+`planned/` holds 38 files: the 33 planned items and five completed records (0002-0005, 0039) whose
 move to `completed/` is pending. 0001 is folded into 0017 and closes with it.
 
 ## Next recommended work
@@ -129,3 +129,5 @@ None.
 - Completing an item: set `Status: Completed` and `Completed: <date>`, add what was done and its
   validation, move the file to `completed/`, update the counts and tables here in the same commit.
 - Deprecating: move to `deprecated/` with the reason, and list it above.
+
+2026-11-14: added planned [1215](planned/1215_confirmed_question_resolution_lens_and_detail.md) for the accepted release-recovery scope (root 1209).

@@ -4,6 +4,17 @@ All notable changes to `@abstractframework/entity` are recorded here.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-14
+
+- Each pending entity reply shows one set of working dots in its message body.
+- Confirmed diary resolutions remove answered questions and repaired problems from the
+  Questions lens. Detail shows **Resolved** or **Repaired** while preserving the original record.
+- Resolution links remain correct when history loads in either order or you scrub the timeline.
+  Ambiguous or ownerless links leave the question open. Private entries keep their words private.
+- Private projections keep their generic diary type; their question/problem type is not inferred
+  to add a Detail marker or place them in Questions.
+- Requires AbstractGateway 0.21.1 for resolution notices and the corresponding diary metadata.
+
 ## [0.12.0] - 2026-11-10
 
 On `@abstractframework/ui-kit` ^0.9.28 and `@abstractframework/panel-chat` ^0.9.13, both installed

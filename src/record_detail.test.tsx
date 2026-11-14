@@ -259,3 +259,13 @@ describe("the recall and feeling cards", () => {
     inOrder(html, ["A lesson he drew", "<dt>born</dt>", "Used together with", "the <strong>partner</strong> memory"]);
   });
 });
+
+it('shows a confirmed question resolution without a belief closure or private prose',()=>{
+  const question=node({id:'q',kind:'diary',diary:true,entry_id:'diary_q',diary_type:'question',title:'Question'});
+  const answer=node({id:'a',kind:'diary',diary:true,entry_id:'diary_a',resolves:'diary_q',resolves_status:'resolved_open_question'});
+  const resolved=createFoldState(); resolved.nodes.set('q',question); resolved.nodes.set('a',answer);
+  const html=renderToStaticMarkup(<RecordBody fold={resolved} node={question} source={null} state={{phase:'none'}} renderFacts={facts} onSelect={()=>{}} />);
+  expect(html).toContain('<strong>Resolved</strong>');
+  expect(html).not.toContain('Retracted'); expect(html).not.toContain('Superseded');
+  expect(question.closed).toBeNull();
+});

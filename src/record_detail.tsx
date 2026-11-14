@@ -36,6 +36,7 @@ import { DreamDetail } from "./dream_detail";
 import { dreamLine, kindWords, standingLine, wordsReadOnOpen } from "./record_detail_parts";
 import { WordsLine as SharedWordsLine } from "./words_line";
 import { Disclosure } from "./detail_fold";
+import { resolvedDiaryTargets } from "./diary_resolution";
 import { servedDigest } from "./understanding";
 import { CutSummary } from "./understanding_view";
 import { DigestNotYet, EarlierUnderstandings, ProvenanceLine, UnservedNote } from "./understanding_view";
@@ -279,6 +280,7 @@ export function RecordBody({ fold, node, source, state, renderFacts, onSelect, o
       </h3>
       <p className="rd_kind">{kindWords(node)}</p>
       <ClosedNotice fold={fold} node={node} onSelect={onSelect} />
+      {resolvedDiaryTargets(fold).has(node.id) ? <p className="rd_note"><strong>{node.diary_type === "problem" ? "Repaired" : "Resolved"}</strong> — recorded in his diary.</p> : null}
       {summary ? <div className="rd_key">{summary}</div> : null}
       {typeof summaryNote === "string" ? <p className="rd_note">{summaryNote}</p> : summaryNote}
       {renderFacts(null)}

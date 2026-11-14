@@ -1,3 +1,4 @@
+import { resolvedDiaryTargets } from "./diary_resolution";
 // GRAPH LENSES (maintainer sign-off 2026-07-12: "the memory graph is pretty
 // inefficient to access information").
 //
@@ -113,11 +114,12 @@ export function lensIds(fold: FoldState, temporal: TemporalActivation, lens: Gra
   }
 
   if (lens === "questions") {
+    const resolved = resolvedDiaryTargets(fold);
     for (const node of fold.nodes.values()) {
       // "What is it wondering" excludes resolved/retracted records — a
       // closed question under a lens named for open wondering was a lie
       // of scope (adversary P1).
-      if ((QUESTION_KINDS.has(node.kind) && !node.closed) || isOpenQuestionDiary(node)) out.add(node.id);
+      if (!resolved.has(node.id) && ((QUESTION_KINDS.has(node.kind) && !node.closed) || isOpenQuestionDiary(node))) out.add(node.id);
     }
     return out;
   }
